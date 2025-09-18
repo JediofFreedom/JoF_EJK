@@ -1583,6 +1583,7 @@ typedef enum //# animNumber_e
 	BOTH_TOSS2,				//# throwing to right after force gripping
 	//NEW force anims for JKA:
 	BOTH_FORCE_RAGE,
+	BOTH_FORCE_RAGE_LEVEL_1,
 	BOTH_FORCE_2HANDEDLIGHTNING,
 	BOTH_FORCE_2HANDEDLIGHTNING_START,
 	BOTH_FORCE_2HANDEDLIGHTNING_HOLD,
