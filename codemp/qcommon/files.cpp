@@ -2418,7 +2418,7 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 		if (file_info.uncompressed_size > 0) {
 			fs_headerLongs[fs_numHeaderLongs++] = LittleLong(file_info.crc);
 		}
-		Q_strlwr( filename_inzip );
+		// Q_strlwr( filename_inzip ); // Redundant? Hash is case insensitive, and we do a case insensitive compare when looking up files? + Files read from pk3s are always lowercase from this?
 		hash = FS_HashFileName(filename_inzip, pack->hashSize);
 		buildBuffer[i].name = namePtr;
 		strcpy( buildBuffer[i].name, filename_inzip );
