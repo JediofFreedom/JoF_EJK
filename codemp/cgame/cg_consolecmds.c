@@ -29,6 +29,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "game/bg_saga.h"
 #include "ui/ui_shared.h"
 
+#ifdef WIN32
+#include <windows.h>
+#endif
+
 /*
 =================
 CG_TargetCommand_f
@@ -2498,6 +2502,30 @@ void CG_Say_f( void ) {
 	}
 }
 
+static void CG_GameRestart_f(void) {
+	// Store the current server IP for auto-reconnect on next game start
+	// Check if we're connected (cg.snap exists), not playing a demo, and have a valid server address
+	if (cg.snap && !cg.demoPlayback && cl_currentServerAddress.string && cl_currentServerAddress.string[0] != '\0' && Q_stricmp(cl_currentServerAddress.string, "0") != 0) {
+		Com_Printf("^5saved ip %s\n", cl_currentServerAddress.string);
+		trap->Cvar_Set("cl_last_server", cl_currentServerAddress.string);
+		
+		// Force save immediately before game restart
+		// Use trap to send writeconfig command which will save all archived cvars
+		// Note: writeconfig requires a filename - adjust if your build uses different config filename
+		trap->SendConsoleCommand("writeconfig eternaljktc.cfg\n");
+		// Add a small wait to ensure writeconfig completes before quit
+		trap->SendConsoleCommand("wait 20\n");
+	}
+
+	char exe[MAX_PATH];
+
+	GetModuleFileName(NULL, exe, sizeof(exe));
+
+	ShellExecute(NULL, "open", exe, NULL, NULL, SW_SHOWNORMAL);
+
+	trap->SendConsoleCommand("quit\n");
+}
+
 typedef struct consoleCommand_s {
 	const char	*cmd;
 	void		(*func)(void);
@@ -2600,7 +2628,8 @@ static consoleCommand_t	commands[] = {
 	{ "do",							CG_Do_f },
 	{ "doStop",						CG_DoCancel_f },
 	{ "doCancel",					CG_DoCancel_f },
-	{"reply",						CG_Say_f}
+	{ "reply",						CG_Say_f},
+	{ "game_restart",				CG_GameRestart_f }
 };
 
 static const size_t numCommands = ARRAY_LEN( commands );

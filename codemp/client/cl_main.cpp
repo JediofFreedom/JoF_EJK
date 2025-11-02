@@ -137,6 +137,10 @@ cvar_t	*cl_afkTimeUnfocused;
 
 cvar_t	*cl_logChat;
 
+//Begin Olol's
+cvar_t* cl_last_server;
+//End Olol's
+
 #if defined(DISCORD) && defined(FINAL_BUILD)
 cvar_t	*cl_discordRichPresence;
 #endif
@@ -2705,6 +2709,15 @@ static void CL_CheckCvarUpdate(void)
 		cl_ratioFix->modified = qfalse;
 		CL_UpdateWidescreen();
 	}
+
+	if (cl_renderer->modified) {
+		cl_renderer->modified = qfalse;
+		// Only execute game_restart if cgame is loaded (it's a cgame command)
+		// Otherwise the command will fail with "Unknown command" warning
+		if (cls.cgameStarted) {
+			Cbuf_AddText("game_restart\n");
+		}
+	}
 }
 
 /*
@@ -3858,6 +3871,10 @@ void CL_Init( void ) {
 
 	cl_logChat = Cvar_Get("cl_logChat", "0", CVAR_ARCHIVE, "Toggle engine chat logs");
 
+	//Begin Olol's
+	cl_last_server = Cvar_Get("cl_last_server", "", CVAR_ARCHIVE, "Last connected server address");
+	//End Olol's
+
 #if defined(DISCORD) && defined(FINAL_BUILD)
 	cl_discordRichPresence = Cvar_Get("cl_discordRichPresence", "1", CVAR_ARCHIVE, "Allow/disallow sharing current game information on Discord profile status");
 #endif
@@ -3927,6 +3944,32 @@ void CL_Init( void ) {
 		cls.discordInitialized = qtrue;
 	}
 #endif
+
+Com_Printf("^5----- Olol's stuffs -----.\n");
+
+Com_Printf("^5Checking if we have a stored server address to reconnect to\n");
+Com_Printf("^5cl_last_server cvar pointer: %p\n", cl_last_server);
+if (cl_last_server) {
+	Com_Printf("^5cl_last_server->string: '%s' (length: %d)\n", cl_last_server->string ? cl_last_server->string : "(null)", cl_last_server->string ? (int)strlen(cl_last_server->string) : 0);
+}
+// Check if we have a stored server address to reconnect to
+if (cl_last_server && cl_last_server->string && cl_last_server->string[0] != '\0') {
+	// Only connect if we're not already connected (avoid loops)
+	if (cls.state == CA_DISCONNECTED) {
+		const char* serverAddr = cl_last_server->string;
+		Com_Printf("^5Reconnecting to last server: %s\n", serverAddr);
+		Cbuf_AddText(va("connect %s\n", serverAddr));
+		// Clear the stored server address after scheduling the connect
+		Cvar_Set("cl_last_server", "");
+	} else {
+		Com_Printf("^5Not reconnecting - cls.state is %d (need CA_DISCONNECTED=%d)\n", cls.state, CA_DISCONNECTED);
+	}
+} else {
+	Com_Printf("^5No stored server address to reconnect to\n");
+}
+
+Com_Printf("^5----- Olol's stuffs done -----.\n");
+
 
 	Com_Printf( "----- Client Initialization Complete -----\n" );
 }
