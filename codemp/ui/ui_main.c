@@ -12132,14 +12132,22 @@ void UI_BuildQ3Model_List( void )
 					uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = trap->R_RegisterShaderNoMip(iconPath);
 					if (ui_showAllSkins.integer && !ui_sv_pure.integer && !uiInfo.q3HeadIcons[uiInfo.q3HeadCount])
 					{
-						if (!Q_stricmp(skinname+1, "red"))
-							uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconRed;
-						else if (!Q_stricmp(skinname+1, "blue"))
-							uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconBlue;
-						else if (!Q_stricmpn(skinname+1, "rgb", 3) || !Q_stricmp(skinname+1, "sp"))
-							uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconRGB;
-						else
-							uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIcon;
+						if (ui_showAllSkins.integer >= 2 && !ui_sv_pure.integer)
+						{
+							if (!Q_stricmp(skinname+1, "red"))
+								uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconRed;
+							else if (!Q_stricmp(skinname+1, "blue"))
+								uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconBlue;
+							else if (!Q_stricmpn(skinname+1, "rgb", 3) || !Q_stricmp(skinname+1, "sp"))
+								uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconRGB;
+							else
+								uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIcon;
+						}
+						else if (ui_showAllSkins.integer > 0)
+						{
+							uiInfo.q3HeadNames[uiInfo.q3HeadCount][0] = '\0';
+							continue;
+						}
 					}
 				}
 

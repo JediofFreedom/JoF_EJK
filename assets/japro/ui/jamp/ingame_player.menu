@@ -298,6 +298,7 @@
 			{
 				@MENUS_OFF 0
 				@MENUS_ON 1
+				"All" 2
 			}
 			rect				200 50 160 20
 			textalign			ITEM_ALIGN_LEFT
