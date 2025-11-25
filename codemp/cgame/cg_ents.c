@@ -3836,6 +3836,19 @@ Ghoul2 Insert Start
 			trap->S_AddLocalSet(soundSet, cg.refdef.vieworg, cent->lerpOrigin, cent->currentState.number, cg.time);
 		}
 	}
+
+	if (cent->currentState.eFlags2 & EF2_BOBAFIRED
+		&& cent->flameThrowerHitTime < cg.snap->serverTime)
+	{
+		matrix3_t axis;
+		cent->flameThrowerHitTime = cg.snap->serverTime + 350;
+		AnglesToAxis(cent->lerpAngles, axis);
+		trap->FX_PlayEntityEffectID(cgs.effects.flameThrowerHit,
+			cent->lerpOrigin,
+			axis,
+			-1, -1, -1, -1);
+	}
+		
 /*
 Ghoul2 Insert End
 */

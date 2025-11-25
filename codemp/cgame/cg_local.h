@@ -580,7 +580,7 @@ typedef struct centity_s {
 #endif
 
 	unsigned int	flameDebounceTime;
-	unsigned int	flameDebounceSoundTime;
+	unsigned int	flameThrowerHitTime;
 } centity_t;
 
 
@@ -2029,6 +2029,7 @@ typedef struct cgEffects_s {
 	fxHandle_t	waterBreath;
 
 	fxHandle_t	flameThrowerVfx;
+	fxHandle_t	flameThrowerHit;
 } cgEffects_t;
 
 #define MAX_STATIC_MODELS 4000

@@ -11589,18 +11589,6 @@ skipTrail:
 		
 		if (cgs.serverMod >= SVMOD_JAPLUS && cent->currentState.eFlags & EF_BOBAFIRE)
 		{
-			if (cent->flameDebounceSoundTime < cg.snap->serverTime)
-			{
-				cent->flameDebounceSoundTime = cg.snap->serverTime + 200;
-
-				trap->S_StartSound(
-					NULL,
-					cent->currentState.number,
-					CHAN_AUTO,
-					cgs.media.flameThrowerSound
-				);
-			}
-
 			if (cent->flameDebounceTime < cg.snap->serverTime)
 			{
 				cent->flameDebounceTime = cg.snap->serverTime + 10;
