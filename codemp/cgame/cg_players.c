@@ -3242,6 +3242,8 @@ static void CG_SetLerpFrameAnimation( centity_t *cent, clientInfo_t *ci, lerpFra
 	int blendTime = 100;
 	float oldSpeed = lf->animationSpeed;
 
+	
+
 	if (cent->localAnimIndex > 0)
 	{ //rockettroopers can't have broken arms, nor can anything else but humanoids
 		ci->brokenLimbs = cent->currentState.brokenLimbs;
@@ -11124,6 +11126,8 @@ void CG_Player( centity_t *cent ) {
 		if (cent->currentState.legsAnim == BOTH_RUN2)
 			cent->currentState.legsAnim = BOTH_RUN1;*/
 	}
+		if (cent->currentState.activeForcePass && cent->currentState.eFlags & EF_BOBAFIRE && cent->currentState.NPC_class != CLASS_VEHICLE)
+			cent->currentState.torsoAnim = BOTH_FORCELIGHTNING_HOLD;
 
 	CG_G2PlayerAngles( cent, legs.axis, rootAngles );
 	CG_G2PlayerHeadAnims( cent );
@@ -11494,6 +11498,7 @@ skipTrail:
 	if (cent->currentState.activeForcePass > FORCE_LEVEL_3
 		&& cent->currentState.NPC_class != CLASS_VEHICLE)
 	{
+		
 		matrix3_t axis;
 		vec3_t tAng, fAng, fxDir;
 		vec3_t efOrg;
@@ -11557,6 +11562,7 @@ skipTrail:
 	else if ( cent->currentState.activeForcePass
 		&& cent->currentState.NPC_class != CLASS_VEHICLE)
 	{//doing the electrocuting
+		
 		matrix3_t axis;
 		vec3_t tAng, fAng, fxDir;
 		vec3_t efOrg;
@@ -11580,7 +11586,32 @@ skipTrail:
 
 		AnglesToAxis( fAng, axis );
 
-		if ( cent->currentState.activeForcePass > FORCE_LEVEL_2 )
+		
+		if (cgs.serverMod >= SVMOD_JAPLUS && cent->currentState.eFlags & EF_BOBAFIRE)
+		{
+			if (cent->flameDebounceSoundTime < cg.snap->serverTime)
+			{
+				cent->flameDebounceSoundTime = cg.snap->serverTime + 200;
+
+				trap->S_StartSound(
+					NULL,
+					cent->currentState.number,
+					CHAN_AUTO,
+					cgs.media.flameThrowerSound
+				);
+			}
+
+			if (cent->flameDebounceTime < cg.snap->serverTime)
+			{
+				cent->flameDebounceTime = cg.snap->serverTime + 10;
+				trap->FX_PlayEntityEffectID(
+					cgs.effects.flameThrowerVfx,
+					efOrg, axis,
+					-1, -1, -1, -1
+				);
+			}
+		}
+		else if ( cent->currentState.activeForcePass > FORCE_LEVEL_2 )
 		{//arc
 			//trap->FX_PlayEffectID( cgs.effects.forceLightningWide, efOrg, fxDir );
 			//trap->FX_PlayEntityEffectID(cgs.effects.forceLightningWide, efOrg, axis, cent->boltInfo, cent->currentState.number, -1, -1);

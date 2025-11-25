@@ -875,6 +875,9 @@ static void CG_RegisterSounds( void ) {
 
 	cgs.media.crackleSound = trap->S_RegisterSound( "sound/effects/energy_crackle.wav" );
 
+	if (cgs.serverMod >= SVMOD_JAPLUS)
+		cgs.media.flameThrowerSound = trap->S_RegisterSound("sound/effects/combustfire.mp3");
+
 //JAPRO - Clientside - Hitsounds Start
 	cgs.media.hitSound			= trap->S_RegisterSound( "sound/effects/hitsound.wav" );
 	cgs.media.hitSound2			= trap->S_RegisterSound( "sound/effects/hitsound2.wav" );
@@ -1334,6 +1337,9 @@ static void CG_RegisterGraphics( void ) {
 	//breathing efx from SP
 	cgs.effects.breath = trap->FX_RegisterEffect("effects/misc/breath.efx");
 	cgs.effects.waterBreath = trap->FX_RegisterEffect("effects/misc/waterbreath.efx");
+
+	if (cgs.serverMod >= SVMOD_JAPLUS)
+		cgs.effects.flameThrowerVfx = trap->FX_RegisterEffect("effects/env/flame_jet");
 
 	for ( i = 0 ; i < NUM_CROSSHAIRS ; i++ ) {
 		cgs.media.crosshairShader[i] = trap->R_RegisterShaderNoMip( va("gfx/2d/crosshair%c", 'a'+i) );
