@@ -3837,7 +3837,8 @@ Ghoul2 Insert Start
 		}
 	}
 
-	if (cent->currentState.eFlags2 & EF2_BOBAFIRED
+	if (cgs.serverMod >= SVMOD_JAPLUS
+		&& cent->currentState.eFlags2 & EF2_BOBAFIRED
 		&& cent->flameThrowerHitTime < cg.snap->serverTime)
 	{
 		matrix3_t axis;
