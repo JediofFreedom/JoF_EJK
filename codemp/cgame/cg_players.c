@@ -11494,7 +11494,9 @@ skipTrail:
 	{ //keep track of death anim frame for when we copy off the bodyqueue
 		ci->frame = cent->pe.torso.frame;
 	}
-
+				
+				qboolean stopFlameThrowerSnd = qtrue;
+				
 	if (cent->currentState.activeForcePass > FORCE_LEVEL_3
 		&& cent->currentState.NPC_class != CLASS_VEHICLE)
 	{
@@ -11586,18 +11588,23 @@ skipTrail:
 
 		AnglesToAxis( fAng, axis );
 
-		
-		if (cgs.serverMod >= SVMOD_JAPLUS && cent->currentState.eFlags & EF_BOBAFIRE)
+		if (cgs.serverMod >= SVMOD_JAPLUS
+		   && cent->currentState.eFlags & EF_BOBAFIRE)
 		{
-			if (cent->flameDebounceTime < cg.snap->serverTime)
+			if (cent->flameSndDebounceTime < cg.snap->serverTime)
 			{
-				cent->flameDebounceTime = cg.snap->serverTime + 10;
-				trap->FX_PlayEntityEffectID(
-					cgs.effects.flameThrowerVfx,
-					efOrg, axis,
-					-1, -1, -1, -1
+				cent->flameThrowerSndActive = qtrue;
+				cent->flameSndDebounceTime = cg.snap->serverTime + 2900;
+				trap->S_StartSound(
+				   cent->lerpOrigin, cent->currentState.number,
+				   CHAN_WEAPON,
+					cgs.media.flameThrowerSound
 				);
 			}
+
+			trap->FX_PlayEntityEffectID(cgs.effects.flameThrowerVfx, efOrg, axis, -1, -1, -1, -1);
+
+			stopFlameThrowerSnd = qfalse;
 		}
 		else if ( cent->currentState.activeForcePass > FORCE_LEVEL_2 )
 		{//arc
@@ -11620,7 +11627,12 @@ skipTrail:
 		}
 		*/
 	}
-
+				
+				if (stopFlameThrowerSnd && cent->flameThrowerSndActive)
+				{
+					cent->flameThrowerSndActive = qfalse;
+					trap->S_MuteSound(cent->currentState.number, CHAN_WEAPON);
+				}
 	//fullbody push effect
 	if (cent->currentState.eFlags & EF_BODYPUSH)
 	{

@@ -578,9 +578,10 @@ typedef struct centity_s {
 #if 1 //NPCLAGFIX2 adds this
 	qboolean		doLerp; // for entity position smoothing
 #endif
-
-	unsigned int	flameDebounceTime;
+	
+	unsigned int	flameSndDebounceTime;
 	unsigned int	flameThrowerHitTime;
+	qboolean		flameThrowerSndActive;
 } centity_t;
 
 
@@ -2027,7 +2028,7 @@ typedef struct cgEffects_s {
 	//breath effects
 	fxHandle_t	breath;
 	fxHandle_t	waterBreath;
-
+	
 	fxHandle_t	flameThrowerVfx;
 	fxHandle_t	flameThrowerHit;
 } cgEffects_t;

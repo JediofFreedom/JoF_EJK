@@ -3838,16 +3838,29 @@ Ghoul2 Insert Start
 	}
 
 	if (cgs.serverMod >= SVMOD_JAPLUS
-		&& cent->currentState.eFlags2 & EF2_BOBAFIRED
-		&& cent->flameThrowerHitTime < cg.snap->serverTime)
+		&& cent->currentState.eFlags2 & EF2_BOBAFIRED)
 	{
 		matrix3_t axis;
-		cent->flameThrowerHitTime = cg.snap->serverTime + 350;
 		AnglesToAxis(cent->lerpAngles, axis);
-		trap->FX_PlayEntityEffectID(cgs.effects.flameThrowerHit,
+		const qboolean moving = VectorLength(cent->playerState->velocity) != 0.0f;
+		
+		if (cent->flameThrowerHitTime < cg.snap->serverTime
+			&& moving)
+		{
+			cent->flameThrowerHitTime = cg.snap->serverTime + 100;
+			trap->FX_PlayEntityEffectID(cgs.effects.flameThrowerHit,
+				cent->lerpOrigin,
+				axis,
+				-1, -1, -1, -1);
+		}
+		else if (!moving)
+			trap->FX_PlayBoltedEffectID(cgs.effects.flameThrowerHit,
 			cent->lerpOrigin,
-			axis,
-			-1, -1, -1, -1);
+			cent->ghoul2,
+			-1,
+			-1, -1, 1, qfalse);
+
+
 	}
 		
 /*
