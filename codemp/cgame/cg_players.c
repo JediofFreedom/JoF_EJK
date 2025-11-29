@@ -10038,6 +10038,28 @@ void CG_DrawHatOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, qhand
 }
 //[/Kameleon]
 
+void CG_RageEffect(refEntity_t legs)
+{
+	legs.renderfx &= ~RF_FORCE_ENT_ALPHA;
+	legs.renderfx &= ~RF_MINLIGHT;
+
+	legs.renderfx |= RF_RGB_TINT;
+	legs.shaderRGBA[0] = 255;
+	legs.shaderRGBA[1] = legs.shaderRGBA[2] = 0;
+	legs.shaderRGBA[3] = 255;
+
+	if ( rand() & 1 )
+	{
+		legs.customShader = cgs.media.electricBodyShader;
+	}
+	else
+	{
+		legs.customShader = cgs.media.electricBody2Shader;
+	}
+
+	trap->R_AddRefEntityToScene(&legs);
+}
+
 extern qboolean BG_InSlopeAnim( int anim );
 extern void CG_CubeOutline(vec3_t mins, vec3_t maxs, int time, unsigned int color, float alpha);
 void CG_Player( centity_t *cent ) {
@@ -11534,9 +11556,9 @@ skipTrail:
 		{//arc
 			//trap->FX_PlayEffectID( cgs.effects.forceLightningWide, efOrg, fxDir );
 			//trap->FX_PlayEntityEffectID(cgs.effects.forceDrainWide, efOrg, axis, cent->boltInfo, cent->currentState.number, -1, -1);
-			if (cg_drainFX.integer)
+			if (cg_drainFX.integer == 2)
 				trap->FX_PlayEntityEffectID(cgs.effects.forceDrainWideJaPRO, efOrg, axis, -1, -1, -1, -1);
-			else if (cg_drainFX.integer == 2)
+			else if (cg_drainFX.integer == 1)
 				trap->FX_PlayEntityEffectID(cgs.effects.forceDrainWide, efOrg, axis, -1, -1, -1, -1);
 		}
 		else
@@ -11545,6 +11567,9 @@ skipTrail:
 			//trap->FX_PlayEntityEffectID(cgs.effects.forceDrain, efOrg, axis, cent->boltInfo, cent->currentState.number, -1, -1);
 			trap->FX_PlayEntityEffectID(cgs.effects.forceDrain, efOrg, axis, -1, -1, -1, -1);
 		}
+
+		if (cg.renderingThirdPerson || cent->currentState.number != cg.snap->ps.clientNum)
+			CG_RageEffect(legs);
 
 		/*
 		if (cent->bolt4 < cg.time)
@@ -13063,25 +13088,7 @@ stillDoSaber:
 	if ((cent->currentState.forcePowersActive & (1 << FP_RAGE)) &&
 		(cg.renderingThirdPerson || cent->currentState.number != cg.snap->ps.clientNum))
 	{
-		//legs.customShader = cgs.media.rageShader;
-		legs.renderfx &= ~RF_FORCE_ENT_ALPHA;
-		legs.renderfx &= ~RF_MINLIGHT;
-
-		legs.renderfx |= RF_RGB_TINT;
-		legs.shaderRGBA[0] = 255;
-		legs.shaderRGBA[1] = legs.shaderRGBA[2] = 0;
-		legs.shaderRGBA[3] = 255;
-
-		if ( rand() & 1 )
-		{
-			legs.customShader = cgs.media.electricBodyShader;
-		}
-		else
-		{
-			legs.customShader = cgs.media.electricBody2Shader;
-		}
-
-		trap->R_AddRefEntityToScene(&legs);
+		CG_RageEffect(legs);
 	}
 
 //Old effects
