@@ -11608,6 +11608,21 @@ skipTrail:
 		CG_ForcePushBodyBlur(cent);
 	}
 
+
+				if (cent->currentState.torsoAnim == BOTH_CHOKE3 && cent->currentState.legsAnim == BOTH_CHOKE3) {
+					if (!gotLHandMatrix)
+					{
+						trap->G2API_GetBoltMatrix(cent->ghoul2, 0, ci->bolt_lhand, &lHandMatrix, cent->turAngles, cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale);
+						gotLHandMatrix = qtrue;
+					}
+					vec3_t efOrg;
+					efOrg[0] = lHandMatrix.matrix[0][3];
+					efOrg[1] = lHandMatrix.matrix[1][3];
+					efOrg[2] = lHandMatrix.matrix[2][3] - 1;
+					CG_ForceGripEffect(efOrg);
+					CG_ForceGripEffect(efOrg);
+				}
+
 	if ( cent->currentState.powerups & (1 << PW_DISINT_4) )
 	{
 		vec3_t tAng;
