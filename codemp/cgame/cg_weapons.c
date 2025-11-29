@@ -2604,6 +2604,13 @@ void CG_MissileHitPlayer(int weapon, vec3_t origin, vec3_t dir, int entityNum, q
 	// NOTENOTE No bleeding in this game
 	CG_Bleed( origin, entityNum );//JAPRO - Clientside - Add Blood
 
+	// play a random hit sound
+	{
+		int randomIndex = Q_irand(0, 3);
+		sfxHandle_t hitSounds[4] = {cgs.media.weapongHitSound, cgs.media.weapongHitSound2, cgs.media.weapongHitSound3, cgs.media.weapongHitSound4};
+		trap->S_StartSound(NULL, entityNum, CHAN_AUTO, hitSounds[randomIndex]);
+	}
+
 	// some weapons will make an explosion with the blood, while
 	// others will just make the blood
 	switch ( weapon ) {

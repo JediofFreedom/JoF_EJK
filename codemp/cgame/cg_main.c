@@ -888,6 +888,11 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.gibBounce3Sound	= trap->S_RegisterSound( "sound/player/gibimp3.wav" );
 //JAPRO - Clientside - Hitsounds End
 
+	cgs.media.weapongHitSound			= trap->S_RegisterSound( "sound/effects/weaponHit1.wav" );
+	cgs.media.weapongHitSound2			= trap->S_RegisterSound( "sound/effects/weaponHit2.wav" );
+	cgs.media.weapongHitSound3			= trap->S_RegisterSound( "sound/effects/weaponHit3.wav" );
+	cgs.media.weapongHitSound4			= trap->S_RegisterSound( "sound/effects/weaponHit4.wav" );
+
 #ifdef JK2AWARDS
 	cgs.media.firstImpressiveSound = trap->S_RegisterSound( "sound/chars/protocol/misc/40MOM025" );
 	cgs.media.impressiveSound = trap->S_RegisterSound( "sound/chars/protocol/misc/40MOM025" );

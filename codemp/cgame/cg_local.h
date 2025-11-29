@@ -1720,6 +1720,11 @@ typedef struct cgMedia_s {
 	sfxHandle_t hitTeamSound;
 //JAPRO - Clientside - Hitsounds End
 
+	sfxHandle_t weapongHitSound;
+	sfxHandle_t weapongHitSound2;
+	sfxHandle_t weapongHitSound3;
+	sfxHandle_t weapongHitSound4;
+
 #ifdef JK2AWARDS
 	sfxHandle_t firstImpressiveSound;
 	sfxHandle_t impressiveSound;
