@@ -5515,6 +5515,62 @@ static const char *cg_pushBoneNames[] =
 	NULL
 };
 
+void CG_ForceGripped( const vec3_t org, qboolean darkSide )
+{
+	localEntity_t	*ex;
+
+	ex = CG_AllocLocalEntity();
+	ex->leType = LE_PUFF;
+	ex->refEntity.reType = RT_SPRITE;
+	ex->radius = 2.0f;
+	ex->startTime = cg.time;
+	ex->endTime = ex->startTime + 120;
+	VectorCopy( org, ex->pos.trBase );
+	ex->pos.trTime = cg.time;
+	ex->pos.trType = TR_LINEAR;
+	VectorScale( cg.refdef.viewaxis[1], 55, ex->pos.trDelta );
+
+	if ( darkSide )
+	{//make it red
+		ex->color[0] = 60;
+		ex->color[1] = 8;
+		ex->color[2] = 8;
+	}
+	else
+	{//blue
+		ex->color[0] = 24;
+		ex->color[1] = 32;
+		ex->color[2] = 40;
+	}
+	ex->refEntity.customShader = trap->R_RegisterShader( "gfx/effects/forcePush" );
+
+	ex = CG_AllocLocalEntity();
+	ex->leType = LE_PUFF;
+	ex->refEntity.reType = RT_SPRITE;
+	ex->refEntity.rotation = 180.0f;
+	ex->radius = 2.0f;
+	ex->startTime = cg.time;
+	ex->endTime = ex->startTime + 120;
+	VectorCopy( org, ex->pos.trBase );
+	ex->pos.trTime = cg.time;
+	ex->pos.trType = TR_LINEAR;
+	VectorScale( cg.refdef.viewaxis[1], -55, ex->pos.trDelta );
+
+	if ( darkSide )
+	{//make it red
+		ex->color[0] = 60;
+		ex->color[1] = 8;
+		ex->color[2] = 8;
+	}
+	else
+	{//blue
+		ex->color[0] = 24;
+		ex->color[1] = 32;
+		ex->color[2] = 40;
+	}
+	ex->refEntity.customShader = trap->R_RegisterShader( "gfx/effects/forcePush" );
+}
+
 static void CG_ForcePushBodyBlur( centity_t *cent )
 {
 	vec3_t fxOrg;
@@ -11610,17 +11666,12 @@ skipTrail:
 
 
 				if (cent->currentState.torsoAnim == BOTH_CHOKE3 && cent->currentState.legsAnim == BOTH_CHOKE3) {
-					if (!gotLHandMatrix)
-					{
-						trap->G2API_GetBoltMatrix(cent->ghoul2, 0, ci->bolt_lhand, &lHandMatrix, cent->turAngles, cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale);
-						gotLHandMatrix = qtrue;
-					}
 					vec3_t efOrg;
-					efOrg[0] = lHandMatrix.matrix[0][3];
-					efOrg[1] = lHandMatrix.matrix[1][3];
-					efOrg[2] = lHandMatrix.matrix[2][3] - 1;
-					CG_ForceGripEffect(efOrg);
-					CG_ForceGripEffect(efOrg);
+					trap->G2API_GetBoltMatrix(cent->ghoul2, 0, ci->bolt_head, &headMatrix, cent->lerpAngles, cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale);
+					BG_GiveMeVectorFromMatrix(&headMatrix, ORIGIN, efOrg);
+
+					efOrg[2] -= 8.0f;
+					CG_ForceGripped(efOrg, qtrue);
 				}
 
 	if ( cent->currentState.powerups & (1 << PW_DISINT_4) )
