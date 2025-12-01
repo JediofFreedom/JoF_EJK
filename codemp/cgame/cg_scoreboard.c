@@ -584,15 +584,14 @@ static int CG_TeamScoreboard( int y, team_t team, float fade, int maxClients, in
 		if ( !ci->infoValid ) {
 			continue;
 		}
-		if ( team != ci->team ) {               // keep same team filtering as original
+		if ( team != ci->team ) {               
 			continue;
 		}
 		if ( listed[i] ) {
-			continue;                           // already drawn above
+			continue;                           
 		}
 
 		if ( !countOnly ) {
-			// Fabricate a minimal score_t so CG_DrawClientScore prints dashes for stats
 			score_t fake;
 			memset(&fake, 0, sizeof(fake));
 			fake.client = i;
