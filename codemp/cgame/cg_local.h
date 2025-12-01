@@ -856,6 +856,7 @@ typedef struct score_s {
 	int				deaths; //JAPRO - Scoreboard Deaths
 	qboolean		perfect;
 	int				team;
+	qboolean		fake;
 } score_t;
 
 
