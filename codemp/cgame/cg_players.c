@@ -3734,20 +3734,30 @@ CG_PlayerAnimation
 qboolean PM_WalkingAnim( int anim );
 
 static void CG_PlayerAnimation( centity_t *cent, int *legsOld, int *legs, float *legsBackLerp,
-						int *torsoOld, int *torso, float *torsoBackLerp ) {
+					int *torsoOld, int *torso, float *torsoBackLerp ) {
 	clientInfo_t	*ci;
-	int				clientNum;
-	float			speedScale;
+	int					clientNum;
+	float				speedScale;
+	int					legsAnim;
+	int					torsoAnim;
 
 	clientNum = cent->currentState.clientNum;
+	legsAnim = cent->currentState.legsAnim;
+	torsoAnim = cent->currentState.torsoAnim;
+
+	if ( cg.canimsOverrideActive && cg.canimsOverrideAnim >= 0 && cg.snap &&
+		cg.snap->ps.clientNum == clientNum ) {
+		legsAnim = cg.canimsOverrideAnim;
+		torsoAnim = cg.canimsOverrideAnim;
+	}
 
 	if ( cg_noPlayerAnims.integer ) {
 		*legsOld = *legs = *torsoOld = *torso = 0;
 		return;
 	}
 
-	if (!PM_RunningAnim(cent->currentState.legsAnim) &&
-		!PM_WalkingAnim(cent->currentState.legsAnim))
+	if (!PM_RunningAnim(legsAnim) &&
+		!PM_WalkingAnim(legsAnim))
 	{ //if legs are not in a walking/running anim then just animate at standard speed
 		speedScale = 1.0f;
 	}
@@ -3774,7 +3784,7 @@ static void CG_PlayerAnimation( centity_t *cent, int *legsOld, int *legs, float 
 		ci = &cgs.clientinfo[ clientNum ];
 	}
 
-	CG_RunLerpFrame( cent, ci, &cent->pe.legs, cent->currentState.legsFlip, cent->currentState.legsAnim, speedScale, qfalse);
+	CG_RunLerpFrame( cent, ci, &cent->pe.legs, cent->currentState.legsFlip, legsAnim, speedScale, qfalse );
 
 	if (!(cent->currentState.forcePowersActive & (1 << FP_RAGE)))
 	{ //don't affect torso anim speed unless raged
@@ -3792,7 +3802,7 @@ static void CG_PlayerAnimation( centity_t *cent, int *legsOld, int *legs, float 
 	// If this is not a vehicle, you may lerm the frame (since vehicles never have a torso anim). -AReis
 	if ( cent->currentState.NPC_class != CLASS_VEHICLE )
 	{
-		CG_RunLerpFrame( cent, ci, &cent->pe.torso, cent->currentState.torsoFlip, cent->currentState.torsoAnim, speedScale, qtrue );
+		CG_RunLerpFrame( cent, ci, &cent->pe.torso, cent->currentState.torsoFlip, torsoAnim, speedScale, qtrue );
 
 		*torsoOld = cent->pe.torso.oldFrame;
 		*torso = cent->pe.torso.frame;

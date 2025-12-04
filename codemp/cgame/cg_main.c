@@ -2847,6 +2847,9 @@ Ghoul2 Insert Start
 //	memset( &cg, 0, sizeof( cg ) );
 	CG_Init_CG();
 	CG_InitItems();
+	
+	cg.canimsOverrideAnim = -1;
+
 
 	//create the global jetpack instance
 	CG_InitJetpackGhoul2();

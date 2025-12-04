@@ -70,6 +70,125 @@ static void CG_SizeDown_f (void) {
 	trap->Cvar_Set( "cg_viewsize", va( "%i", Q_max( cg_viewsize.integer - 10, 30 ) ) );
 }
 
+extern stringID_table_t animTable [MAX_ANIMATIONS+1];
+static void CG_Canims_List( int startIndex ) {
+	int totalAnims = 0;
+	int endIndex;
+	char buffer[1024];
+
+	while ( animTable[totalAnims].name && animTable[totalAnims].name[0] ) {
+		totalAnims++;
+	}
+
+	if ( startIndex < 0 ) {
+		startIndex = 0;
+	}
+
+	if ( startIndex >= totalAnims ) {
+		CG_Printf( "No animations starting at %d\n", startIndex );
+		return;
+	}
+
+	endIndex = startIndex + 100;
+	if ( endIndex > totalAnims ) {
+		endIndex = totalAnims;
+	}
+
+	buffer[0] = '\0';
+
+	for ( int i = startIndex; i < endIndex; i++ ) {
+		char line[64];
+		int currentLength;
+		int lineLength;
+
+		Com_sprintf( line, sizeof( line ), "%4d %s\n", animTable[i].id, animTable[i].name );
+
+		currentLength = strlen( buffer );
+		lineLength = strlen( line );
+
+		if ( currentLength + lineLength + 1 >= sizeof( buffer ) ) {
+			CG_Printf( "%s", buffer );
+			buffer[0] = '\0';
+		}
+
+		Q_strcat( buffer, sizeof( buffer ), line );
+	}
+
+	if ( buffer[0] ) {
+		CG_Printf( "%s", buffer );
+	}
+}
+
+static void CG_Canims_f( void )
+{
+	char subCmd[MAX_TOKEN_CHARS];
+	const int argc = trap->Cmd_Argc();
+
+	if ( argc < 2 ) {
+		CG_Printf( "Usage: canims <list|reset|play <animation>>\n" );
+		return;
+	}
+
+	trap->Cmd_Argv( 1, subCmd, sizeof( subCmd ) );
+
+	if ( !Q_stricmp( subCmd, "list" ) ) {
+		int startIndex = 0;
+
+		if ( argc >= 3 ) {
+			char indexArg[MAX_TOKEN_CHARS];
+
+			trap->Cmd_Argv( 2, indexArg, sizeof( indexArg ) );
+			startIndex = atoi( indexArg );
+		}
+
+		CG_Canims_List( startIndex );
+		return;
+	}
+
+	if ( !Q_stricmp( subCmd, "reset" ) ) {
+		cg.canimsOverrideActive = qfalse;
+		cg.canimsOverrideAnim = -1;
+		CG_Printf( "Client animation override cleared\n" );
+		return;
+	}
+
+	if ( !Q_stricmp( subCmd, "play" ) ) {
+		char animArg[MAX_TOKEN_CHARS];
+		int animIndex;
+
+		if ( argc < 3 ) {
+			CG_Printf( "Usage: canims play <animation>\n" );
+			return;
+		}
+
+		trap->Cmd_Argv( 2, animArg, sizeof( animArg ) );
+
+		if ( animArg[0] >= '0' && animArg[0] <= '9' ) {
+			animIndex = atoi( animArg );
+		}
+		else {
+			animIndex = GetIDForString( animTable, animArg );
+		}
+
+		if ( animIndex < 0 || animIndex >= MAX_ANIMATIONS ) {
+			CG_Printf( "Unknown animation '%s'\n", animArg );
+			return;
+		}
+
+		cg.canimsOverrideActive = qtrue;
+		cg.canimsOverrideAnim = animIndex;
+
+		{
+			const char *animName = GetStringForID( animTable, animIndex );
+			CG_Printf( "Playing animation %s (%i)\n", animName ? animName : animArg, animIndex );
+		}
+		return;
+	}
+
+	CG_Printf( "Usage: canims <list|reset|play <animation>>\n" );
+}
+
+
 /*
 =============
 CG_Viewpos_f
@@ -2539,6 +2658,7 @@ static consoleCommand_t	commands[] = {
 	{ "weapprev",					CG_PrevWeapon_f },
 	{ "showPlayerId",				CG_ClientList_f },
 	{ "cameraSettings",				CG_ShowSpecCamera_f },
+	{ "canims",						CG_Canims_f },
 	{ "ignoreVGS",					CG_IgnoreVGS_f },
 	{ "serverconfig",				CG_ServerConfig_f },
 	{ "autoLogin",					CG_Autologin_f },

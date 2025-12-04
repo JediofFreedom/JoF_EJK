@@ -1268,6 +1268,10 @@ Ghoul2 Insert End
 		TCGCameraShake				cameraShake;
 	} sharedBuffer;
 
+	// custom animation override
+	qboolean			canimsOverrideActive;
+	int				canimsOverrideAnim;
+
 	short				radarEntityCount;
 	short				radarEntities[MAX_CLIENTS+16];
 
