@@ -112,7 +112,7 @@ XCVAR_DEF( cg_duelMusic,						"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_saberHum,							"0",	NULL,								CVAR_ARCHIVE )
 
 //Visuals
-XCVAR_DEF( cg_remaps,							"1",	NULL,								CVAR_ARCHIVE|CVAR_LATCH )
+XCVAR_DEF( cg_remaps,							"2",	NULL,								CVAR_ARCHIVE|CVAR_LATCH )
 XCVAR_DEF( cg_instantDuck,						"0",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_screenShake,						"2",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawScreenTints,					"1",	NULL,								CVAR_ARCHIVE )
