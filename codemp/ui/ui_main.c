@@ -6413,11 +6413,27 @@ void UI_UpdateVideoSetup ( void )
 	trap->Cvar_Set ( "r_inGameVideo", UI_Cvar_VariableString ( "ui_r_inGameVideo" ) );
 	trap->Cvar_Set ( "r_allowExtensions", UI_Cvar_VariableString ( "ui_r_allowExtensions" ) );
 	trap->Cvar_Set ( "cg_shadows", UI_Cvar_VariableString ( "ui_cg_shadows" ) );
-	trap->Cvar_Set ( "cl_renderer", UI_Cvar_VariableString ( "ui_cl_renderer" ) );
+	const char* wantedRenderer = UI_Cvar_VariableString("ui_cl_renderer");
+	int vulkanSupported = atoi(UI_Cvar_VariableString("ui_vulkan_supported"));
+	qboolean changeVid = qtrue;
+	if (!Q_stricmp(wantedRenderer, "rd-vulkan") && vulkanSupported == 0)
+	{
+		changeVid = qfalse;
+		trap->Cvar_Set("cl_renderer", "rd-eternaljk");
+	}
+	else
+	{
+		trap->Cvar_Set("cl_renderer", wantedRenderer);
+	}
+
 	trap->Cvar_Set ( "ui_r_modified", "0" );
 
-	if ( trap->Cvar_VariableValue ( "ui_vidrestart" ) ) {
-		trap->Cmd_ExecuteText( EXEC_APPEND, "vid_restart;" );
+	if ( trap->Cvar_VariableValue ( "ui_vidrestart" ))
+	{
+		if (changeVid)
+			trap->Cmd_ExecuteText( EXEC_APPEND, "vid_restart;" );
+		else
+			trap->Print("Vulkan renderer is not supported on this system. Keeping current renderer.\n");
 		trap->Cvar_Set ( "ui_vidrestart", "0" );
 	}
 }
@@ -6719,7 +6735,8 @@ void UI_GetVideoSetup ( void )
 	trap->Cvar_Set ( "ui_r_allowExtensions",			UI_Cvar_VariableString ( "r_allowExtensions" ) );
 	trap->Cvar_Set ( "ui_cg_shadows",					UI_Cvar_VariableString ( "cg_shadows" ) );
 	trap->Cvar_Register ( NULL, "ui_cl_renderer",				"0", CVAR_ROM|CVAR_INTERNAL );
-	trap->Cvar_Set ( "ui_cl_renderer",                  UI_Cvar_VariableString ( "cl_renderer" ) );	trap->Cvar_Set ( "ui_r_modified",					"0" );
+	trap->Cvar_Set ( "ui_cl_renderer",                  UI_Cvar_VariableString ( "cl_renderer" ) );
+	trap->Cvar_Set ( "ui_r_modified",					"0" );
 	trap->Cvar_Set ( "ui_vidrestart",					"0" );
 }
 

@@ -1023,8 +1023,8 @@
 			font 				4
 			textscale 			1
 			forecolor			.615 .615 .956 1
-			cvarStrList			{  "Vanilla" , "rd-eternaljk" , "Vulkan", "rd-vulkan" }
-			descText			"Change the renderer library to use."
+			cvarStrList			{  "Default Mode (Vanilla)" , "rd-eternaljk" , "Performance Mode (Vulkan)", "rd-vulkan" }
+			descText			"Change the renderer library to use. (Vulkan only supported on newer GPUs)"
 			cvar				"ui_cl_renderer"
 			visible				1
 
