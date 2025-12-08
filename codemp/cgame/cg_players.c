@@ -11180,6 +11180,8 @@ void CG_Player( centity_t *cent ) {
 				return;
 			}
 		}
+		/*
+		 * lumaya: but why?
 		else if (ci->team == TEAM_SPECTATOR || (cg.snap && (cg.snap->ps.pm_flags & PMF_FOLLOW)))
 		{ //don't allow this when spectating
 			if (cgFPLSState != 0)
@@ -11191,6 +11193,7 @@ void CG_Player( centity_t *cent ) {
 				return;
 			}
 		}
+		*/
 		else
 		{
 			if (cg_fpls.integer && (cent->currentState.weapon == WP_SABER || cent->currentState.weapon == WP_MELEE) && cg.snap && cent->currentState.number == cg.snap->ps.clientNum) //|| cent->currentState.weapon == WP_MELEE)?
