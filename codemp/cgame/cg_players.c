@@ -2170,6 +2170,8 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 		newInfo.ghoul2Weapons[0] = ci->ghoul2Weapons[0];
 	}
 
+	
+
 	v = Info_ValueForKey( configstring, "st2" );
 
 	if (clientNum == cg.clientNum && parsed == 2)
@@ -9959,6 +9961,128 @@ void CG_CheckThirdPersonAlpha( centity_t *cent, refEntity_t *legs )
 	}
 }
 
+void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, clientInfo_t *ci, refEntity_t parent )
+{
+    int newBolt, newBolt2;
+    mdxaBone_t matrix;
+    vec3_t boltOrg, boltOrg2, bAngles;
+    refEntity_t re, re2;
+    vec3_t holsterPos;
+
+	if (!cg_drawHolsteredSaber.integer)
+		return;
+
+	if (cgs.serverMod != SVMOD_JAPLUS)
+		return;
+
+	if (cent->currentState.eFlags & EF_NOT_USED_3)
+		return;
+
+    if ( !cent->ghoul2 )
+        return;
+
+	if (cent->currentState.weapon == WP_SABER)
+		return;
+
+    if ( cent->currentState.eFlags & EF_DEAD )
+        return;
+
+    if (!cg.renderingThirdPerson && cent->currentState.clientNum == cg.clientNum)
+        return;
+
+    if (!cg.renderingThirdPerson && cg.snap->ps.clientNum == cent->currentState.clientNum && cgs.clientinfo[cg.clientNum].team == TEAM_SPECTATOR && (cg.snap->ps.pm_flags & PMF_FOLLOW))
+        return;
+
+    if ( CG_IsMindTricked( cent->currentState.trickedentindex, cent->currentState.trickedentindex2, cent->currentState.trickedentindex3, cent->currentState.trickedentindex4, cg.snap->ps.clientNum ) )
+        return;
+
+	if ( cent->currentState.m_iVehicleNum )
+		return;
+
+	// Parse cvar values
+	sscanf(cg_holsteredSaberPos.string, "%f %f %f", &holsterPos[0], &holsterPos[1], &holsterPos[2]);
+
+	newBolt = trap->G2API_AddBolt( cent->ghoul2, 0, cg_holsteredSaberBolt.string );
+	newBolt2 = trap->G2API_AddBolt( cent->ghoul2, 0, cg_holsteredSaberBolt2.string );
+
+	if ( newBolt != -1 )
+	{
+		// or not...
+		//const qboolean isStill = VectorLength(cent->playerState->velocity) <= 0;
+		vec3_t angles;
+
+		memset( &re, 0, sizeof( refEntity_t ) );
+		AxisClear(re.axis);
+		memset( &re2, 0, sizeof( refEntity_t ) );
+		AxisClear(re2.axis);
+
+		VectorCopy( cent->lerpAngles, bAngles );
+		bAngles[PITCH] = 0;
+		bAngles[YAW] = cent->turAngles[YAW];
+
+		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, newBolt, &matrix, bAngles, cent->lerpOrigin, time, gameModels, cent->modelScale );
+		
+		BG_GiveMeVectorFromMatrix( &matrix, ORIGIN, boltOrg );
+		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_X, re.axis[0] );
+		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Y, re.axis[1] );
+		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Z, re.axis[2] );
+
+		VectorMA(boltOrg, holsterPos[0], re.axis[1], boltOrg);
+		VectorMA(boltOrg, holsterPos[1], re.axis[0], boltOrg);
+		VectorMA(boltOrg, holsterPos[2], re.axis[2], boltOrg);
+
+		angles[PITCH] = 180;
+		angles[YAW] = cent->turAngles[YAW] + 15;
+		angles[ROLL] = ci->saber[0].type == SABER_STAFF ? 5 : 15;
+		AnglesToAxis(angles, re.axis);
+
+		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, newBolt2, &matrix, bAngles, cent->lerpOrigin, time, gameModels, cent->modelScale );
+
+		BG_GiveMeVectorFromMatrix( &matrix, ORIGIN, boltOrg2 );
+		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_X, re2.axis[0] );
+		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Y, re2.axis[1] );
+		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Z, re2.axis[2] );
+		VectorMA(boltOrg2, -holsterPos[0], re2.axis[1], boltOrg2);
+		VectorMA(boltOrg2, -holsterPos[1], re2.axis[0], boltOrg2);
+		VectorMA(boltOrg2, holsterPos[2], re2.axis[2], boltOrg2);
+		angles[PITCH] = 180;
+		angles[YAW] = cent->turAngles[YAW] - 15;
+		angles[ROLL] = -10;
+		AnglesToAxis(angles, re2.axis);
+
+    	
+		if (!ci->holsterGhoul2 && ci->saber[0].model[0]) {
+			trap->G2API_InitGhoul2Model(&ci->holsterGhoul2, ci->saber[0].model, 0, 0, 0, 0, 0);
+		}
+
+    	if (!ci->holsterGhoul2_2 && ci->saber[0].model[1] && newBolt2 != -1) {
+    		trap->G2API_InitGhoul2Model(&ci->holsterGhoul2_2, ci->saber[1].model, 0, 0, 0, 0, 0);
+    	}
+
+    	if (ci->holsterGhoul2) {
+    		re.ghoul2 = ci->holsterGhoul2;
+    		re.hModel = 0;
+    		
+    		VectorCopy(boltOrg, re.origin);
+    		VectorCopy(boltOrg, re.lightingOrigin);
+    		re.renderfx = parent.renderfx;
+    		re.customShader = parent.customShader;
+    		trap->R_AddRefEntityToScene(&re);
+    	}
+
+    	if (ci->holsterGhoul2_2 && newBolt2 != -1) {
+    		re2.ghoul2 = ci->holsterGhoul2_2;
+    		re2.hModel = 0;
+
+    		VectorCopy(boltOrg2, re2.origin);
+    		VectorCopy(boltOrg2, re2.lightingOrigin);
+    		re2.renderfx = parent.renderfx;
+    		re2.customShader = parent.customShader;
+    		trap->R_AddRefEntityToScene(&re2);
+    	}
+	}
+}
+
 //[Kameleon] - Nerevar's Santa Hat feature. call somewhere in cg_players@void CG_Player
 void CG_DrawHatOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, qhandle_t hatModel, refEntity_t parent )
 {
@@ -12954,6 +13078,8 @@ stillDoSaber:
 			trap->R_AddRefEntityToScene(&legs);
 		}
 	}
+
+				CG_DrawHolsteredSaber(cent, cg.time, cgs.gameModels, ci, legs);
 
 	//[Kameleon] - Nerevar's Santa Hat.
 	if (!(cg_stylePlayer.integer & JAPRO_STYLE_HIDECOSMETICS) && ((cg_stylePlayer.integer & JAPRO_STYLE_SEASONALCOSMETICS) || (cgs.serverMod != SVMOD_JAPLUS && cgs.serverMod != SVMOD_BASEJKA)))
