@@ -1,129 +1,54 @@
-Effect fthrw_bobafire
+repeatDelay				300
+
+Particle
 {
-    repeatDelay				0
-    
-    // Layer 1 - Close range
-    Particle
-    {
-        flags               usePhysics
-        spawnFlags          rgbComponentInterpolation
-        count               20
-        life                40 60
-        delay               0 0
-        origin              0 0 0 0 0 0
-        rotation            -1 1
-        rotationDelta       -20 20
-        velocity            360 -100 -100 380 100 100
-        acceleration        -100 -100 -100 -150 100 100
-        rgb
-        {
-            start           0 0 0.7333    0.1255 0.1255 1
-            end             1 1 1         0.9569 0.702 0.4667
-            parm            35 45
-            flags           nonlinear
-        }
-        alpha
-        {
-            end             0
-            parm            60 75
-            flags           linear nonlinear
-        }
-        size
-        {
-            start           2 3
-            end             20 30
-            parm            0 1
-            flags           wave
-        }
-        shaders
-        [
-            gfx/effects/fire2
-            gfx/effects/fire3
-            gfx/effects/fire4
-        ]
-    }
-    
-    // Layer 2 - Mid range (pre-positioned)
-    Particle
-    {
-        flags               usePhysics
-        spawnFlags          rgbComponentInterpolation
-        count               20
-        life                40 60
-        delay               0 0
-        origin              50 -15 -15 70 15 15
-        rotation            -1 1
-        rotationDelta       -20 20
-        velocity            360 -100 -100 380 100 100
-        acceleration        -100 -100 -100 -150 100 100
-        rgb
-        {
-            start           0.1255 0.1255 1    0.4667 0.4667 1
-            end             0.9569 0.702 0.4667    1 1 1
-            parm            35 45
-            flags           nonlinear
-        }
-        alpha
-        {
-            start           0.7
-            end             0
-            parm            60 75
-            flags           linear nonlinear
-        }
-        size
-        {
-            start           8 12
-            end             25 35
-            parm            0 1
-            flags           wave
-        }
-        shaders
-        [
-            gfx/effects/fire2
-            gfx/effects/fire3
-            gfx/effects/fire4
-        ]
-    }
-    
-    // Layer 3 - Far range (pre-positioned)
-    Particle
-    {
-        flags               usePhysics
-        spawnFlags          rgbComponentInterpolation
-        count               15
-        life                40 60
-        delay               0 0
-        origin              100 -20 -20 120 20 20
-        rotation            -1 1
-        rotationDelta       -20 20
-        velocity            360 -100 -100 380 100 100
-        acceleration        -100 -100 -100 -150 100 100
-        rgb
-        {
-            start           0.4667 0.4667 1    0.7 0.7 1
-            end             1 1 1    0.9569 0.702 0.4667
-            parm            35 45
-            flags           nonlinear
-        }
-        alpha
-        {
-            start           0.5
-            end             0
-            parm            60 75
-            flags           linear nonlinear
-        }
-        size
-        {
-            start           15 20
-            end             30 40
-            parm            0 1
-            flags           wave
-        }
-        shaders
-        [
-            gfx/effects/fire2
-            gfx/effects/fire3
-            gfx/effects/fire4
-        ]
-    }
+	flags				usePhysics
+
+	spawnFlags			evenDistribution rgbComponentInterpolation
+
+	count				30
+
+	life				800 1000
+
+	delay				0 300
+
+	origin				1 1 1 1 1 1
+
+	rotation			0 360
+
+	rotationDelta		-60 60
+
+	velocity			100 5 5 150 5 5
+
+	acceleration		10 10 10 40 10 10
+
+	rgb
+	{
+		start			0 0 0.7333 0.1255 0.1255 1
+		end				1 1 1 0.9569 0.702 0.4667
+		parm			35 45
+		flags			nonlinear
+	}
+
+	alpha
+	{
+		end				0
+		parm			60 75
+		flags			linear nonlinear
+	}
+
+	size
+	{
+		start			2 3
+		end				20 30
+		parm			0 1
+		flags			wave
+	}
+
+	shaders
+	[
+		gfx/effects/fire2
+		gfx/effects/fire3
+		gfx/effects/fire4
+	]
 }
