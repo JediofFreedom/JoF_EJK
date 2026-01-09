@@ -11669,20 +11669,18 @@ skipTrail:
 					vec3_t efOrg;
 					if (cent->ghoul2 && ci && ci->bolt_head != -1)
 					{
-						// Get the bolt matrix for the head
 						trap->G2API_GetBoltMatrix(
-							cent->ghoul2,           // ghoul2 instance
-							0,                      // model index (usually 0)
-							ci->bolt_head,          // bolt index for head
-							&headMatrix,            // output matrix
-							cent->lerpAngles,       // angles (or cent->turAngles)
-							cent->lerpOrigin,       // origin
-							cg.time,                // current time
-							cgs.gameModels,         // model list
-							cent->modelScale        // model scale
+							cent->ghoul2,           
+							0,                      
+							ci->bolt_head,          
+							&headMatrix,            
+							cent->lerpAngles,       
+							cent->lerpOrigin,       
+							cg.time,                
+							cgs.gameModels,         
+							cent->modelScale        
 						);
 
-						// Extract the position from the matrix
 						efOrg[0] = headMatrix.matrix[0][3];
 						efOrg[1] = headMatrix.matrix[1][3];
 						efOrg[2] = headMatrix.matrix[2][3];
