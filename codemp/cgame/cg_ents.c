@@ -3842,10 +3842,8 @@ Ghoul2 Insert Start
 	{
 		matrix3_t axis;
 		AnglesToAxis(cent->lerpAngles, axis);
-		const qboolean moving = VectorLength(cent->playerState->velocity) != 0.0f;
-		
-		if (cent->flameThrowerHitTime < cg.snap->serverTime
-			&& moving)
+
+		if (cent->flameThrowerHitTime < cg.snap->serverTime)
 		{
 			cent->flameThrowerHitTime = cg.snap->serverTime + 100;
 			trap->FX_PlayEntityEffectID(cgs.effects.flameThrowerHit,
@@ -3853,14 +3851,6 @@ Ghoul2 Insert Start
 				axis,
 				-1, -1, -1, -1);
 		}
-		else if (!moving)
-			trap->FX_PlayBoltedEffectID(cgs.effects.flameThrowerHit,
-			cent->lerpOrigin,
-			cent->ghoul2,
-			-1,
-			-1, -1, 1, qfalse);
-
-
 	}
 		
 /*
