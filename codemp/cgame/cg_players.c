@@ -11685,7 +11685,7 @@ skipTrail:
 						efOrg[1] = headMatrix.matrix[1][3];
 						efOrg[2] = headMatrix.matrix[2][3];
 
-
+						efOrg[2] -= 8;
 						CG_ForceGripped(efOrg, qtrue);
 					}
 				}
