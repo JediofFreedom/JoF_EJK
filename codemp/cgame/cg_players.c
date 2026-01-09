@@ -10062,10 +10062,10 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
     	if (ci->holsterGhoul2) {
     		re.ghoul2 = ci->holsterGhoul2;
     		re.hModel = 0;
-    		
+
     		VectorCopy(boltOrg, re.origin);
     		VectorCopy(boltOrg, re.lightingOrigin);
-    		re.renderfx = parent.renderfx;
+    		re.renderfx = parent.renderfx | RF_NOSHADOW;
     		re.customShader = parent.customShader;
     		trap->R_AddRefEntityToScene(&re);
     	}
@@ -10076,7 +10076,7 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 
     		VectorCopy(boltOrg2, re2.origin);
     		VectorCopy(boltOrg2, re2.lightingOrigin);
-    		re2.renderfx = parent.renderfx;
+    		re2.renderfx = parent.renderfx | RF_NOSHADOW;
     		re2.customShader = parent.customShader;
     		trap->R_AddRefEntityToScene(&re2);
     	}
