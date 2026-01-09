@@ -92,16 +92,9 @@ static qboolean localClient; // true if local client has been displayed
 CG_DrawScoreboard
 =================
 */
-static void CG_DrawClientScore( int y, score_t *score, float *color, float fade, qboolean largeFormat )
+static void CG_DrawClientScore( int y, score_t *score, float *color, float fade, qboolean largeFormat, qboolean maxClientScoreboard )
 {
 	//vec3_t	headAngles;
-	int numClients = 0;
-	for (int i = 0; i < MAX_CLIENTS; i++)
-	{
-		if (cgs.clientinfo[i].infoValid) numClients++;
-	}
-	
-	qboolean maxClientScoreboard = numClients >= 20;
 	clientInfo_t	*ci;
 	int				iconx = SB_BOTICON_X + (SB_RATING_WIDTH / 2);
 	float			scale = largeFormat && !cg_smallScoreboard.integer && cgs.gametype != GT_CTF ? 1.0f : maxClientScoreboard ? 0.65f : 0.75f,
@@ -547,7 +540,7 @@ CG_TeamScoreboard
 =================
 */
 #if !NEW_SCOREBOARD
-static int CG_TeamScoreboard( int y, team_t team, float fade, int maxClients, int lineHeight, qboolean countOnly )
+static int CG_TeamScoreboard( int y, team_t team, float fade, int maxClients, int lineHeight, qboolean countOnly, qboolean maxClientScoreboard )
 {
 	int		i;
 	score_t	*score;
@@ -573,7 +566,7 @@ static int CG_TeamScoreboard( int y, team_t team, float fade, int maxClients, in
 
 		if ( !countOnly )
 		{
-			CG_DrawClientScore( y + lineHeight * count, score, color, fade, lineHeight == SB_NORMAL_HEIGHT );
+			CG_DrawClientScore( y + lineHeight * count, score, color, fade, lineHeight == SB_NORMAL_HEIGHT, maxClientScoreboard );
 		}
 
 		count++;
@@ -598,7 +591,7 @@ static int CG_TeamScoreboard( int y, team_t team, float fade, int maxClients, in
 			fake.fake = qtrue;
 
 			// CG_DrawClientScore will still render the model icon & name from cgs.clientinfo[i]
-			CG_DrawClientScore( y + lineHeight * count, &fake, color, fade, lineHeight == SB_NORMAL_HEIGHT );
+			CG_DrawClientScore( y + lineHeight * count, &fake, color, fade, lineHeight == SB_NORMAL_HEIGHT, maxClientScoreboard );
 		}
 		count++;
 	}
@@ -704,7 +697,7 @@ int CG_GetTeamCountFromClientInfo(team_t team)
 }
 
 #if NEW_SCOREBOARD
-static QINLINE int CG_TeamScoreboard( int y, team_t team, float fade, int maxClients, int lineHeight, qboolean countOnly )
+static QINLINE int CG_TeamScoreboard( int y, team_t team, float fade, int maxClients, int lineHeight, qboolean countOnly, qboolean maxClientScoreboard )
 {
 	int				i;
 	score_t			*score;
@@ -733,7 +726,7 @@ static QINLINE int CG_TeamScoreboard( int y, team_t team, float fade, int maxCli
 		if ( !countOnly )
 		{
 			if (!cg_newScoreBoard.integer) {
-				CG_DrawClientScore( y + lineHeight * count, score, color, fade, lineHeight == SB_NORMAL_HEIGHT );
+				CG_DrawClientScore( y + lineHeight * count, score, color, fade, lineHeight == SB_NORMAL_HEIGHT, maxClientScoreboard );
 			}
 			else {
 				lastClient = (qboolean)(count+1 == teamTotal);
@@ -1106,16 +1099,16 @@ qboolean CG_DrawOldScoreboard( void ) {
 
 			team2MaxCl = (maxClients-team1MaxCl); //team2 can display however many is left over after team1's display
 
-			n1 = CG_TeamScoreboard( y, TEAM_RED, fade, team1MaxCl, lineHeight, qtrue );
+			n1 = CG_TeamScoreboard( y, TEAM_RED, fade, team1MaxCl, lineHeight, qtrue, maxClientsScoreboard );
 			CG_DrawTeamBackground( SB_SCORELINE_X - 5, y - topBorderSize, 640 - SB_SCORELINE_X * 2 + 10, n1 * lineHeight + bottomBorderSize, 0.33f, TEAM_RED );
-			CG_TeamScoreboard( y, TEAM_RED, fade, team1MaxCl, lineHeight, qfalse );
+			CG_TeamScoreboard( y, TEAM_RED, fade, team1MaxCl, lineHeight, qfalse, maxClientsScoreboard );
 			y += (n1 * lineHeight) + BIGCHAR_HEIGHT;
 
 			//maxClients -= n1;
 
-			n2 = CG_TeamScoreboard( y, TEAM_BLUE, fade, team2MaxCl, lineHeight, qtrue );
+			n2 = CG_TeamScoreboard( y, TEAM_BLUE, fade, team2MaxCl, lineHeight, qtrue, maxClientsScoreboard );
 			CG_DrawTeamBackground( SB_SCORELINE_X - 5, y - topBorderSize, 640 - SB_SCORELINE_X * 2 + 10, n2 * lineHeight + bottomBorderSize, 0.33f, TEAM_BLUE );
-			CG_TeamScoreboard( y, TEAM_BLUE, fade, team2MaxCl, lineHeight, qfalse );
+			CG_TeamScoreboard( y, TEAM_BLUE, fade, team2MaxCl, lineHeight, qfalse, maxClientsScoreboard );
 			y += (n2 * lineHeight) + BIGCHAR_HEIGHT;
 
 			//maxClients -= n2;
@@ -1139,16 +1132,16 @@ qboolean CG_DrawOldScoreboard( void ) {
 
 			team2MaxCl = (maxClients-team1MaxCl); //team2 can display however many is left over after team1's display
 
-			n1 = CG_TeamScoreboard( y, TEAM_BLUE, fade, team1MaxCl, lineHeight, qtrue );
+			n1 = CG_TeamScoreboard( y, TEAM_BLUE, fade, team1MaxCl, lineHeight, qtrue, maxClientsScoreboard );
 			CG_DrawTeamBackground( SB_SCORELINE_X - 5, y - topBorderSize, 640 - SB_SCORELINE_X * 2 + 10, n1 * lineHeight + bottomBorderSize, 0.33f, TEAM_BLUE );
-			CG_TeamScoreboard( y, TEAM_BLUE, fade, team1MaxCl, lineHeight, qfalse );
+			CG_TeamScoreboard( y, TEAM_BLUE, fade, team1MaxCl, lineHeight, qfalse, maxClientsScoreboard );
 			y += (n1 * lineHeight) + BIGCHAR_HEIGHT;
 
 			//maxClients -= n1;
 
-			n2 = CG_TeamScoreboard( y, TEAM_RED, fade, team2MaxCl, lineHeight, qtrue );
+			n2 = CG_TeamScoreboard( y, TEAM_RED, fade, team2MaxCl, lineHeight, qtrue, maxClientsScoreboard );
 			CG_DrawTeamBackground( SB_SCORELINE_X - 5, y - topBorderSize, 640 - SB_SCORELINE_X * 2 + 10, n2 * lineHeight + bottomBorderSize, 0.33f, TEAM_RED );
-			CG_TeamScoreboard( y, TEAM_RED, fade, team2MaxCl, lineHeight, qfalse );
+			CG_TeamScoreboard( y, TEAM_RED, fade, team2MaxCl, lineHeight, qfalse, maxClientsScoreboard );
 			y += (n2 * lineHeight) + BIGCHAR_HEIGHT;
 
 			//maxClients -= n2;
@@ -1161,21 +1154,21 @@ qboolean CG_DrawOldScoreboard( void ) {
 			//Check if someone is in team free?
 			//Loop through each player, if they are in team free, break and set a flag
 			//if flag is set, do this stuff VVV
-			n1 = CG_TeamScoreboard( y, TEAM_FREE, fade, maxClientsScoreboard ? MAX_CLIENTS : maxClients, lineHeight, qfalse );
+			n1 = CG_TeamScoreboard( y, TEAM_FREE, fade, maxClientsScoreboard ? MAX_CLIENTS : maxClients, lineHeight, qfalse, maxClientsScoreboard );
 			y += (n1 * lineHeight) + BIGCHAR_HEIGHT;
 		}
 
-		n1 = CG_TeamScoreboard( y, TEAM_SPECTATOR, fade, maxClientsScoreboard ? MAX_CLIENTS : maxClients, lineHeight, qfalse );
+		n1 = CG_TeamScoreboard( y, TEAM_SPECTATOR, fade, maxClientsScoreboard ? MAX_CLIENTS : maxClients, lineHeight, qfalse, maxClientsScoreboard );
 		y += (n1 * lineHeight) + BIGCHAR_HEIGHT;
 #if NEW_SCOREBOARD
 	} else {
 		//
 		// free for all scoreboard
 		//
-		n1 = CG_TeamScoreboard( y, TEAM_FREE, fade, maxClients, lineHeight, qfalse );
+		n1 = CG_TeamScoreboard( y, TEAM_FREE, fade, maxClients, lineHeight, qfalse, maxClientsScoreboard );
 		y += (n1 * lineHeight) + BIGCHAR_HEIGHT;
 		if (cg_newScoreBoard.integer != 1 || cg.numScores < 20) {
-			n2 = CG_TeamScoreboard( y, TEAM_SPECTATOR, fade, maxClients - n1, lineHeight, qfalse );
+			n2 = CG_TeamScoreboard( y, TEAM_SPECTATOR, fade, maxClients - n1, lineHeight, qfalse, maxClientsScoreboard );
 			y += (n2 * lineHeight) + BIGCHAR_HEIGHT;
 		}
 		else {
@@ -1205,7 +1198,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 		for ( i = 0 ; i < cg.numScores ; i++ ) {
 			if ( cg.scores[i].client == cg.snap->ps.clientNum ) {
 				if (!cg_newScoreBoard.integer)
-					CG_DrawClientScore( y, &cg.scores[i], fadeColor, fade, lineHeight == SB_NORMAL_HEIGHT );
+					CG_DrawClientScore( y, &cg.scores[i], fadeColor, fade, lineHeight == SB_NORMAL_HEIGHT, maxClientsScoreboard );
 				else
 					CG_DrawClientScore2( y, &cg.scores[i], fadeColor, fade, qfalse, qtrue );
 				//CG_DrawClientScore2( y, &cg.scores[i], fadeColor, fade, qfalse );
@@ -1219,9 +1212,9 @@ qboolean CG_DrawOldScoreboard( void ) {
 		//
 		// free for all scoreboard
 		//
-		n1 = CG_TeamScoreboard( y, TEAM_FREE, fade, maxClientsScoreboard ? MAX_CLIENTS : maxClients, lineHeight, qfalse );
+		n1 = CG_TeamScoreboard( y, TEAM_FREE, fade, maxClientsScoreboard ? MAX_CLIENTS : maxClients, lineHeight, qfalse, maxClientsScoreboard );
 		y += (n1 * lineHeight) + BIGCHAR_HEIGHT;
-		n2 = CG_TeamScoreboard( y, TEAM_SPECTATOR, fade, maxClientsScoreboard ? MAX_CLIENTS : maxClients - n1, lineHeight, qfalse );
+		n2 = CG_TeamScoreboard( y, TEAM_SPECTATOR, fade, maxClientsScoreboard ? MAX_CLIENTS : maxClients - n1, lineHeight, qfalse, maxClientsScoreboard );
 		y += (n2 * lineHeight) + BIGCHAR_HEIGHT;
 	}
 
@@ -1229,7 +1222,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 		// draw local client at the bottom
 		for ( i = 0 ; i < cg.numScores ; i++ ) {
 			if ( cg.scores[i].client == cg.snap->ps.clientNum ) {
-				CG_DrawClientScore( y, &cg.scores[i], fadeColor, fade, lineHeight == SB_NORMAL_HEIGHT );
+				CG_DrawClientScore( y, &cg.scores[i], fadeColor, fade, lineHeight == SB_NORMAL_HEIGHT, maxClientsScoreboard );
 				break;
 			}
 		}
