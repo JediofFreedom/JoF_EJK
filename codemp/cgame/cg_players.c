@@ -1873,6 +1873,8 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 			k++;
 		}
 
+		if ( ci->infoValid )
+			cgs.numClients--;
 		memset( ci, 0, sizeof( *ci ) );
 		return;		// player just left
 	}
@@ -2276,9 +2278,11 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 			CG_LoadClientInfo( &newInfo, clientNum );
 		}
 	}
-
+	
 	// replace whatever was there with the new one
 	newInfo.infoValid = qtrue;
+	if ( !ci->infoValid )
+		cgs.numClients++;
 	if (ci->ghoul2Model &&
 		ci->ghoul2Model != newInfo.ghoul2Model &&
 		trap->G2_HaveWeGhoul2Models(ci->ghoul2Model))

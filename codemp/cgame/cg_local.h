@@ -2157,6 +2157,8 @@ typedef struct cgs_s {
 	int					numMiscStaticModels;
 	cg_staticmodel_t	miscStaticModels[MAX_STATIC_MODELS];
 
+	int				numClients;
+
 } cgs_t;
 
 typedef struct siegeExtended_s

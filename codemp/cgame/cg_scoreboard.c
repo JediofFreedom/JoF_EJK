@@ -572,7 +572,7 @@ static int CG_TeamScoreboard( int y, team_t team, float fade, int maxClients, in
 		count++;
 	}
 	
-	for ( i = 0; i < cgs.maxclients; i++ ) {
+	for ( i = 0; cg.numScores > 0 && i < cgs.maxclients; i++ ) {
 		ci = &cgs.clientinfo[i];
 		if ( !ci->infoValid ) {
 			continue;
@@ -759,13 +759,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 	int maxClients, realMaxClients;
 	int lineHeight;
 	int topBorderSize, bottomBorderSize;
-	int numClients = 0;
-	for (int i = 0; i < MAX_CLIENTS; i++)
-	{
-		if (cgs.clientinfo[i].infoValid) numClients++;
-	}
-	
-	qboolean maxClientsScoreboard = numClients >= 20;
+	qboolean maxClientsScoreboard = cgs.numClients >= 20 && cg.numScores > 0;
 
 	// don't draw amuthing if the menu or console is up
 	if ( cl_paused.integer ) {
