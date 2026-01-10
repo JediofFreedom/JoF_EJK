@@ -11674,7 +11674,7 @@ skipTrail:
 							0,                      
 							ci->bolt_head,          
 							&headMatrix,            
-							cent->lerpAngles,       
+							cent->turAngles, 
 							cent->lerpOrigin,       
 							cg.time,                
 							cgs.gameModels,         
