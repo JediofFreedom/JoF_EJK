@@ -3565,7 +3565,7 @@ void NPC_LoadParms( void )
 	int			len, totallen, npcExtFNLen, fileCnt, i;
 //	const char	*filename = "ext_data/NPC2.cfg";
 	char		/**buffer,*/ *holdChar, *marker;
-	char		npcExtensionListBuf[2048];			//	The list of file names read in
+	char		npcExtensionListBuf[16384];			//	The list of file names read in
 	fileHandle_t f;
 	len = 0;
 
