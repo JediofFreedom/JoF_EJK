@@ -2255,6 +2255,15 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	if (cgs.gametype >= GT_TEAM	&& !cgs.jediVmerc && cgs.gametype != GT_SIEGE )
 	{ //We won't force colors for siege.
 		BG_ValidateSkinForTeam( newInfo.modelName, newInfo.skinName, newInfo.team, newInfo.colorOverride );
+
+		if (clientNum == cg.clientNum)
+		{
+			//Fix required to make the profile menu show the right team colors if someone has randomly written /model <skinname>/<wrongTeam>
+			char modelAndSkin[MAX_QPATH];
+			snprintf(modelAndSkin, sizeof(modelAndSkin), "%s/%s", newInfo.modelName, newInfo.skinName);
+			trap->Cvar_Set("model", modelAndSkin);
+		}
+
 	}
 	else
 	{
