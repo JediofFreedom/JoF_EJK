@@ -694,6 +694,8 @@ if(BuildMPDed)
 	set(MPDedIncludeDirectories ${MPEngineAndDedIncludeDirectories})
 	set(MPDedFiles ${MPEngineAndDedFiles})
 	set(MPDedDefines ${MPSharedDefines} "_CONSOLE" "DEDICATED")
+	
+	list(APPEND MPDedIncludeDirectories ${CMAKE_CURRENT_BINARY_DIR}/versionfile) # Make sure the generated jofversion.h is found by all subsequent includes
 
 	# Dedicated renderer is compiled with the server.
 	set(MPDedicatedRendererFiles
