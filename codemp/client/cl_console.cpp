@@ -629,11 +629,11 @@ void Con_Init (void) {
 			else if (month[0] == 'D')
 				mm = 12;
 
-			Com_sprintf(version, sizeof(version), CLIENT_WINDOW_TITLE ": [%02i/%02i/%04i]", day, mm, year);
+			Com_sprintf(version, sizeof(version), CLIENT_CONSOLE_CORNER_DESCRIPTION " : [%02i/%02i/%04i]", day, mm, year);
 		}
 	}
 #else
-	Com_sprintf(version, sizeof(version), CLIENT_WINDOW_TITLE "(DEBUG)");
+	Com_sprintf(version, sizeof(version), CLIENT_CONSOLE_CORNER_DESCRIPTION " (DEBUG)");
 #endif
 
 	if (!version[0])

@@ -25,6 +25,7 @@ set(MPGameIncludeDirectories
 	"${MPDir}"
 	"${SharedDir}"
 	"${GSLIncludeDirectory}"
+	"${CMAKE_CURRENT_BINARY_DIR}/../versionfile"
 	)
 if(WIN32)
 	set(MPGameLibraries "winmm")

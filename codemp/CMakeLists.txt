@@ -23,6 +23,45 @@ endif(NOT InOpenJK)
 
 set(MPSharedDefines ${SharedDefines})
 
+# Get current git branch name
+execute_process(
+    COMMAND git rev-parse --abbrev-ref HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_BRANCH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+
+# Fallback for non-git builds (zip releases, etc.)
+if(NOT GIT_BRANCH)
+    set(GIT_BRANCH "unknown")
+endif()
+
+
+# Set default values if not defined
+if(NOT DEFINED BUILD_NUMBER)
+    set(BUILD_NUMBER "localbuild")
+endif()
+
+if(NOT DEFINED GIT_SHA)
+    set(GIT_SHA "local")
+endif()
+
+# Short commit SHA (7 chars, git-style)
+if(GIT_SHA STREQUAL "local")
+    set(GIT_SHA_SHORT "local")
+else()
+    string(SUBSTRING "${GIT_SHA}" 0 7 GIT_SHA_SHORT)
+endif()
+
+
+# Generate jofversion.h from jofversion.h.in
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/versionfile/jofversion.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/versionfile/jofversion.h
+    @ONLY
+)
+
 #    Add Game Project
 if(BuildMPGame)
 	add_subdirectory("${MPDir}/game")
@@ -362,6 +401,9 @@ if(BuildMPEngine)
 	set(MPEngineIncludeDirectories ${MPEngineAndDedIncludeDirectories})
 	set(MPEngineFiles ${MPEngineAndDedFiles})
 	set(MPEngineDefines ${MPSharedDefines})
+
+	list(APPEND MPEngineIncludeDirectories ${CMAKE_CURRENT_BINARY_DIR}/versionfile) # Make sure the generated jofversion.h is found by all subsequent includes
+
 
 	#    Dependencies
 
