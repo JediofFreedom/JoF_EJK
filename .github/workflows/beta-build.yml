@@ -32,6 +32,25 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
+      - name: Download Sunny's Vulkan DLL
+        shell: bash
+        run: |
+          mkdir -p external
+
+          if [ "${{ matrix.arch }}" = "x86" ]; then
+            ZIP_NAME=EternalJK-windows-x86.zip
+            DLL_NAME=rd-vulkan_x86.dll
+          else
+            ZIP_NAME=EternalJK-windows-x86_64.zip
+            DLL_NAME=rd-vulkan_x86_64.dll
+          fi
+
+          curl -L -o external/$ZIP_NAME \
+            https://github.com/JKSunny/EternalJK/releases/download/latest/$ZIP_NAME
+
+          unzip -j external/$ZIP_NAME "$DLL_NAME" -d external
+
+
       - name: Create build directory
         run: cmake -E make_directory build
 
@@ -44,7 +63,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_NUMBER=${{ github.run_number }} \
             -DGIT_SHA=${{ github.sha }} \
-            -DGIT_BRANCH=${{ github.ref_name }}
+            -DGIT_BRANCH=${{ github.ref_name }} \
+            -DEXTERNAL_RD_VULKAN_DLL=${{ github.workspace }}/external/$(ls ${{ github.workspace }}/external/*.dll)
 
       - name: Build
         working-directory: ${{ github.workspace }}/build
@@ -55,6 +75,9 @@ jobs:
         working-directory: ${{ github.workspace }}/build
         shell: bash
         run: cmake --install . --config Release
+
+      - name: Cleanup external files
+        run: rm -rf external
 
       - name: Upload Beta Artifact
         uses: actions/upload-artifact@v4

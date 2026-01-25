@@ -78,9 +78,21 @@ if(WIN32)
 			"${CPACK_NSIS_DELETE_ICONS_EXTRA}
 			Delete '$SMPROGRAMS\\\\$MUI_TEMP\\\\Jedi Academy MP.lnk'")
 
-		install(FILES ${MPDir}/OpenAL32.dll ${MPDir}/EaxMan.dll
-				DESTINATION ${JKAInstallDir}
-				COMPONENT ${JKAMPClientComponent})
+if(DEFINED EXTERNAL_RD_VULKAN_DLL)
+    install(FILES
+        ${MPDir}/OpenAL32.dll
+        ${MPDir}/EaxMan.dll
+        ${EXTERNAL_RD_VULKAN_DLL}
+        DESTINATION ${JKAInstallDir}
+        COMPONENT ${JKAMPClientComponent})
+else()
+    install(FILES
+        ${MPDir}/OpenAL32.dll
+        ${MPDir}/EaxMan.dll
+        DESTINATION ${JKAInstallDir}
+        COMPONENT ${JKAMPClientComponent})
+endif()
+
 	endif()
 endif()
 
