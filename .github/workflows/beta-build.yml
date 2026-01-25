@@ -78,9 +78,6 @@ jobs:
         shell: bash
         run: cmake --install . --config Release
 
-      - name: Cleanup external files
-        run: rm -rf external
-
       - name: Upload Beta Artifact
         uses: actions/upload-artifact@v4
         with:
