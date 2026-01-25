@@ -50,6 +50,8 @@ jobs:
 
           unzip -j external/$ZIP_NAME "$DLL_NAME" -d external
 
+          echo "RD_VULKAN_DLL=${{ github.workspace }}/external/$DLL_NAME" >> $GITHUB_ENV
+
 
       - name: Create build directory
         run: cmake -E make_directory build
@@ -64,7 +66,7 @@ jobs:
             -DBUILD_NUMBER=${{ github.run_number }} \
             -DGIT_SHA=${{ github.sha }} \
             -DGIT_BRANCH=${{ github.ref_name }} \
-            -DEXTERNAL_RD_VULKAN_DLL=${{ github.workspace }}/external/$(ls ${{ github.workspace }}/external/*.dll)
+            -DEXTERNAL_RD_VULKAN_DLL="$RD_VULKAN_DLL"
 
       - name: Build
         working-directory: ${{ github.workspace }}/build
