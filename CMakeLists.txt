@@ -159,7 +159,7 @@ set(MPDed "eternaljkded.${Architecture}")
 set(MPGame "jampgame${Architecture}")
 set(MPCGame "cgame${Architecture}")
 set(MPUI "ui${Architecture}")
-set(BinsPk3 "japro-win-${Architecture}.pk3")
+set(BinsPk3 "jofclient-win-${Architecture}.pk3")
 set(MPRend2 "rd-rend2-etjk_${Architecture}")
 # Library names
 set(MPBotLib "botlib")
