@@ -37,10 +37,13 @@ if(NOT GIT_BRANCH)
     set(GIT_BRANCH "unknown")
 endif()
 
+if(GIT_BRANCH STREQUAL "master")
+    unset(GIT_BRANCH)
+endif()
 
 # Set default values if not defined
 if(NOT DEFINED BUILD_NUMBER)
-    set(BUILD_NUMBER "localbuild")
+    set(BUILD_NUMBER "local")
 endif()
 
 if(NOT DEFINED GIT_SHA)
