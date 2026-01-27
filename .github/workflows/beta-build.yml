@@ -20,7 +20,8 @@ jobs:
             platform: Win32
           - arch: x86_64
             platform: x64
-
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout beta branch
         uses: actions/checkout@v4
@@ -102,20 +103,10 @@ jobs:
           path: build/bin
           if-no-files-found: error
 
-      - name: Save version for publishing
-        if: always()
-        run: echo "${{ steps.version.outputs.version }}" > version.txt
-      - name: Upload version artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: version
-          path: version.txt
-
   publish-beta:
     name: Publish Beta Release
     needs: windows
     runs-on: ubuntu-22.04
-
     steps:
       - name: Checkout beta branch
         uses: actions/checkout@v4
@@ -127,14 +118,10 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
 
-
-      - name: Download version artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: version
-      - name: Read version file
-        id: version_file
-        run: echo "VERSION=$(cat version.txt)" >> $GITHUB_ENV
+      - name: Read version from windows job
+        run: |
+          VERSION="${{ needs.windows.outputs.version }}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Create ZIP archives
         run: |
@@ -147,8 +134,6 @@ jobs:
           git tag "$VERSION"
           git push origin "$VERSION"
           echo "tag=$VERSION" >> $GITHUB_OUTPUT
-        env:
-          VERSION: ${{ env.VERSION }}
 
       - name: Update latest-beta tag
         run: |
