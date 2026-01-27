@@ -102,6 +102,15 @@ jobs:
           path: build/bin
           if-no-files-found: error
 
+      - name: Save version for publishing
+        if: always()
+        run: echo "${{ steps.version.outputs.version }}" > version.txt
+      - name: Upload version artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: version
+          path: version.txt
+
   publish-beta:
     name: Publish Beta Release
     needs: windows
@@ -118,6 +127,15 @@ jobs:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
 
+
+      - name: Download version artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: version
+      - name: Read version file
+        id: version_file
+        run: echo "VERSION=$(cat version.txt)" >> $GITHUB_ENV
+
       - name: Create ZIP archives
         run: |
           zip -r JoF-windows-x86.zip     JoF-beta-windows-x86
@@ -126,10 +144,11 @@ jobs:
       - name: Create version tag
         id: tag
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           git tag "$VERSION"
           git push origin "$VERSION"
           echo "tag=$VERSION" >> $GITHUB_OUTPUT
+        env:
+          VERSION: ${{ env.VERSION }}
 
       - name: Update latest-beta tag
         run: |
