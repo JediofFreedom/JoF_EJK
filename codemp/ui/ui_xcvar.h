@@ -167,4 +167,5 @@ XCVAR_DEF( ui_sv_pure,						"0",				CVU_UpdateModelList,	CVAR_INTERNAL|/*CVAR_RO
 XCVAR_DEF( ui_drawCursor,					"1",					NULL,				CVAR_NONE )
 XCVAR_DEF( cg_enableForceMenu,              "1",                    NULL,               CVAR_ARCHIVE)
 XCVAR_DEF( ui_drawTeamForces,               "1",                    NULL,               CVAR_INTERNAL|CVAR_ROM )
+XCVAR_DEF( ui_hasStartedAsyncQ3ModelBuild,  "0",                    NULL,               CVAR_INTERNAL|CVAR_ROM )
 #undef XCVAR_DEF
