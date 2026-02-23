@@ -1384,7 +1384,8 @@ void UI_Shutdown( void ) {
 	UI_CleanupGhoul2();
 	UI_FreeAllSpecies();
 	uiQ3ModelBuild.inProgress = qfalse;
-	trap->FS_AsyncFree( uiQ3ModelBuild.dirJob );
+	if (uiQ3ModelBuild.dirJob)
+		trap->FS_AsyncFree( uiQ3ModelBuild.dirJob );
 }
 
 char *defaultMenu = NULL;
