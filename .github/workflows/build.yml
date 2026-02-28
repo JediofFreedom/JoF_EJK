@@ -1,6 +1,7 @@
 name: beta-windows-build
 
 on:
+  # Beta: build on push
   push:
     branches:
       - beta
@@ -9,8 +10,17 @@ on:
       - ".gitignore"
       - "docs/**"
 
+  # Master: manual + nightly
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * *" # midnight UTC
+
 jobs:
+  # =========================
+  # BETA
+  # =========================
   windows:
+    if: github.ref == 'refs/heads/beta' && github.event_name == 'push'
     name: Windows ${{ matrix.arch }} Release (Beta)
     runs-on: windows-2022
     strategy:
@@ -104,6 +114,7 @@ jobs:
           if-no-files-found: error
 
   publish-beta:
+    if: github.ref == 'refs/heads/beta' && github.event_name == 'push'
     name: Publish Beta Release
     needs: windows
     runs-on: ubuntu-22.04
@@ -144,8 +155,200 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          name: Beta ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
           prerelease: true
+          generate_release_notes: true
+          files: |
+            JoF-windows-x86.zip
+            JoF-windows-x86_64.zip
+
+  # =========================
+  # MASTER (nightly/manual, only if changes)
+  # =========================
+  check-master-changes:
+    if: github.ref == 'refs/heads/master' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    name: Check if master has changes since last release tag
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Decide whether to build
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Find the newest non-beta tag that looks like X.Y.Z
+          LAST_TAG=$(
+            git tag --list \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V \
+            | tail -n 1 || true
+          )
+
+          echo "Last release tag: ${LAST_TAG:-<none>}"
+
+          if [ -z "${LAST_TAG:-}" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          LAST_COMMIT=$(git rev-list -n 1 "$LAST_TAG")
+          echo "Last tag commit: $LAST_COMMIT"
+
+          # Ignore docs/md/.gitignore changes
+          CHANGES=$(git diff --name-only "$LAST_COMMIT" HEAD \
+            | grep -vE '(\.md$|^\.gitignore$|^docs/)' || true)
+
+          if [ -z "$CHANGES" ]; then
+            echo "No relevant changes; skipping nightly/manual build."
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          else
+            echo "Relevant changes detected; running build."
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          fi
+
+  windows-master:
+    if: needs.check-master-changes.outputs.should_run == 'true'
+    name: Windows ${{ matrix.arch }} Release (Master)
+    needs: check-master-changes
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        include:
+          - arch: x86
+            platform: Win32
+          - arch: x86_64
+            platform: x64
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Read version from jofversion.h.in
+        id: baseversion
+        shell: bash
+        run: |
+          MAJOR=$(grep JOF_VERSION_MAJOR codemp/versionfile/jofversion.h.in | sed -E 's/.*\"(.+)\".*/\1/')
+          MINOR=$(grep JOF_VERSION_MINOR codemp/versionfile/jofversion.h.in | sed -E 's/.*\"(.+)\".*/\1/')
+
+          if [[ -z "$MAJOR" || -z "$MINOR" ]]; then
+            echo "Failed to parse version"
+            exit 1
+          fi
+          echo "major=$MAJOR" >> $GITHUB_OUTPUT
+          echo "minor=$MINOR" >> $GITHUB_OUTPUT
+
+      - name: Compute release version (master)
+        id: version
+        shell: bash
+        run: |
+          VERSION="${{ steps.baseversion.outputs.major }}.${{ steps.baseversion.outputs.minor }}.${{ github.run_number }}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Computed version: $VERSION"
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Download Sunny's Vulkan DLL
+        shell: bash
+        run: |
+          mkdir -p external
+          if [ "${{ matrix.arch }}" = "x86" ]; then
+            ZIP_NAME=EternalJK-windows-x86.zip
+            DLL_NAME=rd-vulkan_x86.dll
+          else
+            ZIP_NAME=EternalJK-windows-x86_64.zip
+            DLL_NAME=rd-vulkan_x86_64.dll
+          fi
+          curl -L -o external/$ZIP_NAME \
+            https://github.com/JKSunny/EternalJK/releases/download/latest/$ZIP_NAME
+          unzip -j external/$ZIP_NAME "$DLL_NAME" -d external
+          echo "RD_VULKAN_DLL=${{ github.workspace }}/external/$DLL_NAME" >> $GITHUB_ENV
+
+      - name: Create build directory
+        run: cmake -E make_directory build
+
+      - name: Configure CMake
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: |
+          cmake .. -A ${{ matrix.platform }} \
+            -DCMAKE_INSTALL_PREFIX=bin \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_NUMBER=${{ github.run_number }} \
+            -DGIT_SHA=${{ github.sha }} \
+            -DGIT_BRANCH=${{ github.ref_name }} \
+            -DEXTERNAL_RD_VULKAN_DLL="$RD_VULKAN_DLL"
+
+      - name: Build
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: cmake --build . --config Release -j $NUMBER_OF_PROCESSORS
+
+      - name: Install
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: cmake --install . --config Release
+
+      - name: Upload Master Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JoF-master-windows-${{ matrix.arch }}
+          path: build/bin
+          if-no-files-found: error
+
+  publish-master:
+    if: needs.check-master-changes.outputs.should_run == 'true'
+    name: Publish Master Release
+    needs: [check-master-changes, windows-master]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Read version from windows-master job
+        run: |
+          VERSION="${{ needs.windows-master.outputs.version }}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Create ZIP archives
+        run: |
+          zip -r JoF-windows-x86.zip     JoF-master-windows-x86
+          zip -r JoF-windows-x86_64.zip  JoF-master-windows-x86_64
+
+      - name: Create version tag
+        id: tag
+        run: |
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          echo "tag=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          prerelease: false
           generate_release_notes: true
           files: |
             JoF-windows-x86.zip
