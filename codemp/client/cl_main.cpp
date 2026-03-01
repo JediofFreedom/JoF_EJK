@@ -137,9 +137,7 @@ cvar_t	*cl_afkTimeUnfocused;
 
 cvar_t	*cl_logChat;
 
-//Begin Olol's
 cvar_t* cl_last_server;
-//End Olol's
 
 #if defined(DISCORD) && defined(FINAL_BUILD)
 cvar_t	*cl_discordRichPresence;
