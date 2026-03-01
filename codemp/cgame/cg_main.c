@@ -874,6 +874,8 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.fallSound = trap->S_RegisterSound( "sound/player/fallsplat.wav");
 
 	cgs.media.crackleSound = trap->S_RegisterSound( "sound/effects/energy_crackle.wav" );
+	
+	cgs.media.flameThrowerSound = trap->S_RegisterSound("sound/weapons/boba/bf_flame.mp3");
 
 //JAPRO - Clientside - Hitsounds Start
 	cgs.media.hitSound			= trap->S_RegisterSound( "sound/effects/hitsound.wav" );
@@ -1188,7 +1190,8 @@ CG_RegisterGraphics
 This function may execute for a couple of minutes with a slow disk.
 =================
 */
-static void CG_RegisterGraphics( void ) {
+static void CG_RegisterGraphics( void )
+{
 	int			i;
 	int			breakPoint;
 	char		items[MAX_ITEMS+1];
@@ -1243,7 +1246,7 @@ static void CG_RegisterGraphics( void ) {
 	trap->R_LoadWorld( cgs.mapname );
 
 	// precache status bar pics
-//	CG_LoadingString( "game media" );
+	//	CG_LoadingString( "game media" );
 
 	for ( i=0 ; i<11 ; i++) {
 		cgs.media.numberShaders[i] = trap->R_RegisterShader( sb_nums[i] );
@@ -1334,6 +1337,9 @@ static void CG_RegisterGraphics( void ) {
 	//breathing efx from SP
 	cgs.effects.breath = trap->FX_RegisterEffect("effects/misc/breath.efx");
 	cgs.effects.waterBreath = trap->FX_RegisterEffect("effects/misc/waterbreath.efx");
+	
+	cgs.effects.flameThrowerHit = trap->FX_RegisterEffect("effects/env/fire_wall");
+	cgs.effects.flameThrowerVfx = trap->FX_RegisterEffect("effects/mp/fthrw_bobafire");
 
 	for ( i = 0 ; i < NUM_CROSSHAIRS ; i++ ) {
 		cgs.media.crosshairShader[i] = trap->R_RegisterShaderNoMip( va("gfx/2d/crosshair%c", 'a'+i) );

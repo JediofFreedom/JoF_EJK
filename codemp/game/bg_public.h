@@ -764,7 +764,7 @@ typedef enum {
 
 #define	EF_NOT_USED_6			(1<<15)		// not used
 #define	EF_GRAPPLE_SWING		(1<<16)		// not used
-#define	EF_NOT_USED_3			(1<<17)		// not used
+#define	EF_BOBAFIRE				(1<<17)		
 #define	EF_NOT_USED_4			(1<<18)		// not used
 
 #define	EF_BODYPUSH				(1<<19)		//rww - claiming this for fullbody push effect
@@ -795,7 +795,7 @@ typedef enum {
 #define	EF2_HYPERSPACE			(1<<5)		// Used to both start the hyperspace effect on the predicted client and to let the vehicle know it can now jump into hyperspace (after turning to face the proper angle)
 #define	EF2_BRACKET_ENTITY		(1<<6)		// Draw as bracketed
 #define	EF2_SHIP_DEATH			(1<<7)		// "died in ship" mode
-#define	EF2_NOT_USED_1			(1<<8)		// not used
+#define	EF2_BOBAFIRED			(1<<8)		// not used
 
 #ifdef _CGAME
 #define EF2_GRAPPLE_OUT			(1<<9)

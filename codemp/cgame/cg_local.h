@@ -578,6 +578,10 @@ typedef struct centity_s {
 #if 1 //NPCLAGFIX2 adds this
 	qboolean		doLerp; // for entity position smoothing
 #endif
+	
+	unsigned int	flameSndDebounceTime;
+	unsigned int	flameThrowerHitTime;
+	qboolean		flameThrowerSndActive;
 } centity_t;
 
 
@@ -1787,6 +1791,8 @@ typedef struct cgMedia_s {
 	sfxHandle_t	count1Sound;
 	sfxHandle_t	countFightSound;
 
+	sfxHandle_t flameThrowerSound;
+
 	// new stuff
 	qhandle_t patrolShader;
 	qhandle_t assaultShader;
@@ -2022,6 +2028,9 @@ typedef struct cgEffects_s {
 	//breath effects
 	fxHandle_t	breath;
 	fxHandle_t	waterBreath;
+	
+	fxHandle_t	flameThrowerVfx;
+	fxHandle_t	flameThrowerHit;
 } cgEffects_t;
 
 #define MAX_STATIC_MODELS 4000

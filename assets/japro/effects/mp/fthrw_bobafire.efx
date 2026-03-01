@@ -1,0 +1,54 @@
+repeatDelay				300
+
+Particle
+{
+	flags				usePhysics
+
+	spawnFlags			evenDistribution rgbComponentInterpolation
+
+	count				30
+
+	life				800 1000
+
+	delay				0 300
+
+	origin				1 1 1 1 1 1
+
+	rotation			0 360
+
+	rotationDelta		-60 60
+
+	velocity			100 5 5 150 5 5
+
+	acceleration		10 10 10 40 10 10
+
+	rgb
+	{
+		start			0 0 0.7333 0.1255 0.1255 1
+		end				1 1 1 0.9569 0.702 0.4667
+		parm			35 45
+		flags			nonlinear
+	}
+
+	alpha
+	{
+		end				0
+		parm			60 75
+		flags			linear nonlinear
+	}
+
+	size
+	{
+		start			2 3
+		end				20 30
+		parm			0 1
+		flags			wave
+	}
+
+	shaders
+	[
+		gfx/effects/fire2
+		gfx/effects/fire3
+		gfx/effects/fire4
+	]
+}

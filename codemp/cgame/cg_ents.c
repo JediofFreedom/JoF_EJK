@@ -3839,6 +3839,23 @@ Ghoul2 Insert Start
 			trap->S_AddLocalSet(soundSet, cg.refdef.vieworg, cent->lerpOrigin, cent->currentState.number, cg.time);
 		}
 	}
+
+	if (cgs.serverMod >= SVMOD_JAPLUS
+		&& cent->currentState.eFlags2 & EF2_BOBAFIRED)
+	{
+		matrix3_t axis;
+		AnglesToAxis(cent->lerpAngles, axis);
+
+		if (cent->flameThrowerHitTime < cg.snap->serverTime)
+		{
+			cent->flameThrowerHitTime = cg.snap->serverTime + 100;
+			trap->FX_PlayEntityEffectID(cgs.effects.flameThrowerHit,
+				cent->lerpOrigin,
+				axis,
+				-1, -1, -1, -1);
+		}
+	}
+		
 /*
 Ghoul2 Insert End
 */
