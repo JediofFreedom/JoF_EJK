@@ -209,18 +209,7 @@ typedef enum uiImportLegacy_e {
 	UI_G2_GETSURFACENAME,
 	UI_G2_SETSKIN,
 	UI_G2_ATTACHG2MODEL,
-	UI_FS_GETFILELIST_ASYNC,
-	UI_FS_ASYNC_STATUS,
-	UI_FS_ASYNC_READ,
-	UI_FS_ASYNC_FREE,
 } uiImportLegacy_t;
-
-#define UI_ASYNC_INVALID -1
-#define UI_ASYNC_PENDING 0
-#define UI_ASYNC_DONE 1
-#define UI_ASYNC_ERROR 2
-#define UI_ASYNC_CANCELLED 3
-typedef int uiAsyncStatus_t;
 
 typedef enum uiExportLegacy_e {
 	UI_GETAPIVERSION = 0,
@@ -262,15 +251,12 @@ typedef struct uiImport_s {
 	void			(*Cmd_Argv)								( int n, char *buffer, int bufferLength );
 	void			(*Cmd_ExecuteText)						( int exec_when, const char *text );
 
-	void			(*FS_Close)							( fileHandle_t f );
-	int			(*FS_GetFileList)						( const char *path, const char *extension, char *listbuf, int bufsize );
-	int			(*FS_Open)							( const char *qpath, fileHandle_t *f, fsMode_t mode );
-	int			(*FS_Read)							( void *buffer, int len, fileHandle_t f );
-	int			(*FS_Write)							( const void *buffer, int len, fileHandle_t f );
-	int			(*FS_GetFileListAsync)				( const char *path, const char *extension, int bufsize );
-	int			(*FS_AsyncStatus)					( int jobId, int *outLen );
-	int			(*FS_AsyncRead)						( int jobId, void *buffer, int bufSize );
-	void			(*FS_AsyncFree)						( int jobId );
+	void			(*FS_Close)								( fileHandle_t f );
+	int				(*FS_GetFileList)						( const char *path, const char *extension, char *listbuf, int bufsize );
+	int				(*FS_Open)								( const char *qpath, fileHandle_t *f, fsMode_t mode );
+	int				(*FS_Read)								( void *buffer, int len, fileHandle_t f );
+	int				(*FS_Write)								( const void *buffer, int len, fileHandle_t f );
+
 	void			(*GetClientState)						( uiClientState_t *state );
 	void			(*GetClipboardData)						( char *buf, int bufsize );
 	int				(*GetConfigString)						( int index, char *buff, int buffsize );

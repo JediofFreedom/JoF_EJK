@@ -23,48 +23,6 @@ endif(NOT InOpenJK)
 
 set(MPSharedDefines ${SharedDefines})
 
-# Get current git branch name
-execute_process(
-    COMMAND git rev-parse --abbrev-ref HEAD
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE GIT_BRANCH
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET
-)
-
-# Fallback for non-git builds (zip releases, etc.)
-if(NOT GIT_BRANCH)
-    set(GIT_BRANCH "unknown")
-endif()
-
-if(GIT_BRANCH STREQUAL "master")
-    unset(GIT_BRANCH)
-endif()
-
-# Set default values if not defined
-if(NOT DEFINED BUILD_NUMBER)
-    set(BUILD_NUMBER "local")
-endif()
-
-if(NOT DEFINED GIT_SHA)
-    set(GIT_SHA "local")
-endif()
-
-# Short commit SHA (7 chars, git-style)
-if(GIT_SHA STREQUAL "local")
-    set(GIT_SHA_SHORT "local")
-else()
-    string(SUBSTRING "${GIT_SHA}" 0 7 GIT_SHA_SHORT)
-endif()
-
-
-# Generate jofversion.h from jofversion.h.in
-configure_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/versionfile/jofversion.h.in
-    ${CMAKE_CURRENT_BINARY_DIR}/versionfile/jofversion.h
-    @ONLY
-)
-
 #    Add Game Project
 if(BuildMPGame)
 	add_subdirectory("${MPDir}/game")
@@ -101,7 +59,6 @@ if(BuildMPEngine OR BuildMPDed)
 		${SharedDir}
 		${MPDir}
 		"${GSLIncludeDirectory}"
-		${CMAKE_CURRENT_BINARY_DIR}/versionfile # Make sure the generated jofversion.h is found by all subsequent includes
 		)
 	set(MPBotlibBotlibFiles
 		"${MPDir}/botlib/aasfile.h"
@@ -406,9 +363,6 @@ if(BuildMPEngine)
 	set(MPEngineFiles ${MPEngineAndDedFiles})
 	set(MPEngineDefines ${MPSharedDefines})
 
-	list(APPEND MPEngineIncludeDirectories ${CMAKE_CURRENT_BINARY_DIR}/versionfile) # Make sure the generated jofversion.h is found by all subsequent includes
-
-
 	#    Dependencies
 
 	if (NOT WIN32)
@@ -464,8 +418,8 @@ if(BuildMPEngine)
 		else()
 			set(MPEngineLibraries
 				${MPEngineLibraries}
-				${OpenJKLibDir}/SDL2/lib/x64/SDL2main.x86_64.lib
-				${OpenJKLibDir}/SDL2/lib/x64/SDL2.x86_64.lib
+				${OpenJKLibDir}/SDL2/lib/x64/SDL2main.lib
+				${OpenJKLibDir}/SDL2/lib/x64/SDL2.lib
 				)
 		endif()
 
@@ -644,7 +598,7 @@ if(BuildMPEngine)
 					)
 			else()
 				set(MPEngineExtraInstallFiles
-					${OpenJKLibDir}/SDL2/bin/x64/SDL2.x86_64.dll
+					${OpenJKLibDir}/SDL2/bin/x64/SDL2.dll
 					)
 			endif()
 		endif()
@@ -687,7 +641,7 @@ if(BuildMPEngine)
 
 	set_target_properties(${MPEngine} PROPERTIES INCLUDE_DIRECTORIES "${MPEngineIncludeDirectories}")
 	set_target_properties(${MPEngine} PROPERTIES PROJECT_LABEL "MP Client")
-	target_link_libraries(${MPEngine} PRIVATE ${MPEngineLibraries} ${MPCGame} ${MPUI} ${MPVanillaRenderer})
+	target_link_libraries(${MPEngine} ${MPEngineLibraries})
 endif(BuildMPEngine)
 
 #        Dedicated Server (Engine) (jampded.exe)
@@ -697,8 +651,6 @@ if(BuildMPDed)
 	set(MPDedIncludeDirectories ${MPEngineAndDedIncludeDirectories})
 	set(MPDedFiles ${MPEngineAndDedFiles})
 	set(MPDedDefines ${MPSharedDefines} "_CONSOLE" "DEDICATED")
-	
-	list(APPEND MPDedIncludeDirectories ${CMAKE_CURRENT_BINARY_DIR}/versionfile) # Make sure the generated jofversion.h is found by all subsequent includes
 
 	# Dedicated renderer is compiled with the server.
 	set(MPDedicatedRendererFiles

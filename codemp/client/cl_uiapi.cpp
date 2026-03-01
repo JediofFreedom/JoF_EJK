@@ -29,257 +29,12 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "FXExport.h"
 #include "FxUtil.h"
 
-#include <atomic>
-#include <condition_variable>
-#include <deque>
-#include <mutex>
-#include <thread>
-#include <unordered_map>
-#include <vector>
-#include <string>
-#include <cstring>
-
 extern IHeapAllocator *G2VertSpaceClient;
 extern botlib_export_t *botlib_export;
 
 // ui interface
 static uiExport_t *uie; // ui export table
 static vm_t *uivm; // ui vm, valid for legacy and new api
-
-struct uiAsyncJob
-{
-	int id;
-	std::string path;
-	std::string extension;
-	int bufSize;
-	std::vector<char> data;
-	int dataSize;
-	int resultCount;
-	int status;
-};
-
-static std::mutex uiAsyncMutex;
-static std::condition_variable uiAsyncCv;
-static std::deque<int> uiAsyncQueue;
-static std::map<int, uiAsyncJob> uiAsyncJobs;
-static std::thread uiAsyncThread;
-static std::atomic<bool> uiAsyncStop(false);
-static std::atomic<bool> uiAsyncStarted(false);
-static std::atomic<int> uiAsyncNextId(1);
-
-
-static void uiAsyncThreadMain()
-{
-	for (;;)
-	{
-		int jobId = -1;
-		std::unique_lock<std::mutex> lock(uiAsyncMutex);
-		uiAsyncCv.wait(lock, [] { return uiAsyncStop.load() || !uiAsyncQueue.empty(); });
-		if (uiAsyncStop.load())
-			return;
-		jobId = uiAsyncQueue.front();
-		uiAsyncQueue.pop_front();
-
-		uiAsyncJob jobCopy;
-		auto it = uiAsyncJobs.find(jobId);
-		if (it == uiAsyncJobs.end())
-		{
-			lock.unlock();
-			continue;
-		}
-		
-		if (it->second.status == UI_ASYNC_CANCELLED)
-		{
-			lock.unlock();
-			continue;
-		}
-		
-		jobCopy = it->second;
-		lock.unlock();
-
-		if (uiAsyncStop.load())
-			return;
-
-		std::vector<char> data;
-		int dataSize = 0;
-		int resultCount = 0;
-		int status = UI_ASYNC_DONE;
-
-		if (jobCopy.bufSize <= 0)
-		{
-			status = UI_ASYNC_ERROR;
-		}
-		else
-		{
-			size_t usedLen = 0;
-			size_t remaining = (size_t)jobCopy.bufSize;
-			data.resize(jobCopy.bufSize);
-			int count = FS_GetFileList(jobCopy.path.c_str(), jobCopy.extension.c_str(), data.data(),
-			                           jobCopy.bufSize);
-			if (count < 0)
-			{
-				status = UI_ASYNC_ERROR;
-			}
-			else
-			{
-				const char* cursor = data.data();
-				for (int i = 0; i < count; ++i)
-				{
-					const void* terminator = memchr(cursor, '\0', remaining);
-					if (!terminator)
-					{
-						status = UI_ASYNC_ERROR;
-						break;
-					}
-					const size_t len = (const char*)terminator - cursor;
-					usedLen += len + 1;
-					remaining -= len + 1;
-					cursor = (const char*)terminator + 1;
-				}
-				dataSize = (int)usedLen;
-				resultCount = count;
-			}
-		}
-
-		std::lock_guard<std::mutex> lock3(uiAsyncMutex);
-		auto it2 = uiAsyncJobs.find(jobId);
-		if (it2 == uiAsyncJobs.end())
-			continue;
-		if (it2->second.status == UI_ASYNC_CANCELLED)
-			continue;
-		
-		if (status == UI_ASYNC_DONE)
-		{
-			it2->second.data = std::move(data);
-			it2->second.dataSize = dataSize;
-			it2->second.resultCount = resultCount;
-			it2->second.status = UI_ASYNC_DONE;
-		}
-		else
-		{
-			it2->second.status = UI_ASYNC_ERROR;
-		}
-	}
-}
-
-static void uiAsyncEnsureThread()
-{
-	if (uiAsyncStarted.load())
-		return;
-	
-	std::lock_guard<std::mutex> lock(uiAsyncMutex);
-	if (uiAsyncStarted.load())
-		return;
-	
-	uiAsyncStop = false;
-	uiAsyncThread = std::thread(uiAsyncThreadMain);
-	uiAsyncStarted = true;
-}
-
-static void uiAsyncShutdown()
-{
-	if (!uiAsyncStarted.load())
-		return;
-
-
-	{
-		std::lock_guard<std::mutex> lock(uiAsyncMutex);
-		uiAsyncStop = true;
-		uiAsyncQueue.clear();
-		for (auto& kv : uiAsyncJobs)
-		{
-			kv.second.status = UI_ASYNC_CANCELLED;
-		}
-	}
-
-	uiAsyncCv.notify_all();
-	if (uiAsyncThread.joinable())
-	{
-		uiAsyncThread.join();
-	}
-
-	{
-		std::lock_guard<std::mutex> lock(uiAsyncMutex);
-		uiAsyncQueue.clear();
-		uiAsyncJobs.clear();
-		uiAsyncStarted = false;
-	}
-	
-}
-
-static int uiAsyncStartGetFileList(const char* path, const char* extension, const int bufSize)
-{
-	if (!path || !path[0] || bufSize <= 0)
-		return -1;
-	
-	if (uiAsyncStop.load())
-		return -1;
-	
-	uiAsyncEnsureThread();
-	uiAsyncJob job;
-	job.id = uiAsyncNextId.fetch_add(1);
-	job.path = path;
-	job.extension = extension ? extension : "";
-	job.bufSize = bufSize;
-	job.dataSize = 0;
-	job.resultCount = 0;
-	job.status = UI_ASYNC_PENDING;
-
-
-	std::lock_guard<std::mutex> lock(uiAsyncMutex);
-	uiAsyncJobs.emplace(job.id, job);
-	uiAsyncQueue.push_back(job.id);
-	
-	uiAsyncCv.notify_all();
-	return job.id;
-}
-
-static int uiAsyncStatus(const int jobId, int* outLen)
-{
-	if (outLen)
-		*outLen = 0;
-	
-	std::lock_guard<std::mutex> lock(uiAsyncMutex);
-	auto it = uiAsyncJobs.find(jobId);
-	if (it == uiAsyncJobs.end())
-		return UI_ASYNC_INVALID;
-	
-	if (it->second.status == UI_ASYNC_DONE && outLen)
-		*outLen = it->second.dataSize;
-	
-	return it->second.status;
-}
-
-static int uiAsyncRead(const int jobId, void* buffer, int bufSize)
-{
-	std::lock_guard<std::mutex> lock(uiAsyncMutex);
-	const auto it = uiAsyncJobs.find(jobId);
-	
-	if (it == uiAsyncJobs.end())
-		return -1;
-	
-	if (it->second.status == UI_ASYNC_PENDING)
-		return 0;
-	
-	if (it->second.status != UI_ASYNC_DONE)
-		return -1;
-	
-	if (bufSize < it->second.dataSize)
-		return -it->second.dataSize;
-	
-	if (it->second.dataSize > 0 && buffer)
-		memcpy(buffer, it->second.data.data(), it->second.dataSize);
-
-	const int result = it->second.resultCount;
-	uiAsyncJobs.erase(it);
-	return result;
-}
-
-static void uiAsyncFree(const int jobId)
-{
-	std::lock_guard<std::mutex> lock(uiAsyncMutex);
-	uiAsyncJobs.erase(jobId);
-}
 
 //
 // ui vmMain calls
@@ -1162,18 +917,6 @@ intptr_t CL_UISystemCalls( intptr_t *args ) {
 	case UI_FS_GETFILELIST:
 		return FS_GetFileList( (const char *)VMA(1), (const char *)VMA(2), (char *)VMA(3), args[4] );
 
-	case UI_FS_GETFILELIST_ASYNC:
-		return uiAsyncStartGetFileList( (const char *)VMA(1), (const char *)VMA(2), args[3] );
-
-	case UI_FS_ASYNC_STATUS:
-		return uiAsyncStatus( args[1], (int *)VMA(2) );
-
-	case UI_FS_ASYNC_READ:
-		return uiAsyncRead( args[1], VMA(2), args[3] );
-
-	case UI_FS_ASYNC_FREE:
-		uiAsyncFree( args[1] );
-		return 0;
 	case UI_R_REGISTERMODEL:
 		return re->RegisterModel( (const char *)VMA(1) );
 
@@ -1611,10 +1354,6 @@ void CL_BindUI( void ) {
 		uii.FS_Read								= FS_Read;
 		uii.FS_Write							= FS_Write;
 
-		uii.FS_GetFileListAsync					= uiAsyncStartGetFileList;
-		uii.FS_AsyncStatus						= uiAsyncStatus;
-		uii.FS_AsyncRead						= uiAsyncRead;
-		uii.FS_AsyncFree						= uiAsyncFree;
 		uii.GetClientState						= CL_GetClientState;
 		uii.GetClipboardData					= GetClipboardData;
 		uii.GetConfigString						= GetConfigString;
@@ -1759,7 +1498,6 @@ void CL_BindUI( void ) {
 }
 
 void CL_UnbindUI( void ) {
-	uiAsyncShutdown();
 	UIVM_Shutdown();
 	VM_Free( uivm );
 	uivm = NULL;

@@ -22,9 +22,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // tr_vbo.c
 #include "tr_local.h"
 
-#ifdef _G2_GORE
-#include "G2_gore_r2.h"
-#endif
 
 
 uint32_t R_VboPackTangent(vec4_t v)
@@ -96,7 +93,7 @@ VBO_t *R_CreateVBO(byte * vertexes, int vertexesSize, vboUsage_t usage)
 	memset(vbo, 0, sizeof(*vbo));
 
 	vbo->vertexesSize = vertexesSize;
-	qglGenBuffers(1, &vbo->vertexesVBO);
+	vbo->vertexesVBO = tr.vboNames[tr.numVBOs];
 	tr.numVBOs++;
 
 	qglBindBuffer(GL_ARRAY_BUFFER, vbo->vertexesVBO);
@@ -143,7 +140,7 @@ IBO_t *R_CreateIBO(byte * indexes, int indexesSize, vboUsage_t usage)
 	ibo = tr.ibos[tr.numIBOs] = (IBO_t *)ri.Hunk_Alloc(sizeof(*ibo), h_low);
 
 	ibo->indexesSize = indexesSize;
-	qglGenBuffers(1, &ibo->indexesVBO);
+	ibo->indexesVBO = tr.iboNames[tr.numIBOs];
 	tr.numIBOs++;
 
 	qglBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo->indexesVBO);
@@ -183,7 +180,7 @@ void R_BindVBO(VBO_t * vbo)
 	if(!vbo)
 	{
 		//R_BindNullVBO();
-		ri.Error(ERR_DROP, "R_BindVBO: NULL vbo");
+		ri.Error(ERR_DROP, "R_BindNullVBO: NULL vbo");
 		return;
 	}
 
@@ -275,30 +272,17 @@ void R_BindNullIBO(void)
 
 /*
 ============
-R_InitGPUBuffers
+R_InitVBOs
 ============
 */
-void R_InitGPUBuffers(void)
+void R_InitVBOs(void)
 {
-	ri.Printf(PRINT_ALL, "------- R_InitGPUBuffers -------\n");
+	ri.Printf(PRINT_ALL, "------- R_InitVBOs -------\n");
 
 	// glGenBuffers only allocates the IDs for these buffers. The 'buffer object' is
 	// actually created on first bind.
-	qglGenBuffers(1, &tr.staticUbo);
-	qglGenBuffers(MAX_SUB_BSP + 1, tr.spriteUbos);
-	qglGenBuffers(1, &tr.shaderInstanceUbo);
-
-	// Allocate/create ShaderInstanceBlock ubo
-	const int alignment = glRefConfig.uniformBufferOffsetAlignment - 1;
-	const size_t alignedBlockSize = (sizeof(ShaderInstanceBlock) + alignment) & ~alignment;
-
-	qglBindBuffer(GL_UNIFORM_BUFFER, tr.shaderInstanceUbo);
-	glState.currentGlobalUBO = tr.shaderInstanceUbo;
-	qglBufferData(
-		GL_UNIFORM_BUFFER,
-		MAX_SHADERS * alignedBlockSize,
-		nullptr,
-		GL_STATIC_DRAW);
+	qglGenBuffers(MAX_IBOS, tr.iboNames);
+	qglGenBuffers(MAX_VBOS, tr.vboNames);
 
 	tr.numVBOs = 0;
 	tr.numIBOs = 0;
@@ -311,39 +295,18 @@ void R_InitGPUBuffers(void)
 
 /*
 ============
-R_DestroyGPUBuffers
+R_ShutdownVBOs
 ============
 */
-void R_DestroyGPUBuffers(void)
+void R_ShutdownVBOs(void)
 {
-	ri.Printf(PRINT_ALL, "------- R_DestroyGPUBuffers -------\n");
+	ri.Printf(PRINT_ALL, "------- R_ShutdownVBOs -------\n");
 
 	R_BindNullVBO();
 	R_BindNullIBO();
 
-	qglDeleteBuffers(1, &tr.staticUbo);
-	qglDeleteBuffers(MAX_SUB_BSP + 1, tr.spriteUbos);
-	qglDeleteBuffers(1, &tr.shaderInstanceUbo);
-
-	for (int i = 0; i < tr.numVBOs; i++)
-	{
-		VBO_t *vbo = tr.vbos[i];
-
-		if (vbo->vertexesVBO)
-		{
-			qglDeleteBuffers(1, &vbo->vertexesVBO);
-		}
-	}
-
-	for (int i = 0; i < tr.numIBOs; i++)
-	{
-		IBO_t *ibo = tr.ibos[i];
-
-		if (ibo->indexesVBO)
-		{
-			qglDeleteBuffers(1, &ibo->indexesVBO);
-		}
-	}
+	qglDeleteBuffers(MAX_IBOS, tr.iboNames);
+	qglDeleteBuffers(MAX_VBOS, tr.vboNames);
 
 	tr.numVBOs = 0;
 	tr.numIBOs = 0;
@@ -554,11 +517,9 @@ void CalculateVertexArraysFromVBO(
 	properties->vertexDataSize = 0;
 	properties->numVertexArrays = 0;
 
-	for (int i = 0, j = 1; i < ATTR_INDEX_MAX; i++, j <<= 1)
+	for ( int i = 0, j = 1; i < ATTR_INDEX_MAX; i++, j <<= 1 )
 	{
-		if (vbo->sizes[i] == 0)
-			continue;
-		if (attributes & j)
+		if ( attributes & j )
 			AddVertexArray(
 				properties,
 				i,
@@ -680,38 +641,6 @@ void RB_UpdateVBOs(unsigned int attribBits)
 	}
 }
 
-#ifdef _G2_GORE
-void RB_UpdateGoreVBO(srfG2GoreSurface_t *goreSurface)
-{
-	goreSurface->firstVert = tr.goreVBOCurrentIndex;
-	goreSurface->firstIndex = tr.goreIBOCurrentIndex;
-
-	if (tr.goreVBOCurrentIndex + goreSurface->numVerts >= (MAX_LODS * MAX_GORE_RECORDS * MAX_GORE_VERTS * MAX_FRAMES))
-		tr.goreVBOCurrentIndex = 0;
-
-	R_BindVBO(tr.goreVBO);
-	qglBufferSubData(
-		GL_ARRAY_BUFFER,
-		sizeof(g2GoreVert_t) * tr.goreVBOCurrentIndex,
-		sizeof(g2GoreVert_t) * goreSurface->numVerts,
-		goreSurface->verts
-	);
-	tr.goreVBOCurrentIndex += goreSurface->numVerts;
-
-	if (tr.goreIBOCurrentIndex + goreSurface->numVerts >= (MAX_LODS * MAX_GORE_RECORDS * MAX_GORE_INDECIES * MAX_FRAMES))
-		tr.goreIBOCurrentIndex = 0;
-
-	R_BindIBO(tr.goreIBO);
-	qglBufferSubData(
-		GL_ELEMENT_ARRAY_BUFFER,
-		sizeof(glIndex_t) * tr.goreIBOCurrentIndex,
-		sizeof(glIndex_t) * goreSurface->numIndexes,
-		goreSurface->indexes
-	);
-	tr.goreIBOCurrentIndex += goreSurface->numIndexes;
-}
-#endif
-
 void RB_CommitInternalBufferData()
 {
 	gpuFrame_t *currentFrame = backEndData->currentFrame;
@@ -720,106 +649,26 @@ void RB_CommitInternalBufferData()
 	currentFrame->dynamicVboCommitOffset = currentFrame->dynamicVboWriteOffset;
 }
 
-void RB_BindUniformBlock(GLuint ubo, uniformBlock_t block, int offset)
-{
-	const uniformBlockInfo_t *blockInfo = uniformBlocksInfo + block;
-
-	assert(blockInfo->slot < MAX_UBO_BINDINGS);
-
-	bufferBinding_t *currentBinding = glState.currentUBOs + blockInfo->slot;
-	if (currentBinding->buffer != ubo ||
-		currentBinding->offset != offset ||
-		currentBinding->size != blockInfo->size)
-	{
-		qglBindBufferRange(
-			GL_UNIFORM_BUFFER, blockInfo->slot, ubo, offset, blockInfo->size);
-		glState.currentGlobalUBO = ubo;
-
-		currentBinding->buffer = ubo;
-		currentBinding->offset = offset;
-		currentBinding->size = blockInfo->size;
-	}
-}
-
-int RB_BindAndUpdateFrameUniformBlock(uniformBlock_t block, void *data)
+void RB_BindAndUpdateUniformBlock(uniformBlock_t block, void *data)
 {
 	const uniformBlockInfo_t *blockInfo = uniformBlocksInfo + block;
 	gpuFrame_t *thisFrame = backEndData->currentFrame;
-	const int offset = thisFrame->uboWriteOffset;
 
-	RB_BindUniformBlock(thisFrame->ubo, block, offset);
+	RB_BindUniformBlock(block);
 
 	qglBufferSubData(GL_UNIFORM_BUFFER,
 			thisFrame->uboWriteOffset, blockInfo->size, data);
 
-	const int alignment = glRefConfig.uniformBufferOffsetAlignment - 1;
-	const size_t alignedBlockSize = (blockInfo->size + alignment) & ~alignment;
+	// FIXME: Use actual ubo alignment
+	const size_t alignedBlockSize = (blockInfo->size + 255) & ~255;
 	thisFrame->uboWriteOffset += alignedBlockSize;
-
-	return offset;
 }
 
-int RB_AddShaderInstanceBlock(void *data)
+void RB_BindUniformBlock(uniformBlock_t block)
 {
-	if (glState.currentGlobalUBO != tr.shaderInstanceUbo)
-	{
-		qglBindBuffer(GL_UNIFORM_BUFFER, tr.shaderInstanceUbo);
-		glState.currentGlobalUBO = tr.shaderInstanceUbo;
-	}
-	const size_t writeOffset = tr.shaderInstanceUboWriteOffset;
+	const uniformBlockInfo_t *blockInfo = uniformBlocksInfo + block;
+	gpuFrame_t *thisFrame = backEndData->currentFrame;
 
-	qglBufferSubData(GL_UNIFORM_BUFFER,
-		tr.shaderInstanceUboWriteOffset, sizeof(ShaderInstanceBlock), data);
-
-	const int alignment = glRefConfig.uniformBufferOffsetAlignment - 1;
-	const size_t alignedBlockSize = (sizeof(ShaderInstanceBlock) + alignment) & ~alignment;
-	tr.shaderInstanceUboWriteOffset += alignedBlockSize;
-
-	return writeOffset;
-}
-
-void RB_BeginConstantsUpdate(gpuFrame_t *frame)
-{
-	if (glState.currentGlobalUBO != frame->ubo)
-	{
-		qglBindBuffer(GL_UNIFORM_BUFFER, frame->ubo);
-		glState.currentGlobalUBO = frame->ubo;
-	}
-
-	const GLbitfield mapFlags =
-		GL_MAP_WRITE_BIT |
-		GL_MAP_UNSYNCHRONIZED_BIT |
-		GL_MAP_FLUSH_EXPLICIT_BIT;
-
-	frame->uboMapBase = frame->uboWriteOffset;
-	frame->uboMemory = qglMapBufferRange(
-		GL_UNIFORM_BUFFER,
-		frame->uboWriteOffset,
-		frame->uboSize - frame->uboWriteOffset,
-		mapFlags);
-}
-
-int RB_AppendConstantsData(
-	gpuFrame_t *frame, const void *data, size_t dataSize)
-{
-	const size_t writeOffset = frame->uboWriteOffset;
-	const size_t relativeOffset = writeOffset - frame->uboMapBase;
-
-	memcpy((char *)frame->uboMemory + relativeOffset, data, dataSize);
-
-	const int alignment = glRefConfig.uniformBufferOffsetAlignment - 1;
-	const size_t alignedBlockSize = (dataSize + alignment) & ~alignment;
-
-	frame->uboWriteOffset += alignedBlockSize;
-	assert(frame->uboWriteOffset > 0);
-	return writeOffset;
-}
-
-void RB_EndConstantsUpdate(const gpuFrame_t *frame)
-{
-	qglFlushMappedBufferRange(
-		GL_UNIFORM_BUFFER,
-		frame->uboMapBase,
-		frame->uboWriteOffset - frame->uboMapBase);
-	qglUnmapBuffer(GL_UNIFORM_BUFFER);
+	qglBindBufferRange(GL_UNIFORM_BUFFER, blockInfo->slot,
+			thisFrame->ubo, thisFrame->uboWriteOffset, blockInfo->size);
 }

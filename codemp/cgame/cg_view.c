@@ -3116,15 +3116,10 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 			CG_AddAllStrafeTrails();
 		}
 #endif
-	}
-
-	CG_AddViewWeapon( &cg.predictedPlayerState );
-
-	if (!cg.hyperspace)
-	{
 		if (cg_noFX.integer != 5)
 			trap->FX_AddScheduledEffects(qfalse);
 	}
+	CG_AddViewWeapon( &cg.predictedPlayerState );
 
 	// add buffered sounds
 	CG_PlayBufferedSounds();

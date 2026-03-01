@@ -73,7 +73,6 @@ PFNGLISBUFFERPROC qglIsBuffer;
 
 // Texturing
 PFNGLACTIVETEXTUREPROC qglActiveTexture;
-PFNGLTEXIMAGE3DPROC qglTexImage3D;
 
 // Shader objects
 PFNGLCREATESHADERPROC qglCreateShader;
@@ -108,11 +107,6 @@ PFNGLGETVERTEXATTRIBFVPROC qglGetVertexAttribfv;
 PFNGLGETVERTEXATTRIBIVPROC qglGetVertexAttribiv;
 PFNGLGETVERTEXATTRIBIIVPROC qglGetVertexAttribIiv;
 PFNGLGETVERTEXATTRIBIUIVPROC qglGetVertexAttribIuiv;
-
-PFNGLVERTEXATTRIB1FPROC qglVertexAttrib1f;
-PFNGLVERTEXATTRIB2FPROC qglVertexAttrib2f;
-PFNGLVERTEXATTRIB3FPROC qglVertexAttrib3f;
-PFNGLVERTEXATTRIB4FPROC qglVertexAttrib4f;
 
 // Varying variables
 PFNGLTRANSFORMFEEDBACKVARYINGSPROC qglTransformFeedbackVaryings;
@@ -193,8 +187,6 @@ PFNGLCHECKFRAMEBUFFERSTATUSPROC qglCheckFramebufferStatus;
 PFNGLFRAMEBUFFERTEXTURE1DPROC qglFramebufferTexture1D;
 PFNGLFRAMEBUFFERTEXTURE2DPROC qglFramebufferTexture2D;
 PFNGLFRAMEBUFFERTEXTURE3DPROC qglFramebufferTexture3D;
-PFNGLFRAMEBUFFERTEXTUREPROC qglFramebufferTexture;
-PFNGLFRAMEBUFFERTEXTURELAYERPROC qglFramebufferTextureLayer;
 PFNGLFRAMEBUFFERRENDERBUFFERPROC qglFramebufferRenderbuffer;
 PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVPROC qglGetFramebufferAttachmentParameteriv;
 PFNGLRENDERBUFFERSTORAGEMULTISAMPLEPROC qglRenderbufferStorageMultisample;
@@ -332,16 +324,8 @@ void GLimp_InitCoreFunctions()
 	GetGLFunction (qglDeleteVertexArrays, "glDeleteVertexArrays", qtrue);
 	GetGLFunction (qglBindVertexArray, "glBindVertexArray", qtrue);
 	GetGLFunction (qglIsVertexArray, "glIsVertexArray", qtrue);
-
-	GetGLFunction (qglVertexAttrib1f, "glVertexAttrib1f", qtrue);
-	GetGLFunction (qglVertexAttrib2f, "glVertexAttrib2f", qtrue);
-	GetGLFunction (qglVertexAttrib3f, "glVertexAttrib3f", qtrue);
-	GetGLFunction (qglVertexAttrib4f, "glVertexAttrib4f", qtrue);
-
+	
 	// Buffer objects
-	qglGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &glRefConfig.uniformBufferOffsetAlignment);
-	qglGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &glRefConfig.maxUniformBlockSize);
-	qglGetIntegerv(GL_MAX_UNIFORM_BUFFER_BINDINGS, &glRefConfig.maxUniformBufferBindings);
 	GetGLFunction (qglBindBuffer, "glBindBuffer", qtrue);
 	GetGLFunction (qglDeleteBuffers, "glDeleteBuffers", qtrue);
 	GetGLFunction (qglGenBuffers, "glGenBuffers", qtrue);
@@ -362,7 +346,7 @@ void GLimp_InitCoreFunctions()
 
 	// Texturing
 	GetGLFunction (qglActiveTexture, "glActiveTexture", qtrue);
-	GetGLFunction (qglTexImage3D, "glTexImage3D", qtrue);
+
 
 	// Shader objects
 	GetGLFunction (qglCreateShader, "glCreateShader", qtrue);
@@ -489,8 +473,6 @@ void GLimp_InitCoreFunctions()
 	GetGLFunction (qglFramebufferTexture1D, "glFramebufferTexture1D", qtrue);
 	GetGLFunction (qglFramebufferTexture2D, "glFramebufferTexture2D", qtrue);
 	GetGLFunction (qglFramebufferTexture3D, "glFramebufferTexture3D", qtrue);
-	GetGLFunction (qglFramebufferTexture, "glFramebufferTexture", qtrue);
-	GetGLFunction (qglFramebufferTextureLayer, "glFramebufferTextureLayer", qtrue);
 	GetGLFunction (qglFramebufferRenderbuffer, "glFramebufferRenderbuffer", qtrue);
 	GetGLFunction (qglGetFramebufferAttachmentParameteriv, "glGetFramebufferAttachmentParameteriv", qtrue);
 	GetGLFunction (qglRenderbufferStorageMultisample, "glRenderbufferStorageMultisample", qtrue);
@@ -518,7 +500,7 @@ void GLimp_InitCoreFunctions()
 	GetGLFunction (qglDeleteSync, "glDeleteSync", qtrue);
 	GetGLFunction (qglClientWaitSync, "glClientWaitSync", qtrue);
 	GetGLFunction (qglWaitSync, "glWaitSync", qtrue);
-
+	
 }
 
 void GLW_InitTextureCompression( void );
@@ -606,7 +588,7 @@ void GLimp_InitExtensions()
 	if( GLimp_HaveExtension( extension ) )
 	{
 		qboolean loaded = qtrue;
-
+		
 		loaded = (qboolean)(loaded && GetGLFunction (qglTexStorage3D, "glTexStorage3D", qfalse));
 		loaded = (qboolean)(loaded && GetGLFunction (qglTexStorage1D, "glTexStorage1D", qfalse));
 		loaded = (qboolean)(loaded && GetGLFunction (qglTexStorage2D, "glTexStorage2D", qfalse));
@@ -626,7 +608,7 @@ void GLimp_InitExtensions()
 	if( GLimp_HaveExtension( extension ) )
 	{
 		qboolean loaded = qtrue;
-
+		
 		if ( r_arb_buffer_storage->integer )
 		{
 			loaded = (qboolean)(loaded && GetGLFunction (qglBufferStorage, "glBufferStorage", qfalse));

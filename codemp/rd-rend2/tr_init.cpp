@@ -28,11 +28,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "tr_weather.h"
 #include <algorithm>
 
-#ifdef _G2_GORE
-#include "G2_gore_r2.h"
-#endif
-
-static size_t STATIC_UNIFORM_BUFFER_SIZE = 1 * 1024 * 1024;
 static size_t FRAME_UNIFORM_BUFFER_SIZE = 8*1024*1024;
 static size_t FRAME_VERTEX_BUFFER_SIZE = 12*1024*1024;
 static size_t FRAME_INDEX_BUFFER_SIZE = 4*1024*1024;
@@ -51,6 +46,10 @@ glstate_t	glState;
 window_t	window;
 
 cvar_t	*se_language;
+
+cvar_t	*r_flareSize;
+cvar_t	*r_flareFade;
+cvar_t	*r_flareCoeff;
 
 cvar_t	*r_verbose;
 cvar_t	*r_ignore;
@@ -82,7 +81,6 @@ cvar_t	*r_autolodscalevalue;
 cvar_t	*r_norefresh;
 cvar_t	*r_drawentities;
 cvar_t	*r_drawworld;
-cvar_t	*r_drawfog;
 cvar_t	*r_speeds;
 cvar_t	*r_fullbright;
 cvar_t	*r_novis;
@@ -130,6 +128,8 @@ cvar_t  *r_forceAutoExposure;
 cvar_t  *r_forceAutoExposureMin;
 cvar_t  *r_forceAutoExposureMax;
 
+cvar_t  *r_srgb;
+
 cvar_t  *r_depthPrepass;
 cvar_t  *r_ssao;
 
@@ -138,13 +138,13 @@ cvar_t  *r_specularMapping;
 cvar_t  *r_deluxeMapping;
 cvar_t  *r_deluxeSpecular;
 cvar_t  *r_parallaxMapping;
-cvar_t	*r_forceParallaxBias;
 cvar_t  *r_cubeMapping;
 cvar_t	*r_cubeMappingBounces;
 cvar_t  *r_baseNormalX;
 cvar_t  *r_baseNormalY;
 cvar_t  *r_baseParallax;
 cvar_t  *r_baseSpecular;
+cvar_t  *r_mergeLightmaps;
 cvar_t  *r_dlightMode;
 cvar_t  *r_pshadowDist;
 cvar_t  *r_imageUpsample;
@@ -190,8 +190,6 @@ cvar_t	*r_markcount;
 cvar_t	*r_textureMode;
 cvar_t	*r_offsetFactor;
 cvar_t	*r_offsetUnits;
-cvar_t	*r_shadowOffsetFactor;
-cvar_t	*r_shadowOffsetUnits;
 cvar_t	*r_gamma;
 cvar_t	*r_intensity;
 cvar_t	*r_lockpvs;
@@ -200,8 +198,6 @@ cvar_t	*r_portalOnly;
 
 cvar_t	*r_subdivisions;
 cvar_t	*r_lodCurveError;
-
-
 
 cvar_t	*r_overBrightBits;
 cvar_t	*r_mapOverBrightBits;
@@ -268,23 +264,22 @@ cvar_t	*r_dynamicGlowSoft;
 cvar_t	*r_dynamicGlowWidth;
 cvar_t	*r_dynamicGlowHeight;
 
-cvar_t *r_debugContext;
-cvar_t *r_debugWeather;
+cvar_t	 *r_debugContext;
+cvar_t	 *r_debugWeather;
 
 cvar_t	*r_aspectCorrectFonts;
-cvar_t	*r_ratioFix;
 
+//EternalJK
+cvar_t	*r_ratioFix;
 cvar_t	*r_fontOverride;
 
-cvar_t	*r_patchStitching;
-
 void R_Set2DRatio(void) {
-	if (r_ratioFix->integer)
+	if (r_ratioFix && r_ratioFix->integer)
 		tr.widthRatioCoef = ((float)(SCREEN_WIDTH * glConfig.vidHeight) / (float)(SCREEN_HEIGHT * glConfig.vidWidth));
 	else
 		tr.widthRatioCoef = 1.0f;
 
-	if (tr.widthRatioCoef > 1)
+	if (tr.widthRatioCoef > 1.0f)
 		tr.widthRatioCoef = 1.0f;
 }
 
@@ -292,22 +287,37 @@ extern void	RB_SetGL2D (void);
 static void R_Splash()
 {
 	const GLfloat black[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	//ETJK
+	image_t *pImage = NULL;
+	//float ratio = (float)(SCREEN_WIDTH * glConfig.vidHeight) / (float)(SCREEN_HEIGHT * glConfig.vidWidth);
+	float ratio = tr.widthRatioCoef;
+
+	if (ratio <= 0.0f) {
+		R_Set2DRatio();
+		ratio = tr.widthRatioCoef;
+	}
 
 	qglViewport( 0, 0, glConfig.vidWidth, glConfig.vidHeight );
 	qglClearBufferfv(GL_COLOR, 0, black);
-	qglClear(GL_DEPTH_BUFFER_BIT);
 
 	GLSL_InitSplashScreenShader();
 
 	GL_Cull(CT_TWO_SIDED);
 
-	image_t *pImage = R_FindImageFile( "menu/splash", IMGTYPE_COLORALPHA, IMGFLAG_NONE);
-	if (pImage )
+	//image_t *pImage = R_FindImageFile( "menu/splash", IMGTYPE_COLORALPHA, IMGFLAG_NONE);
+
+	if (r_ratioFix && r_ratioFix->integer && ratio >= 0.74f && ratio <= 0.76f)
+		pImage = R_FindImageFile("menu/splash_16_9", IMGTYPE_COLORALPHA, IMGFLAG_NONE);
+
+	if (!pImage)
+		pImage = R_FindImageFile("menu/splash", IMGTYPE_COLORALPHA, IMGFLAG_NONE);
+
+	if (pImage)
 		GL_Bind( pImage );
 
 	GL_State(GLS_DEPTHTEST_DISABLE);
 	GLSL_BindProgram(&tr.splashScreenShader);
-	RB_InstantTriangle();
+	qglDrawArrays(GL_TRIANGLES, 0, 3);
 
 	ri.WIN_Present(&window);
 }
@@ -444,7 +454,7 @@ static const char *TruncateGLExtensionsString (const char *extensionsString, int
 
 	char *truncatedExtensions;
 
-	while ( (q = strchr (p, ' ')) != NULL && numExtensions < maxExtensions )
+	while ( (q = strchr (p, ' ')) != NULL && numExtensions <= maxExtensions )
 	{
 		p = q + 1;
 		numExtensions++;
@@ -1007,7 +1017,12 @@ void R_ScreenShotTGA_f (void) {
 	if ( !strcmp( ri.Cmd_Argv(1), "silent" ) )
 		silent = qtrue;
 
-	if ( ri.Cmd_Argc() == 2 && !silent ) {
+
+	if ( silent && ri.Cmd_Argc() >= 3 ) {
+		// explicit filename
+		Com_sprintf(checkname, sizeof(checkname), "screenshots/%s.tga", ri.Cmd_Argv(2));
+	}
+	else if ( ri.Cmd_Argc() == 2 && !silent ) {
 		// explicit filename
 		Com_sprintf( checkname, sizeof( checkname ), "screenshots/%s.tga", ri.Cmd_Argv( 1 ) );
 	}
@@ -1039,7 +1054,11 @@ void R_ScreenShotPNG_f (void) {
 	if ( !strcmp( ri.Cmd_Argv(1), "silent" ) )
 		silent = qtrue;
 
-	if ( ri.Cmd_Argc() == 2 && !silent ) {
+	if ( silent && ri.Cmd_Argc() >= 3 ) {
+		// explicit filename
+		Com_sprintf(checkname, sizeof(checkname), "screenshots/%s.png", ri.Cmd_Argv(2));
+	}
+	else if ( ri.Cmd_Argc() == 2 && !silent ) {
 		// explicit filename
 		Com_sprintf( checkname, sizeof( checkname ), "screenshots/%s.png", ri.Cmd_Argv( 1 ) );
 	}
@@ -1071,7 +1090,11 @@ void R_ScreenShotJPEG_f (void) {
 	if ( !strcmp( ri.Cmd_Argv(1), "silent" ) )
 		silent = qtrue;
 
-	if ( ri.Cmd_Argc() == 2 && !silent ) {
+	if ( silent && ri.Cmd_Argc() >= 3 ) {
+		// explicit filename
+		Com_sprintf(checkname, sizeof(checkname), "screenshots/%s.jpg", ri.Cmd_Argv(2));
+	}
+	else if ( ri.Cmd_Argc() == 2 && !silent ) {
 		// explicit filename
 		Com_sprintf( checkname, sizeof( checkname ), "screenshots/%s.jpg", ri.Cmd_Argv( 1 ) );
 	}
@@ -1220,12 +1243,10 @@ void GL_SetDefaultState( void )
 
 	qglEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
+
 	qglStencilFunc(GL_ALWAYS, 0, 0xff);
 	qglStencilOpSeparate(GL_FRONT, GL_KEEP, GL_INCR_WRAP, GL_KEEP);
 	qglStencilOpSeparate(GL_BACK, GL_KEEP, GL_DECR_WRAP, GL_KEEP);
-
-	// set default vertex color
-	qglVertexAttrib4f(ATTR_INDEX_COLOR, 1.0f, 1.0f, 1.0f, 1.0f);
 }
 
 /*
@@ -1402,6 +1423,33 @@ static void R_CaptureFrameData_f()
 	}
 }
 
+void R_RemapSkyShader_f (void) {
+	int num;
+	char *newSky = ri.Cmd_Argv(1);
+
+	if (ri.Cmd_Argc() != 2 || !strlen(newSky)) {
+		ri.Printf(PRINT_ALL, "Usage: /remapSky <new>\n");
+		return;
+	}
+
+	if (Q_stricmp(newSky, "clear") && !strchr(newSky, '/'))
+		newSky = va("textures/skies/%s", ri.Cmd_Argv(1));
+
+	for (num = 0; num < tr.numShaders; num++) {
+		if (tr.shaders[num]->isSky) {
+			R_RemapShader(tr.shaders[num]->name, newSky, NULL);
+		}
+	}
+}
+
+void R_ClearRemaps_f(void) {
+	int num;
+
+	for (num = 0; num < tr.numShaders; num++) {
+		tr.shaders[num]->remappedShader = NULL;
+	}
+}
+
 typedef struct consoleCommand_s {
 	const char	*cmd;
 	xcommand_t	func;
@@ -1417,12 +1465,16 @@ static consoleCommand_t	commands[] = {
 	{ "screenshot_tga",		R_ScreenShotTGA_f },
 	{ "gfxinfo",			GfxInfo_f },
 	{ "gfxmeminfo",			GfxMemInfo_f },
-	{ "r_we",				R_WorldEffect_f },
+	//{ "r_we",				R_WorldEffect_f },
 	//{ "imagecacheinfo",		RE_RegisterImages_Info_f },
 	{ "modellist",			R_Modellist_f },
 	//{ "modelcacheinfo",		RE_RegisterModels_Info_f },
 	{ "vbolist",			R_VBOList_f },
 	{ "capframes",			R_CaptureFrameData_f },
+
+	{ "r_cleardecals",		RE_ClearDecals },
+	{ "remapSky",			R_RemapSkyShader_f },
+	{ "clearRemaps",		R_ClearRemaps_f }
 };
 
 static const size_t numCommands = ARRAY_LEN( commands );
@@ -1449,6 +1501,7 @@ void R_Register( void )
 	r_ext_multi_draw_arrays = ri.Cvar_Get( "r_ext_multi_draw_arrays", "1", CVAR_ARCHIVE | CVAR_LATCH, "Unused" );
 	r_ext_texture_float = ri.Cvar_Get( "r_ext_texture_float", "1", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable floating-point textures" );
 	r_arb_half_float_pixel = ri.Cvar_Get( "r_arb_half_float_pixel", "1", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable ARB_half_float GL extension" );
+	//r_ext_framebuffer_multisample = ri.Cvar_Get( "r_ext_framebuffer_multisample", "0", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable framebuffer MSAA" );
 	r_ext_framebuffer_multisample = ri.Cvar_Get( "r_ext_multisample", "0", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable framebuffer MSAA" );
 	r_arb_seamless_cube_map = ri.Cvar_Get( "r_arb_seamless_cube_map", "0", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable seamless cube map filtering GL extension" );
 	r_arb_vertex_type_2_10_10_10_rev = ri.Cvar_Get( "r_arb_vertex_type_2_10_10_10_rev", "1", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable 1010102 UI data type" );
@@ -1460,56 +1513,66 @@ void R_Register( void )
 	r_dynamicGlowDelta					= ri.Cvar_Get( "r_dynamicGlowDelta",		"0.8f",		CVAR_ARCHIVE, "" );
 	r_dynamicGlowIntensity				= ri.Cvar_Get( "r_dynamicGlowIntensity",	"1.13f",	CVAR_ARCHIVE, "" );
 	r_dynamicGlowSoft					= ri.Cvar_Get( "r_dynamicGlowSoft",		"1",		CVAR_ARCHIVE, "" );
-	r_dynamicGlowWidth					= ri.Cvar_Get( "r_dynamicGlowWidth",		"320",		CVAR_ARCHIVE|CVAR_LATCH, "" );
-	r_dynamicGlowHeight					= ri.Cvar_Get( "r_dynamicGlowHeight",		"240",		CVAR_ARCHIVE|CVAR_LATCH, "" );
+	//r_dynamicGlowWidth					= ri.Cvar_Get( "r_dynamicGlowWidth",		"320",		CVAR_ARCHIVE|CVAR_LATCH, "" );
+	//r_dynamicGlowHeight					= ri.Cvar_Get( "r_dynamicGlowHeight",		"240",		CVAR_ARCHIVE|CVAR_LATCH, "" );
+	r_dynamicGlowWidth					= ri.Cvar_Get( "r_dynamicGlowWidth",		"0",		CVAR_ARCHIVE|CVAR_LATCH, "" );
+	r_dynamicGlowHeight					= ri.Cvar_Get( "r_dynamicGlowHeight",		"0",		CVAR_ARCHIVE|CVAR_LATCH, "" );
 
 	r_debugContext						= ri.Cvar_Get( "r_debugContext",			"0",		CVAR_LATCH, "" );
 	r_debugWeather						= ri.Cvar_Get( "r_debugWeather",			"0",		CVAR_ARCHIVE, "" );
 
-	r_picmip = ri.Cvar_Get ("r_picmip", "0", CVAR_ARCHIVE | CVAR_LATCH, "" );
+	r_picmip = ri.Cvar_Get( "r_picmip", "0", CVAR_ARCHIVE | CVAR_LATCH, "" );
 	ri.Cvar_CheckRange( r_picmip, 0, 16, qtrue );
-	r_roundImagesDown = ri.Cvar_Get ("r_roundImagesDown", "1", CVAR_ARCHIVE | CVAR_LATCH, "" );
-	r_colorMipLevels = ri.Cvar_Get ("r_colorMipLevels", "0", CVAR_LATCH, "" );
+	r_roundImagesDown = ri.Cvar_Get( "r_roundImagesDown", "1", CVAR_ARCHIVE | CVAR_LATCH, "" );
+	r_colorMipLevels = ri.Cvar_Get( "r_colorMipLevels", "0", CVAR_LATCH, "" );
 	r_detailTextures = ri.Cvar_Get( "r_detailtextures", "1", CVAR_ARCHIVE | CVAR_LATCH, "" );
 	r_texturebits = ri.Cvar_Get( "r_texturebits", "0", CVAR_ARCHIVE | CVAR_LATCH, "" );
-	r_overBrightBits = ri.Cvar_Get ("r_overBrightBits", "0", CVAR_ARCHIVE | CVAR_LATCH, "" );
+
+	//r_overBrightBits = ri.Cvar_Get( "r_overBrightBits", "0", CVAR_ARCHIVE|CVAR_LATCH, "" );
+	//r_vertexLight = ri.Cvar_Get("r_vertexLight", "0", CVAR_ARCHIVE|CVAR_LATCH, "" );
+	r_overBrightBits = ri.Cvar_Get( "r_overBrightBits", "0", CVAR_ARCHIVE, "" );
+	r_overBrightBits->modified = qfalse;
 	r_simpleMipMaps = ri.Cvar_Get( "r_simpleMipMaps", "1", CVAR_ARCHIVE | CVAR_LATCH, "" );
-	r_vertexLight = ri.Cvar_Get( "r_vertexLight", "0", CVAR_ARCHIVE | CVAR_LATCH, "" );
-	r_uiFullScreen = ri.Cvar_Get( "r_uifullscreen", "0", 0, "");
-	r_subdivisions = ri.Cvar_Get ("r_subdivisions", "4", CVAR_ARCHIVE | CVAR_LATCH, "");
+	r_vertexLight = ri.Cvar_Get("r_vertexLight", "0", CVAR_ARCHIVE, "" );
+	r_vertexLight->modified = qfalse;
+
+	r_uiFullScreen = ri.Cvar_Get("r_uifullscreen", "0", 0, "");
+	r_subdivisions = ri.Cvar_Get("r_subdivisions", "4", CVAR_ARCHIVE | CVAR_LATCH, "");
 	ri.Cvar_CheckRange( r_subdivisions, 4, 80, qfalse );
-	r_stereo = ri.Cvar_Get( "r_stereo", "0", CVAR_ARCHIVE | CVAR_LATCH, "");
+	r_stereo = ri.Cvar_Get("r_stereo", "0", CVAR_ARCHIVE | CVAR_LATCH, "");
 	r_greyscale = ri.Cvar_Get("r_greyscale", "0", CVAR_ARCHIVE | CVAR_LATCH, "");
 	ri.Cvar_CheckRange(r_greyscale, 0, 1, qfalse);
 
 	r_externalGLSL = ri.Cvar_Get( "r_externalGLSL", "0", CVAR_LATCH, "" );
 
-	r_hdr = ri.Cvar_Get( "r_hdr", "1", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable rendering in HDR" );
-	r_floatLightmap = ri.Cvar_Get( "r_floatLightmap", "0", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable HDR lightmap support" );
+	r_hdr = ri.Cvar_Get( "r_hdr", "1", CVAR_ARCHIVE | CVAR_LATCH, "" );
+	r_floatLightmap = ri.Cvar_Get( "r_floatLightmap", "0", CVAR_ARCHIVE | CVAR_LATCH, "" );
 
-	r_toneMap = ri.Cvar_Get( "r_toneMap", "1", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable tonemapping" );
+	r_toneMap = ri.Cvar_Get( "r_toneMap", "1", CVAR_ARCHIVE | CVAR_LATCH, "" );
 	r_forceToneMap = ri.Cvar_Get( "r_forceToneMap", "0", CVAR_CHEAT, "" );
 	r_forceToneMapMin = ri.Cvar_Get( "r_forceToneMapMin", "-8.0", CVAR_CHEAT, "" );
 	r_forceToneMapAvg = ri.Cvar_Get( "r_forceToneMapAvg", "-2.0", CVAR_CHEAT, "" );
 	r_forceToneMapMax = ri.Cvar_Get( "r_forceToneMapMax", "0.0", CVAR_CHEAT, "" );
 
-	r_autoExposure = ri.Cvar_Get( "r_autoExposure", "1", CVAR_ARCHIVE, "Disable/enable auto exposure" );
+	r_autoExposure = ri.Cvar_Get( "r_autoExposure", "1", CVAR_ARCHIVE, "" );
 	r_forceAutoExposure = ri.Cvar_Get( "r_forceAutoExposure", "0", CVAR_CHEAT, "" );
 	r_forceAutoExposureMin = ri.Cvar_Get( "r_forceAutoExposureMin", "-2.0", CVAR_CHEAT, "" );
 	r_forceAutoExposureMax = ri.Cvar_Get( "r_forceAutoExposureMax", "2.0", CVAR_CHEAT, "" );
 
 	r_cameraExposure = ri.Cvar_Get( "r_cameraExposure", "0", CVAR_CHEAT, "" );
 
+	r_srgb = ri.Cvar_Get( "r_srgb", "0", CVAR_ARCHIVE | CVAR_LATCH, "" );
+
 	r_depthPrepass = ri.Cvar_Get( "r_depthPrepass", "1", CVAR_ARCHIVE, "" );
 	r_ssao = ri.Cvar_Get( "r_ssao", "0", CVAR_LATCH | CVAR_ARCHIVE, "" );
 
-	r_normalMapping = ri.Cvar_Get( "r_normalMapping", "1", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable normal mapping" );
-	r_specularMapping = ri.Cvar_Get( "r_specularMapping", "1", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable specular mapping" );
-	r_deluxeMapping = ri.Cvar_Get( "r_deluxeMapping", "1", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable reading deluxemaps when compiled with q3map2" );
-	r_deluxeSpecular = ri.Cvar_Get("r_deluxeSpecular", "1", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable/scale the specular response from deluxemaps");
-	r_parallaxMapping = ri.Cvar_Get( "r_parallaxMapping", "0", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable parallax mapping" );
-	r_cubeMapping = ri.Cvar_Get( "r_cubeMapping", "0", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable cubemapping" );
-	r_cubeMappingBounces = ri.Cvar_Get("r_cubeMappingBounces", "0", CVAR_ARCHIVE | CVAR_LATCH, "Renders cubemaps multiple times to get reflections in reflections");
+	r_normalMapping = ri.Cvar_Get( "r_normalMapping", "1", CVAR_ARCHIVE | CVAR_LATCH, "" );
+	r_specularMapping = ri.Cvar_Get( "r_specularMapping", "1", CVAR_ARCHIVE | CVAR_LATCH, "" );
+	r_deluxeMapping = ri.Cvar_Get( "r_deluxeMapping", "1", CVAR_ARCHIVE | CVAR_LATCH, "" );
+	r_deluxeSpecular = ri.Cvar_Get("r_deluxeSpecular", "1", CVAR_ARCHIVE | CVAR_LATCH, "");
+	r_parallaxMapping = ri.Cvar_Get( "r_parallaxMapping", "0", CVAR_ARCHIVE | CVAR_LATCH, "" );
+	r_cubeMapping = ri.Cvar_Get( "r_cubeMapping", "0", CVAR_ARCHIVE | CVAR_LATCH, "" );
+	r_cubeMappingBounces = ri.Cvar_Get("r_cubeMappingBounces", "0", CVAR_ARCHIVE | CVAR_LATCH, "");
 	ri.Cvar_CheckRange(r_cubeMappingBounces, 0, 2, qfalse);
 	r_baseNormalX = ri.Cvar_Get( "r_baseNormalX", "1.0", CVAR_ARCHIVE | CVAR_LATCH, "" );
 	r_baseNormalY = ri.Cvar_Get( "r_baseNormalY", "1.0", CVAR_ARCHIVE | CVAR_LATCH, "" );
@@ -1517,10 +1580,11 @@ void R_Register( void )
    	r_baseSpecular = ri.Cvar_Get( "r_baseSpecular", "0.04", CVAR_ARCHIVE | CVAR_LATCH, "" );
 	r_dlightMode = ri.Cvar_Get( "r_dlightMode", "1", CVAR_ARCHIVE | CVAR_LATCH, "" );
 	r_pshadowDist = ri.Cvar_Get( "r_pshadowDist", "128", CVAR_ARCHIVE, "" );
+	r_mergeLightmaps = ri.Cvar_Get( "r_mergeLightmaps", "1", CVAR_ARCHIVE | CVAR_LATCH, "" );
 	r_imageUpsample = ri.Cvar_Get( "r_imageUpsample", "0", CVAR_ARCHIVE | CVAR_LATCH, "" );
 	r_imageUpsampleMaxSize = ri.Cvar_Get( "r_imageUpsampleMaxSize", "1024", CVAR_ARCHIVE | CVAR_LATCH, "" );
 	r_imageUpsampleType = ri.Cvar_Get( "r_imageUpsampleType", "1", CVAR_ARCHIVE | CVAR_LATCH, "" );
-	r_genNormalMaps = ri.Cvar_Get( "r_genNormalMaps", "0", CVAR_ARCHIVE | CVAR_LATCH, "Disable/enable generating normal maps from diffuse maps" );
+	r_genNormalMaps = ri.Cvar_Get( "r_genNormalMaps", "0", CVAR_ARCHIVE | CVAR_LATCH, "" );
 
 	r_forceSun = ri.Cvar_Get( "r_forceSun", "0", CVAR_CHEAT, "" );
 	r_forceSunMapLightScale = ri.Cvar_Get( "r_forceSunMapLightScale", "1.0", CVAR_CHEAT, "" );
@@ -1540,17 +1604,19 @@ void R_Register( void )
 	//
 	// temporary latched variables that can only change over a restart
 	//
-	r_fullbright = ri.Cvar_Get ("r_fullbright", "0", CVAR_LATCH|CVAR_CHEAT, "" );
-	r_mapOverBrightBits = ri.Cvar_Get ("r_mapOverBrightBits", "0", CVAR_LATCH, "" );
-	r_intensity = ri.Cvar_Get ("r_intensity", "1", CVAR_LATCH, "" );
-	r_singleShader = ri.Cvar_Get ("r_singleShader", "0", CVAR_CHEAT | CVAR_LATCH, "" );
+	r_fullbright = ri.Cvar_Get( "r_fullbright", "0", CVAR_LATCH|CVAR_ARCHIVE_ND, "" );
+	//r_mapOverBrightBits = ri.Cvar_Get( "r_mapOverBrightBits", "0", CVAR_LATCH, "" );
+	r_mapOverBrightBits = ri.Cvar_Get( "r_mapOverBrightBits", "0", CVAR_NONE, "" );
+	r_mapOverBrightBits->modified = qfalse;
+	r_intensity = ri.Cvar_Get( "r_intensity", "1", CVAR_LATCH, "" );
+	r_singleShader = ri.Cvar_Get( "r_singleShader", "0", CVAR_CHEAT | CVAR_LATCH, "" );
 
 	//
 	// archived variables that can change at any time
 	//
 	r_lodCurveError = ri.Cvar_Get( "r_lodCurveError", "250", CVAR_ARCHIVE|CVAR_CHEAT, "" );
 	r_lodbias = ri.Cvar_Get( "r_lodbias", "0", CVAR_ARCHIVE, "" );
-	r_flares = ri.Cvar_Get ("r_flares", "0", CVAR_ARCHIVE, "" );
+	r_flares = ri.Cvar_Get( "r_flares", "0", CVAR_ARCHIVE, "" );
 	r_znear = ri.Cvar_Get( "r_znear", "4", CVAR_CHEAT, "" );
 	ri.Cvar_CheckRange( r_znear, 0.001f, 200, qfalse );
 	r_autolodscalevalue	= ri.Cvar_Get( "r_autolodscalevalue", "0", CVAR_ROM, "" );
@@ -1561,11 +1627,11 @@ void R_Register( void )
 	r_inGameVideo = ri.Cvar_Get( "r_inGameVideo", "1", CVAR_ARCHIVE, "" );
 	r_drawSun = ri.Cvar_Get( "r_drawSun", "0", CVAR_ARCHIVE, "" );
 	r_dynamiclight = ri.Cvar_Get( "r_dynamiclight", "1", CVAR_ARCHIVE, "" );
-	r_finish = ri.Cvar_Get ("r_finish", "0", CVAR_ARCHIVE, "");
-	r_textureMode = ri.Cvar_Get( "r_textureMode", "GL_LINEAR_MIPMAP_NEAREST", CVAR_ARCHIVE, "" );
+	r_finish = ri.Cvar_Get( "r_finish", "0", CVAR_ARCHIVE, "");
+	r_textureMode = ri.Cvar_Get( "r_textureMode", "GL_LINEAR_MIPMAP_LINEAR", CVAR_ARCHIVE, "" );
 	r_markcount = ri.Cvar_Get( "r_markcount", "100", CVAR_ARCHIVE, "" );
 	r_gamma = ri.Cvar_Get( "r_gamma", "1", CVAR_ARCHIVE, "" );
-	r_facePlaneCull = ri.Cvar_Get ("r_facePlaneCull", "1", CVAR_ARCHIVE, "" );
+	r_facePlaneCull = ri.Cvar_Get( "r_facePlaneCull", "1", CVAR_ARCHIVE, "" );
 
 	r_ambientScale = ri.Cvar_Get( "r_ambientScale", "0.6", CVAR_CHEAT, "" );
 	r_directedScale = ri.Cvar_Get( "r_directedScale", "1", CVAR_CHEAT, "" );
@@ -1584,55 +1650,54 @@ void R_Register( void )
 	r_printShaders = ri.Cvar_Get( "r_printShaders", "0", 0, "" );
 	r_saveFontData = ri.Cvar_Get( "r_saveFontData", "0", 0, "" );
 
-	r_forceParallaxBias = ri.Cvar_Get("r_forceParallaxBias", "0", CVAR_TEMP, "");
-	ri.Cvar_CheckRange(r_forceParallaxBias, 0.0f, 1.0f, qfalse);
+	r_nocurves = ri.Cvar_Get( "r_nocurves", "0", CVAR_CHEAT, "" );
+	r_drawworld = ri.Cvar_Get( "r_drawworld", "1", CVAR_CHEAT, "" );
+	r_lightmap = ri.Cvar_Get( "r_lightmap", "0", 0, "" );
+	r_portalOnly = ri.Cvar_Get( "r_portalOnly", "0", CVAR_CHEAT, "" );
 
-	r_nocurves = ri.Cvar_Get ("r_nocurves", "0", CVAR_CHEAT, "" );
-	r_drawworld = ri.Cvar_Get ("r_drawworld", "1", CVAR_CHEAT, "" );
-	r_drawfog = ri.Cvar_Get("r_drawfog", "2", CVAR_CHEAT, "");
-	r_lightmap = ri.Cvar_Get ("r_lightmap", "0", 0, "" );
-	r_portalOnly = ri.Cvar_Get ("r_portalOnly", "0", CVAR_CHEAT, "" );
+	r_flareSize = ri.Cvar_Get( "r_flareSize", "40", CVAR_CHEAT, "");
+	r_flareFade = ri.Cvar_Get( "r_flareFade", "7", CVAR_CHEAT, "");
+	r_flareCoeff = ri.Cvar_Get( "r_flareCoeff", FLARE_STDCOEFF, CVAR_CHEAT, "");
 
-	r_skipBackEnd = ri.Cvar_Get ("r_skipBackEnd", "0", CVAR_CHEAT, "");
+	r_skipBackEnd = ri.Cvar_Get( "r_skipBackEnd", "0", CVAR_CHEAT, "");
 
 	r_measureOverdraw = ri.Cvar_Get( "r_measureOverdraw", "0", CVAR_CHEAT, "" );
 	r_lodscale = ri.Cvar_Get( "r_lodscale", "5", CVAR_CHEAT, "" );
-	r_norefresh = ri.Cvar_Get ("r_norefresh", "0", CVAR_CHEAT, "");
-	r_drawentities = ri.Cvar_Get ("r_drawentities", "1", CVAR_CHEAT, "" );
+	r_norefresh = ri.Cvar_Get( "r_norefresh", "0", CVAR_CHEAT, "");
+	r_drawentities = ri.Cvar_Get( "r_drawentities", "1", CVAR_CHEAT, "" );
 	r_ignore = ri.Cvar_Get( "r_ignore", "1", CVAR_CHEAT, "" );
-	r_nocull = ri.Cvar_Get ("r_nocull", "0", CVAR_CHEAT, "");
-	r_novis = ri.Cvar_Get ("r_novis", "0", CVAR_CHEAT, "");
-	r_showcluster = ri.Cvar_Get ("r_showcluster", "0", CVAR_CHEAT, "");
-	r_speeds = ri.Cvar_Get ("r_speeds", "0", CVAR_CHEAT, "");
+	r_nocull = ri.Cvar_Get( "r_nocull", "0", CVAR_CHEAT, "");
+	r_novis = ri.Cvar_Get( "r_novis", "0", CVAR_CHEAT, "");
+	r_showcluster = ri.Cvar_Get( "r_showcluster", "0", CVAR_CHEAT, "");
+	r_speeds = ri.Cvar_Get( "r_speeds", "0", CVAR_CHEAT, "");
 	r_verbose = ri.Cvar_Get( "r_verbose", "0", CVAR_CHEAT, "" );
 	r_logFile = ri.Cvar_Get( "r_logFile", "0", CVAR_CHEAT, "" );
-	r_debugSurface = ri.Cvar_Get ("r_debugSurface", "0", CVAR_CHEAT, "");
-	r_nobind = ri.Cvar_Get ("r_nobind", "0", CVAR_CHEAT, "");
-	r_showtris = ri.Cvar_Get ("r_showtris", "0", CVAR_CHEAT, "");
-	r_showsky = ri.Cvar_Get ("r_showsky", "0", CVAR_CHEAT, "");
-	r_shownormals = ri.Cvar_Get ("r_shownormals", "0", CVAR_CHEAT, "");
-	r_clear = ri.Cvar_Get ("r_clear", "0", CVAR_CHEAT, "");
+	r_debugSurface = ri.Cvar_Get( "r_debugSurface", "0", CVAR_CHEAT, "");
+	r_nobind = ri.Cvar_Get( "r_nobind", "0", CVAR_CHEAT, "");
+	r_showtris = ri.Cvar_Get( "r_showtris", "0", CVAR_TEMP, "");
+	r_showsky = ri.Cvar_Get( "r_showsky", "0", CVAR_CHEAT, "");
+	r_shownormals = ri.Cvar_Get( "r_shownormals", "0", CVAR_CHEAT, "");
+	r_clear = ri.Cvar_Get( "r_clear", "0", CVAR_CHEAT, "");
 	r_offsetFactor = ri.Cvar_Get( "r_offsetfactor", "-1", CVAR_CHEAT, "" );
 	r_offsetUnits = ri.Cvar_Get( "r_offsetunits", "-2", CVAR_CHEAT, "" );
-
-	r_shadowOffsetFactor = ri.Cvar_Get("r_shadowOffsetFactor", "1.0", CVAR_CHEAT, "");
-	r_shadowOffsetUnits = ri.Cvar_Get("r_shadowOffsetUnits", "1.0", CVAR_CHEAT, "");
-
 	r_drawBuffer = ri.Cvar_Get( "r_drawBuffer", "GL_BACK", CVAR_CHEAT, "" );
-	r_lockpvs = ri.Cvar_Get ("r_lockpvs", "0", CVAR_CHEAT, "");
-	r_noportals = ri.Cvar_Get ("r_noportals", "0", CVAR_CHEAT, "");
+	r_lockpvs = ri.Cvar_Get( "r_lockpvs", "0", CVAR_CHEAT, "");
+	r_noportals = ri.Cvar_Get( "r_noportals", "0", CVAR_CHEAT, "");
 	r_shadows = ri.Cvar_Get( "cg_shadows", "1", 0, "" );
 
 	r_marksOnTriangleMeshes = ri.Cvar_Get("r_marksOnTriangleMeshes", "0", CVAR_ARCHIVE, "");
 
-	r_aviMotionJpegQuality = ri.Cvar_Get("r_aviMotionJpegQuality", "90", CVAR_ARCHIVE, "");
-	r_screenshotJpegQuality = ri.Cvar_Get("r_screenshotJpegQuality", "90", CVAR_ARCHIVE, "");
+	r_aviMotionJpegQuality = ri.Cvar_Get("r_aviMotionJpegQuality", "100", CVAR_ARCHIVE, "");
+	r_screenshotJpegQuality = ri.Cvar_Get("r_screenshotJpegQuality", "100", CVAR_ARCHIVE, "");
 	r_surfaceSprites = ri.Cvar_Get("r_surfaceSprites", "1", CVAR_ARCHIVE, "");
 
 	r_aspectCorrectFonts = ri.Cvar_Get( "r_aspectCorrectFonts", "0", CVAR_ARCHIVE, "" );
-	r_ratioFix	= ri.Cvar_Get( "cl_ratioFix", "1", CVAR_ARCHIVE, "" );
 	r_maxpolys = ri.Cvar_Get( "r_maxpolys", XSTRING( DEFAULT_MAX_POLYS ), 0, "");
 	r_maxpolyverts = ri.Cvar_Get( "r_maxpolyverts", XSTRING( DEFAULT_MAX_POLYVERTS ), 0, "" );
+
+	//EternalJK
+	r_ratioFix = ri.Cvar_Get( "cl_ratioFix", "1", CVAR_ARCHIVE, "" );
+	r_fontOverride = ri.Cvar_Get( "r_fontOverride", "0", CVAR_NONE, "" );
 
 /*
 Ghoul2 Insert Start
@@ -1659,9 +1724,7 @@ Ghoul2 Insert Start
 Ghoul2 Insert End
 */
 
-	r_patchStitching = ri.Cvar_Get("r_patchStitching", "1", CVAR_ARCHIVE, "Enable stitching of neighbouring patch surfaces" );
-
-	se_language = ri.Cvar_Get ( "se_language", "english", CVAR_ARCHIVE | CVAR_NORESTART, "" );
+	se_language = ri.Cvar_Get(  "se_language", "english", CVAR_ARCHIVE | CVAR_NORESTART, "" );
 
 	for ( size_t i = 0; i < numCommands; i++ )
 		ri.Cmd_AddCommand( commands[i].cmd, commands[i].func, "" );
@@ -1696,9 +1759,7 @@ static void R_InitBackEndFrameData()
 
 		frame->ubo = ubos[i];
 		frame->uboWriteOffset = 0;
-		frame->uboSize = FRAME_UNIFORM_BUFFER_SIZE;
 		qglBindBuffer(GL_UNIFORM_BUFFER, frame->ubo);
-		glState.currentGlobalUBO = frame->ubo;
 
 		// TODO: persistently mapped UBOs
 		qglBufferData(GL_UNIFORM_BUFFER, FRAME_UNIFORM_BUFFER_SIZE,
@@ -1740,148 +1801,6 @@ static void R_InitBackEndFrameData()
 	backEndData->currentFrame = backEndData->frames;
 }
 
-#ifdef _G2_GORE
-static void R_InitGoreVao()
-{
-	tr.goreVBO = R_CreateVBO(
-		nullptr,
-		sizeof(g2GoreVert_t) * MAX_LODS * MAX_GORE_RECORDS * MAX_GORE_VERTS * MAX_FRAMES,
-		VBO_USAGE_DYNAMIC);
-	tr.goreVBO->offsets[ATTR_INDEX_POSITION] = offsetof(g2GoreVert_t, position);
-	tr.goreVBO->offsets[ATTR_INDEX_NORMAL] = offsetof(g2GoreVert_t, normal);
-	tr.goreVBO->offsets[ATTR_INDEX_TEXCOORD0] = offsetof(g2GoreVert_t, texCoords);
-	tr.goreVBO->offsets[ATTR_INDEX_BONE_INDEXES] = offsetof(g2GoreVert_t, bonerefs);
-	tr.goreVBO->offsets[ATTR_INDEX_BONE_WEIGHTS] = offsetof(g2GoreVert_t, weights);
-	tr.goreVBO->offsets[ATTR_INDEX_TANGENT] = offsetof(g2GoreVert_t, tangents);
-
-	tr.goreVBO->strides[ATTR_INDEX_POSITION] = sizeof(g2GoreVert_t);
-	tr.goreVBO->strides[ATTR_INDEX_NORMAL] = sizeof(g2GoreVert_t);
-	tr.goreVBO->strides[ATTR_INDEX_TEXCOORD0] = sizeof(g2GoreVert_t);
-	tr.goreVBO->strides[ATTR_INDEX_BONE_INDEXES] = sizeof(g2GoreVert_t);
-	tr.goreVBO->strides[ATTR_INDEX_BONE_WEIGHTS] = sizeof(g2GoreVert_t);
-	tr.goreVBO->strides[ATTR_INDEX_TANGENT] = sizeof(g2GoreVert_t);
-
-	tr.goreVBO->sizes[ATTR_INDEX_POSITION] = sizeof(vec3_t);
-	tr.goreVBO->sizes[ATTR_INDEX_NORMAL] = sizeof(uint32_t);
-	tr.goreVBO->sizes[ATTR_INDEX_TEXCOORD0] = sizeof(vec2_t);
-	tr.goreVBO->sizes[ATTR_INDEX_BONE_WEIGHTS] = sizeof(byte);
-	tr.goreVBO->sizes[ATTR_INDEX_BONE_INDEXES] = sizeof(byte);
-	tr.goreVBO->sizes[ATTR_INDEX_TANGENT] = sizeof(uint32_t);
-
-	tr.goreIBO = R_CreateIBO(
-		nullptr,
-		sizeof(glIndex_t) * MAX_LODS * MAX_GORE_RECORDS * MAX_GORE_INDECIES * MAX_FRAMES,
-		VBO_USAGE_DYNAMIC);
-
-	tr.goreIBOCurrentIndex = 0;
-	tr.goreVBOCurrentIndex = 0;
-}
-#endif
-
-static void R_InitStaticConstants()
-{
-	const int alignment = glRefConfig.uniformBufferOffsetAlignment - 1;
-	size_t alignedBlockSize = 0;
-
-	qglBindBuffer(GL_UNIFORM_BUFFER, tr.staticUbo);
-	qglBufferData(
-		GL_UNIFORM_BUFFER,
-		STATIC_UNIFORM_BUFFER_SIZE,
-		nullptr,
-		GL_STATIC_DRAW);
-
-	// Setup static 2d camera data
-	EntityBlock entity2DBlock = {};
-	entity2DBlock.fxVolumetricBase = -1.0f;
-	Matrix16Identity(entity2DBlock.modelMatrix);
-	tr.entity2DUboOffset = alignedBlockSize;
-	qglBufferSubData(
-		GL_UNIFORM_BUFFER, 0, sizeof(entity2DBlock), &entity2DBlock);
-	alignedBlockSize += (sizeof(EntityBlock) + alignment) & ~alignment;
-
-	// Setup static 2d camera data
-	CameraBlock a2DCameraBlock = {};
-	Matrix16Ortho(
-		0.0f,
-		640.0f,
-		480.0f,
-		0.0f,
-		0.0f,
-		1.0f,
-		a2DCameraBlock.viewProjectionMatrix);
-
-	tr.camera2DUboOffset = alignedBlockSize;
-	qglBufferSubData(
-		GL_UNIFORM_BUFFER, tr.camera2DUboOffset, sizeof(a2DCameraBlock), &a2DCameraBlock);
-	alignedBlockSize += (sizeof(CameraBlock) + alignment) & ~alignment;
-
-	// Setup static flare entity data
-	EntityBlock entityFlareBlock = {};
-	entityFlareBlock.fxVolumetricBase = -1.0f;
-	Matrix16Identity(entityFlareBlock.modelMatrix);
-
-	tr.entityFlareUboOffset = alignedBlockSize;
-	qglBufferSubData(
-		GL_UNIFORM_BUFFER, tr.entityFlareUboOffset, sizeof(entityFlareBlock), &entityFlareBlock);
-	alignedBlockSize += (sizeof(EntityBlock) + alignment) & ~alignment;
-
-	// Setup static flare camera data
-	CameraBlock flareCameraBlock = {};
-	Matrix16Ortho(
-		0.0f,
-		glConfig.vidWidth,
-		glConfig.vidHeight,
-		0.0f,
-		-99999.0f,
-		99999.0f,
-		flareCameraBlock.viewProjectionMatrix);
-
-	tr.cameraFlareUboOffset = alignedBlockSize;
-	qglBufferSubData(
-		GL_UNIFORM_BUFFER, tr.cameraFlareUboOffset, sizeof(flareCameraBlock), &flareCameraBlock);
-	alignedBlockSize += (sizeof(CameraBlock) + alignment) & ~alignment;
-
-	// Setup default light block
-	LightsBlock lightsBlock = {};
-	lightsBlock.numLights = 0;
-
-	tr.defaultLightsUboOffset = alignedBlockSize;
-	qglBufferSubData(
-		GL_UNIFORM_BUFFER, tr.defaultLightsUboOffset, sizeof(lightsBlock), &lightsBlock);
-	alignedBlockSize += (sizeof(LightsBlock) + alignment) & ~alignment;
-
-	// Setup default scene block
-	SceneBlock sceneBlock = {};
-	sceneBlock.globalFogIndex = -1;
-	sceneBlock.currentTime = 0.1f;
-	sceneBlock.frameTime = 0.1f;
-
-	tr.defaultSceneUboOffset = alignedBlockSize;
-	qglBufferSubData(
-		GL_UNIFORM_BUFFER, tr.defaultSceneUboOffset, sizeof(sceneBlock), &sceneBlock);
-	alignedBlockSize += (sizeof(SceneBlock) + alignment) & ~alignment;
-
-	// Setup default fogs block
-	FogsBlock fogsBlock = {};
-	fogsBlock.numFogs = 0;
-	tr.defaultFogsUboOffset = alignedBlockSize;
-	qglBufferSubData(
-		GL_UNIFORM_BUFFER, tr.defaultFogsUboOffset, sizeof(fogsBlock), &fogsBlock);
-	alignedBlockSize += (sizeof(FogsBlock) + alignment) & ~alignment;
-
-	// Setup default shader instance block
-	ShaderInstanceBlock shaderInstanceBlock = {};
-	tr.defaultShaderInstanceUboOffset = alignedBlockSize;
-	qglBufferSubData(
-		GL_UNIFORM_BUFFER, tr.defaultShaderInstanceUboOffset, sizeof(shaderInstanceBlock), &shaderInstanceBlock);
-	alignedBlockSize += (sizeof(ShaderInstanceBlock) + alignment) & ~alignment;
-
-	qglBindBuffer(GL_UNIFORM_BUFFER, NULL);
-	glState.currentGlobalUBO = -1;
-
-	GL_CheckErrors();
-}
-
 static void R_ShutdownBackEndFrameData()
 {
 	if ( !backEndData )
@@ -1890,12 +1809,6 @@ static void R_ShutdownBackEndFrameData()
 	for ( int i = 0; i < MAX_FRAMES; i++ )
 	{
 		gpuFrame_t *frame = backEndData->frames + i;
-
-		if (frame->sync)
-		{
-			qglDeleteSync(frame->sync);
-			frame->sync = NULL;
-		}
 
 		qglDeleteBuffers(1, &frame->ubo);
 
@@ -1997,17 +1910,12 @@ void R_Init( void ) {
 	R_InitImagesPool();
 
 	InitOpenGL();
-	R_Set2DRatio();
+	R_Set2DRatio();//EternalJK
 
-	R_InitGPUBuffers();
+	R_InitVBOs();
 
-	R_InitStaticConstants();
 	R_InitBackEndFrameData();
 	R_InitImages();
-
-#ifdef _G2_GORE
-	R_InitGoreVao();
-#endif
 
 	FBO_Init();
 
@@ -2036,7 +1944,8 @@ void R_Init( void ) {
 	RestoreGhoul2InfoArray();
 
 	// print info
-	GfxInfo_f();
+	if (r_verbose->integer) //EternalJK
+		GfxInfo_f();
 	ri.Printf( PRINT_ALL, "----- finished R_Init -----\n" );
 }
 
@@ -2052,21 +1961,17 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 	for ( size_t i = 0; i < numCommands; i++ )
 		ri.Cmd_RemoveCommand( commands[i].cmd );
 
-	// Flush here to make sure all the fences are processed
-	qglFlush();
-
-	R_IssuePendingRenderCommands();
-
 	R_ShutdownBackEndFrameData();
 
 	R_ShutdownWeatherSystem();
 
 	R_ShutdownFonts();
 	if ( tr.registered ) {
+		R_IssuePendingRenderCommands();
 		R_ShutDownQueries();
 		FBO_Shutdown();
 		R_DeleteTextures();
-		R_DestroyGPUBuffers();
+		R_ShutdownVBOs();
 		GLSL_ShutdownGPUShaders();
 
 		if ( destroyWindow && restarting )
@@ -2146,10 +2051,9 @@ void RE_SetLightStyle(int style, int color)
 	}
 }
 
-void RE_GetBModelVerts(int bmodelIndex, vec3_t *verts, vec3_t normal);
-void RE_WorldEffectCommand(const char *cmd);
-
-void stub_RE_AddWeatherZone ( vec3_t mins, vec3_t maxs ) {} // Intentionally left blank. Rend2 reads the zones manually on bsp load
+void stub_RE_GetBModelVerts (int bModel, vec3_t *vec, float *normal) {}
+void stub_RE_WorldEffectCommand ( const char *cmd ){}
+void stub_RE_AddWeatherZone ( vec3_t mins, vec3_t maxs ) {}
 static void RE_SetRefractionProperties ( float distortionAlpha, float distortionStretch, qboolean distortionPrePost, qboolean distortionNegate ) { }
 
 void C_LevelLoadBegin(const char *psMapName, ForceReload_e eForceReload)
@@ -2261,7 +2165,7 @@ Q_EXPORT refexport_t* QDECL GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 
 	re.GetLightStyle = RE_GetLightStyle;
 	re.SetLightStyle = RE_SetLightStyle;
-	re.GetBModelVerts = RE_GetBModelVerts;
+	re.GetBModelVerts = stub_RE_GetBModelVerts;
 
 	re.SetRangedFog = RE_SetRangedFog;
 	re.SetRefractionProperties = RE_SetRefractionProperties;
@@ -2270,14 +2174,14 @@ Q_EXPORT refexport_t* QDECL GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	// R_AutomapElevationAdjustment
 	re.InitializeWireframeAutomap = stub_InitializeWireframeAutomap;
 	re.AddWeatherZone = stub_RE_AddWeatherZone;
-	re.WorldEffectCommand = RE_WorldEffectCommand;
+	re.WorldEffectCommand = stub_RE_WorldEffectCommand;
 	re.RegisterMedia_LevelLoadBegin = C_LevelLoadBegin;
 	re.RegisterMedia_LevelLoadEnd = C_LevelLoadEnd;
 	re.RegisterMedia_GetLevel = C_GetLevel;
 	re.RegisterImages_LevelLoadEnd = C_Images_LevelLoadEnd;
 	re.RegisterModels_LevelLoadEnd = C_Models_LevelLoadEnd;
 
-	re.TakeVideoFrame = RE_TakeVideoFrame;
+	re.TakeVideoFrame						= RE_TakeVideoFrame;
 
 	re.InitSkins							= R_InitSkins;
 	re.InitShaders							= R_InitShaders;
@@ -2382,7 +2286,7 @@ Q_EXPORT refexport_t* QDECL GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	Ghoul2 Insert End
 	*/
 
-	re.ext.Font_StrLenPixels = RE_Font_StrLenPixelsNew;
+	re.ext.Font_StrLenPixels				= RE_Font_StrLenPixelsNew; //xycaleth still hasn't added this to his rend2 branch >.>
 
 	return &re;
 }

@@ -2880,7 +2880,12 @@ qboolean BG_IsValidCharacterModel(const char *modelName, const char *skinName)
 
 qboolean BG_ValidateSkinForTeam( const char *modelName, char *skinName, int team, float *colors )
 {
-	if (strlen (modelName) > 5 && !Q_stricmpn (modelName, "jedi_", 5))
+	if ((strlen (modelName) > 5 &&
+		!Q_stricmpn (modelName, "jedi_", 5)) || //argh, it's a custom player skin!
+		(!Q_stricmpn(skinName, "rgb", 3) // or a custom RGB skin
+		&& (!BG_FileExists(va("models/players/%s/model_red.skin", modelName)) || //and we don't have team variants to use ?
+		!BG_FileExists(va("models/players/%s/model_blue.skin", modelName)))
+		))
 	{
 		if (team == TEAM_RED && colors)
 		{
@@ -2894,19 +2899,7 @@ qboolean BG_ValidateSkinForTeam( const char *modelName, char *skinName, int team
 			colors[1] = 0.0f;
 			colors[2] = 1.0f;
 		}
-
-		//if we are on an RGB skin that does not have team colors, exit early and default will be used with the rgb colors set.
-		if (!Q_stricmpn(skinName, "rgb", 3) && (!BG_FileExists(va("models/players/%s/model_red.skin", modelName)) || !BG_FileExists(va("models/players/%s/model_blue.skin", modelName))))
-			return qtrue;
-
-		//if it's a customizeable jedi_* skin with custom parts selected, exit early and the team rgb colors will be used.
-		if (strchr(skinName, '|')
-			&& strstr(skinName, "head")
-			&& strstr(skinName, "torso")
-			&& strstr(skinName, "lower"))
-		{
-			return qtrue;
-		}
+		return qtrue;
 	}
 
 	if (team == TEAM_RED)
