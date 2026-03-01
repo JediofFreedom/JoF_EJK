@@ -26,7 +26,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 typedef float matrix_t[16];
 typedef float mat4x3_t[12];
-typedef float mat3x4_t[12];
 typedef int vec2i_t[2];
 typedef int vec3i_t[3];
 typedef int vec4i_t[4];
@@ -38,7 +37,7 @@ void Matrix16Multiply( const matrix_t in1, const matrix_t in2, matrix_t out );
 void Matrix16Transform( const matrix_t in1, const vec4_t in2, vec4_t out );
 qboolean Matrix16Compare(const matrix_t a, const matrix_t b);
 void Matrix16Dump( const matrix_t in );
-void Matrix16Translation( const vec3_t vec, matrix_t out );
+void Matrix16Translation( vec3_t vec, matrix_t out );
 void Matrix16Ortho( float left, float right, float bottom, float top, float znear, float zfar, matrix_t out );
 void Matrix16View(vec3_t axes[3], vec3_t origin, matrix_t out);
 void Matrix16SimpleInverse( const matrix_t in, matrix_t out);
@@ -105,5 +104,5 @@ int NextPowerOfTwo(int in);
 unsigned short FloatToHalf(float in);
 uint32_t ReverseBits(uint32_t v);
 float GSmithCorrelated(float roughness, float ndotv, float ndotl);
-float V_Neubelt(float NdotV, float NdotL);
+
 #endif

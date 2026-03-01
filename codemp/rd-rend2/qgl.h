@@ -382,11 +382,6 @@ extern PFNGLVERTEXATTRIBDIVISORPROC qglVertexAttribDivisor;
 extern PFNGLENABLEVERTEXATTRIBARRAYPROC qglEnableVertexAttribArray;
 extern PFNGLDISABLEVERTEXATTRIBARRAYPROC qglDisableVertexAttribArray;
 
-extern PFNGLVERTEXATTRIB1FPROC qglVertexAttrib1f;
-extern PFNGLVERTEXATTRIB2FPROC qglVertexAttrib2f;
-extern PFNGLVERTEXATTRIB3FPROC qglVertexAttrib3f;
-extern PFNGLVERTEXATTRIB4FPROC qglVertexAttrib4f;
-
 // Vertex array objects
 extern PFNGLGENVERTEXARRAYSPROC qglGenVertexArrays;
 extern PFNGLDELETEVERTEXARRAYSPROC qglDeleteVertexArrays;
@@ -415,7 +410,6 @@ extern PFNGLISBUFFERPROC qglIsBuffer;
 
 // Texturing
 extern PFNGLACTIVETEXTUREPROC qglActiveTexture;
-extern PFNGLTEXIMAGE3DPROC qglTexImage3D;
 
 // Shader objects
 extern PFNGLCREATESHADERPROC qglCreateShader;
@@ -548,8 +542,6 @@ extern PFNGLCHECKFRAMEBUFFERSTATUSPROC qglCheckFramebufferStatus;
 extern PFNGLFRAMEBUFFERTEXTURE1DPROC qglFramebufferTexture1D;
 extern PFNGLFRAMEBUFFERTEXTURE2DPROC qglFramebufferTexture2D;
 extern PFNGLFRAMEBUFFERTEXTURE3DPROC qglFramebufferTexture3D;
-extern PFNGLFRAMEBUFFERTEXTUREPROC qglFramebufferTexture;
-extern PFNGLFRAMEBUFFERTEXTURELAYERPROC qglFramebufferTextureLayer;
 extern PFNGLFRAMEBUFFERRENDERBUFFERPROC qglFramebufferRenderbuffer;
 extern PFNGLGETFRAMEBUFFERATTACHMENTPARAMETERIVPROC qglGetFramebufferAttachmentParameteriv;
 extern PFNGLRENDERBUFFERSTORAGEMULTISAMPLEPROC qglRenderbufferStorageMultisample;

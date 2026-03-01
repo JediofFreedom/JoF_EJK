@@ -14,12 +14,9 @@ set(MPRend2Files
 	"${MPDir}/rd-rend2/iqm.h"
 	"${MPDir}/rd-rend2/glext.h"
 	"${MPDir}/rd-rend2/qgl.h"
-	"${MPDir}/rd-rend2/stb_image.h"
 	"${MPDir}/rd-rend2/G2_API.cpp"
 	"${MPDir}/rd-rend2/G2_bolts.cpp"
 	"${MPDir}/rd-rend2/G2_bones.cpp"
-	"${MPDir}/rd-rend2/G2_gore_r2.cpp"
-	"${MPDir}/rd-rend2/G2_gore_r2.h"
 	"${MPDir}/rd-rend2/G2_misc.cpp"
 	"${MPDir}/rd-rend2/G2_surfaces.cpp"
 	"${MPDir}/rd-rend2/tr_allocator.cpp"
@@ -43,7 +40,6 @@ set(MPRend2Files
 	"${MPDir}/rd-rend2/tr_glsl.cpp"
 	"${MPDir}/rd-rend2/tr_glsl_parse.cpp"
 	"${MPDir}/rd-rend2/tr_image.cpp"
-	"${MPDir}/rd-rend2/tr_image_stb.cpp"
 	"${MPDir}/rd-rend2/tr_init.cpp"
 	"${MPDir}/rd-rend2/tr_light.cpp"
 	"${MPDir}/rd-rend2/tr_local.h"
@@ -63,22 +59,16 @@ set(MPRend2Files
 	"${MPDir}/rd-rend2/tr_sky.cpp"
 	"${MPDir}/rd-rend2/tr_subs.cpp"
 	"${MPDir}/rd-rend2/tr_surface.cpp"
-	"${MPDir}/rd-rend2/tr_tangentspace.cpp"
 	"${MPDir}/rd-rend2/tr_vbo.cpp"
 	"${MPDir}/rd-rend2/tr_world.cpp"
 	"${MPDir}/rd-rend2/tr_weather.cpp"
-	"${MPDir}/rd-rend2/tr_weather.h")
+	"${MPDir}/rd-rend2/tr_weather.h"
+	)
 source_group("renderer" FILES ${MPRend2Files})
 
 file(GLOB MPRend2GLSLFiles "${MPDir}/rd-rend2/glsl/*.glsl")
 source_group("renderer\\glsl" FILES ${MPRend2GLSLFiles})
 set(MPRend2Files ${MPRend2Files} ${MPRend2GLSLFiles})
-
-set(MPRend2MikktFiles
-	"${MPDir}/rd-rend2/MikkTSpace/mikktspace.h"
-	"${MPDir}/rd-rend2/MikkTSpace/mikktspace.c")
-source_group("MikktSpace" FILES ${MPRend2MikktFiles})
-set(MPRend2Files ${MPRend2Files} ${MPRend2MikktFiles})
 
 set(MPRend2Ghoul2Files
 	"${MPDir}/ghoul2/g2_local.h"
@@ -147,7 +137,6 @@ set(MPRend2Files
 	${CMAKE_CURRENT_BINARY_DIR}/glsl_shaders.cpp)
 
 set(MPRend2IncludeDirectories ${MPRend2IncludeDirectories} ${OpenJKLibDir})
-set(MPRend2IncludeDirectories ${MPRend2IncludeDirectories} "${CMAKE_CURRENT_BINARY_DIR}/../versionfile")
 add_library(${MPRend2} SHARED ${MPRend2Files})
 
 if(NOT MSVC)
@@ -174,7 +163,7 @@ else(WIN32)
 	endif()
 endif()
 
-set_target_properties(${MPRend2} PROPERTIES COMPILE_DEFINITIONS "${SharedDefines}")
+set_target_properties(${MPRend2} PROPERTIES COMPILE_DEFINITIONS "${SharedDefines};REND2")
 
 # Hide symbols not explicitly marked public.
 set_property(TARGET ${MPRend2} APPEND PROPERTY COMPILE_OPTIONS ${OPENJK_VISIBILITY_FLAGS})
@@ -194,7 +183,6 @@ if (NOT WIN32 AND NOT APPLE)
 	target_compile_definitions(compact_glsl PRIVATE "ARCH_STRING=\"${Architecture}\"")
 endif()
 target_include_directories(compact_glsl PRIVATE "${MPRend2IncludeDirectories}")
-if (WIN32 OR APPLE)
 add_custom_command(
 	OUTPUT
 		${CMAKE_CURRENT_BINARY_DIR}/glsl_shaders.cpp
@@ -206,16 +194,3 @@ add_custom_command(
 			${MPRend2GLSLFiles}
 	DEPENDS
 		compact_glsl ${MPRend2GLSLFiles})
-else()
-add_custom_command(
-	OUTPUT
-		${CMAKE_CURRENT_BINARY_DIR}/glsl_shaders.cpp
-		${CMAKE_CURRENT_BINARY_DIR}/glsl_shaders.h
-	COMMAND
-		${CMAKE_BINARY_DIR}/compact_glsl
-			${CMAKE_CURRENT_BINARY_DIR}/glsl_shaders.cpp
-			${CMAKE_CURRENT_BINARY_DIR}/glsl_shaders.h
-			${MPRend2GLSLFiles}
-	DEPENDS
-		compact_glsl ${MPRend2GLSLFiles})
-endif()

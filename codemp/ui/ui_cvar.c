@@ -91,8 +91,6 @@ static void CVU_StrafeHelper (void) {
 	trap->Cvar_Set( "cg_strafeHelperActiveColor", va("%i %i %i %i", ui_sha_r.integer, ui_sha_g.integer, ui_sha_b.integer, ui_sha_a.integer) );
 }
 
-
-extern uiQ3ModelBuild_t uiQ3ModelBuild;
 static void CVU_UpdateModelList(void) {
 	uiClientState_t cstate = {0};
 
@@ -108,7 +106,7 @@ static void CVU_UpdateModelList(void) {
 	}
 
 	UI_UpdateSaberHiltInfo();
-	UI_BuildQ3Model_List(uiQ3ModelBuild.dirList, uiQ3ModelBuild.fileList, sizeof(uiQ3ModelBuild.fileList)); //this crashes on linux???
+	UI_BuildQ3Model_List(); //this crashes on linux???
 	UI_BuildPlayerModel_List(qtrue);
 	UI_Load(); //refreshes the available species in the selection feeder
 }

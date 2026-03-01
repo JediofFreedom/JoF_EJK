@@ -1005,218 +1005,8 @@ static void UI_BuildPlayerList() {
 	}
 }
 
-
-static void UI_FreeSpecies( playerSpeciesInfo_t *species )
-{
-	free(species->SkinHead);
-	free(species->SkinTorso);
-	free(species->SkinLeg);
-	free(species->Color);
-	memset(species, 0, sizeof(playerSpeciesInfo_t));
-}
-
-/*
-=================
-UI_BuildPlayerModel_List
-=================
-*/
-void UI_BuildPlayerModel_List( qboolean inGameLoad )
-{
-	static const size_t DIR_LIST_SIZE = 65536;//16384; //65536 is 8 times PROFILE_SKIN_SIZE
-
-	int			numdirs;
-	size_t		dirListSize = DIR_LIST_SIZE;
-	char		stackDirList[8192];
-	char		*dirlist;
-	char		*dirptr;
-	int			dirlen;
-	int			i, j;
-	int			w = 0;
-	qboolean	baseSpecies = qfalse;
-
-	dirlist = malloc(DIR_LIST_SIZE);
-	if ( !dirlist )
-	{
-		Com_Printf(S_COLOR_YELLOW "WARNING: Failed to allocate %u bytes of memory for player model "
-			"directory list. Using stack allocated buffer of %u bytes instead.",
-			DIR_LIST_SIZE, sizeof(stackDirList));
-
-		dirlist = stackDirList;
-		dirListSize = sizeof(stackDirList);
-	}
-
-	uiInfo.playerSpeciesCount = 0;
-	uiInfo.playerSpeciesIndex = 0;
-	uiInfo.playerSpeciesMax = 8;
-	uiInfo.playerSpecies = (playerSpeciesInfo_t *)malloc(uiInfo.playerSpeciesMax * sizeof(playerSpeciesInfo_t));
-
-	// iterate directory of all player models
-	numdirs = trap->FS_GetFileList("models/players", "/", dirlist, dirListSize );
-	dirptr  = dirlist;
-	for (i=0; i<numdirs; i++,dirptr+=dirlen+1)
-	{
-		char	*fileptr;
-		int		filelen;
-		int		f = 0;
-		char	fpath[MAX_QPATH];
-
-		dirlen = strlen(dirptr);
-
-		if (dirlen)
-		{
-			if (dirptr[dirlen-1]=='/')
-				dirptr[dirlen-1]='\0';
-		}
-		else
-		{
-			continue;
-		}
-
-		if (!Q_stricmp(dirptr, ".") || !Q_stricmp(dirptr, ".."))
-			continue;
-
-		Com_sprintf(fpath, sizeof(fpath), "models/players/%s/PlayerChoice.txt", dirptr);
-		filelen = trap->FS_Open(fpath, &f, FS_READ);
-
-		if (f)
-		{
-			char	filelist[PROFILE_SKIN_SIZE];
-			playerSpeciesInfo_t *species = NULL;
-			char                 skinname[64];
-			int                  numfiles;
-			int                  iSkinParts=0;
-			char                *buffer = NULL;
-
-			if (ui_sv_pure.integer)
-			{ //i guess wait to do this until here after we've read a PlayerChoice.txt file
-				baseSpecies = qfalse;
-				for (w = 0; w <= BASE_SPECIES_COUNT; w++) {
-					if (!Q_stricmp(dirptr, baseSpeciesList[w])) {
-						baseSpecies = qtrue;
-						break;
-					}
-				}
-				if (!baseSpecies) {
-					//UI_FreeSpecies(species); //this doesn't seem to update the options in the feeder
-					continue;
-				}
-			}
-
-			buffer = malloc(filelen + 1);
-			if (!buffer)
-			{
-				trap->FS_Close( f );
-				Com_Error(ERR_FATAL, "Could not allocate buffer to read %s", fpath);
-			}
-
-			trap->FS_Read(buffer, filelen, f);
-			trap->FS_Close(f);
-
-			buffer[filelen] = 0;
-
-			//record this species
-			if (uiInfo.playerSpeciesCount >= uiInfo.playerSpeciesMax)
-			{
-				uiInfo.playerSpeciesMax *= 2;
-				uiInfo.playerSpecies = (playerSpeciesInfo_t *)realloc(uiInfo.playerSpecies, uiInfo.playerSpeciesMax*sizeof(playerSpeciesInfo_t));
-			}
-			species = &uiInfo.playerSpecies[uiInfo.playerSpeciesCount];
-			memset(species, 0, sizeof(playerSpeciesInfo_t));
-			Q_strncpyz( species->Name, dirptr, MAX_QPATH );
-
-			if (!UI_ParseColorData(buffer,species,fpath))
-			{
-				Com_Printf(S_COLOR_RED"UI_BuildPlayerModel_List: Errors parsing '%s'\n", fpath);
-			}
-
-			species->SkinHeadMax = 8;
-			species->SkinTorsoMax = 8;
-			species->SkinLegMax = 8;
-
-			species->SkinHead = (skinName_t *)malloc(species->SkinHeadMax * sizeof(skinName_t));
-			species->SkinTorso = (skinName_t *)malloc(species->SkinTorsoMax * sizeof(skinName_t));
-			species->SkinLeg = (skinName_t *)malloc(species->SkinLegMax * sizeof(skinName_t));
-
-			free(buffer);
-
-			numfiles = trap->FS_GetFileList( va("models/players/%s",dirptr), ".skin", filelist, sizeof(filelist) );
-			fileptr  = filelist;
-			for (j=0; j<numfiles; j++,fileptr+=filelen+1)
-			{
-				if (trap->Cvar_VariableValue("fs_copyfiles") > 0 )
-				{
-					trap->FS_Open(va("models/players/%s/%s",dirptr,fileptr), &f, FS_READ);
-					if (f)
-						trap->FS_Close(f);
-				}
-
-				filelen = strlen(fileptr);
-				COM_StripExtension(fileptr,skinname,sizeof(skinname));
-
-				if (bIsImageFile(dirptr, skinname))
-				{ //if it exists
-					if (Q_stricmpn(skinname,"head_",5) == 0)
-					{
-						if (species->SkinHeadCount >= species->SkinHeadMax)
-						{
-							species->SkinHeadMax *= 2;
-							species->SkinHead = (skinName_t *)realloc(species->SkinHead, species->SkinHeadMax*sizeof(skinName_t));
-						}
-						Q_strncpyz(species->SkinHead[species->SkinHeadCount++].name, skinname, SKIN_LENGTH);
-						iSkinParts |= 1<<0;
-					} else
-					if (Q_stricmpn(skinname,"torso_",6) == 0)
-					{
-						if (species->SkinTorsoCount >= species->SkinTorsoMax)
-						{
-							species->SkinTorsoMax *= 2;
-							species->SkinTorso = (skinName_t *)realloc(species->SkinTorso, species->SkinTorsoMax*sizeof(skinName_t));
-						}
-						Q_strncpyz(species->SkinTorso[species->SkinTorsoCount++].name, skinname, SKIN_LENGTH);
-						iSkinParts |= 1<<1;
-					} else
-					if (Q_stricmpn(skinname,"lower_",6) == 0)
-					{
-						if (species->SkinLegCount >= species->SkinLegMax)
-						{
-							species->SkinLegMax *= 2;
-							species->SkinLeg = (skinName_t *)realloc(species->SkinLeg, species->SkinLegMax*sizeof(skinName_t));
-						}
-						Q_strncpyz(species->SkinLeg[species->SkinLegCount++].name, skinname, SKIN_LENGTH);
-						iSkinParts |= 1<<2;
-					}
-				}
-			}
-			if (iSkinParts != 7)
-			{	//didn't get a skin for each, then skip this model.
-				UI_FreeSpecies(species);
-				continue;
-			}
-			uiInfo.playerSpeciesCount++;
-			if (!inGameLoad && ui_PrecacheModels.integer)
-			{
-				int g2Model;
-				void *ghoul2 = 0;
-				Com_sprintf( fpath, sizeof( fpath ), "models/players/%s/model.glm", dirptr );
-				g2Model = trap->G2API_InitGhoul2Model(&ghoul2, fpath, 0, 0, 0, 0, 0);
-				if (g2Model >= 0)
-				{
-//					trap->G2API_RemoveGhoul2Model( &ghoul2, 0 );
-					trap->G2API_CleanGhoul2Models (&ghoul2);
-				}
-			}
-		}
-	}
-
-	if ( dirlist != stackDirList )
-	{
-		free(dirlist);
-	}
-}
-
 void UI_SetActiveMenu( uiMenuCommand_t menu ) {
 	char buf[256];
-
 
 	// this should be the ONLY way the menu system is brought up
 	// enusure minumum menu data is cached
@@ -1375,7 +1165,6 @@ void UI_SetColor( const float *rgba ) {
 _UI_Shutdown
 =================
 */
-uiQ3ModelBuild_t uiQ3ModelBuild;
 void UI_CleanupGhoul2(void);
 void UI_FreeAllSpecies(void);
 
@@ -1383,9 +1172,6 @@ void UI_Shutdown( void ) {
 	trap->LAN_SaveCachedServers();
 	UI_CleanupGhoul2();
 	UI_FreeAllSpecies();
-	uiQ3ModelBuild.inProgress = qfalse;
-	if (uiQ3ModelBuild.dirJob)
-		trap->FS_AsyncFree( uiQ3ModelBuild.dirJob );
 }
 
 char *defaultMenu = NULL;
@@ -12086,6 +11872,7 @@ UI_LoadForceConfig_List
 =================
 Looks in the directory for force config files (.fcf) and loads the name in
 */
+#define PROFILE_SKIN_SIZE 8192 //2048
 void UI_LoadForceConfig_List( void )
 {
 	int			numfiles = 0;
@@ -12219,136 +12006,47 @@ static qboolean bIsSkinFile(const char* dirptr, const char* skinname)
 
 	return qfalse;
 }
-	
-void UI_BuildQ3Model_List_ProcessDir(char* dirptr, char* filelist, int numfiles)
+
+
+/*
+=================
+PlayerModel_BuildList
+=================
+*/
+void UI_BuildQ3Model_List( void )
 {
-	char* fileptr = filelist;
-	char* fileend = filelist + PROFILE_SKIN_SIZE;
-	char skinname[64];
-	int filelen;
-	int j, k, p, s;
-
-	for (j = 0; j < numfiles && uiInfo.q3HeadCount < MAX_Q3PLAYERMODELS; j++, fileptr += filelen + 1)
-	{
-		const void* terminator = memchr(fileptr, '\0', (size_t)(fileend - fileptr));
-		if (!terminator)
-		{
-			break;
-		}
-		filelen = (int)((const char*)terminator - fileptr);
-		if (filelen <= 0)
-		{
-			continue;
-		}
-		int skinLen = 0;
-		char* check;
-
-		COM_StripExtension(fileptr, skinname, sizeof(skinname));
-
-		skinLen = strlen(skinname);
-		k = 0;
-		while (k < skinLen && skinname[k] && skinname[k] != '_')
-		{
-			k++;
-		}
-		if (skinname[k] == '_')
-		{
-			p = 0;
-			while (skinname[k])
-			{
-				skinname[p] = skinname[k];
-				k++;
-				p++;
-			}
-			skinname[p] = '\0';
-		}
-
-		check = &skinname[1];
-		if (bIsImageFile(dirptr, check) || bIsSkinFile(dirptr, check))
-		{
-			qboolean iconExists = qfalse;
-
-			if (skinname[0] == '_')
-			{
-				skinname[0] = '/';
-			}
-
-			s = 0;
-			while (s < uiInfo.q3HeadCount)
-			{
-				if (!Q_stricmp(va("%s%s", dirptr, skinname), uiInfo.q3HeadNames[s]))
-				{
-					iconExists = qtrue;
-					break;
-				}
-				s++;
-			}
-
-			if (iconExists)
-			{
-				continue;
-			}
-
-			Com_sprintf(uiInfo.q3HeadNames[uiInfo.q3HeadCount], sizeof(uiInfo.q3HeadNames[uiInfo.q3HeadCount]),
-			            va("%s%s", dirptr, skinname));
-			uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = 0;
-
-			{
-				char iconPath[MAX_QPATH] = {0};
-
-				Com_sprintf(iconPath, sizeof(iconPath), "models/players/%s/icon_%s", dirptr, skinname + 1);
-
-				uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = trap->R_RegisterShaderNoMip(iconPath);
-				if (ui_showAllSkins.integer && !ui_sv_pure.integer && !uiInfo.q3HeadIcons[uiInfo.q3HeadCount])
-				{
-					if (!Q_stricmp(skinname + 1, "red"))
-						uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconRed;
-					else if (!Q_stricmp(skinname + 1, "blue"))
-						uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconBlue;
-					else if (!Q_stricmpn(skinname + 1, "rgb", 3) || !Q_stricmp(skinname + 1, "sp"))
-						uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIconRGB;
-					else
-						uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = uiInfo.uiDC.Assets.defaultIcon;
-				}
-			}
-
-			uiInfo.q3HeadCount++;
-		}
-
-		if (uiInfo.q3HeadCount >= MAX_Q3PLAYERMODELS)
-		{
-			return;
-		}
-	}
-}
-
-void UI_BuildQ3Model_List(char* dirptr, char* filelist, int bufsize)
-{
-	int numdirs;
-	int i, k;
-	int dirlen;
-	qboolean baseSkin;
+	int			numdirs;
+	int			numfiles;
+	char		dirlist[PROFILE_SKIN_SIZE];
+	char		filelist[PROFILE_SKIN_SIZE];
+	char		skinname[64];
+	char		*dirptr;
+	char		*fileptr;
+	char		*check;
+	int			i;
+	int			j, k, p, s;
+	int			dirlen;
+	int			filelen;
+	qboolean	baseSkin;
 
 	uiInfo.q3HeadCount = 0;
 
 	// iterate directory of all player models
-	numdirs = trap->FS_GetFileList("models/players", "/", dirptr, PROFILE_SKIN_SIZE);
-	for (i = 0; i < numdirs && uiInfo.q3HeadCount < MAX_Q3PLAYERMODELS; i++, dirptr += dirlen + 1)
+	numdirs = trap->FS_GetFileList("models/players", "/", dirlist, PROFILE_SKIN_SIZE );
+	dirptr  = dirlist;
+	for (i=0; i<numdirs && uiInfo.q3HeadCount < MAX_Q3PLAYERMODELS; i++,dirptr+=dirlen+1)
 	{
 		dirlen = strlen(dirptr);
 
-		if (dirlen && dirptr[dirlen - 1] == '/') dirptr[dirlen - 1] = '\0';
+		if (dirlen && dirptr[dirlen-1]=='/') dirptr[dirlen-1]='\0';
 
 		if (!Q_stricmp(dirptr, ".") || !Q_stricmp(dirptr, ".."))
 			continue;
 
-		if (ui_sv_pure.integer)
-		{
+		if (ui_sv_pure.integer) {
 			baseSkin = qfalse;
-			for (k = 0; k <= BASE_MODEL_COUNT; k++)
-			{
-				if (!Q_stricmp(dirptr, baseModelList[k]))
-				{
+			for (k = 0 ; k <= BASE_MODEL_COUNT ; k++) {
+				if (!Q_stricmp(dirptr, baseModelList[k])) {
 					baseSkin = qtrue;
 					break;
 				}
@@ -12357,17 +12055,79 @@ void UI_BuildQ3Model_List(char* dirptr, char* filelist, int bufsize)
 				continue;
 		}
 
-		const int numfiles = trap->FS_GetFileList(va("models/players/%s", dirptr), "skin", filelist, bufsize);
-		if (numfiles > 0)
-			UI_BuildQ3Model_List_ProcessDir(dirptr, filelist, numfiles);
-	}
-}
+		numfiles = trap->FS_GetFileList( va("models/players/%s", dirptr), "skin", filelist, PROFILE_SKIN_SIZE );
+		fileptr  = filelist;
+		for (j=0; j<numfiles && uiInfo.q3HeadCount < MAX_Q3PLAYERMODELS;j++,fileptr+=filelen+1)
+		{
+			int skinLen = 0;
 
+			filelen = strlen(fileptr);
 
-void UI_BuildQ3Model_List_Process()
-{
-	const int maxDirsPerFrame = 1;
-	int processed = 0;
+			COM_StripExtension(fileptr, skinname, sizeof( skinname ) );
+
+			skinLen = strlen(skinname);
+			k = 0;
+			while (k < skinLen && skinname[k] && skinname[k] != '_')
+			{
+				k++;
+			}
+			if (skinname[k] == '_')
+			{
+				p = 0;
+
+				while (skinname[k])
+				{
+					skinname[p] = skinname[k];
+					k++;
+					p++;
+				}
+				skinname[p] = '\0';
+			}
+
+			/*
+			Com_sprintf(fpath, 2048, "models/players/%s/icon%s.jpg", dirptr, skinname);
+
+			trap->FS_Open(fpath, &f, FS_READ);
+
+			if (f)
+			*/
+			check = &skinname[1];
+			if (bIsImageFile(dirptr, check) || bIsSkinFile(dirptr, check))
+			{ //if it exists
+				qboolean iconExists = qfalse;
+
+				//trap->FS_Close(f);
+
+				if (skinname[0] == '_')
+				{ //change character to append properly
+					skinname[0] = '/';
+				}
+
+				s = 0;
+
+				while (s < uiInfo.q3HeadCount)
+				{ //check for dupes
+					if (!Q_stricmp(va("%s%s", dirptr, skinname), uiInfo.q3HeadNames[s]))
+					{
+						iconExists = qtrue;
+						break;
+					}
+					s++;
+				}
+
+				if (iconExists)
+				{
+					continue;
+				}
+
+				Com_sprintf( uiInfo.q3HeadNames[uiInfo.q3HeadCount], sizeof(uiInfo.q3HeadNames[uiInfo.q3HeadCount]), va("%s%s", dirptr, skinname));
+				//uiInfo.q3HeadIcons[uiInfo.q3HeadCount++] = 0;//trap->R_RegisterShaderNoMip(fpath);
+				uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = 0;//uiInfo.uiDC.Assets.defaultIcon;
+
+				{//dxdfe?
+					char iconPath[MAX_QPATH] = {0};
+
+					Com_sprintf(iconPath, sizeof(iconPath), "models/players/%s/icon_%s", dirptr, skinname+1);
 
 					uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = trap->R_RegisterShaderNoMip(iconPath);
 					if (ui_showAllSkins.integer && !ui_sv_pure.integer && !uiInfo.q3HeadIcons[uiInfo.q3HeadCount])
@@ -12391,139 +12151,16 @@ void UI_BuildQ3Model_List_Process()
 					}
 				}
 
-	if (uiQ3ModelBuild.dirCount < 0)
-	{
-		int outLen = 0;
-		const int st = trap->FS_AsyncStatus(uiQ3ModelBuild.dirJob, &outLen);
-		if (st == UI_ASYNC_DONE)
-		{
-			const int count = trap->FS_AsyncRead(uiQ3ModelBuild.dirJob, uiQ3ModelBuild.dirList,
-			                               sizeof(uiQ3ModelBuild.dirList));
-			if (count <= 0)
-			{
-				trap->FS_AsyncFree(uiQ3ModelBuild.dirJob);
-				uiQ3ModelBuild.inProgress = qfalse;
-				return;
+				uiInfo.q3HeadCount++;
+				//rww - we are now registering them as they are drawn like the TA feeder, so as to decrease UI load time.
 			}
-			uiQ3ModelBuild.dirCount = count;
-			uiQ3ModelBuild.dirPtr = uiQ3ModelBuild.dirList;
-			uiQ3ModelBuild.dirIndex = 0;
-		}
-		else if (st == UI_ASYNC_ERROR || st == UI_ASYNC_CANCELLED || st == UI_ASYNC_INVALID)
-		{
-			trap->FS_AsyncFree(uiQ3ModelBuild.dirJob);
-			uiQ3ModelBuild.inProgress = qfalse;
-		}
-		return;
-	}
 
-	while (processed < maxDirsPerFrame && uiQ3ModelBuild.dirIndex < uiQ3ModelBuild.dirCount)
-	{
-		if (uiQ3ModelBuild.fileJob != 0)
-		{
-			int outLen = 0;
-			const int st = trap->FS_AsyncStatus(uiQ3ModelBuild.fileJob, &outLen);
-			if (st == UI_ASYNC_DONE)
-			{
-				int count = trap->FS_AsyncRead(uiQ3ModelBuild.fileJob, uiQ3ModelBuild.fileList,
-				                               sizeof(uiQ3ModelBuild.fileList));
-				if (count > 0)
-				{
-					UI_BuildQ3Model_List_ProcessDir(uiQ3ModelBuild.dirName, uiQ3ModelBuild.fileList, count);
-				}
-				trap->FS_AsyncFree(uiQ3ModelBuild.fileJob);
-				uiQ3ModelBuild.fileJob = 0;
-				processed++;
-			}
-			else if (st == UI_ASYNC_ERROR || st == UI_ASYNC_CANCELLED || st == UI_ASYNC_INVALID)
-			{
-				trap->FS_AsyncFree(uiQ3ModelBuild.fileJob);
-				uiQ3ModelBuild.fileJob = 0;
-				processed++;
-			}
-			else
+			if (uiInfo.q3HeadCount >= MAX_Q3PLAYERMODELS)
 			{
 				return;
 			}
-			continue;
-		}
-
-		{
-			const char* listEnd = uiQ3ModelBuild.dirList + sizeof(uiQ3ModelBuild.dirList);
-			const void* terminator = memchr(uiQ3ModelBuild.dirPtr, '\0', (size_t)(listEnd - uiQ3ModelBuild.dirPtr));
-			if (!terminator)
-			{
-				trap->FS_AsyncFree(uiQ3ModelBuild.dirJob);
-				uiQ3ModelBuild.inProgress = qfalse;
-				return;
-			}
-			int dirlen = (int)((const char*)terminator - uiQ3ModelBuild.dirPtr);
-			const char* dirptr = uiQ3ModelBuild.dirPtr;
-			qboolean baseSkin = qfalse;
-			int k;
-
-			uiQ3ModelBuild.dirPtr += dirlen + 1;
-			uiQ3ModelBuild.dirIndex++;
-
-			if (dirlen && dirptr[dirlen - 1] == '/')
-			{
-				dirlen--;
-			}
-			if (dirlen <= 0)
-			{
-				continue;
-			}
-
-			Q_strncpyz(uiQ3ModelBuild.dirName, dirptr, sizeof(uiQ3ModelBuild.dirName));
-			if (uiQ3ModelBuild.dirName[dirlen] == '/')
-			{
-				uiQ3ModelBuild.dirName[dirlen] = '\0';
-			}
-
-			if (!Q_stricmp(uiQ3ModelBuild.dirName, ".") || !Q_stricmp(uiQ3ModelBuild.dirName, ".."))
-			{
-				continue;
-			}
-
-			if (ui_sv_pure.integer)
-			{
-				for (k = 0; k <= BASE_MODEL_COUNT; k++)
-				{
-					if (!Q_stricmp(uiQ3ModelBuild.dirName, baseModelList[k]))
-					{
-						baseSkin = qtrue;
-						break;
-					}
-				}
-				if (!baseSkin)
-				{
-					continue;
-				}
-			}
-
-			uiQ3ModelBuild.fileJob = trap->FS_GetFileListAsync(va("models/players/%s", uiQ3ModelBuild.dirName), "skin",
-			                                                   sizeof(uiQ3ModelBuild.fileList));
 		}
 	}
-
-	if (uiQ3ModelBuild.dirIndex >= uiQ3ModelBuild.dirCount && uiQ3ModelBuild.fileJob == 0)
-	{
-		trap->FS_AsyncFree(uiQ3ModelBuild.dirJob);
-		uiQ3ModelBuild.inProgress = qfalse;
-	}
-}
-
-void UI_BuildQ3Model_List_Async(void)
-{
-	if (uiInfo.q3HeadCount > 0)
-		return;
-	
-	memset(&uiQ3ModelBuild, 0, sizeof(uiQ3ModelBuild));
-	uiInfo.q3HeadCount = 0;
-	uiQ3ModelBuild.dirCount = -1;
-	uiQ3ModelBuild.dirJob = trap->FS_GetFileListAsync("models/players", "/", sizeof(uiQ3ModelBuild.dirList));
-	uiQ3ModelBuild.inProgress = qtrue;
-	trap->Cvar_Set("ui_hasStartedAsyncQ3ModelBuild", "1");
 }
 
 void UI_SiegeInit(void)
@@ -12601,6 +12238,15 @@ static qboolean UI_ParseColorData(char* buf, playerSpeciesInfo_t *species,char*	
 	return qtrue;//never get here
 }
 
+static void UI_FreeSpecies( playerSpeciesInfo_t *species )
+{
+	free(species->SkinHead);
+	free(species->SkinTorso);
+	free(species->SkinLeg);
+	free(species->Color);
+	memset(species, 0, sizeof(playerSpeciesInfo_t));
+}
+
 void UI_FreeAllSpecies( void )
 {
 	int i;
@@ -12610,6 +12256,205 @@ void UI_FreeAllSpecies( void )
 		UI_FreeSpecies(&uiInfo.playerSpecies[i]);
 	}
 	free(uiInfo.playerSpecies);
+}
+
+/*
+=================
+UI_BuildPlayerModel_List
+=================
+*/
+void UI_BuildPlayerModel_List( qboolean inGameLoad )
+{
+	static const size_t DIR_LIST_SIZE = 65536;//16384; //65536 is 8 times PROFILE_SKIN_SIZE
+
+	int			numdirs;
+	size_t		dirListSize = DIR_LIST_SIZE;
+	char		stackDirList[8192];
+	char		*dirlist;
+	char		*dirptr;
+	int			dirlen;
+	int			i, j;
+	int			w = 0;
+	qboolean	baseSpecies = qfalse;
+
+	dirlist = malloc(DIR_LIST_SIZE);
+	if ( !dirlist )
+	{
+		Com_Printf(S_COLOR_YELLOW "WARNING: Failed to allocate %u bytes of memory for player model "
+			"directory list. Using stack allocated buffer of %u bytes instead.",
+			DIR_LIST_SIZE, sizeof(stackDirList));
+
+		dirlist = stackDirList;
+		dirListSize = sizeof(stackDirList);
+	}
+
+	uiInfo.playerSpeciesCount = 0;
+	uiInfo.playerSpeciesIndex = 0;
+	uiInfo.playerSpeciesMax = 8;
+	uiInfo.playerSpecies = (playerSpeciesInfo_t *)malloc(uiInfo.playerSpeciesMax * sizeof(playerSpeciesInfo_t));
+
+	// iterate directory of all player models
+	numdirs = trap->FS_GetFileList("models/players", "/", dirlist, dirListSize );
+	dirptr  = dirlist;
+	for (i=0; i<numdirs; i++,dirptr+=dirlen+1)
+	{
+		char	*fileptr;
+		int		filelen;
+		int		f = 0;
+		char	fpath[MAX_QPATH];
+
+		dirlen = strlen(dirptr);
+
+		if (dirlen)
+		{
+			if (dirptr[dirlen-1]=='/')
+				dirptr[dirlen-1]='\0';
+		}
+		else
+		{
+			continue;
+		}
+
+		if (!Q_stricmp(dirptr, ".") || !Q_stricmp(dirptr, ".."))
+			continue;
+
+		Com_sprintf(fpath, sizeof(fpath), "models/players/%s/PlayerChoice.txt", dirptr);
+		filelen = trap->FS_Open(fpath, &f, FS_READ);
+
+		if (f)
+		{
+			char	filelist[PROFILE_SKIN_SIZE];
+			playerSpeciesInfo_t *species = NULL;
+			char                 skinname[64];
+			int                  numfiles;
+			int                  iSkinParts=0;
+			char                *buffer = NULL;
+
+			if (ui_sv_pure.integer)
+			{ //i guess wait to do this until here after we've read a PlayerChoice.txt file
+				baseSpecies = qfalse;
+				for (w = 0; w <= BASE_SPECIES_COUNT; w++) {
+					if (!Q_stricmp(dirptr, baseSpeciesList[w])) {
+						baseSpecies = qtrue;
+						break;
+					}
+				}
+				if (!baseSpecies) {
+					//UI_FreeSpecies(species); //this doesn't seem to update the options in the feeder
+					continue;
+				}
+			}
+
+			buffer = malloc(filelen + 1);
+			if (!buffer)
+			{
+				trap->FS_Close( f );
+				Com_Error(ERR_FATAL, "Could not allocate buffer to read %s", fpath);
+			}
+
+			trap->FS_Read(buffer, filelen, f);
+			trap->FS_Close(f);
+
+			buffer[filelen] = 0;
+
+			//record this species
+			if (uiInfo.playerSpeciesCount >= uiInfo.playerSpeciesMax)
+			{
+				uiInfo.playerSpeciesMax *= 2;
+				uiInfo.playerSpecies = (playerSpeciesInfo_t *)realloc(uiInfo.playerSpecies, uiInfo.playerSpeciesMax*sizeof(playerSpeciesInfo_t));
+			}
+			species = &uiInfo.playerSpecies[uiInfo.playerSpeciesCount];
+			memset(species, 0, sizeof(playerSpeciesInfo_t));
+			Q_strncpyz( species->Name, dirptr, MAX_QPATH );
+
+			if (!UI_ParseColorData(buffer,species,fpath))
+			{
+				Com_Printf(S_COLOR_RED"UI_BuildPlayerModel_List: Errors parsing '%s'\n", fpath);
+			}
+
+			species->SkinHeadMax = 8;
+			species->SkinTorsoMax = 8;
+			species->SkinLegMax = 8;
+
+			species->SkinHead = (skinName_t *)malloc(species->SkinHeadMax * sizeof(skinName_t));
+			species->SkinTorso = (skinName_t *)malloc(species->SkinTorsoMax * sizeof(skinName_t));
+			species->SkinLeg = (skinName_t *)malloc(species->SkinLegMax * sizeof(skinName_t));
+
+			free(buffer);
+
+			numfiles = trap->FS_GetFileList( va("models/players/%s",dirptr), ".skin", filelist, sizeof(filelist) );
+			fileptr  = filelist;
+			for (j=0; j<numfiles; j++,fileptr+=filelen+1)
+			{
+				if (trap->Cvar_VariableValue("fs_copyfiles") > 0 )
+				{
+					trap->FS_Open(va("models/players/%s/%s",dirptr,fileptr), &f, FS_READ);
+					if (f)
+						trap->FS_Close(f);
+				}
+
+				filelen = strlen(fileptr);
+				COM_StripExtension(fileptr,skinname,sizeof(skinname));
+
+				if (bIsImageFile(dirptr, skinname))
+				{ //if it exists
+					if (Q_stricmpn(skinname,"head_",5) == 0)
+					{
+						if (species->SkinHeadCount >= species->SkinHeadMax)
+						{
+							species->SkinHeadMax *= 2;
+							species->SkinHead = (skinName_t *)realloc(species->SkinHead, species->SkinHeadMax*sizeof(skinName_t));
+						}
+						Q_strncpyz(species->SkinHead[species->SkinHeadCount++].name, skinname, SKIN_LENGTH);
+						iSkinParts |= 1<<0;
+					} else
+					if (Q_stricmpn(skinname,"torso_",6) == 0)
+					{
+						if (species->SkinTorsoCount >= species->SkinTorsoMax)
+						{
+							species->SkinTorsoMax *= 2;
+							species->SkinTorso = (skinName_t *)realloc(species->SkinTorso, species->SkinTorsoMax*sizeof(skinName_t));
+						}
+						Q_strncpyz(species->SkinTorso[species->SkinTorsoCount++].name, skinname, SKIN_LENGTH);
+						iSkinParts |= 1<<1;
+					} else
+					if (Q_stricmpn(skinname,"lower_",6) == 0)
+					{
+						if (species->SkinLegCount >= species->SkinLegMax)
+						{
+							species->SkinLegMax *= 2;
+							species->SkinLeg = (skinName_t *)realloc(species->SkinLeg, species->SkinLegMax*sizeof(skinName_t));
+						}
+						Q_strncpyz(species->SkinLeg[species->SkinLegCount++].name, skinname, SKIN_LENGTH);
+						iSkinParts |= 1<<2;
+					}
+				}
+			}
+			if (iSkinParts != 7)
+			{	//didn't get a skin for each, then skip this model.
+				UI_FreeSpecies(species);
+				continue;
+			}
+			uiInfo.playerSpeciesCount++;
+			if (!inGameLoad && ui_PrecacheModels.integer)
+			{
+				int g2Model;
+				void *ghoul2 = 0;
+				Com_sprintf( fpath, sizeof( fpath ), "models/players/%s/model.glm", dirptr );
+				g2Model = trap->G2API_InitGhoul2Model(&ghoul2, fpath, 0, 0, 0, 0, 0);
+				if (g2Model >= 0)
+				{
+//					trap->G2API_RemoveGhoul2Model( &ghoul2, 0 );
+					trap->G2API_CleanGhoul2Models (&ghoul2);
+				}
+			}
+		}
+	}
+
+	if ( dirlist != stackDirList )
+	{
+		free(dirlist);
+	}
 }
 
 static qhandle_t UI_RegisterShaderNoMip( const char *name ) {
@@ -12732,11 +12577,9 @@ void UI_Init( qboolean inGameLoad ) {
 	String_Init();
 
 	AssetCache();
-	
-	(int)trap->Cvar_VariableValue("ui_hasStartedAsyncQ3ModelBuild") ? UI_BuildQ3Model_List(uiQ3ModelBuild.dirList,
-		uiQ3ModelBuild.fileList,
-		sizeof(uiQ3ModelBuild.fileList)) : UI_BuildQ3Model_List_Async();
+
 	UI_BuildPlayerModel_List(inGameLoad);
+	UI_BuildQ3Model_List();
 
 	uiInfo.uiDC.cursor	= trap->R_RegisterShaderNoMip( "menu/art/3_cursor2" );
 	uiInfo.uiDC.whiteShader = trap->R_RegisterShaderNoMip( "white" );
@@ -12848,7 +12691,6 @@ void UI_Refresh( int realtime )
 	}
 
 	UI_UpdateCvars();
-	UI_BuildQ3Model_List_Process();
 
 	if (Menu_Count() > 0) {
 		// paint all the menus

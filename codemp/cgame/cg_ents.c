@@ -1297,11 +1297,8 @@ static void CG_General( centity_t *cent ) {
 
 			trap->G2API_SetRootSurface(cent->ghoul2, 0, limbName);
 
-			int boltIndex = trap->G2API_AddBolt(cent->ghoul2, 0, rotateBone);
-			if (boltIndex != -1) {
-				trap->G2API_SetNewOrigin(cent->ghoul2, boltIndex);
-			}
-			
+			trap->G2API_SetNewOrigin(cent->ghoul2, trap->G2API_AddBolt(cent->ghoul2, 0, rotateBone));
+
 			trap->G2API_SetSurfaceOnOff(cent->ghoul2, limbCapName, 0);
 
 			trap->G2API_SetSurfaceOnOff(clEnt->ghoul2, limbName, 0x00000100);

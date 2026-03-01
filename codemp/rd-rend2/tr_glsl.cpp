@@ -27,14 +27,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 void GLSL_BindNullProgram(void);
 
 const uniformBlockInfo_t uniformBlocksInfo[UNIFORM_BLOCK_COUNT] = {
-	{ 0, "Camera", sizeof(CameraBlock) },
-	{ 1, "Scene", sizeof(SceneBlock) },
-	{ 2, "Lights", sizeof(LightsBlock) },
-	{ 3, "Fogs", sizeof(FogsBlock) },
-	{ 4, "Entity", sizeof(EntityBlock) },
-	{ 5, "ShaderInstance", sizeof(ShaderInstanceBlock) },
-	{ 6, "Bones", sizeof(SkeletonBoneMatricesBlock) },
-	{ 10, "SurfaceSprite", sizeof(SurfaceSpriteBlock) },
+	{ 10, "SurfaceSprite", sizeof(SurfaceSpriteBlock) }
 };
 
 typedef struct uniformInfo_s
@@ -53,7 +46,6 @@ static uniformInfo_t uniformsInfo[] =
 	{ "u_NormalMap",   GLSL_INT, 1 },
 	{ "u_DeluxeMap",   GLSL_INT, 1 },
 	{ "u_SpecularMap", GLSL_INT, 1 },
-	{ "u_SSAOMap",     GLSL_INT, 1 },
 
 	{ "u_TextureMap", GLSL_INT, 1 },
 	{ "u_LevelsMap",  GLSL_INT, 1 },
@@ -65,6 +57,7 @@ static uniformInfo_t uniformsInfo[] =
 
 	{ "u_ShadowMap",  GLSL_INT, 1 },
 	{ "u_ShadowMap2", GLSL_INT, 1 },
+	{ "u_ShadowMap3", GLSL_INT, 1 },
 
 	{ "u_ShadowMvp",  GLSL_MAT4x4, 1 },
 	{ "u_ShadowMvp2", GLSL_MAT4x4, 1 },
@@ -79,6 +72,10 @@ static uniformInfo_t uniformsInfo[] =
 	{ "u_TCGen0Vector0", GLSL_VEC3, 1 },
 	{ "u_TCGen0Vector1", GLSL_VEC3, 1 },
 	{ "u_TCGen1",        GLSL_INT, 1 },
+
+	{ "u_DeformType",    GLSL_INT, 1 },
+	{ "u_DeformFunc",    GLSL_INT, 1 },
+	{ "u_DeformParams", GLSL_FLOAT, 7 },
 
 	{ "u_ColorGen",  GLSL_INT, 1 },
 	{ "u_AlphaGen",  GLSL_INT, 1 },
@@ -96,10 +93,16 @@ static uniformInfo_t uniformsInfo[] =
 	{ "u_AmbientLight",   GLSL_VEC3, 1 },
 	{ "u_DirectedLight",  GLSL_VEC3, 1 },
 	{ "u_Disintegration", GLSL_VEC4, 1 },
-	{ "u_LightMask",    GLSL_INT, 1 },
-	{ "u_FogIndex",    GLSL_INT, 1 },
 
+	{ "u_PortalRange", GLSL_FLOAT, 1 },
+
+	{ "u_FogDistance",  GLSL_VEC4, 1 },
+	{ "u_FogDepth",     GLSL_VEC4, 1 },
+	{ "u_FogEyeT",      GLSL_FLOAT, 1 },
 	{ "u_FogColorMask", GLSL_VEC4, 1 },
+	{ "u_FogPlane",		GLSL_VEC4, 1 },
+	{ "u_FogHasPlane",	GLSL_INT, 1 },
+	{ "u_FogDepthToOpaque", GLSL_FLOAT, 1 },
 
 	{ "u_ModelMatrix",               GLSL_MAT4x4, 1 },
 	{ "u_ModelViewProjectionMatrix", GLSL_MAT4x4, 1 },
@@ -108,7 +111,6 @@ static uniformInfo_t uniformsInfo[] =
 	{ "u_VertexLerp" ,   GLSL_FLOAT, 1 },
 	{ "u_NormalScale",   GLSL_VEC4, 1 },
 	{ "u_SpecularScale", GLSL_VEC4, 1 },
-	{ "u_ParallaxBias",  GLSL_FLOAT, 1 },
 
 	{ "u_ViewInfo",				GLSL_VEC4, 1 },
 	{ "u_ViewOrigin",			GLSL_VEC3, 1 },
@@ -121,16 +123,19 @@ static uniformInfo_t uniformsInfo[] =
 	{ "u_AutoExposureMinMax",  GLSL_VEC2, 1 },
 	{ "u_ToneMinAvgMaxLinear", GLSL_VEC3, 1 },
 
+	{ "u_PrimaryLightOrigin",  GLSL_VEC4, 1  },
+	{ "u_PrimaryLightColor",   GLSL_VEC3, 1  },
+	{ "u_PrimaryLightAmbient", GLSL_VEC3, 1  },
+	{ "u_PrimaryLightRadius",  GLSL_FLOAT, 1 },
+
 	{ "u_CubeMapInfo", GLSL_VEC4, 1 },
 
+	{ "u_BoneMatrices",			GLSL_MAT4x3, 20 },
 	{ "u_AlphaTestType",		GLSL_INT, 1 },
 
 	{ "u_FXVolumetricBase",		GLSL_FLOAT, 1 },
 	{ "u_MapZExtents",			GLSL_VEC2, 1 },
-	{ "u_ZoneOffset",			GLSL_VEC2, 9 },
-	{ "u_EnvForce",				GLSL_VEC3, 1 },
-	{ "u_RandomOffset",			GLSL_VEC4, 1 },
-	{ "u_ChunkParticles",		GLSL_INT, 1 },
+	{ "u_ZoneOffset",			GLSL_VEC2, 1 },
 };
 
 static void GLSL_PrintProgramInfoLog(GLuint object, qboolean developerOnly)
@@ -334,8 +339,19 @@ static size_t GLSL_GetShaderHeader(
 						AGEN_PORTAL));
 
 	Q_strcat(dest, size,
+					 va("#ifndef texenv_t\n"
+						"#define texenv_t\n"
+						"#define TEXENV_MODULATE %i\n"
+						"#define TEXENV_ADD %i\n"
+						"#define TEXENV_REPLACE %i\n"
+						"#endif\n",
+						0x2100/* GL_MODULATE */,
+						0x0104/* GL_ADD */,
+						GL_REPLACE));
+
+	Q_strcat(dest, size,
 					 va("#define ALPHA_TEST_GT0 %d\n"
-						"#define ALPHA_TEST_LT128 %d\n"
+						"#define ALPHA_TEST_LT128 %d\n" 
 						"#define ALPHA_TEST_GE128 %d\n"
 						"#define ALPHA_TEST_GE192 %d\n",
 						ALPHA_TEST_GT0,
@@ -343,12 +359,8 @@ static size_t GLSL_GetShaderHeader(
 						ALPHA_TEST_GE128,
 						ALPHA_TEST_GE192));
 
-	Q_strcat(dest, size,
-					va("#define MAX_G2_BONES %i\n",
-						MAX_G2_BONES));
-
-	fbufWidthScale = (float)glConfig.vidWidth;
-	fbufHeightScale = (float)glConfig.vidHeight;
+	fbufWidthScale = 1.0f / ((float)glConfig.vidWidth);
+	fbufHeightScale = 1.0f / ((float)glConfig.vidHeight);
 	Q_strcat(dest, size,
 					 va("#ifndef r_FBufScale\n"
 						"#define r_FBufScale vec2(%f, %f)\n"
@@ -358,20 +370,13 @@ static size_t GLSL_GetShaderHeader(
 
 	if (r_cubeMapping->integer)
 	{
-		Q_strcat(dest, size, va("#define CUBEMAP_RESOLUTION float(%i)\n", CUBE_MAP_SIZE));
-		Q_strcat(dest, size, va("#define ROUGHNESS_MIPS float(%i)\n", CUBE_MAP_ROUGHNESS_MIPS));
+		Q_strcat(dest, size, va("#define ROUGHNESS_MIPS float(%i)\n", CUBE_MAP_MIPS - 4));
 	}
-
-	if (r_ssao->integer)
-		Q_strcat(dest, size, "#define USE_SSAO\n");
 
 	if (r_deluxeSpecular->value > 0.000001f)
 	{
 		Q_strcat(dest, size, va("#define r_deluxeSpecular %f\n", r_deluxeSpecular->value));
 	}
-
-	if (r_hdr->integer && (r_toneMap->integer || r_forceToneMap->integer))
-		Q_strcat(dest, size, "#define USE_TONEMAPPING\n");
 
 	if (extra)
 	{
@@ -498,7 +503,7 @@ static size_t GLSL_LoadGPUShaderSource(
 	{
 		ri.FS_FreeFile(buffer);
 	}
-
+	
 	return result;
 }
 
@@ -553,6 +558,7 @@ static void GLSL_BindShaderInterface( shaderProgram_t *program )
 		"attr_Tangent",  // ATTR_INDEX_TANGENT
 		"attr_Normal",  // ATTR_INDEX_NORMAL
 		"attr_Color",  // ATTR_INDEX_COLOR
+		"attr_PaintColor",  // ATTR_INDEX_PAINTCOLOR
 		"attr_LightDirection",  // ATTR_INDEX_LIGHTDIRECTION
 		"attr_BoneIndexes",  // ATTR_INDEX_BONE_INDEXES
 		"attr_BoneWeights",  // ATTR_INDEX_BONE_WEIGHTS
@@ -718,7 +724,7 @@ bool ShaderProgramBuilder::AddShader( const GPUShaderDesc& shaderDesc, const cha
 		{
 			shaderSource.resize(shaderSource.size() * 2);
 		}
-
+		
 		++attempts;
 	}
 
@@ -818,7 +824,7 @@ void GLSL_InitUniforms(shaderProgram_t *program)
 		uniforms[i] = qglGetUniformLocation(program->program, uniformsInfo[i].name);
 		if (uniforms[i] == -1)
 			continue;
-
+		 
 		program->uniformBufferOffsets[i] = size;
 		switch(uniformsInfo[i].type)
 		{
@@ -853,104 +859,16 @@ void GLSL_InitUniforms(shaderProgram_t *program)
 	program->uniformBlocks = 0;
 	for ( int i = 0; i < UNIFORM_BLOCK_COUNT; ++i )
 	{
-		const GLuint blockIndex = qglGetUniformBlockIndex(
-			program->program, uniformBlocksInfo[i].name);
-		if (blockIndex == GL_INVALID_INDEX)
-			continue;
-		ri.Printf(
-			PRINT_DEVELOPER,
-			"Binding block %d (name '%s', size %zu bytes) to slot %d\n",
-			blockIndex,
-			uniformBlocksInfo[i].name,
-			uniformBlocksInfo[i].size,
-			uniformBlocksInfo[i].slot);
-		qglUniformBlockBinding(
-			program->program, blockIndex, uniformBlocksInfo[i].slot);
-		program->uniformBlocks |= (1u << i);
-	}
-
-	GLint numActiveUniformBlocks = 0;
-	qglGetProgramiv(program->program, GL_ACTIVE_UNIFORM_BLOCKS, &numActiveUniformBlocks);
-	ri.Printf(PRINT_DEVELOPER, "..num uniform blocks: %d\n", numActiveUniformBlocks);
-	for (int i = 0; i < numActiveUniformBlocks; ++i)
-	{
-		char blockName[512];
-		qglGetActiveUniformBlockName(
-			program->program,
-			i,
-			sizeof(blockName),
-			nullptr,
-			blockName);
-
-		GLint blockSize = 0;
-		qglGetActiveUniformBlockiv(
-			program->program, i, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
-
-		ri.Printf(PRINT_DEVELOPER, "..block %d: %s (%d bytes)\n", i, blockName, blockSize);
-		GLint numMembers = 0;
-		qglGetActiveUniformBlockiv(
-			program->program, i, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &numMembers);
-
-		if (numMembers > 0)
+		GLuint blockIndex = qglGetUniformBlockIndex(program->program,
+								uniformBlocksInfo[i].name);
+		if ( blockIndex == GL_INVALID_INDEX )
 		{
-			GLuint memberIndices[128];
-			qglGetActiveUniformBlockiv(
-				program->program,
-				i,
-				GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES,
-				(GLint *)memberIndices);
-
-			GLint memberOffsets[128];
-			qglGetActiveUniformsiv(
-				program->program,
-				numMembers,
-				memberIndices,
-				GL_UNIFORM_OFFSET,
-				memberOffsets);
-
-			GLint memberTypes[128];
-			qglGetActiveUniformsiv(
-				program->program,
-				numMembers,
-				memberIndices,
-				GL_UNIFORM_TYPE,
-				memberTypes);
-
-			for (int j = 0; j < numMembers; ++j)
-			{
-				char memberName[512];
-				qglGetActiveUniformName(
-					program->program,
-					memberIndices[j],
-					sizeof(memberName),
-					nullptr,
-					memberName);
-
-				ri.Printf(PRINT_DEVELOPER, "....uniform '%s'\n", memberName);
-				ri.Printf(PRINT_DEVELOPER, "......offset: %d\n", memberOffsets[j]);
-				switch (memberTypes[j])
-				{
-				case GL_FLOAT:
-					ri.Printf(PRINT_DEVELOPER, "......type: float\n");
-					break;
-				case GL_FLOAT_VEC2:
-					ri.Printf(PRINT_DEVELOPER, "......type: vec2\n");
-					break;
-				case GL_FLOAT_VEC3:
-					ri.Printf(PRINT_DEVELOPER, "......type: vec3\n");
-					break;
-				case GL_FLOAT_VEC4:
-					ri.Printf(PRINT_DEVELOPER, "......type: vec4\n");
-					break;
-				case GL_INT:
-					ri.Printf(PRINT_DEVELOPER, "......type: int\n");
-					break;
-				default:
-					ri.Printf(PRINT_DEVELOPER, "......type: other\n");
-					break;
-				}
-			}
+			continue;
 		}
+
+		qglUniformBlockBinding(program->program, blockIndex,
+				uniformBlocksInfo[i].slot);
+		program->uniformBlocks |= (1u << i);
 	}
 }
 
@@ -964,9 +882,6 @@ void GLSL_FinishGPUShader(shaderProgram_t *program)
 
 void GLSL_SetUniforms( shaderProgram_t *program, UniformData *uniformData )
 {
-	if (uniformData == nullptr)
-		return;
-
 	UniformData *data = uniformData;
 	if (data == nullptr)
 		return;
@@ -994,8 +909,9 @@ void GLSL_SetUniforms( shaderProgram_t *program, UniformData *uniformData )
 
 			case GLSL_VEC2:
 			{
+				assert(data->numElements == 1);
 				GLfloat *value = (GLfloat *)(data + 1);
-				GLSL_SetUniformVec2N(program, data->index, value, data->numElements);
+				GLSL_SetUniformVec2(program, data->index, value);
 				data = reinterpret_cast<UniformData *>(value + data->numElements*2);
 				break;
 			}
@@ -1087,7 +1003,7 @@ void GLSL_SetUniformFloat(shaderProgram_t *program, int uniformNum, GLfloat valu
 	}
 
 	*compare = value;
-
+	
 	qglUniform1f(uniforms[uniformNum], value);
 }
 
@@ -1114,39 +1030,6 @@ void GLSL_SetUniformVec2(shaderProgram_t *program, int uniformNum, const vec2_t 
 	compare[1] = v[1];
 
 	qglUniform2f(uniforms[uniformNum], v[0], v[1]);
-}
-
-void GLSL_SetUniformVec2N(shaderProgram_t *program, int uniformNum, const float *v, int numVec2s)
-{
-	GLint *uniforms = program->uniforms;
-	float *compare = (float *)(program->uniformBuffer + program->uniformBufferOffsets[uniformNum]);
-
-	if (uniforms[uniformNum] == -1)
-		return;
-
-	if (uniformsInfo[uniformNum].type != GLSL_VEC2)
-	{
-		ri.Printf(PRINT_WARNING, "GLSL_SetUniformVec2: wrong type for uniform %i in program %s\n", uniformNum, program->name);
-		return;
-	}
-
-	if (uniformsInfo[uniformNum].size < numVec2s)
-	{
-		ri.Printf(PRINT_WARNING, "GLSL_SetUniformVec2N: uniform %i only has %d elements! Tried to set %d\n",
-			uniformNum,
-			uniformsInfo[uniformNum].size,
-			numVec2s);
-		return;
-	}
-
-	if (memcmp(compare, v, sizeof(vec2_t) * numVec2s) == 0)
-	{
-		return;
-	}
-
-	memcpy(compare, v, sizeof(vec2_t) * numVec2s);
-
-	qglUniform2fv(uniforms[uniformNum], numVec2s, v);
 }
 
 void GLSL_SetUniformVec3(shaderProgram_t *program, int uniformNum, const vec3_t v)
@@ -1303,21 +1186,19 @@ void GLSL_DeleteGPUShader(shaderProgram_t *program)
 
 static bool GLSL_IsValidPermutationForGeneric (int shaderCaps)
 {
-#ifdef REND2_SP
 	if ( (shaderCaps & GENERICDEF_USE_VERTEX_ANIMATION) &&
 			(shaderCaps & GENERICDEF_USE_SKELETAL_ANIMATION) )
 		return false;
-#endif // REND2_SP
+
 	return true;
 }
 
 static bool GLSL_IsValidPermutationForFog (int shaderCaps)
 {
-#ifdef REND2_SP
 	if ( (shaderCaps & FOGDEF_USE_VERTEX_ANIMATION) &&
 			(shaderCaps & FOGDEF_USE_SKELETAL_ANIMATION) )
 		return false;
-#endif // REND2_SP
+
 	return true;
 }
 
@@ -1329,11 +1210,13 @@ static bool GLSL_IsValidPermutationForLight (int lightType, int shaderCaps)
 	if (!lightType && (shaderCaps & LIGHTDEF_USE_PARALLAXMAP))
 		return false;
 
-#ifdef REND2_SP
+	if (!lightType && (shaderCaps & LIGHTDEF_USE_SHADOWMAP))
+		return false;
+
 	if ( (shaderCaps & LIGHTDEF_USE_SKELETAL_ANIMATION) &&
 			(shaderCaps & LIGHTDEF_USE_VERTEX_ANIMATION) )
 		return false;
-#endif // REND2_SP
+
 	return true;
 }
 
@@ -1394,7 +1277,7 @@ static const GPUProgramDesc *LoadProgramSource(
 	const char *programName, Allocator& allocator, const GPUProgramDesc& fallback )
 {
 	const GPUProgramDesc *result = &fallback;
-
+	
 	if ( r_externalGLSL->integer )
 	{
 		char *buffer;
@@ -1442,13 +1325,13 @@ static int GLSL_LoadGPUProgramGeneric(
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_TCGEN\n");
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_TCMOD\n");
 		}
-#ifdef REND2_SP
+
 		if (i & GENERICDEF_USE_VERTEX_ANIMATION)
 		{
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_VERTEX_ANIMATION\n");
 			attribs |= ATTR_POSITION2 | ATTR_NORMAL2;
 		}
-#endif // REND2_SP
+
 		if (i & GENERICDEF_USE_SKELETAL_ANIMATION)
 		{
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_SKELETAL_ANIMATION\n");
@@ -1498,34 +1381,28 @@ static int GLSL_LoadGPUProgramFogPass(
 	char extradefines[1200];
 	const GPUProgramDesc *programDesc =
 		LoadProgramSource("fogpass", allocator, fallback_fogpassProgram);
-	for (int i = 0; i < FOGDEF_COUNT; i++)
+	for ( int i = 0; i < FOGDEF_COUNT; i++ )
 	{
-		if (!GLSL_IsValidPermutationForFog(i))
+		if (!GLSL_IsValidPermutationForFog (i))
 		{
 			continue;
 		}
 
 		uint32_t attribs =
-			(ATTR_POSITION | ATTR_NORMAL | ATTR_TEXCOORD0);
+			(ATTR_POSITION | ATTR_POSITION2 | ATTR_NORMAL | ATTR_NORMAL2 | ATTR_TEXCOORD0);
 		extradefines[0] = '\0';
 
 		if (i & FOGDEF_USE_DEFORM_VERTEXES)
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_DEFORM_VERTEXES\n");
-#ifdef REND2_SP
+
 		if (i & FOGDEF_USE_VERTEX_ANIMATION)
-		{
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_VERTEX_ANIMATION\n");
-			attribs |= ATTR_POSITION2 | ATTR_NORMAL2
-		}
-#endif // REND2_SP
+
 		if (i & FOGDEF_USE_SKELETAL_ANIMATION)
 		{
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_SKELETAL_ANIMATION\n");
 			attribs |= ATTR_BONE_INDEXES | ATTR_BONE_WEIGHTS;
 		}
-
-		if (i & FOGDEF_USE_FALLBACK_GLOBAL_FOG)
-			Q_strcat(extradefines, sizeof(extradefines), "#define USE_FALLBACK_GLOBAL_FOG\n");
 
 		if (i & FOGDEF_USE_ALPHA_TEST)
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_ALPHA_TEST\n");
@@ -1537,80 +1414,48 @@ static int GLSL_LoadGPUProgramFogPass(
 		}
 
 		GLSL_InitUniforms(&tr.fogShader[i]);
-
-		qglUseProgram(tr.fogShader[i].program);
-		if (i & FOGDEF_USE_ALPHA_TEST)
-			GLSL_SetUniformInt(&tr.fogShader[i], UNIFORM_DIFFUSEMAP, 0);
-		qglUseProgram(0);
-
 		GLSL_FinishGPUShader(&tr.fogShader[i]);
-
+		
 		++numPrograms;
 	}
 
 	return numPrograms;
 }
 
-static int GLSL_LoadGPUProgramRefraction(
+static int GLSL_LoadGPUProgramDLight(
 	ShaderProgramBuilder& builder,
-	Allocator& scratchAlloc)
+	Allocator& scratchAlloc )
 {
 	int numPrograms = 0;
 	Allocator allocator(scratchAlloc.Base(), scratchAlloc.GetSize());
 
 	char extradefines[1200];
 	const GPUProgramDesc *programDesc =
-		LoadProgramSource("refraction", allocator, fallback_refractionProgram);
-	for (int i = 0; i < REFRACTIONDEF_COUNT; i++)
+		LoadProgramSource("dlight", allocator, fallback_dlightProgram);
+	for ( int i = 0; i < DLIGHTDEF_COUNT; i++ )
 	{
-		uint32_t attribs = ATTR_POSITION | ATTR_TEXCOORD0 | ATTR_NORMAL | ATTR_COLOR;
+		uint32_t attribs = ATTR_POSITION | ATTR_NORMAL | ATTR_TEXCOORD0;
 		extradefines[0] = '\0';
 
-		if (i & REFRACTIONDEF_USE_DEFORM_VERTEXES)
+		if (i & DLIGHTDEF_USE_DEFORM_VERTEXES)
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_DEFORM_VERTEXES\n");
 
-		if (i & REFRACTIONDEF_USE_TCGEN_AND_TCMOD)
-		{
-			Q_strcat(extradefines, sizeof(extradefines), "#define USE_TCGEN\n");
-			Q_strcat(extradefines, sizeof(extradefines), "#define USE_TCMOD\n");
-		}
-#ifdef REND2_SP
-		if (i & REFRACTIONDEF_USE_VERTEX_ANIMATION)
-		{
-			Q_strcat(extradefines, sizeof(extradefines), "#define USE_VERTEX_ANIMATION\n");
-			attribs |= ATTR_POSITION2 | ATTR_NORMAL2;
-		}
-#endif // REND2_SP
-		if (i & REFRACTIONDEF_USE_SKELETAL_ANIMATION)
-		{
-			Q_strcat(extradefines, sizeof(extradefines), "#define USE_SKELETAL_ANIMATION\n");
-			attribs |= ATTR_BONE_INDEXES | ATTR_BONE_WEIGHTS;
-		}
-
-		if (i & REFRACTIONDEF_USE_RGBAGEN)
-			Q_strcat(extradefines, sizeof(extradefines), "#define USE_RGBAGEN\n");
-
-		if (i & REFRACTIONDEF_USE_ALPHA_TEST)
+		if (i & DLIGHTDEF_USE_ALPHA_TEST)
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_ALPHA_TEST\n");
 
-		if (i & REFRACTIONDEF_USE_SRGB_TRANSFORM)
-			Q_strcat(extradefines, sizeof(extradefines), "#define USE_LINEAR_LIGHT\n");
-
-		if (!GLSL_LoadGPUShader(builder, &tr.refractionShader[i], "refraction", attribs, NO_XFB_VARS,
-			extradefines, *programDesc))
+		if (!GLSL_LoadGPUShader(builder, &tr.dlightShader[i], "dlight", attribs, NO_XFB_VARS,
+				extradefines, *programDesc))
 		{
-			ri.Error(ERR_FATAL, "Could not load refraction shader!");
+			ri.Error(ERR_FATAL, "Could not load dlight shader!");
 		}
 
-		GLSL_InitUniforms(&tr.refractionShader[i]);
+		GLSL_InitUniforms(&tr.dlightShader[i]);
 
-		qglUseProgram(tr.refractionShader[i].program);
-		GLSL_SetUniformInt(&tr.refractionShader[i], UNIFORM_TEXTUREMAP, TB_COLORMAP);
-		GLSL_SetUniformInt(&tr.refractionShader[i], UNIFORM_LEVELSMAP, TB_LEVELSMAP);
-		GLSL_SetUniformInt(&tr.refractionShader[i], UNIFORM_SCREENDEPTHMAP, TB_SHADOWMAP);
+		qglUseProgram(tr.dlightShader[i].program);
+		GLSL_SetUniformInt(&tr.dlightShader[i], UNIFORM_DIFFUSEMAP, TB_DIFFUSEMAP);
 		qglUseProgram(0);
 
-		GLSL_FinishGPUShader(&tr.refractionShader[i]);
+		GLSL_FinishGPUShader(&tr.dlightShader[i]);
 
 		++numPrograms;
 	}
@@ -1642,6 +1487,12 @@ static int GLSL_LoadGPUProgramLightAll(
 
 		extradefines[0] = '\0';
 
+		if (r_dlightMode->integer >= 2)
+			Q_strcat(extradefines, sizeof(extradefines), "#define USE_SHADOWMAP\n");
+
+		if (1)
+			Q_strcat(extradefines, sizeof(extradefines), "#define SWIZZLE_NORMALMAP\n");
+
 		if (r_hdr->integer && !glRefConfig.floatLightmap)
 			Q_strcat(extradefines, sizeof(extradefines), "#define RGBM_LIGHTMAP\n");
 
@@ -1651,9 +1502,6 @@ static int GLSL_LoadGPUProgramLightAll(
 
 			if (useFastLight)
 				Q_strcat(extradefines, sizeof(extradefines), "#define USE_FAST_LIGHT\n");
-
-			if (r_dlightMode->integer >= 2)
-				Q_strcat(extradefines, sizeof(extradefines), "#define USE_DSHADOWS\n");
 
 			switch (lightType)
 			{
@@ -1671,6 +1519,9 @@ static int GLSL_LoadGPUProgramLightAll(
 				case LIGHTDEF_USE_LIGHT_VECTOR:
 				{
 					Q_strcat(extradefines, sizeof(extradefines), "#define USE_LIGHT_VECTOR\n");
+					if (r_dlightMode->integer >= 2)
+						Q_strcat(extradefines, sizeof(extradefines), "#define USE_DSHADOWS\n");
+
 					break;
 				}
 
@@ -1696,17 +1547,13 @@ static int GLSL_LoadGPUProgramLightAll(
 			}
 
 			if (r_specularMapping->integer)
-			{
 				Q_strcat(extradefines, sizeof(extradefines), "#define USE_SPECULARMAP\n");
-				if (i & LIGHTDEF_USE_SPEC_GLOSS)
-					Q_strcat(extradefines, sizeof(extradefines), "#define USE_SPECGLOSS\n");
-			}
 
 			if (r_cubeMapping->integer)
 				Q_strcat(extradefines, sizeof(extradefines), "#define USE_CUBEMAP\n");
 		}
 
-		if (r_sunlightMode->integer)
+		if (i & LIGHTDEF_USE_SHADOWMAP)
 		{
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_SHADOWMAP\n");
 
@@ -1714,19 +1561,6 @@ static int GLSL_LoadGPUProgramLightAll(
 				Q_strcat(extradefines, sizeof(extradefines), "#define SHADOWMAP_MODULATE\n");
 			else if (r_sunlightMode->integer == 2)
 				Q_strcat(extradefines, sizeof(extradefines), "#define USE_PRIMARY_LIGHT\n");
-
-			if (r_shadowFilter->integer >= 1)
-				Q_strcat(extradefines, sizeof(extradefines), "#define USE_SHADOW_FILTER\n");
-
-			if (r_shadowFilter->integer >= 2)
-				Q_strcat(extradefines, sizeof(extradefines), "#define USE_SHADOW_FILTER2\n");
-
-			Q_strcat(
-				extradefines, sizeof(extradefines),
-				va("#define r_shadowMapSize %d\n", r_shadowMapSize->integer));
-			Q_strcat(
-				extradefines, sizeof(extradefines),
-				va("#define r_shadowCascadeZFar %f\n", r_shadowCascadeZFar->value));
 		}
 
 		if (i & LIGHTDEF_USE_TCGEN_AND_TCMOD)
@@ -1735,11 +1569,6 @@ static int GLSL_LoadGPUProgramLightAll(
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_TCMOD\n");
 		}
 
-		if (i & LIGHTDEF_USE_CLOTH_BRDF)
-		{
-			Q_strcat(extradefines, sizeof(extradefines), "#define USE_CLOTH_BRDF\n");
-		}
-#ifdef REND2_SP
 		if (i & LIGHTDEF_USE_VERTEX_ANIMATION)
 		{
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_VERTEX_ANIMATION\n");
@@ -1748,9 +1577,7 @@ static int GLSL_LoadGPUProgramLightAll(
 			if (r_normalMapping->integer)
 				attribs |= ATTR_TANGENT2;
 		}
-		else
-#endif // REND2_SP
-		if (i & LIGHTDEF_USE_SKELETAL_ANIMATION)
+		else if (i & LIGHTDEF_USE_SKELETAL_ANIMATION)
 		{
 			Q_strcat(extradefines, sizeof(extradefines), "#define USE_SKELETAL_ANIMATION\n");
 			attribs |= ATTR_BONE_INDEXES | ATTR_BONE_WEIGHTS;
@@ -1777,14 +1604,13 @@ static int GLSL_LoadGPUProgramLightAll(
 		GLSL_SetUniformInt(&tr.lightallShader[i], UNIFORM_DELUXEMAP,   TB_DELUXEMAP);
 		GLSL_SetUniformInt(&tr.lightallShader[i], UNIFORM_SPECULARMAP, TB_SPECULARMAP);
 		GLSL_SetUniformInt(&tr.lightallShader[i], UNIFORM_SHADOWMAP,   TB_SHADOWMAP);
+		GLSL_SetUniformInt(&tr.lightallShader[i], UNIFORM_SHADOWMAP2,  TB_SHADOWMAP2);
 		GLSL_SetUniformInt(&tr.lightallShader[i], UNIFORM_CUBEMAP,     TB_CUBEMAP);
 		GLSL_SetUniformInt(&tr.lightallShader[i], UNIFORM_ENVBRDFMAP,  TB_ENVBRDFMAP);
-		GLSL_SetUniformInt(&tr.lightallShader[i], UNIFORM_SHADOWMAP2,  TB_SHADOWMAPARRAY);
-		GLSL_SetUniformInt(&tr.lightallShader[i], UNIFORM_SSAOMAP,     TB_SSAOMAP);
 		qglUseProgram(0);
 
 		GLSL_FinishGPUShader(&tr.lightallShader[i]);
-
+		
 		++numPrograms;
 	}
 
@@ -1862,6 +1688,24 @@ static int GLSL_LoadGPUProgramTextureColor(
 	return 1;
 }
 
+static int GLSL_LoadGPUProgramDepthFill(
+	ShaderProgramBuilder& builder,
+	Allocator& scratchAlloc )
+{
+	GLSL_LoadGPUProgramBasic(
+		builder,
+		scratchAlloc,
+		&tr.shadowmapShader,
+		"shadowfill",
+		fallback_shadowfillProgram,
+		ATTR_POSITION | ATTR_POSITION2 | ATTR_NORMAL | ATTR_NORMAL2 | ATTR_TEXCOORD0);
+
+	GLSL_InitUniforms(&tr.shadowmapShader);
+	GLSL_FinishGPUShader(&tr.shadowmapShader);
+
+	return 1;
+}
+
 static int GLSL_LoadGPUProgramPShadow(
 	ShaderProgramBuilder& builder,
 	Allocator& scratchAlloc )
@@ -1884,7 +1728,7 @@ static int GLSL_LoadGPUProgramPShadow(
 	qglUseProgram(0);
 
 	GLSL_FinishGPUShader(&tr.pshadowShader);
-
+	
 	return 1;
 }
 
@@ -1932,7 +1776,7 @@ static int GLSL_LoadGPUProgramDownscale4x(
 	qglUseProgram(0);
 
 	GLSL_FinishGPUShader(&tr.down4xShader);
-
+	
 	return 1;
 }
 
@@ -1954,7 +1798,7 @@ static int GLSL_LoadGPUProgramBokeh(
 	qglUseProgram(0);
 
 	GLSL_FinishGPUShader(&tr.bokehShader);
-
+	
 	return 1;
 }
 
@@ -1962,36 +1806,23 @@ static int GLSL_LoadGPUProgramTonemap(
 	ShaderProgramBuilder& builder,
 	Allocator& scratchAlloc )
 {
-	Allocator allocator(scratchAlloc.Base(), scratchAlloc.GetSize());
-	char extradefines[1200];
-	const GPUProgramDesc *programDesc =
-		LoadProgramSource("tonemap", allocator, fallback_tonemapProgram);
-	const uint32_t attribs = ATTR_POSITION | ATTR_TEXCOORD0;
+	GLSL_LoadGPUProgramBasic(
+		builder,
+		scratchAlloc,
+		&tr.tonemapShader,
+		"tonemap",
+		fallback_tonemapProgram);
 
-	extradefines[0] = '\0';
-	if (!GLSL_LoadGPUShader(builder, &tr.tonemapShader[0], "tonemap", attribs, NO_XFB_VARS,
-		extradefines, *programDesc))
-	{
-		ri.Error(ERR_FATAL, "Could not load tonemap shader!");
-	}
+	GLSL_InitUniforms(&tr.tonemapShader);
 
-	Q_strcat(extradefines, sizeof(extradefines), "#define USE_LINEAR_LIGHT\n");
-	if (!GLSL_LoadGPUShader(builder, &tr.tonemapShader[1], "tonemap", attribs, NO_XFB_VARS,
-		extradefines, *programDesc))
-	{
-		ri.Error(ERR_FATAL, "Could not load tonemap shader!");
-	}
+	qglUseProgram(tr.tonemapShader.program);
+	GLSL_SetUniformInt(&tr.tonemapShader, UNIFORM_TEXTUREMAP, TB_COLORMAP);
+	GLSL_SetUniformInt(&tr.tonemapShader, UNIFORM_LEVELSMAP,  TB_LEVELSMAP);
+	qglUseProgram(0);
 
-	for (int i = 0; i < 2; i++)
-	{
-		GLSL_InitUniforms(&tr.tonemapShader[i]);
-		qglUseProgram(tr.tonemapShader[i].program);
-		GLSL_SetUniformInt(&tr.tonemapShader[i], UNIFORM_TEXTUREMAP, TB_COLORMAP);
-		GLSL_SetUniformInt(&tr.tonemapShader[i], UNIFORM_LEVELSMAP, TB_LEVELSMAP);
-		qglUseProgram(0);
-		GLSL_FinishGPUShader(&tr.tonemapShader[i]);
-	}
-	return 2;
+	GLSL_FinishGPUShader(&tr.tonemapShader);
+	
+	return 1;
 }
 
 static int GLSL_LoadGPUProgramCalcLuminanceLevel(
@@ -2025,11 +1856,58 @@ static int GLSL_LoadGPUProgramCalcLuminanceLevel(
 		qglUseProgram(0);
 
 		GLSL_FinishGPUShader(&tr.calclevels4xShader[i]);
-
+		
 		++numPrograms;
 	}
 
 	return numPrograms;
+}
+
+static int GLSL_LoadGPUProgramShadowMask(
+	ShaderProgramBuilder& builder,
+	Allocator& scratchAlloc )
+{
+	Allocator allocator(scratchAlloc.Base(), scratchAlloc.GetSize());
+
+	char extradefines[1200];
+	const GPUProgramDesc *programDesc =
+		LoadProgramSource("shadowmask", allocator, fallback_shadowmaskProgram);
+	const uint32_t attribs = ATTR_POSITION | ATTR_TEXCOORD0;
+	extradefines[0] = '\0';
+
+	if (r_shadowFilter->integer >= 1)
+		Q_strcat(extradefines, sizeof(extradefines), "#define USE_SHADOW_FILTER\n");
+
+	if (r_shadowFilter->integer >= 2)
+		Q_strcat(extradefines, sizeof(extradefines), "#define USE_SHADOW_FILTER2\n");
+
+	Q_strcat(extradefines, sizeof(extradefines), "#define USE_SHADOW_CASCADE\n");
+
+	Q_strcat(
+		extradefines, sizeof(extradefines),
+		va("#define r_shadowMapSize %d\n", r_shadowMapSize->integer));
+	Q_strcat(
+		extradefines, sizeof(extradefines),
+		va("#define r_shadowCascadeZFar %f\n", r_shadowCascadeZFar->value));
+
+	if (!GLSL_LoadGPUShader(builder, &tr.shadowmaskShader, "shadowmask", attribs, NO_XFB_VARS,
+			extradefines, *programDesc))
+	{
+		ri.Error(ERR_FATAL, "Could not load shadowmask shader!");
+	}
+
+	GLSL_InitUniforms(&tr.shadowmaskShader);
+
+	qglUseProgram(tr.shadowmaskShader.program);
+	GLSL_SetUniformInt(&tr.shadowmaskShader, UNIFORM_SCREENDEPTHMAP, TB_COLORMAP);
+	GLSL_SetUniformInt(&tr.shadowmaskShader, UNIFORM_SHADOWMAP,  TB_SHADOWMAP);
+	GLSL_SetUniformInt(&tr.shadowmaskShader, UNIFORM_SHADOWMAP2, TB_SHADOWMAP2);
+	GLSL_SetUniformInt(&tr.shadowmaskShader, UNIFORM_SHADOWMAP3, TB_SHADOWMAP3);
+	qglUseProgram(0);
+
+	GLSL_FinishGPUShader(&tr.shadowmaskShader);
+	
+	return 1;
 }
 
 static int GLSL_LoadGPUProgramSSAO(
@@ -2199,7 +2077,7 @@ static int GLSL_LoadGPUProgramSurfaceSprites(
 	char extradefines[1200];
 	const GPUProgramDesc *programDesc =
 		LoadProgramSource("surface_sprites", allocator, fallback_surface_spritesProgram);
-	const uint32_t attribs = ATTR_POSITION | ATTR_POSITION2 | ATTR_NORMAL | ATTR_COLOR;
+	const uint32_t attribs = ATTR_POSITION | ATTR_NORMAL;
 	for ( int i = 0; i < SSDEF_COUNT; ++i )
 	{
 		extradefines[0] = '\0';
@@ -2213,25 +2091,10 @@ static int GLSL_LoadGPUProgramSurfaceSprites(
 		else if ( i & SSDEF_FACE_UP )
 			Q_strcat(extradefines, sizeof(extradefines),
 					"#define FACE_UP\n");
-		else if (i & SSDEF_FLATTENED)
-			Q_strcat(extradefines, sizeof(extradefines),
-				"#define FACE_FLATTENED\n");
-
-		if (i & SSDEF_FX_SPRITE)
-			Q_strcat(extradefines, sizeof(extradefines),
-				"#define FX_SPRITE\n");
-
-		if ( i & SSDEF_USE_FOG )
-			Q_strcat(extradefines, sizeof(extradefines),
-				"#define USE_FOG\n");
 
 		if ( i & SSDEF_ALPHA_TEST )
 			Q_strcat(extradefines, sizeof(extradefines),
 					"#define ALPHA_TEST\n");
-
-		if (i & SSDEF_ADDITIVE)
-			Q_strcat(extradefines, sizeof(extradefines),
-				"#define ADDITIVE_BLEND\n");
 
 		shaderProgram_t *program = tr.spriteShader + i;
 		if (!GLSL_LoadGPUShader(builder, program, "surface_sprites", attribs, NO_XFB_VARS,
@@ -2261,10 +2124,6 @@ static int GLSL_LoadGPUProgramWeather(
 		ATTR_POSITION | ATTR_COLOR);
 
 	GLSL_InitUniforms(&tr.weatherShader);
-	qglUseProgram(tr.weatherShader.program);
-	GLSL_SetUniformInt(&tr.weatherShader, UNIFORM_SHADOWMAP, TB_SHADOWMAP);
-	GLSL_SetUniformInt(&tr.weatherShader, UNIFORM_DIFFUSEMAP, TB_DIFFUSEMAP);
-	qglUseProgram(0);
 	GLSL_FinishGPUShader(&tr.weatherShader);
 
 	GLSL_LoadGPUProgramBasic(
@@ -2344,24 +2203,25 @@ void GLSL_LoadGPUShaders()
 
 	Allocator allocator(512 * 1024);
 	ShaderProgramBuilder builder;
-
+	
 	int numGenShaders = 0;
 	int numLightShaders = 0;
 	int numEtcShaders = 0;
 	numGenShaders += GLSL_LoadGPUProgramGeneric(builder, allocator);
 	numLightShaders += GLSL_LoadGPUProgramLightAll(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramFogPass(builder, allocator);
-	numEtcShaders += GLSL_LoadGPUProgramRefraction(builder, allocator);
+	numEtcShaders += GLSL_LoadGPUProgramDLight(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramTextureColor(builder, allocator);
+	numEtcShaders += GLSL_LoadGPUProgramDepthFill(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramPShadow(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramVShadow(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramDownscale4x(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramBokeh(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramTonemap(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramCalcLuminanceLevel(builder, allocator);
+	numEtcShaders += GLSL_LoadGPUProgramShadowMask(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramSSAO(builder, allocator);
-	if (r_cubeMapping->integer)
-		numEtcShaders += GLSL_LoadGPUProgramPrefilterEnvMap(builder, allocator);
+	numEtcShaders += GLSL_LoadGPUProgramPrefilterEnvMap(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramDepthBlur(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramGaussianBlur(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramDynamicGlowUpsample(builder, allocator);
@@ -2369,8 +2229,8 @@ void GLSL_LoadGPUShaders()
 	numEtcShaders += GLSL_LoadGPUProgramSurfaceSprites(builder, allocator);
 	numEtcShaders += GLSL_LoadGPUProgramWeather(builder, allocator);
 
-	ri.Printf(PRINT_ALL, "loaded %i GLSL shaders (%i gen %i light %i etc) in %5.2f seconds\n",
-		numGenShaders + numLightShaders + numEtcShaders, numGenShaders, numLightShaders,
+	ri.Printf(PRINT_ALL, "loaded %i GLSL shaders (%i gen %i light %i etc) in %5.2f seconds\n", 
+		numGenShaders + numLightShaders + numEtcShaders, numGenShaders, numLightShaders, 
 		numEtcShaders, (ri.Milliseconds() - startTime) / 1000.0);
 }
 
@@ -2390,28 +2250,28 @@ void GLSL_ShutdownGPUShaders(void)
 	for ( i = 0; i < GENERICDEF_COUNT; i++)
 		GLSL_DeleteGPUShader(&tr.genericShader[i]);
 
-	for (i = 0; i < REFRACTIONDEF_COUNT; i++)
-		GLSL_DeleteGPUShader(&tr.refractionShader[i]);
-
 	GLSL_DeleteGPUShader(&tr.textureColorShader);
 
 	for ( i = 0; i < FOGDEF_COUNT; i++)
 		GLSL_DeleteGPUShader(&tr.fogShader[i]);
 
+	for ( i = 0; i < DLIGHTDEF_COUNT; i++)
+		GLSL_DeleteGPUShader(&tr.dlightShader[i]);
+
 	for ( i = 0; i < LIGHTDEF_COUNT; i++)
 		GLSL_DeleteGPUShader(&tr.lightallShader[i]);
 
+	GLSL_DeleteGPUShader(&tr.shadowmapShader);
 	GLSL_DeleteGPUShader(&tr.pshadowShader);
 	GLSL_DeleteGPUShader(&tr.volumeShadowShader);
 	GLSL_DeleteGPUShader(&tr.down4xShader);
 	GLSL_DeleteGPUShader(&tr.bokehShader);
-
-	for (i = 0; i < 2; ++i)
-		GLSL_DeleteGPUShader(&tr.tonemapShader[i]);
+	GLSL_DeleteGPUShader(&tr.tonemapShader);
 
 	for ( i = 0; i < 2; i++)
 		GLSL_DeleteGPUShader(&tr.calclevels4xShader[i]);
 
+	GLSL_DeleteGPUShader(&tr.shadowmaskShader);
 	GLSL_DeleteGPUShader(&tr.ssaoShader);
 
 	for ( i = 0; i < 2; i++)
@@ -2525,14 +2385,13 @@ void GL_VertexArraysToAttribs(
 		{ 4, GL_FALSE, GL_UNSIGNED_INT_2_10_10_10_REV, GL_TRUE }, // tangent
 		{ 4, GL_FALSE, GL_UNSIGNED_INT_2_10_10_10_REV, GL_TRUE }, // normal
 		{ 4, GL_FALSE, GL_FLOAT, GL_FALSE }, // color
+		{ 0, GL_FALSE, GL_NONE, GL_FALSE }, // paint color
 		{ 4, GL_FALSE, GL_UNSIGNED_INT_2_10_10_10_REV, GL_TRUE }, // light direction
 		{ 4, GL_TRUE,  GL_UNSIGNED_BYTE, GL_FALSE }, // bone indices
 		{ 4, GL_FALSE, GL_UNSIGNED_BYTE, GL_TRUE }, // bone weights
-#ifdef REND2_SP
 		{ 3, GL_FALSE, GL_FLOAT, GL_FALSE }, // pos2
 		{ 4, GL_FALSE, GL_UNSIGNED_INT_2_10_10_10_REV, GL_TRUE }, // tangent2
 		{ 4, GL_FALSE, GL_UNSIGNED_INT_2_10_10_10_REV, GL_TRUE }, // normal2
-#endif // REND2_SP
 	};
 
 	for ( int i = 0; i < vertexArrays->numVertexArrays; i++ )
@@ -2571,6 +2430,9 @@ shaderProgram_t *GLSL_GetGenericShaderProgram(int stage)
 	shaderStage_t *pStage = tess.xstages[stage];
 	int shaderAttribs = 0;
 
+	if (tess.fogNum && pStage->adjustColorsForFog)
+		shaderAttribs |= GENERICDEF_USE_FOG;
+
 	if ( pStage->alphaTestType != ALPHA_TEST_NONE )
 		shaderAttribs |= GENERICDEF_USE_ALPHA_TEST;
 
@@ -2599,11 +2461,6 @@ shaderProgram_t *GLSL_GetGenericShaderProgram(int stage)
 			break;
 	}
 
-	if (tess.fogNum &&
-		pStage->adjustColorsForFog != ACFF_NONE &&
-		r_drawfog->integer)
-		shaderAttribs |= GENERICDEF_USE_FOG;
-
 	if (pStage->bundle[0].tcGen != TCGEN_TEXTURE)
 	{
 		shaderAttribs |= GENERICDEF_USE_TCGEN_AND_TCMOD;
@@ -2613,12 +2470,12 @@ shaderProgram_t *GLSL_GetGenericShaderProgram(int stage)
 	{
 		shaderAttribs |= GENERICDEF_USE_DEFORM_VERTEXES;
 	}
-#ifdef REND2_SP
+
 	if (glState.vertexAnimation)
 	{
 		shaderAttribs |= GENERICDEF_USE_VERTEX_ANIMATION;
 	}
-#endif // REND2_SP
+
 	if (glState.skeletalAnimation)
 	{
 		shaderAttribs |= GENERICDEF_USE_SKELETAL_ANIMATION;

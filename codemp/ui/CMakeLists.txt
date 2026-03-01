@@ -25,7 +25,6 @@ set(MPUIIncludeDirectories
 	"${MPDir}"
 	"${SharedDir}"
 	"${GSLIncludeDirectory}"
-	"${CMAKE_CURRENT_BINARY_DIR}/../versionfile"
 	)
 if(WIN32)
 	set(MPUILibraries "odbc32" "odbccp32") # what are these even?

@@ -169,7 +169,7 @@ typedef struct md3Header_s {
 	int			ofsEnd;				// end of file
 } md3Header_t;
 
-//#if defined(REND2) || defined(GLSL_BUILDTOOL) //rend2
+#if defined(REND2) || defined(GLSL_BUILDTOOL) //rend2
 /*
 ==============================================================================
 
@@ -294,7 +294,7 @@ typedef struct {
 
 	int			ofsEnd;				// end of file
 } mdrHeader_t;
-//#endif
+#endif
 
 /*
 ==============================================================================
