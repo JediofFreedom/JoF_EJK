@@ -137,7 +137,7 @@ void RE_AddPolyToScene( qhandle_t hShader, int numVerts, const polyVert_t *verts
 		poly->hShader = hShader;
 		poly->numVerts = numVerts;
 		poly->verts = &backEndData->polyVerts[r_numpolyverts];
-		
+
 		Com_Memcpy( poly->verts, &verts[numVerts*j], numVerts * sizeof( *verts ) );
 
 		// done.
@@ -159,7 +159,7 @@ void RE_AddPolyToScene( qhandle_t hShader, int numVerts, const polyVert_t *verts
 				AddPointToBounds( poly->verts[i].xyz, bounds[0], bounds[1] );
 			}
 			for ( fogIndex = 1 ; fogIndex < tr.world->numfogs ; fogIndex++ ) {
-				fog = &tr.world->fogs[fogIndex]; 
+				fog = &tr.world->fogs[fogIndex];
 				if ( bounds[1][0] >= fog->bounds[0][0]
 					&& bounds[1][1] >= fog->bounds[0][1]
 					&& bounds[1][2] >= fog->bounds[0][2]
@@ -261,6 +261,18 @@ void RE_AddDynamicLightToScene( const vec3_t org, float intensity, float r, floa
 	dl->color[0] = r;
 	dl->color[1] = g;
 	dl->color[2] = b;
+
+	if (r_hdr->integer)
+	{
+		float maxValue = MAX(r, MAX(g, b));
+		if (maxValue > 1.0f)
+		{
+			VectorScale(dl->color, 1.0f / maxValue, dl->color);
+			dl->radius *= maxValue;
+		}
+		dl->radius = MIN(dl->radius, 65535.0f);
+	}
+
 	dl->additive = additive;
 }
 
@@ -302,6 +314,7 @@ void RE_BeginScene(const refdef_t *fd)
 
 	tr.refdef.time = fd->time;
 	tr.refdef.rdflags = fd->rdflags;
+	tr.refdef.frameTime = fd->time - tr.refdef.lastTime;
 
 	// copy the areamask data over and note if it has changed, which
 	// will force a reset of the visible leafs even if the view hasn't moved
@@ -328,7 +341,7 @@ void RE_BeginScene(const refdef_t *fd)
 	tr.refdef.sunAmbCol[3] = 1.0f;
 
 	VectorCopy(tr.sunDirection, tr.refdef.sunDir);
-	if ( (tr.refdef.rdflags & RDF_NOWORLDMODEL) || !(r_depthPrepass->value) ){
+	if ( (fd->rdflags & RDF_NOWORLDMODEL) || !(r_depthPrepass->value) ){
 		tr.refdef.colorScale = 1.0f;
 		VectorSet(tr.refdef.sunCol, 0, 0, 0);
 		VectorSet(tr.refdef.sunAmbCol, 0, 0, 0);
@@ -360,6 +373,26 @@ void RE_BeginScene(const refdef_t *fd)
 				VectorScale(tr.sunLight, scale,                     tr.refdef.sunCol);
 				VectorScale(tr.sunLight, scale * tr.sunShadowScale, tr.refdef.sunAmbCol);
 			}
+		}
+
+		if (r_forceSun->integer == 2)
+		{
+			vec4_t lightDir, lightCol;
+			int scale = 32768;
+			float angle = (fd->time % scale) / (float)scale * M_PI;
+			lightDir[0] = cos(angle);
+			lightDir[1] = sin(35.0f * M_PI / 180.0f);
+			lightDir[2] = sin(angle) * cos(35.0f * M_PI / 180.0f);
+			lightDir[3] = 0.0f;
+
+			lightCol[0] =
+				lightCol[1] =
+				lightCol[2] = CLAMP(sin(angle) * 2.0f, 0.0f, 1.0f) * 2.0f;
+			lightCol[3] = 1.0f;
+
+			VectorCopy4(lightDir, tr.refdef.sunDir);
+			VectorCopy4(lightCol, tr.refdef.sunCol);
+			VectorScale4(lightCol, 0.2f, tr.refdef.sunAmbCol);
 		}
 	}
 
@@ -399,7 +432,7 @@ void RE_BeginScene(const refdef_t *fd)
 			VectorCopy(extra->sunCol,    tr.refdef.sunCol);
 			VectorCopy(extra->sunAmbCol, tr.refdef.sunAmbCol);
 		}
-	} 
+	}
 	else
 	{
 		tr.refdef.blurFactor = 0.0f;
@@ -420,7 +453,7 @@ void RE_BeginScene(const refdef_t *fd)
 
 	// Add the decals here because decals add polys and we need to ensure
 	// that the polys are added before the the renderer is prepared
-	if ( !(tr.refdef.rdflags & RDF_NOWORLDMODEL) )
+	if ( !(fd->rdflags & RDF_NOWORLDMODEL) )
 		R_AddDecals();
 
 	tr.refdef.numPolys = r_numpolys - r_firstScenePoly;
@@ -439,6 +472,15 @@ void RE_BeginScene(const refdef_t *fd)
 	if (fd->rdflags & RDF_SKYBOXPORTAL)
 	{
 		tr.world->skyboxportal = 1;
+
+		// Don't update constants yet. Store everything and render everything next scene
+		return;
+	}
+	else
+	{
+		// pasted this from SP
+		// cdr - only change last time for the real render, not the portal
+		tr.refdef.lastTime = fd->time;
 	}
 
 	// a single frame may have multiple scenes draw inside it --
@@ -448,6 +490,10 @@ void RE_BeginScene(const refdef_t *fd)
 	// each scene / view.
 	tr.frameSceneNum++;
 	tr.sceneCount++;
+
+	//ri.Printf(PRINT_ALL, "RE_BeginScene Frame: %i, skyportal: %i, entities: %i\n", backEndData->realFrameNumber, int(tr.world->skyboxportal && (tr.refdef.rdflags & RDF_SKYBOXPORTAL)), tr.refdef.num_entities);
+	R_GatherFrameViews(&tr.refdef);
+	RB_UpdateConstants(&tr.refdef);
 }
 
 void RE_EndScene()
@@ -457,6 +503,8 @@ void RE_EndScene()
 	r_firstSceneEntity = r_numentities;
 	r_firstSceneDlight = r_numdlights;
 	r_firstScenePoly = r_numpolys;
+	tr.skyPortalEntities = 0;
+	tr.numCachedViewParms = 0;
 }
 
 /*
@@ -470,8 +518,8 @@ Rendering a scene may require multiple views to be rendered
 to handle mirrors,
 @@@@@@@@@@@@@@@@@@@@@
 */
-void RE_RenderScene( const refdef_t *fd ) {
-	viewParms_t		parms;
+void RE_RenderScene( const refdef_t *fd )
+{
 	int				startTime;
 
 	if ( !tr.registered ) {
@@ -491,82 +539,47 @@ void RE_RenderScene( const refdef_t *fd ) {
 
 	RE_BeginScene(fd);
 
-	// SmileTheory: playing with shadow mapping
-	if (!( fd->rdflags & RDF_NOWORLDMODEL ) && tr.refdef.num_dlights && r_dlightMode->integer >= 2)
+	// Store skyportal info and don't render yet
+	if (tr.refdef.rdflags & RDF_SKYBOXPORTAL)
 	{
-		qhandle_t timer = R_BeginTimedBlockCmd( "Dlight cubemaps" );
-		R_RenderDlightCubemaps(fd);
-		R_EndTimedBlockCmd( timer );
+		viewParms_t		parms;
+		Com_Memset(&parms, 0, sizeof(parms));
+		parms.viewportX = fd->x;
+		parms.viewportY = glConfig.vidHeight - (fd->y + fd->height);
+		parms.viewportWidth = fd->width;
+		parms.viewportHeight = fd->height;
+		parms.isPortal = qfalse;
+		parms.isSkyPortal = qfalse;
+		parms.zNear = r_znear->value;
+
+		parms.fovX = fd->fov_x;
+		parms.fovY = fd->fov_y;
+
+		parms.stereoFrame = tr.refdef.stereoFrame;
+
+		VectorCopy(fd->vieworg, parms.ori.origin);
+		VectorCopy(fd->viewaxis[0], parms.ori.axis[0]);
+		VectorCopy(fd->viewaxis[1], parms.ori.axis[1]);
+		VectorCopy(fd->viewaxis[2], parms.ori.axis[2]);
+
+		VectorCopy(fd->vieworg, parms.pvsOrigin);
+
+		parms.isSkyPortal = qtrue;
+		Com_Memcpy(&tr.skyPortalParms, &parms, sizeof(viewParms_t));
+		Com_Memcpy(tr.skyPortalAreaMask, tr.refdef.areamask, sizeof(tr.refdef.areamask));
+		tr.skyPortalEntities = tr.refdef.num_entities;
+		return;
 	}
 
-	/* playing with more shadows */
-	if(!( fd->rdflags & RDF_NOWORLDMODEL ) && r_shadows->integer == 4)
+	// Render all the passes
+	for (int i = 0; i < tr.numCachedViewParms; i++)
 	{
-		qhandle_t timer = R_BeginTimedBlockCmd( "PShadow Maps" );
-		R_RenderPshadowMaps(fd);
-		R_EndTimedBlockCmd( timer );
+		qhandle_t timer = R_BeginTimedBlockCmd(va("Render Pass %i", i));
+		tr.refdef.numDrawSurfs = 0;
+		R_RenderView(&tr.cachedViewParms[i]);
+		R_IssuePendingRenderCommands();
+		R_EndTimedBlockCmd(timer);
 	}
-
-	// playing with even more shadows
-	if(r_sunlightMode->integer && !( fd->rdflags & RDF_NOWORLDMODEL ) && (r_forceSun->integer || tr.sunShadows))
-	{
-		qhandle_t timer = R_BeginTimedBlockCmd( "Shadow cascades" );
-		R_RenderSunShadowMaps(fd, 0);
-		R_RenderSunShadowMaps(fd, 1);
-		R_RenderSunShadowMaps(fd, 2);
-		R_EndTimedBlockCmd( timer );
-	}
-
-	// playing with cube maps
-	// this is where dynamic cubemaps would be rendered
-	if (0) //(!( fd->rdflags & RDF_NOWORLDMODEL ))
-	{
-		int i, j;
-
-		for (i = 0; i < tr.numCubemaps; i++)
-		{
-			for (j = 0; j < 6; j++)
-			{
-				R_RenderCubemapSide(i, j, qtrue, false);
-			}
-		}
-	}
-
-	// setup view parms for the initial view
-	//
-	// set up viewport
-	// The refdef takes 0-at-the-top y coordinates, so
-	// convert to GL's 0-at-the-bottom space
-	//
-	Com_Memset( &parms, 0, sizeof( parms ) );
-	parms.viewportX = tr.refdef.x;
-	parms.viewportY = glConfig.vidHeight - ( tr.refdef.y + tr.refdef.height );
-	parms.viewportWidth = tr.refdef.width;
-	parms.viewportHeight = tr.refdef.height;
-	parms.isPortal = qfalse;
-	//parms.zNear = r_znear->value; //bucky
-	parms.zNear = r_znear->value*tr.widthRatioCoef;
-
-	parms.fovX = tr.refdef.fov_x;
-	parms.fovY = tr.refdef.fov_y;
-	
-	parms.stereoFrame = tr.refdef.stereoFrame;
-
-	VectorCopy( fd->vieworg, parms.ori.origin );
-	VectorCopy( fd->viewaxis[0], parms.ori.axis[0] );
-	VectorCopy( fd->viewaxis[1], parms.ori.axis[1] );
-	VectorCopy( fd->viewaxis[2], parms.ori.axis[2] );
-
-	VectorCopy( fd->vieworg, parms.pvsOrigin );
-
-	if(!( fd->rdflags & RDF_NOWORLDMODEL ) && r_depthPrepass->value && ((r_forceSun->integer) || tr.sunShadows))
-	{
-		parms.flags = VPF_USESUNLIGHT;
-	}
-
-	qhandle_t timer = R_BeginTimedBlockCmd( "Main Render" );
-	R_RenderView( &parms );
-	R_EndTimedBlockCmd( timer );
 
 	if(!( fd->rdflags & RDF_NOWORLDMODEL ))
 	{
@@ -574,6 +587,8 @@ void RE_RenderScene( const refdef_t *fd ) {
 		R_AddPostProcessCmd();
 		R_EndTimedBlockCmd( timer );
 	}
+
+	R_IssuePendingRenderCommands();
 
 	RE_EndScene();
 

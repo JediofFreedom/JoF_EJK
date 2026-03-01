@@ -132,6 +132,8 @@ set(MPVanillaRendererIncludeDirectories ${MPVanillaRendererIncludeDirectories} $
 set(MPVanillaRendererLibraries ${MPVanillaRendererLibraries} ${OPENGL_LIBRARIES})
 
 set(MPVanillaRendererIncludeDirectories ${MPVanillaRendererIncludeDirectories} ${OpenJKLibDir})
+set(MPVanillaRendererIncludeDirectories ${MPVanillaRendererIncludeDirectories} "${CMAKE_CURRENT_BINARY_DIR}/../versionfile")
+
 add_library(${MPVanillaRenderer} SHARED ${MPVanillaRendererFiles})
 
 if(NOT MSVC)

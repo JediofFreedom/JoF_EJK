@@ -29,10 +29,14 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #define PRODUCT_NAME			"eternaljk"
 
-#define JOFVERSION "1.5.5"
-#define JOFCLIENTVERSION JOFVERSION "JoF"
+#include "jofversion.h"
+
+#define JOFVERSION JOF_VERSION_MAJOR "." JOF_VERSION_MINOR "." JOF_VERSION_BUILD
+
+#define JOFCLIENTVERSION JOFVERSION " JoF " JOF_GIT_BRANCH
 
 #define CLIENT_WINDOW_TITLE "EternalJK(JoF " JOFVERSION ")"
+#define CLIENT_CONSOLE_CORNER_DESCRIPTION "EternalJK(JoF " JOFVERSION JOF_GIT_BRANCH ") - " JOF_COMMIT_SHA_SHORT
 #define CLIENT_CONSOLE_TITLE "EternalJK Console"
 #define HOMEPATH_NAME_UNIX "EternalJK"
 #define HOMEPATH_NAME_WIN "EternalJK"

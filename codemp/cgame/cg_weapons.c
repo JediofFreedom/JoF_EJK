@@ -677,8 +677,7 @@ Ghoul2 Insert End
 		fxSArgs.eAlpha = 0.7f;
 		fxSArgs.rotation = Q_flrand(0.0f, 1.0f)*360;
 		fxSArgs.bounce = 0.0f;
-		//fxSArgs.life = 1.0f;
-		fxSArgs.life = cg.frametime;
+		fxSArgs.life = 1.0f;
 		fxSArgs.shader = shader;
 		fxSArgs.flags = 0x08000000;
 

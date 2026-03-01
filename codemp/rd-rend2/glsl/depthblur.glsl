@@ -1,15 +1,22 @@
 /*[Vertex]*/
-in vec4 attr_Position;
-in vec4 attr_TexCoord0;
-
 out vec2 var_ScreenTex;
 
 void main()
 {
-	gl_Position = attr_Position;
-	var_ScreenTex = attr_TexCoord0.xy;
-	//vec2 screenCoords = gl_Position.xy / gl_Position.w;
-	//var_ScreenTex = screenCoords * 0.5 + 0.5;
+	const vec2 positions[] = vec2[3](
+		vec2(-1.0f,  1.0f),
+		vec2(-1.0f, -3.0f),
+		vec2( 3.0f,  1.0f)
+	);
+
+	const vec2 texcoords[] = vec2[3](
+		vec2( 0.0f,  1.0f),
+		vec2( 0.0f, -1.0f),
+		vec2( 2.0f,  1.0f)
+	);
+
+	gl_Position = vec4(positions[gl_VertexID], 0.0, 1.0);
+	var_ScreenTex = texcoords[gl_VertexID];
 }
 
 /*[Fragment]*/
@@ -21,10 +28,10 @@ in vec2 var_ScreenTex;
 
 out vec4 out_Color;
 
-//float gauss[5] = float[5](0.30, 0.23, 0.097, 0.024, 0.0033);
-float gauss[4] = float[4](0.40, 0.24, 0.054, 0.0044);
+float gauss[5] = float[5](0.30, 0.23, 0.097, 0.024, 0.0033);
+//float gauss[4] = float[4](0.40, 0.24, 0.054, 0.0044);
 //float gauss[3] = float[3](0.60, 0.19, 0.0066);
-#define GAUSS_SIZE 4
+#define GAUSS_SIZE 5
 
 float getLinearDepth(sampler2D depthMap, const vec2 tex, const float zFarDivZNear)
 {
@@ -41,10 +48,10 @@ vec4 depthGaussian1D(sampler2D imageMap, sampler2D depthMap, vec2 tex, float zFa
 #else // if defined(USE_VERTICAL_BLUR)
 	vec2 direction = vec2(0.0, 1.0) * scale;
 #endif
-	
+
 	float depthCenter = zFar * getLinearDepth(depthMap, tex, zFarDivZNear);
 	vec2 centerSlope = vec2(dFdx(depthCenter), dFdy(depthCenter)) / vec2(dFdx(tex.x), dFdy(tex.y));
-		
+
 	vec4 result = texture(imageMap, tex) * gauss[0];
 	float total = gauss[0];
 
@@ -62,14 +69,14 @@ vec4 depthGaussian1D(sampler2D imageMap, sampler2D depthMap, vec2 tex, float zFa
 				total += gauss[j];
 			}
 		}
-		
+
 		direction = -direction;
-	}	
-		
+	}
+
 	return result / total;
 }
 
 void main()
-{		
+{
 	out_Color = depthGaussian1D(u_ScreenImageMap, u_ScreenDepthMap, var_ScreenTex, u_ViewInfo.x, u_ViewInfo.y);
 }
