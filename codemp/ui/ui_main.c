@@ -12219,8 +12219,7 @@ static qboolean bIsSkinFile(const char* dirptr, const char* skinname)
 
 	return qfalse;
 }
-
-// lumaya
+	
 void UI_BuildQ3Model_List_ProcessDir(char* dirptr, char* filelist, int numfiles)
 {
 	char* fileptr = filelist;

@@ -52,7 +52,6 @@ void UI_LoadForceConfig_List( void );
 void UI_UpdateCurrentServerInfo( void );
 void UI_BuildPlayerModel_List( qboolean inGameLoad );
 void UI_UpdateSaberHiltInfo( void );
-// lumaya:
 #define PROFILE_SKIN_SIZE 8192 //2048
 typedef struct uiQ3ModelBuild_s {
 	qboolean inProgress;

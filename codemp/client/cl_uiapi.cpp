@@ -46,7 +46,6 @@ extern botlib_export_t *botlib_export;
 static uiExport_t *uie; // ui export table
 static vm_t *uivm; // ui vm, valid for legacy and new api
 
-//lumaya async
 struct uiAsyncJob
 {
 	int id;
