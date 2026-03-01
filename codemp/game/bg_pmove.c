@@ -4311,7 +4311,7 @@ static void PM_GrappleMoveTarzan(void) {
 			parts = SETANIM_LEGS;
 		}
 
-		PM_SetAnim(parts, anim, SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD);
+		PM_SetAnim(parts, anim, SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD, 150);
 	}
 }
 
