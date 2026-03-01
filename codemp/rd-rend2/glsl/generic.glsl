@@ -15,14 +15,67 @@ in vec2 attr_TexCoord0;
 
 #if defined(USE_TCGEN)
 in vec2 attr_TexCoord1;
+in vec2 attr_TexCoord2;
+in vec2 attr_TexCoord3;
+in vec2 attr_TexCoord4;
+#endif
+
+layout(std140) uniform Scene
+{
+	vec4 u_PrimaryLightOrigin;
+	vec3 u_PrimaryLightAmbient;
+	int  u_globalFogIndex;
+	vec3 u_PrimaryLightColor;
+	float u_PrimaryLightRadius;
+	float u_frameTime;
+	float u_deltaTime;
+};
+
+layout(std140) uniform Camera
+{
+	mat4 u_viewProjectionMatrix;
+	vec4 u_ViewInfo;
+	vec3 u_ViewOrigin;
+	vec3 u_ViewForward;
+	vec3 u_ViewLeft;
+	vec3 u_ViewUp;
+};
+
+layout(std140) uniform Entity
+{
+	mat4 u_ModelMatrix;
+	vec4 u_LocalLightOrigin;
+	vec3 u_AmbientLight;
+	float u_LocalLightRadius;
+	vec3 u_DirectedLight;
+	float u_FXVolumetricBase;
+	vec3 u_ModelLightDir;
+	float u_VertexLerp;
+	vec3 u_LocalViewOrigin;
+	float u_entityTime;
+};
+
+#if defined(USE_DEFORM_VERTEXES) || defined(USE_RGBAGEN)
+layout(std140) uniform ShaderInstance
+{
+	vec4 u_DeformParams0;
+	vec4 u_DeformParams1;
+	float u_Time;
+	float u_PortalRange;
+	int u_DeformType;
+	int u_DeformFunc;
+};
+#endif
+
+#if defined(USE_SKELETAL_ANIMATION)
+layout(std140) uniform Bones
+{
+	mat3x4 u_BoneMatrices[MAX_G2_BONES];
+};
 #endif
 
 uniform vec4 u_DiffuseTexMatrix;
 uniform vec4 u_DiffuseTexOffTurb;
-
-#if defined(USE_TCGEN) || defined(USE_RGBAGEN)
-uniform vec3 u_LocalViewOrigin;
-#endif
 
 #if defined(USE_TCGEN)
 uniform int u_TCGen0;
@@ -30,38 +83,16 @@ uniform vec3 u_TCGen0Vector0;
 uniform vec3 u_TCGen0Vector1;
 #endif
 
-#if defined(USE_DEFORM_VERTEXES)
-uniform int u_DeformType;
-uniform int u_DeformFunc;
-uniform float u_DeformParams[7];
-uniform float u_Time;
-#endif
-
-uniform mat4 u_ModelViewProjectionMatrix;
-uniform mat4 u_ModelMatrix;
 uniform vec4 u_BaseColor;
 uniform vec4 u_VertColor;
-
-uniform vec3 u_ViewForward;
-uniform float u_FXVolumetricBase;
 
 #if defined(USE_RGBAGEN)
 uniform int u_ColorGen;
 uniform int u_AlphaGen;
-uniform vec3 u_AmbientLight;
-uniform vec3 u_DirectedLight;
-uniform vec3 u_ModelLightDir;
-uniform float u_PortalRange;
 #endif
 
 #if defined(USE_RGBAGEN) || defined(USE_DEFORM_VERTEXES)
 uniform vec4 u_Disintegration; // origin, threshhold
-#endif
-
-#if defined(USE_VERTEX_ANIMATION)
-uniform float u_VertexLerp;
-#elif defined(USE_SKELETAL_ANIMATION)
-uniform mat4x3 u_BoneMatrices[20];
 #endif
 
 out vec2 var_DiffuseTex;
@@ -104,6 +135,23 @@ float CalculateDeformScale( in int func, in float time, in float phase, in float
 
 vec3 DeformPosition(const vec3 pos, const vec3 normal, const vec2 st)
 {
+#if defined(USE_RGBAGEN)
+	if (u_ColorGen == CGEN_DISINTEGRATION_2)
+	{
+		vec3 delta = u_Disintegration.xyz - pos;
+		float sqrDistance = dot(delta, delta);
+		vec3 normalScale = vec3(-0.01);
+		if ( sqrDistance < u_Disintegration.w )
+		{
+			normalScale = vec3(2.0, 2.0, 0.5);
+		}
+		else if ( sqrDistance < u_Disintegration.w + 50 )
+		{
+			normalScale = vec3(1.0, 1.0, 0.0);
+		}
+		return pos + normal * normalScale;
+	}
+#endif
 	switch ( u_DeformType )
 	{
 		default:
@@ -113,81 +161,67 @@ vec3 DeformPosition(const vec3 pos, const vec3 normal, const vec2 st)
 
 		case DEFORM_BULGE:
 		{
-			float bulgeHeight = u_DeformParams[1]; // amplitude
-			float bulgeWidth = u_DeformParams[2]; // phase
-			float bulgeSpeed = u_DeformParams[3]; // frequency
+			float bulgeHeight = u_DeformParams0.y; // amplitude
+			float bulgeWidth = u_DeformParams0.z; // phase
+			float bulgeSpeed = u_DeformParams0.w; // frequency
 
-			float scale = CalculateDeformScale( WF_SIN, u_Time, bulgeWidth * st.x, bulgeSpeed );
+			float scale = CalculateDeformScale( WF_SIN, (u_entityTime + u_frameTime + u_Time), bulgeWidth * st.x, bulgeSpeed );
 
 			return pos + normal * scale * bulgeHeight;
 		}
 
 		case DEFORM_BULGE_UNIFORM:
 		{
-			float bulgeHeight = u_DeformParams[1]; // amplitude
+			float bulgeHeight = u_DeformParams0.y; // amplitude
 
 			return pos + normal * bulgeHeight;
 		}
 
 		case DEFORM_WAVE:
 		{
-			float base = u_DeformParams[0];
-			float amplitude = u_DeformParams[1];
-			float phase = u_DeformParams[2];
-			float frequency = u_DeformParams[3];
-			float spread = u_DeformParams[4];
+			float base = u_DeformParams0.x;
+			float amplitude = u_DeformParams0.y;
+			float phase = u_DeformParams0.z;
+			float frequency = u_DeformParams0.w;
+			float spread = u_DeformParams1.x;
 
 			float offset = dot( pos.xyz, vec3( spread ) );
-			float scale = CalculateDeformScale( u_DeformFunc, u_Time, phase + offset, frequency );
+			float scale = CalculateDeformScale( u_DeformFunc, (u_entityTime + u_frameTime + u_Time), phase + offset, frequency );
 
 			return pos + normal * (base + scale * amplitude);
 		}
 
 		case DEFORM_MOVE:
 		{
-			float base = u_DeformParams[0];
-			float amplitude = u_DeformParams[1];
-			float phase = u_DeformParams[2];
-			float frequency = u_DeformParams[3];
-			vec3 direction = vec3( u_DeformParams[4], u_DeformParams[5], u_DeformParams[6] );
+			float base = u_DeformParams0.x;
+			float amplitude = u_DeformParams0.y;
+			float phase = u_DeformParams0.z;
+			float frequency = u_DeformParams0.w;
+			vec3 direction = u_DeformParams1.xyz;
 
-			float scale = CalculateDeformScale( u_DeformFunc, u_Time, phase, frequency );
+			float scale = CalculateDeformScale( u_DeformFunc, (u_entityTime + u_frameTime + u_Time), phase, frequency );
 
 			return pos + direction * (base + scale * amplitude);
 		}
 
 		case DEFORM_PROJECTION_SHADOW:
 		{
-			vec3 ground = vec3(
-				u_DeformParams[0],
-				u_DeformParams[1],
-				u_DeformParams[2]);
-			float groundDist = u_DeformParams[3];
-			vec3 lightDir = vec3(
-				u_DeformParams[4],
-				u_DeformParams[5],
-				u_DeformParams[6]);
+			vec3 ground = u_DeformParams0.xyz;
+			float groundDist = u_DeformParams0.w;
+			vec3 lightDir = u_DeformParams1.xyz;
 
-			float d = 1.0 / dot( lightDir, ground );
+			float d = dot( lightDir, ground );
+
+			lightDir = lightDir * max( 0.5 - d, 0.0 ) + ground;
+			d = 1.0 / dot( lightDir, ground );
+
 			vec3 lightPos = lightDir * d;
-			return pos - lightPos * (dot( pos, ground ) + groundDist);
-		}
 
-		case DEFORM_DISINTEGRATION:
-		{
-			vec3 delta = u_Disintegration.xyz - pos;
-			float sqrDistance = dot(delta, delta);
-			vec3 normalScale = vec3(-0.01);
-			if ( sqrDistance < u_Disintegration.w )
-			{
-				normalScale = vec3(2.0, 2.0, 0.5);
-			}
-			else if ( sqrDistance < u_Disintegration.w + 50 )
-			{
-				normalScale = vec3(1.0, 1.0, 0.0);
-			}
-			return pos + normal * normalScale;
+			return pos - lightPos * dot( pos, ground ) + groundDist;
 		}
+		//case DEFORM_DISINTEGRATION:
+		//{
+		//}
 	}
 }
 
@@ -198,29 +232,29 @@ vec3 DeformNormal( const in vec3 position, const in vec3 normal )
 		return normal;
 	}
 
-	float amplitude = u_DeformParams[1];
-	float frequency = u_DeformParams[3];
+	float amplitude = u_DeformParams0.y;
+	float frequency = u_DeformParams0.w;
 
 	vec3 outNormal = normal;
 	const float scale = 0.98;
-	
+
 	outNormal.x += amplitude * GetNoiseValue(
 		position.x * scale,
 		position.y * scale,
 		position.z * scale,
-		u_Time * frequency );
+		(u_entityTime + u_frameTime + u_Time) * frequency );
 
 	outNormal.y += amplitude * GetNoiseValue(
 		100.0 * position.x * scale,
 		position.y * scale,
 		position.z * scale,
-		u_Time * frequency );
+		(u_entityTime + u_frameTime + u_Time) * frequency );
 
 	outNormal.z += amplitude * GetNoiseValue(
 		200.0 * position.x * scale,
 		position.y * scale,
 		position.z * scale,
-		u_Time * frequency );
+		(u_entityTime + u_frameTime + u_Time) * frequency );
 
 	return outNormal;
 }
@@ -231,22 +265,40 @@ vec2 GenTexCoords(int TCGen, vec3 position, vec3 normal, vec3 TCGenVector0, vec3
 {
 	vec2 tex = attr_TexCoord0.st;
 
-	if (TCGen >= TCGEN_LIGHTMAP && TCGen <= TCGEN_LIGHTMAP3)
+	switch (TCGen)
 	{
-		tex = attr_TexCoord1.st;
+		case TCGEN_LIGHTMAP:
+			tex = attr_TexCoord1;
+		break;
+
+		case TCGEN_LIGHTMAP1:
+			tex = attr_TexCoord2;
+		break;
+
+		case TCGEN_LIGHTMAP2:
+			tex = attr_TexCoord3;
+		break;
+
+		case TCGEN_LIGHTMAP3:
+			tex = attr_TexCoord4;
+		break;
+
+		case TCGEN_ENVIRONMENT_MAPPED:
+		{
+			vec3 viewer = normalize(u_LocalViewOrigin - position);
+			vec2 ref = reflect(viewer, normal).yz;
+			tex.s = ref.x * -0.5 + 0.5;
+			tex.t = ref.y *  0.5 + 0.5;
+		}
+		break;
+
+		case TCGEN_VECTOR:
+		{
+			tex = vec2(dot(position, TCGenVector0), dot(position, TCGenVector1));
+		}
+		break;
 	}
-	else if (TCGen == TCGEN_ENVIRONMENT_MAPPED)
-	{
-		vec3 viewer = normalize(u_LocalViewOrigin - position);
-		vec2 ref = reflect(viewer, normal).yz;
-		tex.s = ref.x * -0.5 + 0.5;
-		tex.t = ref.y *  0.5 + 0.5;
-	}
-	else if (TCGen == TCGEN_VECTOR)
-	{
-		tex = vec2(dot(position, TCGenVector0), dot(position, TCGenVector1));
-	}
-	
+
 	return tex;
 }
 #endif
@@ -261,10 +313,10 @@ vec2 ModTexCoords(vec2 st, vec3 position, vec4 texMatrix, vec4 offTurb)
 	st2.y = st.x * texMatrix.y + (st.y * texMatrix.w + offTurb.y);
 
 	vec2 offsetPos = vec2(position.x + position.z, position.y);
-	
+
 	vec2 texOffset = sin(offsetPos * (2.0 * M_PI / 1024.0) + vec2(phase));
-	
-	return st2 + texOffset * amplitude;	
+
+	return st2 + texOffset * amplitude;
 }
 #endif
 
@@ -272,7 +324,7 @@ vec2 ModTexCoords(vec2 st, vec3 position, vec4 texMatrix, vec4 offTurb)
 vec4 CalcColor(vec3 position, vec3 normal)
 {
 	vec4 color = u_VertColor * attr_Color + u_BaseColor;
-	
+
 	if (u_ColorGen == CGEN_LIGHTING_DIFFUSE)
 	{
 		float incoming = clamp(dot(normal, u_ModelLightDir), 0.0, 1.0);
@@ -318,7 +370,7 @@ vec4 CalcColor(vec3 position, vec3 normal)
 	{
 		vec3 lightDir = normalize(vec3(-960.0, 1980.0, 96.0) - position);
 		vec3 reflected = -reflect(lightDir, normal);
-		
+
 		color.a = clamp(dot(reflected, normalize(viewer)), 0.0, 1.0);
 		color.a *= color.a;
 		color.a *= color.a;
@@ -327,8 +379,20 @@ vec4 CalcColor(vec3 position, vec3 normal)
 	{
 		color.a = clamp(length(viewer) / u_PortalRange, 0.0, 1.0);
 	}
-	
+
 	return color;
+}
+#endif
+
+#if defined(USE_SKELETAL_ANIMATION)
+mat4x3 GetBoneMatrix(uint index)
+{
+	mat3x4 bone = u_BoneMatrices[index];
+	return mat4x3(
+		bone[0].x, bone[1].x, bone[2].x,
+		bone[0].y, bone[1].y, bone[2].y,
+		bone[0].z, bone[1].z, bone[2].z,
+		bone[0].w, bone[1].w, bone[2].w);
 }
 #endif
 
@@ -340,10 +404,10 @@ void main()
 	normal = normalize(normal - vec3(0.5));
 #elif defined(USE_SKELETAL_ANIMATION)
 	mat4x3 influence =
-		u_BoneMatrices[attr_BoneIndexes[0]] * attr_BoneWeights[0] +
-        u_BoneMatrices[attr_BoneIndexes[1]] * attr_BoneWeights[1] +
-        u_BoneMatrices[attr_BoneIndexes[2]] * attr_BoneWeights[2] +
-        u_BoneMatrices[attr_BoneIndexes[3]] * attr_BoneWeights[3];
+		GetBoneMatrix(attr_BoneIndexes[0]) * attr_BoneWeights[0] +
+        GetBoneMatrix(attr_BoneIndexes[1]) * attr_BoneWeights[1] +
+        GetBoneMatrix(attr_BoneIndexes[2]) * attr_BoneWeights[2] +
+        GetBoneMatrix(attr_BoneIndexes[3]) * attr_BoneWeights[3];
 
     vec3 position = influence * vec4(attr_Position, 1.0);
     vec3 normal = normalize(influence * vec4(attr_Normal - vec3(0.5), 0.0));
@@ -357,7 +421,8 @@ void main()
 	normal = DeformNormal( position, normal );
 #endif
 
-	gl_Position = u_ModelViewProjectionMatrix * vec4(position, 1.0);
+	mat4 MVP = u_viewProjectionMatrix * u_ModelMatrix;
+	gl_Position = MVP * vec4(position, 1.0);
 
 #if defined(USE_TCGEN)
 	vec2 tex = GenTexCoords(u_TCGen0, position, normal, u_TCGen0Vector0, u_TCGen0Vector1);
@@ -373,7 +438,7 @@ void main()
 
 	if ( u_FXVolumetricBase >= 0.0 )
 	{
-		vec3 viewForward = u_ViewForward;
+		vec3 viewForward = u_ViewForward.xyz;
 		float d = clamp(dot(normalize(viewForward), normalize(normal)), 0.0, 1.0);
 		d = d * d;
 		d = d * d;
@@ -396,18 +461,51 @@ void main()
 
 
 /*[Fragment]*/
+struct Fog
+{
+	vec4 plane;
+	vec4 color;
+	float depthToOpaque;
+	bool hasPlane;
+};
+
+layout(std140) uniform Fogs
+{
+	int u_NumFogs;
+	Fog u_Fogs[16];
+};
+
+uniform vec4 u_FogColorMask;
+
+layout(std140) uniform Camera
+{
+	mat4 u_viewProjectionMatrix;
+	vec4 u_ViewInfo;
+	vec3 u_ViewOrigin;
+	vec3 u_ViewForward;
+	vec3 u_ViewLeft;
+	vec3 u_ViewUp;
+};
+
+layout(std140) uniform Entity
+{
+	mat4 u_ModelMatrix;
+	vec4 u_LocalLightOrigin;
+	vec3 u_AmbientLight;
+	float u_LocalLightRadius;
+	vec3 u_DirectedLight;
+	float u_FXVolumetricBase;
+	vec3 u_ModelLightDir;
+	float u_VertexLerp;
+	vec3 u_LocalViewOrigin;
+	float u_entityTime;
+};
+
 uniform sampler2D u_DiffuseMap;
 #if defined(USE_ALPHA_TEST)
 uniform int u_AlphaTestType;
 #endif
-
-#if defined(USE_FOG)
-uniform vec4 u_FogPlane;
-uniform float u_FogDepthToOpaque;
-uniform bool u_FogHasPlane;
-uniform vec3 u_ViewOrigin;
-uniform vec4 u_FogColorMask;
-#endif
+uniform int u_FogIndex;
 
 in vec2 var_DiffuseTex;
 in vec4 var_Color;
@@ -420,8 +518,10 @@ out vec4 out_Glow;
 
 
 #if defined(USE_FOG)
-float CalcFog(in vec3 viewOrigin, in vec3 position, in vec4 fogPlane, in float depthToOpaque, in bool hasPlane)
+float CalcFog(in vec3 viewOrigin, in vec3 position, in Fog fog)
 {
+	bool inFog = dot(viewOrigin, fog.plane.xyz) - fog.plane.w >= 0.0 || !fog.hasPlane;
+
 	// line: x = o + tv
 	// plane: (x . n) + d = 0
 	// intersects: dot(o + tv, n) + d = 0
@@ -431,24 +531,20 @@ float CalcFog(in vec3 viewOrigin, in vec3 position, in vec4 fogPlane, in float d
 	vec3 V = position - viewOrigin;
 
 	// fogPlane is inverted in tr_bsp for some reason.
-	float t = -(fogPlane.w + dot(viewOrigin, -fogPlane.xyz)) / dot(V, -fogPlane.xyz);
+	float t = -(fog.plane.w + dot(viewOrigin, -fog.plane.xyz)) / dot(V, -fog.plane.xyz);
 
-	bool inFog = ((dot(viewOrigin, fogPlane.xyz) - fogPlane.w) >= 0.0) || !hasPlane;
-	bool intersects = (t > 0.0 && t <= 1.0);
+	bool intersects = (t > 0.0 && t < 0.995);
+	if (inFog == intersects)
+		return 0.0;
 
-	// this is valid only when t > 0.0. When t < 0.0, then intersection point is behind
-	// the camera, meaning we're facing away from the fog plane, which probably means
-	// we're inside the fog volume.
-	vec3 intersectsAt = viewOrigin + t*V;
+	float distToVertexFromViewOrigin = length(V);
+	float distToIntersectionFromViewOrigin = t * distToVertexFromViewOrigin;
 
-	float distToVertexFromIntersection = distance(intersectsAt, position);
-	float distToVertexFromViewOrigin = distance(viewOrigin, position);
+	float distOutsideFog = max(distToVertexFromViewOrigin - distToIntersectionFromViewOrigin, 0.0);
+	float distThroughFog = mix(distOutsideFog, distToVertexFromViewOrigin, inFog);
 
-	float distToVertex = mix(distToVertexFromViewOrigin,
-							 distToVertexFromIntersection,
-							 !inFog && intersects);
-
-	return min(distToVertex / depthToOpaque, 1.0);
+	float z = fog.depthToOpaque * distThroughFog;
+	return 1.0 - clamp(exp(-(z * z)), 0.0, 1.0);
 }
 #endif
 
@@ -480,8 +576,9 @@ void main()
 #endif
 
 #if defined(USE_FOG)
-	float fog = CalcFog(u_ViewOrigin, var_WSPosition, u_FogPlane, u_FogDepthToOpaque, u_FogHasPlane);
-	color *= vec4(1.0) - u_FogColorMask * fog;
+	Fog fog = u_Fogs[u_FogIndex];
+	float fogFactor = CalcFog(u_ViewOrigin, var_WSPosition, fog);
+	color *= vec4(1.0) - u_FogColorMask * fogFactor;
 #endif
 
 	out_Color = vec4(color.rgb * var_Color.rgb, color.a);

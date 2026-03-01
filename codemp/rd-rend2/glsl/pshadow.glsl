@@ -17,7 +17,7 @@ void main()
 }
 
 /*[Fragment]*/
-uniform sampler2D u_ShadowMap;
+uniform sampler2DArrayShadow u_ShadowMap;
 uniform vec3 u_LightForward;
 uniform vec3 u_LightUp;
 uniform vec3 u_LightRight;
@@ -81,12 +81,13 @@ void main()
 	float part = 0.0;
 #if defined(USE_PCF)
 	float offsetScale = pow(lightDist, 4.0) * TEXTURE_SCALE * 0.00000001;
+	offsetScale = max(TEXTURE_SCALE, offsetScale);
 	for (int i = 0; i < PCF_SAMPLES; ++i)
 	{
-		part += float(texture(u_ShadowMap, st + offsetScale * poissonDisc[i]).r != 1.0);
+		part += 1.0 - float(texture(u_ShadowMap, vec4(st + offsetScale * poissonDisc[i], u_LightOrigin.w, 1.0)));
 	}
 #else
-	part = float(texture(u_ShadowMap, st).r != 1.0);
+	part = 1.0 - float(texture(u_ShadowMap, vec4(st, u_LightOrigin.w, 1.0)));
 #endif
 
 	if (part <= 0.0)

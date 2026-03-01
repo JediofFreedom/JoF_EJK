@@ -26,7 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	DLIGHT_AT_RADIUS		16
 // at the edge of a dlight's influence, this amount of light will be added
 
-#define	DLIGHT_MINIMUM_RADIUS	16		
+#define	DLIGHT_MINIMUM_RADIUS	16
 // never calculate a range less than this to prevent huge light numbers
 
 
@@ -136,16 +136,7 @@ static void R_SetupEntityLightingGrid( trRefEntity_t *ent, world_t *world ) {
 	int		gridStep[3];
 	vec3_t	direction;
 	float	totalFactor;
-	unsigned short	*startGridPos;
-
-
-	if (r_ambientScale->integer == -1 || (ent->e.renderfx & RF_FULLBRIGHT))
-	{ //brightskins
-		ent->ambientLight[0] = ent->ambientLight[1] = ent->ambientLight[2] = 255.0f;
-		ent->directedLight[0] = ent->directedLight[1] = ent->directedLight[2] = 255.0f;
-		VectorCopy(tr.sunDirection, ent->lightDir);
-		return;
-	}
+	uint32_t startGridPos;
 
 	if ( ent->e.renderfx & RF_LIGHTING_ORIGIN ) {
 		// seperate lightOrigins are needed so an object that is
@@ -180,13 +171,13 @@ static void R_SetupEntityLightingGrid( trRefEntity_t *ent, world_t *world ) {
 	gridStep[0] = 1;
 	gridStep[1] = 1 * world->lightGridBounds[0];
 	gridStep[2] = 1 * world->lightGridBounds[0] * world->lightGridBounds[1];
-	startGridPos = world->lightGridArray + (pos[0] * gridStep[0] + pos[1] * gridStep[1] + pos[2] * gridStep[2]);
+	startGridPos = pos[0] * gridStep[0] + pos[1] * gridStep[1] + pos[2] * gridStep[2];
 
 	totalFactor = 0;
 	for ( i = 0 ; i < 8 ; i++ ) {
 		float	factor;
 		mgrid_t	*data;
-		unsigned short	*gridPos;
+		uint32_t gridPos;
 		int		lat, lng;
 		vec3_t	normal;
 
@@ -206,23 +197,15 @@ static void R_SetupEntityLightingGrid( trRefEntity_t *ent, world_t *world ) {
 			}
 		}
 
-		if (gridPos >= world->lightGridArray + world->numGridArrayElements)
+		if (gridPos >= world->numGridArrayElements)
 		{//we've gone off the array somehow
 			continue;
 		}
 
-		data = world->lightGridData + *gridPos;
-		if ( data->styles[0] == LS_LSNONE ) 
+		data = world->lightGridData + *(world->lightGridArray+gridPos);
+		if ( data->styles[0] == LS_LSNONE )
 		{
 			continue;	// ignore samples in walls
-		}
-
-		if (world->hdrLightGrid)
-		{
-			float *hdrData = world->hdrLightGrid + (int)(data - world->lightGridData) / 8 * 6;
-			if (!(hdrData[0]+hdrData[1]+hdrData[2]+hdrData[3]+hdrData[4]+hdrData[5]) ) {
-				continue;	// ignore samples in walls
-			}
 		}
 
 		totalFactor += factor;
@@ -240,16 +223,14 @@ static void R_SetupEntityLightingGrid( trRefEntity_t *ent, world_t *world ) {
 		#else
 		if (world->hdrLightGrid)
 		{
-			// FIXME: this is hideous
-			float *hdrData = world->hdrLightGrid + (int)(data - world->lightGridData) / 8 * 6;
+			float *hdrData = world->hdrLightGrid + (gridPos * 6);
+			ent->ambientLight[0] += factor * hdrData[0] * 255.0f;
+			ent->ambientLight[1] += factor * hdrData[1] * 255.0f;
+			ent->ambientLight[2] += factor * hdrData[2] * 255.0f;
 
-			ent->ambientLight[0] += factor * hdrData[0];
-			ent->ambientLight[1] += factor * hdrData[1];
-			ent->ambientLight[2] += factor * hdrData[2];
-
-			ent->directedLight[0] += factor * hdrData[3];
-			ent->directedLight[1] += factor * hdrData[4];
-			ent->directedLight[2] += factor * hdrData[5];
+			ent->directedLight[0] += factor * hdrData[3] * 255.0f;
+			ent->directedLight[1] += factor * hdrData[4] * 255.0f;
+			ent->directedLight[2] += factor * hdrData[5] * 255.0f;
 		}
 		else
 		{
@@ -342,14 +323,11 @@ by the Calc_* functions
 */
 void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 	int				i;
-	dlight_t		*dl;
-	float			power;
-	vec3_t			dir;
 	float			d;
 	vec3_t			lightDir;
 	vec3_t			lightOrigin;
 
-	// lighting calculations 
+	// lighting calculations
 	if ( ent->lightingCalculated ) {
 		return;
 	}
@@ -368,66 +346,52 @@ void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 	}
 
 	// if NOWORLDMODEL, only use dynamic lights (menu system, etc)
-	if ( !(refdef->rdflags & RDF_NOWORLDMODEL ) 
+	if ( !(refdef->rdflags & RDF_NOWORLDMODEL )
 		&& tr.world->lightGridData ) {
 		R_SetupEntityLightingGrid( ent, tr.world );
 	} else {
-		ent->ambientLight[0] = ent->ambientLight[1] = 
+		ent->ambientLight[0] = ent->ambientLight[1] =
 			ent->ambientLight[2] = tr.identityLight * 150;
-		ent->directedLight[0] = ent->directedLight[1] = 
+		ent->directedLight[0] = ent->directedLight[1] =
 			ent->directedLight[2] = tr.identityLight * 150;
 		VectorCopy( tr.sunDirection, ent->lightDir );
 	}
 
-	// bonus items and view weapons have a fixed minimum add
-	if ( 1/*!r_hdr->integer*/ ) {
-		// give everything a minimum light add
-		ent->ambientLight[0] += tr.identityLight * 32;
-		ent->ambientLight[1] += tr.identityLight * 32;
-		ent->ambientLight[2] += tr.identityLight * 32;
+	// only do min lighting when there is no hdr light data
+	if (tr.hdrLighting != qtrue)
+	{
+		// bonus items and view weapons have a fixed minimum add
+		if (1/*!r_hdr->integer*/) {
+			// give everything a minimum light add
+			ent->ambientLight[0] += tr.identityLight * 32;
+			ent->ambientLight[1] += tr.identityLight * 32;
+			ent->ambientLight[2] += tr.identityLight * 32;
+		}
+
+		if (ent->e.renderfx & RF_MINLIGHT)
+		{ //the minlight flag is now for items rotating on their holo thing
+			if (ent->e.shaderRGBA[0] == 255 &&
+				ent->e.shaderRGBA[1] == 255 &&
+				ent->e.shaderRGBA[2] == 0)
+			{
+				ent->ambientLight[0] += tr.identityLight * 255;
+				ent->ambientLight[1] += tr.identityLight * 255;
+				ent->ambientLight[2] += tr.identityLight * 0;
+			}
+			else
+			{
+				ent->ambientLight[0] += tr.identityLight * 16;
+				ent->ambientLight[1] += tr.identityLight * 96;
+				ent->ambientLight[2] += tr.identityLight * 150;
+			}
+		}
 	}
 
-	if ( ent->e.renderfx & RF_MINLIGHT )
-	{ //the minlight flag is now for items rotating on their holo thing
-		if (ent->e.shaderRGBA[0] == 255 &&
-			ent->e.shaderRGBA[1] == 255 &&
-			ent->e.shaderRGBA[2] == 0)
-		{
-			ent->ambientLight[0] += tr.identityLight * 255;
-			ent->ambientLight[1] += tr.identityLight * 255;
-			ent->ambientLight[2] += tr.identityLight * 0;
-		}
-		else
-		{
-			ent->ambientLight[0] += tr.identityLight * 16;
-			ent->ambientLight[1] += tr.identityLight * 96;
-			ent->ambientLight[2] += tr.identityLight * 150;
-		}
-	}
-
-	//
-	// modify the light by dynamic lights
-	//
 	d = VectorLength( ent->directedLight );
 	VectorScale( ent->lightDir, d, lightDir );
 
-	for ( i = 0 ; i < refdef->num_dlights ; i++ ) {
-		dl = &refdef->dlights[i];
-		VectorSubtract( dl->origin, lightOrigin, dir );
-		d = VectorNormalize( dir );
-
-		power = DLIGHT_AT_RADIUS * ( dl->radius * dl->radius );
-		if ( d < DLIGHT_MINIMUM_RADIUS ) {
-			d = DLIGHT_MINIMUM_RADIUS;
-		}
-		d = power / ( d * d );
-
-		VectorMA( ent->directedLight, d, dl->color, ent->directedLight );
-		VectorMA( lightDir, d, dir, lightDir );
-	}
-
 	// clamp ambient
-	//if ( !r_hdr->integer )
+	if (tr.hdrLighting != qtrue)
 	{
 		for ( i = 0 ; i < 3 ; i++ ) {
 			if ( ent->ambientLight[i] > tr.identityLightByte ) {
@@ -445,7 +409,7 @@ void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 	((byte *)&ent->ambientLightInt)[1] = Q_ftol(ent->ambientLight[1]);
 	((byte *)&ent->ambientLightInt)[2] = Q_ftol(ent->ambientLight[2]);
 	((byte *)&ent->ambientLightInt)[3] = 0xff;
-	
+
 	// transform the direction to local space
 	VectorNormalize( lightDir );
 	VectorCopy(lightDir, ent->lightDir);
@@ -463,7 +427,7 @@ R_LightForPoint
 int R_LightForPoint( vec3_t point, vec3_t ambientLight, vec3_t directedLight, vec3_t lightDir )
 {
 	trRefEntity_t ent;
-	
+
 	if ( tr.world->lightGridData == NULL )
 	  return qfalse;
 
@@ -481,7 +445,7 @@ int R_LightForPoint( vec3_t point, vec3_t ambientLight, vec3_t directedLight, ve
 int R_LightDirForPoint( vec3_t point, vec3_t lightDir, vec3_t normal, world_t *world )
 {
 	trRefEntity_t ent;
-	
+
 	if ( world->lightGridData == NULL )
 	  return qfalse;
 
@@ -495,6 +459,27 @@ int R_LightDirForPoint( vec3_t point, vec3_t lightDir, vec3_t normal, world_t *w
 		VectorCopy(normal, lightDir);
 
 	return qtrue;
+}
+
+int R_DLightsForPoint(const vec3_t point, const float radius)
+{
+	int dlightBits = 0;
+	vec3_t delta;
+	dlight_t currentDlight;
+	float distance;
+	float radiusSum;
+	for (int i = 0; i < tr.refdef.num_dlights; i++)
+	{
+		currentDlight = tr.refdef.dlights[i];
+
+		VectorSubtract(point, currentDlight.origin, delta);
+		distance = VectorLength(delta);
+		radiusSum = radius + currentDlight.radius;
+
+		if (distance < radiusSum)
+			dlightBits |= 1 << i;
+	}
+	return dlightBits;
 }
 
 int R_CubemapForPoint( const vec3_t point )

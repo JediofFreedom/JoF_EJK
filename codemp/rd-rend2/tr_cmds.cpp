@@ -181,15 +181,15 @@ R_GetCommandBuffer
 make sure there is enough command space
 ============
 */
-void *R_GetCommandBuffer( int bytes ) {
+static void *R_GetCommandBufferReserved( int bytes, int reservedBytes ) {
 	renderCommandList_t	*cmdList;
 
 	cmdList = &backEndData->commands;
 	bytes = PAD(bytes, sizeof(void *));
 
 	// always leave room for the end of list command
-	if ( cmdList->used + bytes + 4 > MAX_RENDER_COMMANDS ) {
-		if ( bytes > MAX_RENDER_COMMANDS - 4 ) {
+	if ( cmdList->used + bytes + sizeof(int) + reservedBytes > MAX_RENDER_COMMANDS ) {
+		if ( bytes > MAX_RENDER_COMMANDS - (int)sizeof(int)) {
 			ri.Error( ERR_FATAL, "R_GetCommandBuffer: bad size %i", bytes );
 		}
 		// if we run out of room, just start dropping commands
@@ -199,6 +199,16 @@ void *R_GetCommandBuffer( int bytes ) {
 	cmdList->used += bytes;
 
 	return cmdList->cmds + cmdList->used - bytes;
+}
+
+/*
+============
+R_GetCommandBuffer
+make sure there is enough command space
+============
+*/
+void *R_GetCommandBuffer(int bytes) {
+	return R_GetCommandBufferReserved(bytes, PAD(sizeof(swapBuffersCommand_t), sizeof(void *)));
 }
 
 
@@ -211,6 +221,9 @@ R_AddDrawSurfCmd
 void	R_AddDrawSurfCmd( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 	drawSurfsCommand_t	*cmd;
 
+	if (!tr.registered) {
+		return;
+	}
 	cmd = (drawSurfsCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
 	if ( !cmd ) {
 		return;
@@ -230,9 +243,12 @@ R_AddConvolveCubemapsCmd
 
 =============
 */
-void	R_AddConvolveCubemapCmd( cubemap_t *cubemap , int cubeSide ) {
+void	R_AddConvolveCubemapCmd( cubemap_t *cubemap , int cubemapId ) {
 	convolveCubemapCommand_t	*cmd;
 
+	if (!tr.registered) {
+		return;
+	}
 	cmd = (convolveCubemapCommand_t *)R_GetCommandBuffer( sizeof( *cmd ));
 	if ( !cmd ) {
 		return;
@@ -240,7 +256,7 @@ void	R_AddConvolveCubemapCmd( cubemap_t *cubemap , int cubeSide ) {
 	cmd->commandId = RC_CONVOLVECUBEMAP;
 
 	cmd->cubemap = cubemap;
-	cmd->cubeSide = cubeSide;
+	cmd->cubemapId = cubemapId;
 }
 
 /*
@@ -252,6 +268,9 @@ R_PostProcessingCmd
 void	R_AddPostProcessCmd( ) {
 	postProcessCommand_t	*cmd;
 
+	if (!tr.registered) {
+		return;
+	}
 	cmd = (postProcessCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
 	if ( !cmd ) {
 		return;
@@ -266,6 +285,9 @@ qhandle_t R_BeginTimedBlockCmd( const char *name )
 {
 	beginTimedBlockCommand_t *cmd;
 
+	if (!tr.registered) {
+		return (qhandle_t)-1;
+	}
 	cmd = (beginTimedBlockCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
 	if ( !cmd )
 	{
@@ -288,6 +310,9 @@ void R_EndTimedBlockCmd( qhandle_t timerHandle )
 {
 	endTimedBlockCommand_t *cmd;
 
+	if (!tr.registered) {
+		return;
+	}
 	cmd = (endTimedBlockCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
 	if ( !cmd )
 	{
@@ -313,9 +338,9 @@ Passing NULL will set the color to white
 void	RE_SetColor( const float *rgba ) {
 	setColorCommand_t	*cmd;
 
-  if ( !tr.registered ) {
-    return;
-  }
+	if ( !tr.registered ) {
+		return;
+	}
 	cmd = (setColorCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
 	if ( !cmd ) {
 		return;
@@ -342,6 +367,9 @@ void RE_RotatePic ( float x, float y, float w, float h,
 					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader ) {
 	rotatePicCommand_t	*cmd;
 
+	if (!tr.registered) {
+		return;
+	}
 	cmd = (rotatePicCommand_t *) R_GetCommandBuffer( sizeof( *cmd ) );
 	if ( !cmd ) {
 		return;
@@ -368,6 +396,9 @@ void RE_RotatePic2 ( float x, float y, float w, float h,
 					  float s1, float t1, float s2, float t2,float a, qhandle_t hShader ) {
 	rotatePicCommand_t	*cmd;
 
+	if (!tr.registered) {
+		return;
+	}
 	cmd = (rotatePicCommand_t *) R_GetCommandBuffer( sizeof( *cmd ) );
 	if ( !cmd ) {
 		return;
@@ -490,12 +521,21 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 				result = qglClientWaitSync( sync, GL_SYNC_FLUSH_COMMANDS_BIT, HALF_SECOND);
 				if ( result == GL_WAIT_FAILED )
 				{
-					// FIXME: Doesn't this mean the frame will never render?
+					// This indicates that opengl context was lost, is there a way to recover?
 					qglDeleteSync( sync );
 					thisFrame->sync = NULL;
+
+					thisFrame->uboWriteOffset = 0;
+
+					thisFrame->dynamicIboCommitOffset = 0;
+					thisFrame->dynamicIboWriteOffset = 0;
+
+					thisFrame->dynamicVboCommitOffset = 0;
+					thisFrame->dynamicVboWriteOffset = 0;
+
 					backEndData->perFrameMemory->Reset();
 
-					ri.Printf( PRINT_DEVELOPER, S_COLOR_RED "OpenGL: Failed to wait for frame to finish! Aborting frame.\n" );
+					ri.Error(ERR_DROP, "OpenGL: Failed to wait for fence. Context lost. (0x%x)\n", qglGetError());
 					return;
 				}
 			}
@@ -510,6 +550,7 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 
 		// Resets resources
 		qglBindBuffer(GL_UNIFORM_BUFFER, thisFrame->ubo);
+		glState.currentGlobalUBO = thisFrame->ubo;
 		thisFrame->uboWriteOffset = 0;
 
 		thisFrame->dynamicIboCommitOffset = 0;
@@ -523,6 +564,10 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 
 	tr.frameCount++;
 	tr.frameSceneNum = 0;
+
+	tr.fogsUboOffset = -1;
+	tr.lightsUboOffset = -1;
+	tr.sceneUboOffset = -1;
 
 	//
 	// do overdraw measurement
@@ -580,40 +625,6 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 
 		R_IssuePendingRenderCommands();
 		R_SetColorMappings();
-	}
-
-#if 1
-	if (r_overBrightBits->modified || r_mapOverBrightBits->modified || r_vertexLight->modified)
-	{
-		char mapname[MAX_QPATH] = {0};
-		int oldOverbrightBits = tr.overbrightBits;
-
-		R_IssuePendingRenderCommands();
-		R_SetColorMappings();
-		//R_SetGammaCorrectionLUT();
-
-		if ((oldOverbrightBits != tr.overbrightBits || r_mapOverBrightBits->modified || r_vertexLight->modified) &&
-			ri.CGVMLoaded() && tr.world && VALIDSTRING(tr.world->name))
-		{
-			Q_strncpyz(mapname, tr.world->name, sizeof(mapname));
-			tr.worldMapLoaded = qfalse;
-			tr.world = NULL;
-			RE_LoadWorldMap(mapname);
-
-			Com_Memset(&tr.refdef.areamask, (byte)0, sizeof(tr.refdef.areamask));
-			tr.refdef.areamaskModified = qtrue;
-		}
-
-		//reset these last...
-		r_overBrightBits->modified = qfalse;
-		r_mapOverBrightBits->modified = qfalse;
-		r_vertexLight->modified = qfalse;
-	}
-#endif
-
-	if (r_ratioFix->modified) { //EternalJK widescreen fixes
-		R_Set2DRatio();
-		r_ratioFix->modified = qfalse;
 	}
 
 	// check for errors
@@ -736,6 +747,18 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 	tr.refdef.stereoFrame = stereoFrame;
 }
 
+void R_NewFrameSync()
+{
+	gpuFrame_t *currentFrame = backEndData->currentFrame;
+
+	assert(!currentFrame->sync);
+	currentFrame->sync = qglFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
+	backEndData->realFrameNumber++;
+	backEnd.framePostProcessed = qfalse;
+	backEnd.projection2D = qfalse;
+}
+
 
 /*
 =============
@@ -750,7 +773,7 @@ void RE_EndFrame( int *frontEndMsec, int *backEndMsec ) {
 	if ( !tr.registered ) {
 		return;
 	}
-	cmd = (swapBuffersCommand_t *)R_GetCommandBuffer( sizeof( *cmd ) );
+	cmd = (swapBuffersCommand_t *)R_GetCommandBufferReserved( sizeof( *cmd ), 0 );
 	if ( !cmd ) {
 		return;
 	}

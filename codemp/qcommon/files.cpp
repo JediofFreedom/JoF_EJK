@@ -38,6 +38,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "qcommon/qcommon.h"
 
+static std::mutex fs_listMutex;
+
 #ifndef DEDICATED
 #ifndef FINAL_BUILD
 #include "client/client.h"
@@ -2574,6 +2576,8 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 		extension = "";
 	}
 
+	std::lock_guard<std::mutex> lock(fs_listMutex);
+
 	pathLength = strlen( path );
 	if ( path[pathLength-1] == '\\' || path[pathLength-1] == '/' ) {
 		pathLength--;
@@ -3505,6 +3509,8 @@ Frees all resources and closes all files
 void FS_Shutdown( qboolean closemfp ) {
 	searchpath_t	*p, *next;
 	int	i;
+
+	std::lock_guard<std::mutex> lock(fs_listMutex);
 
 #if defined(_WIN32)
 	// Delete temporary files

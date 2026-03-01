@@ -859,19 +859,19 @@ void CG_DrawArmor( menuDef_t *menuHUD )
 CG_DrawSaberStyle
 
 If the weapon is a light saber (which needs no ammo) then draw a graphic showing
-the saber style (fast, medium, strong)
+the saber style (fast, medium, strong, staff, dual, tavion, desann)
 ================
 */
-static void CG_DrawSaberStyle( centity_t *cent, menuDef_t *menuHUD)
+static void CG_DrawSaberStyle(centity_t* cent, menuDef_t* menuHUD)
 {
-	itemDef_t		*focusItem;
+	itemDef_t* focusItem;
 
-	if (!cent->currentState.weapon ) // We don't have a weapon right now
+	if (!cent->currentState.weapon) // We don't have a weapon right now
 	{
 		return;
 	}
 
-	if ( cent->currentState.weapon != WP_SABER )
+	if (cent->currentState.weapon != WP_SABER)
 	{
 		return;
 	}
@@ -882,18 +882,31 @@ static void CG_DrawSaberStyle( centity_t *cent, menuDef_t *menuHUD)
 		return;
 	}
 
-
 	// draw the current saber style in this window
-	switch ( cg.predictedPlayerState.fd.saberDrawAnimLevel )
+	switch (cg.predictedPlayerState.fd.saberDrawAnimLevel)
 	{
-	case 1://FORCE_LEVEL_1:
-	case 5://FORCE_LEVEL_5://Tavion
+	case 5: // Tavion
+		focusItem = Menu_FindItemByName(menuHUD, "saberstyle_tavion");
 
+		if (focusItem)
+		{
+			trap->R_SetColor(hudTintColor);
+
+			CG_DrawPic(
+				SCREEN_WIDTH - (SCREEN_WIDTH - focusItem->window.rect.x) * cgs.widthRatioCoef,
+				focusItem->window.rect.y,
+				focusItem->window.rect.w * cgs.widthRatioCoef,
+				focusItem->window.rect.h,
+				focusItem->window.background
+			);
+			break;
+		}
+	case 1: // FORCE_LEVEL_1: Fast
 		focusItem = Menu_FindItemByName(menuHUD, "saberstyle_fast");
 
 		if (focusItem)
 		{
-			trap->R_SetColor( hudTintColor );
+			trap->R_SetColor(hudTintColor);
 
 			CG_DrawPic(
 				SCREEN_WIDTH - (SCREEN_WIDTH - focusItem->window.rect.x) * cgs.widthRatioCoef,
@@ -901,18 +914,16 @@ static void CG_DrawSaberStyle( centity_t *cent, menuDef_t *menuHUD)
 				focusItem->window.rect.w * cgs.widthRatioCoef,
 				focusItem->window.rect.h,
 				focusItem->window.background
-				);
+			);
 		}
-
 		break;
-	case 2://FORCE_LEVEL_2:
-	case 6://SS_DUAL
-	case 7://SS_STAFF
+
+	case 2: // FORCE_LEVEL_2: Medium
 		focusItem = Menu_FindItemByName(menuHUD, "saberstyle_medium");
 
 		if (focusItem)
 		{
-			trap->R_SetColor( hudTintColor );
+			trap->R_SetColor(hudTintColor);
 
 			CG_DrawPic(
 				SCREEN_WIDTH - (SCREEN_WIDTH - focusItem->window.rect.x) * cgs.widthRatioCoef,
@@ -920,16 +931,66 @@ static void CG_DrawSaberStyle( centity_t *cent, menuDef_t *menuHUD)
 				focusItem->window.rect.w * cgs.widthRatioCoef,
 				focusItem->window.rect.h,
 				focusItem->window.background
-				);
+			);
 		}
 		break;
-	case 3://FORCE_LEVEL_3:
-	case 4://FORCE_LEVEL_4://Desann
+
+	case 6: // SS_DUAL does aldro have adhd?
+		focusItem = Menu_FindItemByName(menuHUD, "saberstyle_dual");
+
+		if (focusItem)
+		{
+			trap->R_SetColor(hudTintColor);
+
+			CG_DrawPic(
+				SCREEN_WIDTH - (SCREEN_WIDTH - focusItem->window.rect.x) * cgs.widthRatioCoef,
+				focusItem->window.rect.y,
+				focusItem->window.rect.w * cgs.widthRatioCoef,
+				focusItem->window.rect.h,
+				focusItem->window.background
+			);
+		}
+		break;
+
+	case 7: // SS_STAFF i love fae 
+		focusItem = Menu_FindItemByName(menuHUD, "saberstyle_staff");
+
+		if (focusItem)
+		{
+			trap->R_SetColor(hudTintColor);
+
+			CG_DrawPic(
+				SCREEN_WIDTH - (SCREEN_WIDTH - focusItem->window.rect.x) * cgs.widthRatioCoef,
+				focusItem->window.rect.y,
+				focusItem->window.rect.w * cgs.widthRatioCoef,
+				focusItem->window.rect.h,
+				focusItem->window.background
+			);
+		}
+		break;
+
+	case 4: // Desann owo awa ewe pls work else ill kms
+		focusItem = Menu_FindItemByName(menuHUD, "saberstyle_desann");
+
+		if (focusItem)
+		{
+			trap->R_SetColor(hudTintColor);
+
+			CG_DrawPic(
+				SCREEN_WIDTH - (SCREEN_WIDTH - focusItem->window.rect.x) * cgs.widthRatioCoef,
+				focusItem->window.rect.y,
+				focusItem->window.rect.w * cgs.widthRatioCoef,
+				focusItem->window.rect.h,
+				focusItem->window.background
+			);
+			break;
+		}
+	case 3: // FORCE_LEVEL_3: Strong
 		focusItem = Menu_FindItemByName(menuHUD, "saberstyle_strong");
 
 		if (focusItem)
 		{
-			trap->R_SetColor( hudTintColor );
+			trap->R_SetColor(hudTintColor);
 
 			CG_DrawPic(
 				SCREEN_WIDTH - (SCREEN_WIDTH - focusItem->window.rect.x) * cgs.widthRatioCoef,
@@ -937,12 +998,13 @@ static void CG_DrawSaberStyle( centity_t *cent, menuDef_t *menuHUD)
 				focusItem->window.rect.w * cgs.widthRatioCoef,
 				focusItem->window.rect.h,
 				focusItem->window.background
-				);
+			);
 		}
 		break;
 	}
-
 }
+
+
 
 /*
 ================
@@ -1637,19 +1699,19 @@ static void CG_DrawSimpleSaberStyle(const centity_t *cent)
 		break;
 	case SS_DESANN:
 		Com_sprintf( num, sizeof( num ), "DESANN" );
-		calcColor = CT_HUD_RED;
+		calcColor = CT_VDKPURPLE1;
 		break;
 	case SS_TAVION:
 		Com_sprintf( num, sizeof( num ), "TAVION" );
-		calcColor = CT_ICON_BLUE;
+		calcColor = CT_CYAN;
 		break;
 	case SS_DUAL:
 		Com_sprintf( num, sizeof( num ), "AKIMBO" );
-		calcColor = CT_HUD_ORANGE;
+		calcColor = CT_GREEN;
 		break;
 	case SS_STAFF:
 		Com_sprintf( num, sizeof( num ), "STAFF" );
-		calcColor = CT_HUD_ORANGE;
+		calcColor = CT_WHITE;
 		break;
 	}
 
@@ -7277,7 +7339,7 @@ void CG_SaberClashFlare( void )
 		return;
 	}
 
-	v = ( 1.0f - ((float)t / maxTime )) * ((1.0f - ( len / 800.0f )) * 2.0f + 0.35f);
+	v = ( 1.0f - ((float)t / maxTime )) * ((1.0f - ( len / 800.0f )) * 2.0f + 0.35f) * cg_saberClashSize.value;
 	if (v < 0.001f)
 	{
 		v = 0.001f;

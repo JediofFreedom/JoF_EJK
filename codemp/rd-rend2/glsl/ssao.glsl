@@ -1,15 +1,22 @@
 /*[Vertex]*/
-in vec4 attr_Position;
-in vec4 attr_TexCoord0;
-
 out vec2 var_ScreenTex;
 
 void main()
 {
-	gl_Position = attr_Position;
-	var_ScreenTex = attr_TexCoord0.xy;
-	//vec2 screenCoords = gl_Position.xy / gl_Position.w;
-	//var_ScreenTex = screenCoords * 0.5 + 0.5;
+	const vec2 positions[] = vec2[3](
+		vec2(-1.0f,  1.0f),
+		vec2(-1.0f, -3.0f),
+		vec2( 3.0f,  1.0f)
+	);
+
+	const vec2 texcoords[] = vec2[3](
+		vec2( 0.0f,  1.0f),
+		vec2( 0.0f, -1.0f),
+		vec2( 2.0f,  1.0f)
+	);
+
+	gl_Position = vec4(positions[gl_VertexID], 0.0, 1.0);
+	var_ScreenTex = texcoords[gl_VertexID];
 }
 
 /*[Fragment]*/
@@ -42,7 +49,7 @@ float random( const vec2 p )
     23.1406926327792690,  // e^pi (Gelfond's constant)
      2.6651441426902251); // 2^sqrt(2) (Gelfond-Schneider constant)
   //return fract( cos( mod( 123456789., 1e-7 + 256. * dot(p,r) ) ) );
-  return mod( 123456789., 1e-7 + 256. * dot(p,r) );  
+  return mod( 123456789., 1e-7 + 256. * dot(p,r) );
 }
 
 mat2 randomRotation( const vec2 p )
@@ -66,16 +73,16 @@ float ambientOcclusion(sampler2D depthMap, const vec2 tex, const float zFarDivZN
 	float sampleZ = zFar * getLinearDepth(depthMap, tex, zFarDivZNear);
 
 	vec2 expectedSlope = vec2(dFdx(sampleZ), dFdy(sampleZ)) / vec2(dFdx(tex.x), dFdy(tex.y));
-	
+
 	if (length(expectedSlope) > 5000.0)
 		return 1.0;
-	
+
 	vec2 offsetScale = vec2(3.0 / sampleZ);
-	
+
 	mat2 rmat = randomRotation(tex);
-		
+
 	int i;
-	for (i = 0; i < 3; i++)
+	for (i = 0; i < 9; i++)
 	{
 		vec2 offset = rmat * poissonDisc[i] * offsetScale;
 		float sampleZ2 = zFar * getLinearDepth(depthMap, tex + offset, zFarDivZNear);
@@ -88,15 +95,15 @@ float ambientOcclusion(sampler2D depthMap, const vec2 tex, const float zFarDivZN
 			result += step(expectedZ - 1.0, sampleZ2);
 		}
 	}
-	
-	result *= 0.33333;
-	
+
+	result *= 0.11111;
+
 	return result;
 }
 
 void main()
 {
 	float result = ambientOcclusion(u_ScreenDepthMap, var_ScreenTex, u_ViewInfo.x, u_ViewInfo.y);
-			
+
 	out_Color = vec4(vec3(result), 1.0);
 }
