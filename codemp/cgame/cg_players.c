@@ -9090,8 +9090,7 @@ void CG_ForceFPLSPlayerModel(centity_t *cent, clientInfo_t *ci)
 {
 	animation_t *anim;
 
-	if (cg_fpls.integer && !cg.renderingThirdPerson)
-	{ //set the fpls model
+if (cg_fpls.integer && !cg.renderingThirdPerson && cent->currentState.number == cg.snap->ps.clientNum)	{ //set the fpls model
 		/*int				skinHandle;
 
 		//skinHandle = trap->R_RegisterSkin("models/players/kyle/model_fpls2.skin");
@@ -9219,7 +9218,7 @@ void CG_ForceFPLSPlayerModel(centity_t *cent, clientInfo_t *ci)
 	trap->G2API_CleanGhoul2Models(&(cent->ghoul2));
 	trap->G2API_DuplicateGhoul2Instance(ci->ghoul2Model, &cent->ghoul2);
 
-	if (cg_fpls.integer && !cg.renderingThirdPerson) { //there's definitely a better place to do this
+	if (cg_fpls.integer && !cg.renderingThirdPerson && cg.snap->ps.clientNum == cent->currentState.number) { //there's definitely a better place to do this
 		trap->G2API_SetSurfaceOnOff(cent->ghoul2, "head_eyes_mouth", TURN_OFF);
 		trap->G2API_SetSurfaceOnOff(cent->ghoul2, "heada_eyes_mouth", TURN_OFF);
 		trap->G2API_SetSurfaceOnOff(cent->ghoul2, "head", TURN_OFF);
@@ -11193,8 +11192,6 @@ void CG_Player( centity_t *cent ) {
 		{ //don't allow this when spectating
 			if (cgFPLSState != 0)
 			{
-				cg_fpls.integer = 0;
-
 				CG_ForceFPLSPlayerModel(cent, ci);
 				cgFPLSState = 0;
 				return;
