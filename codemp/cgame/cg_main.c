@@ -758,6 +758,10 @@ static void CG_RegisterSounds( void ) {
 		}
 	}
 
+	for (i = 0; i < 3; i++) {
+		cgs.media.saberTravelHitWallSounds[i] = trap->S_RegisterSound(va("sound/weapons/saber/saberhitwallnew%i.mp3", i + 1));
+	}
+
 	trap->S_RegisterSound( "sound/weapons/saber/saberon.wav" );
 	trap->S_RegisterSound( "sound/weapons/saber/saberoffquick.wav" );
 	trap->S_RegisterSound( "sound/weapons/saber/saberhitwall1" );

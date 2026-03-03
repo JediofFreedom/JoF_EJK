@@ -110,6 +110,7 @@ XCVAR_DEF( cg_raceSounds,						"1",	NULL,								CVAR_ARCHIVE ) //Bitvalue, but 
 XCVAR_DEF( cg_duelSounds,						"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_duelMusic,						"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_saberHum,							"0",	NULL,								CVAR_ARCHIVE )
+XCVAR_DEF( cg_saberHitWallNew,					"1",	NULL,								CVAR_ARCHIVE )
 
 //Visuals
 XCVAR_DEF( cg_remaps,							"1",	NULL,								CVAR_ARCHIVE|CVAR_LATCH )

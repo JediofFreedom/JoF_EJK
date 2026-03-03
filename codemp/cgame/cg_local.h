@@ -1549,6 +1549,7 @@ typedef struct cgMedia_s {
 
 	//JAPRO - Clientside - Use all saber hum sounds found in base assets
 	qhandle_t	saberHumSounds[5];
+	qhandle_t	saberTravelHitWallSounds[3];
 
 	qhandle_t	teamRedShader;
 	qhandle_t	teamBlueShader;
