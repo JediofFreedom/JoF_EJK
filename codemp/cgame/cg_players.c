@@ -306,10 +306,6 @@ sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName ) {
 		{ //siege only
 			return ci->siegeSounds[i];
 		}
-		else if ( i < numCDuelSounds && !strcmp( lSoundName, cg_customDuelSoundNames[i] ) )
-		{ //duel?
-			return ci->duelSounds[i];
-		}
 		else if ( clientNum >= MAX_CLIENTS && i < numCComSounds && !strcmp( lSoundName, cg_customCombatSoundNames[i] ) )
 		{ //npc only
 			return ci->combatSounds[i];
@@ -321,6 +317,10 @@ sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName ) {
 		else if ( clientNum >= MAX_CLIENTS && i < numCJediSounds && !strcmp( lSoundName, cg_customJediSoundNames[i] ) )
 		{ //npc only
 			return ci->jediSounds[i];
+		}
+		else if ( i < numCDuelSounds && !strcmp( lSoundName, cg_customDuelSoundNames[i] ) )
+		{ //duel?
+			return ci->duelSounds[i];
 		}
 	}
 
