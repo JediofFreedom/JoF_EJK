@@ -642,6 +642,12 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.count1Sound = trap->S_RegisterSound( "sound/chars/protocol/misc/40MOM037" );
 	cgs.media.countFightSound = trap->S_RegisterSound( "sound/chars/protocol/misc/40MOM038" );
 
+	cgs.media.jetpackOffSound = trap->S_RegisterSound( "sound/chars/boba/bf_blast-off.mp3" );
+	cgs.media.jetpackOnSound = trap->S_RegisterSound( "sound/chars/boba/bf_land.mp3" );
+	cgs.media.jetpackOn2Sound = trap->S_RegisterSound( "sound/chars/boba/jeton.wav" );
+	cgs.media.jetpackHoverSound = trap->S_RegisterSound( "sound/chars/boba/jethover.wav" );
+	cgs.media.jetpackHover2Sound = trap->S_RegisterSound( "sound/chars/boba/bf_jetpack_lp.wav" );
+
 	cgs.media.hackerIconShader			= trap->R_RegisterShaderNoMip("gfx/mp/c_icon_tech");
 
 	cgs.media.redSaberGlowShader		= trap->R_RegisterShader( "gfx/effects/sabers/red_glow" );

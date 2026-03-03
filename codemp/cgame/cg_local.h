@@ -578,6 +578,7 @@ typedef struct centity_s {
 #if 1 //NPCLAGFIX2 adds this
 	qboolean		doLerp; // for entity position smoothing
 #endif
+	qboolean	hasPlayedJetpackSounds;
 } centity_t;
 
 
@@ -1786,6 +1787,12 @@ typedef struct cgMedia_s {
 	sfxHandle_t	count2Sound;
 	sfxHandle_t	count1Sound;
 	sfxHandle_t	countFightSound;
+
+	sfxHandle_t jetpackOnSound;
+	sfxHandle_t jetpackOn2Sound;
+	sfxHandle_t jetpackOffSound;
+	sfxHandle_t jetpackHoverSound;
+	sfxHandle_t jetpackHover2Sound;
 
 	// new stuff
 	qhandle_t patrolShader;

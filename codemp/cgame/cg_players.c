@@ -10421,9 +10421,26 @@ void CG_Player( centity_t *cent ) {
 				n++;
 			}
 
+			if (!cent->hasPlayedJetpackSounds)
+			{
+				trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cg_jetpackOnSound.integer <= 1 ? cgs.media.jetpackOnSound : cgs.media.jetpackOn2Sound );
+				cent->hasPlayedJetpackSounds = qtrue;
+			}
+
 			trap->S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin,
-				trap->S_RegisterSound( "sound/boba/JETHOVER" ) );
+				cg_jetpackHoverSound.integer <= 1 ? cgs.media.jetpackHoverSound : cgs.media.jetpackHover2Sound );
 		}
+		else if (cent->hasPlayedJetpackSounds && !(cent->currentState.eFlags & EF_JETPACK_ACTIVE))
+		{
+			trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cgs.media.jetpackOffSound );
+			cent->hasPlayedJetpackSounds = qfalse;
+		}
+	}
+	else if (cent->currentState.eFlags & EF_JETPACK && cent->currentState.eFlags & EF_DEAD && cg_g2JetpackInstance && !(cent->currentState.eFlags & EF_JETPACK_ACTIVE)
+		&& cent->hasPlayedJetpackSounds)
+	{
+		trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cgs.media.jetpackOffSound );
+		cent->hasPlayedJetpackSounds = qfalse;
 	}
 	else if (trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 3))
 	{ //fixme: would be good if this could be done not every frame
