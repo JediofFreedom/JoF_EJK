@@ -1132,14 +1132,28 @@ void CG_PredictPlayerState( void ) {
 	if ( cg.nextSnap && !cg.nextFrameTeleport && !cg.thisFrameTeleport ) {
 		cg.nextSnap->ps.slopeRecalcTime = cg.predictedPlayerState.slopeRecalcTime; //this is the only value we want to maintain seperately on server/client
 
+		// Save client-predicted torso animation before server overwrites it
+		int savedTorsoAnim = cg.predictedPlayerState.torsoAnim;
+
 		cg.predictedPlayerState = cg.nextSnap->ps;
 		if (CG_Piloting(cg.nextSnap->ps.m_iVehicleNum))
 		{
 			cg.predictedVehicleState = cg.nextSnap->vps;
 		}
 		cg.physicsTime = cg.nextSnap->serverTime;
+
+		// Restore client-predicted weapon attack animation if still firing
+		// This prevents non-JaPRO servers from overwriting our correct prediction
+		if (cg.predictedPlayerState.weaponTime > 0 &&
+			savedTorsoAnim >= BOTH_ATTACK1 && savedTorsoAnim <= BOTH_THERMAL_THROW)
+		{
+			cg.predictedPlayerState.torsoAnim = savedTorsoAnim;
+		}
 	} else {
 		cg.snap->ps.slopeRecalcTime = cg.predictedPlayerState.slopeRecalcTime; //this is the only value we want to maintain seperately on server/client
+
+		// Save client-predicted torso animation before server overwrites it
+		int savedTorsoAnim = cg.predictedPlayerState.torsoAnim;
 
 		cg.predictedPlayerState = cg.snap->ps;
 		if (CG_Piloting(cg.snap->ps.m_iVehicleNum))
@@ -1147,6 +1161,14 @@ void CG_PredictPlayerState( void ) {
 			cg.predictedVehicleState = cg.snap->vps;
 		}
 		cg.physicsTime = cg.snap->serverTime;
+
+		// Restore client-predicted weapon attack animation if still firing
+		// This prevents non-JaPRO servers from overwriting our correct prediction
+		if (cg.predictedPlayerState.weaponTime > 0 &&
+			savedTorsoAnim >= BOTH_ATTACK1 && savedTorsoAnim <= BOTH_THERMAL_THROW)
+		{
+			cg.predictedPlayerState.torsoAnim = savedTorsoAnim;
+		}
 	}
 
 	//JAPRO - Clientside - Unlock Pmove bounds - Start
