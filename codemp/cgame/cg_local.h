@@ -416,6 +416,8 @@ typedef struct clientInfo_s {
 	int			deaths; //counted locally client-side, incase the server doesn't send this information already
 
 	qboolean	useAlternateStandAnim;
+	void		*holsterGhoul2;
+	void		*holsterGhoul2_2;
 } clientInfo_t;
 
 //rww - cheap looping sound struct
