@@ -417,15 +417,17 @@ void WP_SaberSetDefaults( saberInfo_t *saber ) {
 	int i;
 
 	//Set defaults so that, if it fails, there's at least something there
-	for ( i=0; i<MAX_BLADES; i++ ) {
+	for ( i = 0; i < MAX_BLADES; i++ )
+	{
 		saber->blade[i].color = SABER_RED;
 		saber->blade[i].radius = SABER_RADIUS_STANDARD;
 		saber->blade[i].lengthMax = 32;
 	}
 
-	Q_strncpyz( saber->name, DEFAULT_SABER, sizeof( saber->name ) );
+
+	Q_strncpyz( saber->name, "default", sizeof( saber->name ) );
 	Q_strncpyz( saber->fullName, "lightsaber", sizeof( saber->fullName ) );
-	Q_strncpyz( saber->model, DEFAULT_SABER_MODEL, sizeof( saber->model ) );
+	Q_strncpyz( saber->model, "models/weapons2/saber_reborn/saber_w.glm", sizeof( saber->model ) );
 	saber->skin					= 0;
 	saber->soundOn				= BG_SoundIndex( "sound/weapons/saber/enemy_saber_on.wav" );
 	saber->soundLoop			= BG_SoundIndex( "sound/weapons/saber/saberhum3.wav" );
