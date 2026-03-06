@@ -6627,6 +6627,7 @@ void UI_UpdateVideoSetup ( void )
 	trap->Cvar_Set ( "r_inGameVideo", UI_Cvar_VariableString ( "ui_r_inGameVideo" ) );
 	trap->Cvar_Set ( "r_allowExtensions", UI_Cvar_VariableString ( "ui_r_allowExtensions" ) );
 	trap->Cvar_Set ( "cg_shadows", UI_Cvar_VariableString ( "ui_cg_shadows" ) );
+	trap->Cvar_Set ( "cl_renderer", UI_Cvar_VariableString ( "ui_cl_renderer" ) );
 	trap->Cvar_Set ( "ui_r_modified", "0" );
 
 	if ( trap->Cvar_VariableValue ( "ui_vidrestart" ) ) {
@@ -6931,6 +6932,8 @@ void UI_GetVideoSetup ( void )
 	trap->Cvar_Set ( "ui_r_inGameVideo",				UI_Cvar_VariableString ( "r_inGameVideo" ) );
 	trap->Cvar_Set ( "ui_r_allowExtensions",			UI_Cvar_VariableString ( "r_allowExtensions" ) );
 	trap->Cvar_Set ( "ui_cg_shadows",					UI_Cvar_VariableString ( "cg_shadows" ) );
+	trap->Cvar_Register ( NULL, "ui_cl_renderer",				"0", CVAR_ROM|CVAR_INTERNAL );
+	trap->Cvar_Set ( "ui_cl_renderer",                  UI_Cvar_VariableString ( "cl_renderer" ) );
 	trap->Cvar_Set ( "ui_r_modified",					"0" );
 	trap->Cvar_Set ( "ui_vidrestart",					"0" );
 }
