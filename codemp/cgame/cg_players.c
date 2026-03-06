@@ -11560,9 +11560,9 @@ skipTrail:
 		{//arc
 			//trap->FX_PlayEffectID( cgs.effects.forceLightningWide, efOrg, fxDir );
 			//trap->FX_PlayEntityEffectID(cgs.effects.forceDrainWide, efOrg, axis, cent->boltInfo, cent->currentState.number, -1, -1);
-			if (cg_drainFX.integer)
+			if (cg_drainFX.integer == 2)
 				trap->FX_PlayEntityEffectID(cgs.effects.forceDrainWideJaPRO, efOrg, axis, -1, -1, -1, -1);
-			else if (cg_drainFX.integer == 2)
+			else if (cg_drainFX.integer == 1)
 				trap->FX_PlayEntityEffectID(cgs.effects.forceDrainWide, efOrg, axis, -1, -1, -1, -1);
 		}
 		else
@@ -13089,7 +13089,6 @@ stillDoSaber:
 	if ((cent->currentState.forcePowersActive & (1 << FP_RAGE)) &&
 		(cg.renderingThirdPerson || cent->currentState.number != cg.snap->ps.clientNum))
 	{
-		//legs.customShader = cgs.media.rageShader;
 		legs.renderfx &= ~RF_FORCE_ENT_ALPHA;
 		legs.renderfx &= ~RF_MINLIGHT;
 
