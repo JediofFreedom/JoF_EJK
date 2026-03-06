@@ -39,13 +39,24 @@ CG_ParseScores
 */
 static void CG_ParseScores( void ) {
 	int		i, powerups, readScores, scoreOffset;//JAPRO - Clientside - Scoreboard Deaths
+	
+	int argc = trap->Cmd_Argc();
 
-	cg.numScores = atoi( CG_Argv( 1 ) );
+	if (cgs.serverMod == SVMOD_JAPLUS || cgs.serverMod == SVMOD_JAPRO)
+		scoreOffset = 15;
+	else
+		scoreOffset = 14;
+	
+	int actualSent = (argc - 4) / scoreOffset;
 
-	readScores = cg.numScores;
+	if (actualSent < 0)
+		actualSent = 0;
+	if (actualSent > MAX_CLIENTS)
+		actualSent = MAX_CLIENTS;
 
-	if (readScores > MAX_CLIENT_SCORE_SEND)
-		readScores = MAX_CLIENT_SCORE_SEND;
+	cg.numScores = actualSent;
+	readScores = actualSent;
+
 
 	if ( cg.numScores > MAX_CLIENTS )
 		cg.numScores = MAX_CLIENTS;

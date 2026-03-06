@@ -857,6 +857,7 @@ typedef struct score_s {
 	int				deaths; //JAPRO - Scoreboard Deaths
 	qboolean		perfect;
 	int				team;
+	qboolean		fake;
 } score_t;
 
 
@@ -2162,6 +2163,8 @@ typedef struct cgs_s {
 
 	int					numMiscStaticModels;
 	cg_staticmodel_t	miscStaticModels[MAX_STATIC_MODELS];
+
+	int				numClients;
 
 } cgs_t;
 
