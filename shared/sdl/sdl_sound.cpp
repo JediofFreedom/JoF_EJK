@@ -150,7 +150,6 @@ Initialize the soundBuffer
 */
 void SNDDMA_InitSoundBuffer(int maxSounds) 
 {
-	sb.soundCount = 0;
 	sb.lastReset = 0;
 	sb.maxSoundsPerSec = maxSounds;
 }
@@ -165,7 +164,7 @@ qboolean SNDDMA_Init(int sampleFrequencyInKHz)
 	SDL_AudioSpec desired;
 	SDL_AudioSpec obtained;
 	int tmp;
-	s_maxSounds = Cvar_Get("s_maxSounds", "50", CVAR_ARCHIVE);
+	s_maxSounds = Cvar_Get("s_maxSounds", "100", CVAR_ARCHIVE);
 	SNDDMA_InitSoundBuffer(s_maxSounds->integer);
 
 	if (snd_inited)
