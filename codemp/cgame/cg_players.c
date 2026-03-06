@@ -7413,10 +7413,19 @@ void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, in
 								VectorCopy(trace.plane.normal, client->saber[saberNum].blade[bladeNum].trail.oldNormal[i]);
 							}
 							//make a sound
-							if ( cg.time - client->saber[saberNum].blade[bladeNum].hitWallDebounceTime >= 100 )
+							if (cent->currentState.saberMove > LS_READY && markDistance > 2.0f &&
+								cg.time - client->saber[saberNum].blade[bladeNum].hitWallDebounceTime >= 100)
 							{//ugh, need to have a real sound debouncer... or do this game-side
 								client->saber[saberNum].blade[bladeNum].hitWallDebounceTime = cg.time;
-								trap->S_StartSound ( trace.endpos, -1, CHAN_WEAPON, trap->S_RegisterSound( va("sound/weapons/saber/saberhitwall%i", Q_irand(1, 3)) ) );
+								const int randomSaberHitWallIndex = Q_irand(1, 3);
+								sfxHandle_t saberHitWallSfx = trap->S_RegisterSound(va("sound/weapons/saber/saberhitwall%i.wav", randomSaberHitWallIndex));
+								if (cg_saberHitWallNew.integer > 0)
+								{
+									const int randomSaberHitWallIndexNew = randomSaberHitWallIndex - 1;
+									if (cgs.media.saberTravelHitWallSounds[randomSaberHitWallIndexNew])
+										saberHitWallSfx = cgs.media.saberTravelHitWallSounds[randomSaberHitWallIndexNew];
+								}
+								trap->S_StartSound ( trace.endpos, -1, CHAN_WEAPON, saberHitWallSfx );
 							}
 						}
 					}
