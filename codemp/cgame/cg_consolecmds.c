@@ -2350,6 +2350,39 @@ static void CG_AddStrafeTrail_f(void)
 
 }
 
+// telegun
+extern vec3_t cg_crosshairPos;
+static void CG_TeleCrosshair_f(void) {
+	vec3_t newPos;
+	vec3_t viewAngles;
+	vec3_t forward;
+	float offset = 0.0f;
+	float yawoffset = 0.0f;
+
+	if (!cg.snap || VectorCompare(cg_crosshairPos, vec3_origin)) {
+		return;
+	}
+
+	if (trap->Cmd_Argc() == 1) {
+		trap->SendClientCommand(va("amTele %f %f %f %f",
+			cg_crosshairPos[0], cg_crosshairPos[1], cg_crosshairPos[2] + 24, cg.predictedPlayerState.viewangles[YAW]));
+	}
+
+	else if (trap->Cmd_Argc() >= 2) {
+		offset = atof(CG_Argv(1));
+		if (trap->Cmd_Argc() >= 3)
+		{
+			yawoffset = atof(CG_Argv(2));
+		}
+		VectorCopy(cg.predictedPlayerState.viewangles, viewAngles);
+		AngleVectors(viewAngles, forward, NULL, NULL);
+		VectorMA(cg.predictedPlayerState.origin, offset, forward, newPos);
+
+		trap->SendClientCommand(va("amTele %f %f %f %f",
+			newPos[0], newPos[1], newPos[2], cg.predictedPlayerState.viewangles[YAW] + yawoffset));
+	}
+}
+
 extern lastWhispererId;
 void CG_Say_f( void ) {
 	char msg[MAX_SAY_TEXT] = {0};
@@ -2588,6 +2621,8 @@ static consoleCommand_t	commands[] = {
 	{ "clearTrail",					CG_DeleteStrafeTrail_f },
 	{ "strafeTrail",				CG_AddStrafeTrail_f },
 
+	{ "teleGun",					CG_TeleCrosshair_f },
+
 	{ "PTelemark",					CG_PTelemark_f },
 	{ "PTele",						CG_PTele_f },
 	{ "amTeleOffset",				CG_TeleOffset_f },
@@ -2600,7 +2635,7 @@ static consoleCommand_t	commands[] = {
 	{ "do",							CG_Do_f },
 	{ "doStop",						CG_DoCancel_f },
 	{ "doCancel",					CG_DoCancel_f },
-	{"reply",						CG_Say_f}
+	{ "reply",						CG_Say_f}
 };
 
 static const size_t numCommands = ARRAY_LEN( commands );

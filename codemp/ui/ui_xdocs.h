@@ -376,6 +376,10 @@ XDOCS_CVAR_DEF("g_gametype", "Gametype that the server is currently on",
 
 XDOCS_CMD_DEF("clientlist", "Displays a list of all connected clients and their real client numbers")
 
+XDOCS_CMD_DEF("telegun", "Teleports you to where your crosshair is pointing to, or teleports you by the provided distance offset amount in the direction you are facing." NL
+	"Usage: /telegun [distance offset] [angle offset]"
+)
+
 // ...
 
 #undef NL
