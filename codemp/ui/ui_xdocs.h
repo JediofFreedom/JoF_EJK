@@ -385,6 +385,11 @@ XDOCS_CMD_DEF("get", "Teleports the selected player in front of you, or teleport
 "Usage: /get [<player>/gun] [distance offset] [angle offset]"
 )
 
+XDOCS_CMD_DEF("goto", "Teleports you to the selected player, or teleports you to the selected player by the provided distance offset amount in the direction they are facing." NL
+"If no target is selected, it will teleport you to the player you are aiming at." NL
+"Usage: /goto [<player>/gun] [distance offset] [angle offset]"
+)
+
 // ...
 
 #undef NL
