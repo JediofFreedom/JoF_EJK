@@ -380,6 +380,11 @@ XDOCS_CMD_DEF("telegun", "Teleports you to where your crosshair is pointing to, 
 	"Usage: /telegun [distance offset] [angle offset]"
 )
 
+XDOCS_CMD_DEF("get", "Teleports the selected player in front of you, or teleports the seleted player to you by the provided distance offset amount in the direction you are facing." NL
+"If no target is selected, it will teleport the player you are aiming at." NL
+"Usage: /get [<player>/gun] [distance offset] [angle offset]"
+)
+
 // ...
 
 #undef NL

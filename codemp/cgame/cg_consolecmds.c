@@ -2383,6 +2383,54 @@ static void CG_TeleCrosshair_f(void) {
 	}
 }
 
+// get
+static void CG_TeleTargetPlayer_f(void) {
+	vec3_t viewAngles;
+	vec3_t forward;
+	vec3_t newPos;
+	int targetNum = -1;
+	float offset = 100.0f;
+	float yawoffset = 0.0f;
+
+	if (!cg.snap) {
+		return;
+	}
+
+	if (trap->Cmd_Argc() == 1 || (trap->Cmd_Argc() > 1 && Q_stricmp(CG_Argv(1), "gun") == 0)) {
+		targetNum = CG_CrosshairPlayer();
+	}
+	else {
+		targetNum = CG_ClientNumberFromString(CG_Argv(1));
+	}
+	if (trap->Cmd_Argc() > 2) {
+		offset = atof(CG_Argv(2));
+
+		if (trap->Cmd_Argc() > 3) {
+			yawoffset = atof(CG_Argv(3));
+		}
+	}
+	
+
+	if (targetNum < 0 || targetNum >= MAX_CLIENTS) {
+		return;
+	}
+
+	VectorCopy(cg.predictedPlayerState.viewangles, viewAngles);
+	if (trap->Cmd_Argc() <= 2) {
+		viewAngles[PITCH] = 0;
+		viewAngles[ROLL] = 0;
+	}
+	AngleVectors(viewAngles, forward, NULL, NULL);
+	VectorMA(cg.predictedPlayerState.origin, offset, forward, newPos);
+
+	if (trap->Cmd_Argc() <= 2) {
+		newPos[2] = cg.predictedPlayerState.origin[2] + 24; // so that players dont get caught in slight ledges - similar to JA+ default teleport behaviour
+	}
+
+	trap->SendClientCommand(va("amTele %i %f %f %f %f",
+		targetNum, newPos[0], newPos[1], newPos[2], cg.predictedPlayerState.viewangles[YAW] + 180 + yawoffset));
+}
+
 extern lastWhispererId;
 void CG_Say_f( void ) {
 	char msg[MAX_SAY_TEXT] = {0};
@@ -2622,6 +2670,7 @@ static consoleCommand_t	commands[] = {
 	{ "strafeTrail",				CG_AddStrafeTrail_f },
 
 	{ "teleGun",					CG_TeleCrosshair_f },
+	{ "get",						CG_TeleTargetPlayer_f },
 
 	{ "PTelemark",					CG_PTelemark_f },
 	{ "PTele",						CG_PTele_f },
