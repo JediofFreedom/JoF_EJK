@@ -2095,7 +2095,7 @@ qboolean	BG_PlayerTouchesItem( playerState_t *ps, entityState_t *item, int atTim
 	BG_EvaluateTrajectory( &item->pos, atTime, origin );
 
 	if (item->modelindex < 1 || item->modelindex >= bg_numItems) {
-		Com_Error(ERR_DROP, "BG_CanItemBeGrabbed: index out of range");
+		return qfalse;	// invalid index (e.g. client/server desync in multiplayer)
 	}
 
 	gitem = &bg_itemlist[item->modelindex];
@@ -2290,7 +2290,7 @@ qboolean BG_CanItemBeGrabbed( int gametype, const entityState_t *ent, const play
 	gitem_t	*item;
 
 	if ( ent->modelindex < 1 || ent->modelindex >= bg_numItems ) {
-		Com_Error( ERR_DROP, "BG_CanItemBeGrabbed: index out of range" );
+		return qfalse;	// invalid index (e.g. client/server desync in multiplayer)
 	}
 
 	item = &bg_itemlist[ent->modelindex];
