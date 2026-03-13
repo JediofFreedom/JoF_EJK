@@ -2169,7 +2169,6 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 		memcpy(&newInfo.saber[0], &ci->saber[0], sizeof(newInfo.saber[0]));
 		newInfo.ghoul2Weapons[0] = ci->ghoul2Weapons[0];
 	}
-	
 	v = Info_ValueForKey( configstring, "st2" );
 
 	if (clientNum == cg.clientNum && parsed == 2)
