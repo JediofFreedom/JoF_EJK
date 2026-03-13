@@ -5688,7 +5688,7 @@ static void CG_DrawInventory(int y)
 		return;
 
 	y += 8;
-	/* lumaya: Aldro said no
+	/*
 	if (cg.snap->ps.stats[STAT_WEAPONS] & (1 << WP_TRIP_MINE) && cg.snap->ps.ammo[weaponData[WP_TRIP_MINE].ammoIndex] > 0) {
 		CG_DrawPic(xAlign, y, ico_size*cgs.widthRatioCoef, ico_size, cgs.media.weaponIcons[WP_TRIP_MINE]);
 		CG_DrawNumField(xAlign, y, 2, cg.snap->ps.ammo[weaponData[WP_TRIP_MINE].ammoIndex], 6, 12, NUM_FONT_SMALL, qfalse);
