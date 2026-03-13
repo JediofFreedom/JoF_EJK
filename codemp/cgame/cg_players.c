@@ -2169,9 +2169,7 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 		memcpy(&newInfo.saber[0], &ci->saber[0], sizeof(newInfo.saber[0]));
 		newInfo.ghoul2Weapons[0] = ci->ghoul2Weapons[0];
 	}
-
 	
-
 	v = Info_ValueForKey( configstring, "st2" );
 
 	if (clientNum == cg.clientNum && parsed == 2)
@@ -10011,8 +10009,6 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 	if ( newBolt != -1 )
 	{
 		VectorScale(holsterPos, cent->modelScale[0], holsterPos);
-		// or not...
-		//const qboolean isStill = VectorLength(cent->playerState->velocity) <= 0;
 		vec3_t boltAxis0, boltAxis1, boltAxis2;
 		matrix3_t angAxis, tempAxis;
 
