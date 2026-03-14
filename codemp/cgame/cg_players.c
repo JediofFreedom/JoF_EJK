@@ -3249,9 +3249,7 @@ static void CG_SetLerpFrameAnimation( centity_t *cent, clientInfo_t *ci, lerpFra
 	int oldAnim = -1;
 	int blendTime = 100;
 	float oldSpeed = lf->animationSpeed;
-
 	
-
 	if (cent->localAnimIndex > 0)
 	{ //rockettroopers can't have broken arms, nor can anything else but humanoids
 		ci->brokenLimbs = cent->currentState.brokenLimbs;
@@ -11657,7 +11655,6 @@ skipTrail:
 	if (cent->currentState.activeForcePass > FORCE_LEVEL_3
 		&& cent->currentState.NPC_class != CLASS_VEHICLE)
 	{
-		
 		matrix3_t axis;
 		vec3_t tAng, fAng, fxDir;
 		vec3_t efOrg;
@@ -11721,7 +11718,6 @@ skipTrail:
 	else if ( cent->currentState.activeForcePass
 		&& cent->currentState.NPC_class != CLASS_VEHICLE)
 	{//doing the electrocuting
-		
 		matrix3_t axis;
 		vec3_t tAng, fAng, fxDir;
 		vec3_t efOrg;
