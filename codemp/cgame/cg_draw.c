@@ -935,7 +935,7 @@ static void CG_DrawSaberStyle(centity_t* cent, menuDef_t* menuHUD)
 		}
 		break;
 
-	case 6: // SS_DUAL does aldro have adhd?
+	case 6: // SS_DUAL
 		focusItem = Menu_FindItemByName(menuHUD, "saberstyle_dual");
 
 		if (focusItem)
@@ -952,7 +952,7 @@ static void CG_DrawSaberStyle(centity_t* cent, menuDef_t* menuHUD)
 		}
 		break;
 
-	case 7: // SS_STAFF i love fae 
+	case 7: // SS_STAFF
 		focusItem = Menu_FindItemByName(menuHUD, "saberstyle_staff");
 
 		if (focusItem)
@@ -969,7 +969,7 @@ static void CG_DrawSaberStyle(centity_t* cent, menuDef_t* menuHUD)
 		}
 		break;
 
-	case 4: // Desann owo awa ewe pls work else ill kms
+	case 4: // Desann
 		focusItem = Menu_FindItemByName(menuHUD, "saberstyle_desann");
 
 		if (focusItem)
