@@ -16,12 +16,11 @@
 # along with this program; if not, see <http://www.gnu.org/licenses/>.
 #============================================================================
 
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.9" CACHE STRING "Minimum OS X deployment version")
 
 # For checks in subdirectories
 set(InOpenJK TRUE)
-set (WIN32 TRUE)
 
 
 # Project name
@@ -63,18 +62,18 @@ set(UseInternalPNGDefault    OFF)
 set(UseInternalJPEGDefault   OFF)
 set(UseInternalSDL2Default   OFF)
 
-if(WIN32)
-  set(UseInternalOpenALDefault ON)
-  set(UseInternalZlibDefault   ON)
-  set(UseInternalPNGDefault    ON)
-  set(UseInternalJPEGDefault   ON)
-  set(UseInternalSDL2Default   ON)
-endif()
-
-if(APPLE)
-  set(UseInternalJPEGDefault   ON)
-  set(UseInternalOpenALDefault ON)
-  set(UseInternalPNGDefault    ON)
+if(UseInternalLibs OR WIN32 OR APPLE)
+  if(WIN32)
+    set(UseInternalOpenALDefault ON)
+    set(UseInternalZlibDefault   ON)
+    set(UseInternalPNGDefault    ON)
+    set(UseInternalJPEGDefault   ON)
+    set(UseInternalSDL2Default   ON)
+  else()
+    set(UseInternalJPEGDefault ON)
+    set(UseInternalPNGDefault  ON)
+    set(UseInternalZlibDefault ON)
+  endif()
 endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "BSD")
@@ -113,7 +112,10 @@ if(WIN32)
 	endif()
 else()
 	set(X86 OFF)
-	if(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm")
+	if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
+		set(Architecture "arm64")
+		add_definitions(-DPNG_ARM_NEON_OPT=0)
+	elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^arm")
 		set(Architecture "arm")
 	elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^i.86$")
 		set(X86 ON)
@@ -125,11 +127,7 @@ else()
 		endif()
 	elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^x86.64$")
 		set(X86 ON)
-		#if ("${CMAKE_C_COMPILER_ID}" STREQUAL "Intel")
-		#	set(Architecture "i386") #"x86_64") #dlfkgjldfk
-		#else()
-			set(Architecture "x86_64")
-		#endif()
+		set(Architecture "x86_64")
 	elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "powerpc")
 		set(Architecture "ppc")
 	elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "powerpc64")
@@ -276,6 +274,7 @@ elseif (("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU") OR ("${CMAKE_C_COMPILER_ID}" S
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-comment")
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsigned-char")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcommon")
 		if (X86)
 			# "x86 vm will crash without -mstackrealign since MMX
 			# instructions will be used no matter what and they
