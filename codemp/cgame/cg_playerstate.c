@@ -553,12 +553,14 @@ CG_TransitionPlayerState
 */
 extern int cg_dueltypes[MAX_CLIENTS];//JAPRO - Clientside - Fullforce Duels
 void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops ) {
-	// check for changing follow mode
-	if ( ps->clientNum != ops->clientNum ) {
-		cg.thisFrameTeleport = qtrue;
-		// make sure we don't get any unwanted transition effects
-		*ops = *ps;
-	}
+        // check for changing follow mode
+        if ( ps->clientNum != ops->clientNum ) {
+                cg.thisFrameTeleport = qtrue;
+                cg.weaponSelect = ps->weapon;
+                cg.weaponSelectTime = cg.time;
+                // make sure we don't get any unwanted transition effects
+                *ops = *ps;
+        }
 
 	// damage events (player is getting wounded)
 	if ( ps->damageEvent != ops->damageEvent && ps->damageCount ) {

@@ -2350,7 +2350,149 @@ static void CG_AddStrafeTrail_f(void)
 
 }
 
-extern lastWhispererId;
+// telegun
+extern vec3_t cg_crosshairPos;
+static void CG_TeleCrosshair_f(void) {
+	vec3_t newPos;
+	vec3_t viewAngles;
+	vec3_t forward;
+	float offset = 0.0f;
+	float yawoffset = 0.0f;
+
+	if (!cg.snap || VectorCompare(cg_crosshairPos, vec3_origin)) {
+		return;
+	}
+
+	if (trap->Cmd_Argc() == 1) {
+		trap->SendClientCommand(va("amTele %f %f %f %f",
+			cg_crosshairPos[0], cg_crosshairPos[1], cg_crosshairPos[2] + 24, cg.predictedPlayerState.viewangles[YAW]));
+	}
+
+	else if (trap->Cmd_Argc() >= 2) {
+		offset = atof(CG_Argv(1));
+		if (trap->Cmd_Argc() >= 3)
+		{
+			yawoffset = atof(CG_Argv(2));
+		}
+		VectorCopy(cg.predictedPlayerState.viewangles, viewAngles);
+		AngleVectors(viewAngles, forward, NULL, NULL);
+		VectorMA(cg.predictedPlayerState.origin, offset, forward, newPos);
+
+		trap->SendClientCommand(va("amTele %f %f %f %f",
+			newPos[0], newPos[1], newPos[2], cg.predictedPlayerState.viewangles[YAW] + yawoffset));
+	}
+}
+
+// get
+static void CG_TeleTargetPlayer_f(void) {
+	vec3_t viewAngles;
+	vec3_t forward;
+	vec3_t newPos;
+	int targetNum = -1;
+	float offset = 100.0f;
+	float yawoffset = 0.0f;
+
+	if (!cg.snap) {
+		return;
+	}
+
+	if (trap->Cmd_Argc() == 1 || (trap->Cmd_Argc() > 1 && Q_stricmp(CG_Argv(1), "gun") == 0)) {
+		targetNum = CG_CrosshairPlayer();
+	}
+	else {
+		targetNum = CG_ClientNumberFromString(CG_Argv(1));
+	}
+	if (trap->Cmd_Argc() > 2) {
+		offset = atof(CG_Argv(2));
+
+		if (trap->Cmd_Argc() > 3) {
+			yawoffset = atof(CG_Argv(3));
+		}
+	}
+	
+
+	if (targetNum < 0 || targetNum >= MAX_CLIENTS) {
+		return;
+	}
+
+	VectorCopy(cg.predictedPlayerState.viewangles, viewAngles);
+	if (trap->Cmd_Argc() <= 2) {
+		viewAngles[PITCH] = 0;
+		viewAngles[ROLL] = 0;
+	}
+	AngleVectors(viewAngles, forward, NULL, NULL);
+	VectorMA(cg.predictedPlayerState.origin, offset, forward, newPos);
+
+	if (trap->Cmd_Argc() <= 2) {
+		newPos[2] = cg.predictedPlayerState.origin[2] + 24; // so that players dont get caught in slight ledges - similar to JA+ default teleport behaviour
+	}
+
+	trap->SendClientCommand(va("amTele %i %f %f %f %f",
+		targetNum, newPos[0], newPos[1], newPos[2], cg.predictedPlayerState.viewangles[YAW] + 180 + yawoffset));
+}
+
+// goto
+static void CG_TeleToPlayer_f(void) {
+	int targetNum = -1;
+	float offset = 100.0f;
+	float yawoffset = 0.0f;
+	vec3_t viewAngles;
+	vec3_t newPos;
+	vec3_t forward;
+	const centity_t* cent = NULL;
+
+
+	if (!cg.snap) {
+		return;
+	}
+
+	if (trap->Cmd_Argc() == 1 || (trap->Cmd_Argc() > 1 && Q_stricmp(CG_Argv(1), "gun") == 0)) {
+		targetNum = CG_CrosshairPlayer();
+	}
+	else {
+		targetNum = CG_ClientNumberFromString(CG_Argv(1));
+	}
+	if (trap->Cmd_Argc() > 2) {
+		offset = atof(CG_Argv(2));
+
+		if (trap->Cmd_Argc() > 3) {
+			yawoffset = atof(CG_Argv(3));
+		}
+	}
+
+
+	if (targetNum < 0 || targetNum >= MAX_CLIENTS) {
+		return;
+	}
+	cent = &cg_entities[targetNum];
+	if (!cent) {
+		return;
+	}
+
+	if (cg.time - cent->currentState.pos.trTime >= 1000) {
+		Com_Printf(S_COLOR_YELLOW "Client location prediction unavailable, fallback to amtele...\n"); // this is better than nothing, and better than teleporting to a random location if the target player has moved since the last update
+		trap->SendClientCommand(va("amtele %i", targetNum));
+		return;
+	}
+
+	VectorCopy(cent->lerpOrigin, newPos);
+	VectorCopy(cent->lerpAngles, viewAngles);
+	if (trap->Cmd_Argc() <= 2) {
+		viewAngles[PITCH] = 0;
+		viewAngles[ROLL] = 0;
+	}
+	AngleVectors(viewAngles, forward, NULL, NULL);
+	VectorMA(newPos, offset, forward, newPos);
+
+	if (trap->Cmd_Argc() == 2) {
+		newPos[2] = cent->currentState.pos.trBase[2] + 24;
+	}
+
+	trap->SendClientCommand(va("amtele %f %f %f %f",
+		newPos[0], newPos[1], newPos[2], cent->lerpAngles[YAW] + 180 + yawoffset));
+}
+
+extern int lastWhispererId;
 void CG_Say_f( void ) {
 	char msg[MAX_SAY_TEXT] = {0};
 	char word[MAX_SAY_TEXT] = {0};
@@ -2588,6 +2730,10 @@ static consoleCommand_t	commands[] = {
 	{ "clearTrail",					CG_DeleteStrafeTrail_f },
 	{ "strafeTrail",				CG_AddStrafeTrail_f },
 
+	{ "teleGun",					CG_TeleCrosshair_f },
+	{ "get",						CG_TeleTargetPlayer_f },
+	{ "goto",						CG_TeleToPlayer_f },
+
 	{ "PTelemark",					CG_PTelemark_f },
 	{ "PTele",						CG_PTele_f },
 	{ "amTeleOffset",				CG_TeleOffset_f },
@@ -2600,7 +2746,7 @@ static consoleCommand_t	commands[] = {
 	{ "do",							CG_Do_f },
 	{ "doStop",						CG_DoCancel_f },
 	{ "doCancel",					CG_DoCancel_f },
-	{"reply",						CG_Say_f}
+	{ "reply",						CG_Say_f}
 };
 
 static const size_t numCommands = ARRAY_LEN( commands );
@@ -2703,7 +2849,7 @@ static const char *gcmds[] = {
 	"amMindTrick",
 	"amSeeGhost",
 	"amMap",
-	"ampSay",
+	"amPSay",
 	"amWeather",
 	"amForceAltDim",
 	"amUnForceAltDim",
@@ -2781,6 +2927,49 @@ static const char *gcmds[] = {
 
 	"top",
 	"saberColor",
+
+	"amOrigin",
+	"gunOrigin",
+	"gunProtect",
+	"gunShowMotd",
+	"gunSleep",
+	"gunWake",
+	"gunSlap",
+	"gunKick",
+	"gunBan",
+	"gunMindTrick",
+	"gunSilence",
+	"amUnSilence",
+	"gunUnSilence",
+	"gunEmpower",
+	"gunMerc",
+	"gunForceAltDim",
+	"gunUnForceAltDim",
+
+	"jetpack",
+	"amKnockMeDown",
+	"amDropSaber",
+	"toggleFlame",
+	"refuseTele",
+	"immortal",
+
+	"amAtEase",
+	"amComeOn",
+	"amDie",
+	"amDie2",
+	"amFinishingHim",
+	"amHello",
+	"amHiltThrow1",
+	"amHiltThrow2",
+	"amHips",
+	"amKiss",
+	"amKneel",
+	"amNeo",
+	"amNod",
+	"amPower",
+	"amShake",
+	"amWon",
+	"sleep",
 };
 static const size_t numgcmds = ARRAY_LEN( gcmds );
 

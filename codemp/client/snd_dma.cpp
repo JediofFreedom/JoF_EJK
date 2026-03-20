@@ -35,6 +35,9 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "client.h"
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
+//New Includes
+#include <unordered_map>
+#include <string>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -58,6 +61,8 @@ static int SND_FreeSFXMem(sfx_t *sfx);
 
 extern qboolean Sys_LowPhysicalMemory();
 
+static std::unordered_map<std::string, int> s_sfxPlayCounts;
+															 
 //////////////////////////
 //
 // vars for bgrnd music track...
@@ -387,6 +392,60 @@ static void DynamicMusicInfoPrint(void)
 	else
 	{
 		Com_Printf("( Dynamic music OFF )\n");
+	}
+}
+
+//Soundbuffer stuff here
+
+static inline std::string S_SoundKeyNormalize(const char* name)
+{
+	if (!name || !name[0]) {
+		return std::string();
+	}
+
+	char tmp[MAX_QPATH];
+	COM_StripExtension(name, tmp, sizeof(tmp));
+
+	// Lowercase in-place (use unsigned char to avoid UB)
+	for (size_t i = 0; tmp[i]; ++i) {
+		tmp[i] = static_cast<char>(tolower(static_cast<unsigned char>(tmp[i])));
+	}
+
+	return std::string(tmp);
+}
+
+static inline void SFX_EnsureMapEntry(const char* name)
+{
+	if (!name) return;
+	std::string key = S_SoundKeyNormalize(name);
+	auto it = s_sfxPlayCounts.find(key);
+	if (it == s_sfxPlayCounts.end())
+		s_sfxPlayCounts.emplace(std::move(key), 0);
+}
+
+static inline void SFX_IncrementPlayCount(const char* name)
+{
+	if (!name) return;
+	std::string key = S_SoundKeyNormalize(name);
+	auto it = s_sfxPlayCounts.find(key);
+	if (it == s_sfxPlayCounts.end())
+		s_sfxPlayCounts.emplace(std::move(key), 1);
+	else
+		++(it->second);
+}
+
+static inline int SFX_GetCount(const char* name)
+{
+	if (!name) return 0;
+	std::string key = S_SoundKeyNormalize(name);
+	auto it = s_sfxPlayCounts.find(key);
+	return (it == s_sfxPlayCounts.end()) ? 0 : it->second;
+}
+
+static inline void SFX_ResetAllCounts()
+{
+	for (auto& kv : s_sfxPlayCounts) {
+		kv.second = 0;
 	}
 }
 
@@ -1088,6 +1147,9 @@ void S_memoryLoad(sfx_t	*sfx)
 //		Com_Printf( S_COLOR_YELLOW "WARNING: couldn't load sound: %s\n", sfx->sSoundName );
 		sfx->bDefaultSound = qtrue;
 	}
+	else {
+		SFX_EnsureMapEntry(sfx->sSoundName);
+	}
 	sfx->bInMemory = qtrue;
 }
 
@@ -1486,6 +1548,8 @@ void S_StartAmbientSound( const vec3_t origin, int entityNum, unsigned char volu
 	}
 	SND_TouchSFX(sfx);
 
+	SFX_IncrementPlayCount(sfx->sSoundName);
+
 #ifdef USE_OPENAL
 	if (s_UseOpenAL)
 	{
@@ -1569,22 +1633,24 @@ Checks if we... can play the sound
 =================
 */
 cvar_t* s_maxSounds;
-qboolean S_CanPlaySound()
+qboolean S_CanPlaySound(const char* soundName)
 {
+
+	int fxFileCount = SFX_GetCount(soundName);
+	if (fxFileCount > s_maxSounds->value)
+		return qfalse;
 	
 	int currentTime = cls.realtime; 
 
-	s_maxSounds = Cvar_Get("s_maxSounds", "50", CVAR_ARCHIVE);
-	sb.maxSoundsPerSec = s_maxSounds->integer;
+	sb.maxSoundsPerSec = s_maxSounds->value;
 
 	if (currentTime - sb.lastReset >= 1000) {
-		sb.soundCount = 0;
 		sb.lastReset = currentTime;
+
+		SFX_ResetAllCounts(); //Reset them every second? idk
 	}
-	if (sb.soundCount >= sb.maxSoundsPerSec) {
-		return qfalse;
-	}
-	sb.soundCount++;
+
+	SFX_IncrementPlayCount(soundName);
 	return qtrue;
 }
 
@@ -1602,9 +1668,6 @@ void S_StartSound(const vec3_t origin, int entityNum, int entchannel, sfxHandle_
 	channel_t	*ch;
 	/*const*/ sfx_t *sfx;
 	
-	if (!S_CanPlaySound()) {
-		return;
-	}
 
 	if ( !s_soundStarted || s_soundMuted ) {
 		return;
@@ -1627,6 +1690,11 @@ void S_StartSound(const vec3_t origin, int entityNum, int entchannel, sfxHandle_
 		S_memoryLoad(sfx);
 	}
 	SND_TouchSFX(sfx);
+
+	if (!S_CanPlaySound(sfx->sSoundName)) {
+		return;
+	}
+
 
 	if ( s_show->integer == 1 ) {
 		Com_Printf( "%i : %s on (%d)\n", s_paintedtime, sfx->sSoundName, entityNum );

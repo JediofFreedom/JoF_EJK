@@ -595,8 +595,6 @@ void CG_ParseSiegeState(const char *str)
 	}
 }
 
-int index_for_heal;
-
 /*
 =================
 CG_RegisterSounds
@@ -641,6 +639,12 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.count2Sound = trap->S_RegisterSound( "sound/chars/protocol/misc/40MOM036" );
 	cgs.media.count1Sound = trap->S_RegisterSound( "sound/chars/protocol/misc/40MOM037" );
 	cgs.media.countFightSound = trap->S_RegisterSound( "sound/chars/protocol/misc/40MOM038" );
+
+	cgs.media.jetpackOffSound = trap->S_RegisterSound( "sound/chars/boba/bf_blast-off.mp3" );
+	cgs.media.jetpackOnSound = trap->S_RegisterSound( "sound/chars/boba/bf_land.mp3" );
+	cgs.media.jetpackOn2Sound = trap->S_RegisterSound( "sound/chars/boba/jeton.wav" );
+	cgs.media.jetpackHoverSound = trap->S_RegisterSound( "sound/chars/boba/jethover.wav" );
+	cgs.media.jetpackHover2Sound = trap->S_RegisterSound( "sound/chars/boba/bf_jetpack_lp.wav" );
 
 	cgs.media.hackerIconShader			= trap->R_RegisterShaderNoMip("gfx/mp/c_icon_tech");
 
@@ -874,6 +878,8 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.fallSound = trap->S_RegisterSound( "sound/player/fallsplat.wav");
 
 	cgs.media.crackleSound = trap->S_RegisterSound( "sound/effects/energy_crackle.wav" );
+	
+	cgs.media.flameThrowerSound = trap->S_RegisterSound("sound/weapons/boba/bf_flame.mp3");
 
 //JAPRO - Clientside - Hitsounds Start
 	cgs.media.hitSound			= trap->S_RegisterSound( "sound/effects/hitsound.wav" );
@@ -1037,10 +1043,6 @@ static void CG_RegisterSounds( void ) {
 			}
 			continue;	// custom sound
 		}
-		if (!strcmp(soundName, "sound/weapons/force/heal.wav"))
-		{
-			index_for_heal = i;		//saving the index where sound for heal is located
-		}
 		cgs.gameSounds[i] = trap->S_RegisterSound( soundName );
 
 	}
@@ -1173,6 +1175,7 @@ static void CG_RegisterEffects( void )
 	cgs.effects.lavaSplash = trap->FX_RegisterEffect( "env/lava_splash" );
 	cgs.effects.acidSplash = trap->FX_RegisterEffect( "env/acid_splash" );
 	cgs.effects.heal2FX = trap->FX_RegisterEffect("force/heal2");
+	cgs.effects.rageFX = trap->FX_RegisterEffect("force/rage2");
 
 }
 
@@ -1188,7 +1191,8 @@ CG_RegisterGraphics
 This function may execute for a couple of minutes with a slow disk.
 =================
 */
-static void CG_RegisterGraphics( void ) {
+static void CG_RegisterGraphics( void )
+{
 	int			i;
 	int			breakPoint;
 	char		items[MAX_ITEMS+1];
@@ -1243,7 +1247,7 @@ static void CG_RegisterGraphics( void ) {
 	trap->R_LoadWorld( cgs.mapname );
 
 	// precache status bar pics
-//	CG_LoadingString( "game media" );
+	//	CG_LoadingString( "game media" );
 
 	for ( i=0 ; i<11 ; i++) {
 		cgs.media.numberShaders[i] = trap->R_RegisterShader( sb_nums[i] );
@@ -1334,6 +1338,9 @@ static void CG_RegisterGraphics( void ) {
 	//breathing efx from SP
 	cgs.effects.breath = trap->FX_RegisterEffect("effects/misc/breath.efx");
 	cgs.effects.waterBreath = trap->FX_RegisterEffect("effects/misc/waterbreath.efx");
+	
+	cgs.effects.flameThrowerHit = trap->FX_RegisterEffect("effects/env/fire_wall");
+	cgs.effects.flameThrowerVfx = trap->FX_RegisterEffect("effects/mp/fthrw_bobafire");
 
 	for ( i = 0 ; i < NUM_CROSSHAIRS ; i++ ) {
 		cgs.media.crosshairShader[i] = trap->R_RegisterShaderNoMip( va("gfx/2d/crosshair%c", 'a'+i) );

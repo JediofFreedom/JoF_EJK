@@ -100,8 +100,20 @@ void trap_FS_Write( const void *buffer, int len, fileHandle_t f ) {
 void trap_FS_FCloseFile( fileHandle_t f ) {
 	Q_syscall( UI_FS_FCLOSEFILE, f );
 }
-int trap_FS_GetFileList(  const char *path, const char *extension, char *listbuf, int bufsize ) {
+int trap_FS_GetFileList(  const char *path, const char *extension, char *listbuf, const int bufsize ) {
 	return Q_syscall( UI_FS_GETFILELIST, path, extension, listbuf, bufsize );
+}
+int trap_FS_GetFileListAsync( const char *path, const char *extension, const int bufsize ) {
+	return Q_syscall( UI_FS_GETFILELIST_ASYNC, path, extension, bufsize );
+}
+int trap_FS_AsyncStatus(const int jobId, int *outLen ) {
+	return Q_syscall( UI_FS_ASYNC_STATUS, jobId, outLen );
+}
+int trap_FS_AsyncRead(const int jobId, void *buffer, const int bufSize ) {
+	return Q_syscall( UI_FS_ASYNC_READ, jobId, buffer, bufSize );
+}
+void trap_FS_AsyncFree( int jobId ) {
+	Q_syscall( UI_FS_ASYNC_FREE, jobId );
 }
 qhandle_t trap_R_RegisterModel( const char *name ) {
 	return Q_syscall( UI_R_REGISTERMODEL, name );
@@ -529,6 +541,10 @@ static void TranslateSyscalls( void ) {
 	trap->FS_Open							= trap_FS_FOpenFile;
 	trap->FS_Read							= UISyscall_FS_Read;
 	trap->FS_Write							= UISyscall_FS_Write;
+	trap->FS_GetFileListAsync				= trap_FS_GetFileListAsync;
+	trap->FS_AsyncStatus					= trap_FS_AsyncStatus;
+	trap->FS_AsyncRead						= trap_FS_AsyncRead;
+	trap->FS_AsyncFree						= trap_FS_AsyncFree;
 
 	trap->GetClientState					= trap_GetClientState;
 	trap->GetClipboardData					= trap_GetClipboardData;

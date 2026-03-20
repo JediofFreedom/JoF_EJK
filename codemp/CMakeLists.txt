@@ -42,8 +42,35 @@ if(GIT_BRANCH STREQUAL "master")
 endif()
 
 # Set default values if not defined
-if(NOT DEFINED BUILD_NUMBER)
-    set(BUILD_NUMBER "local")
+if(NOT DEFINED JOF_VERSION_STRING)
+    # Local build: find latest release tag and append "dev"
+    execute_process(
+        COMMAND git tag --list --sort=-version:refname
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        OUTPUT_VARIABLE _all_tags
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    set(_latest_release "")
+    if(_all_tags)
+        string(REPLACE "\n" ";" _tag_list "${_all_tags}")
+        foreach(_tag IN LISTS _tag_list)
+            if(_tag MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+                set(_latest_release "${_tag}")
+                break()
+            endif()
+        endforeach()
+    endif()
+    if(_latest_release)
+        set(JOF_VERSION_STRING "${_latest_release}")
+        set(JOF_VERSION_SUFFIX " dev")
+    else()
+        set(JOF_VERSION_STRING "dev")
+    endif()
+endif()
+
+if(NOT DEFINED JOF_VERSION_SUFFIX)
+    set(JOF_VERSION_SUFFIX "")
 endif()
 
 if(NOT DEFINED GIT_SHA)
@@ -417,17 +444,17 @@ if(BuildMPEngine)
 		set(MPEngineIncludeDirectories ${MPEngineIncludeDirectories} ${OPENGL_INCLUDE_DIR})
 		set(MPEngineLibraries ${MPEngineLibraries} ${OPENGL_LIBRARIES})
 		
+		# Discord Rich Presence
 		if(BuildDiscordRichPresence)
-			if (APPLE)
+			if (APPLE AND Architecture MATCHES "x86_64")
 				set(MPEngineIncludeDirectories ${MPEngineIncludeDirectories} ${OpenJKLibDir}/discord-rpc/include)
 				set(MPEngineDefines ${MPEngineDefines} "DISCORD")
 				set(MPEngineLibraries ${MPEngineLibraries} ${OpenJKLibDir}/discord-rpc/lib/osx/libdiscord-rpc.a)
-			elseif(Architecture MATCHES "x86_64")
+			elseif(UNIX AND Architecture MATCHES "x86_64")
 				set(MPEngineIncludeDirectories ${MPEngineIncludeDirectories} ${OpenJKLibDir}/discord-rpc/include)
 				set(MPEngineDefines ${MPEngineDefines} "DISCORD")
-                set(MPEngineLibraries ${MPEngineLibraries} ${OpenJKLibDir}/discord-rpc/lib/libdiscord-rpc.so)
-				#set(MPEngineLibraries ${MPEngineLibraries} ${OpenJKLibDir}/discord-rpc/lib/libdiscord-rpc.a)
-			endif(APPLE)
+				set(MPEngineLibraries ${MPEngineLibraries} ${OpenJKLibDir}/discord-rpc/lib/libdiscord-rpc.a)
+			endif()
 		endif(BuildDiscordRichPresence)
 	endif()
 
@@ -446,12 +473,16 @@ if(BuildMPEngine)
 			set(MPEngineIncludeDirectories ${MPEngineIncludeDirectories} ${OPENAL_INCLUDE_DIR})
 			set(MPEngineLibraries ${MPEngineLibraries} ${OPENAL_LIBRARY})
 		endif(UseInternalOpenAL)
-		
-		if(BuildDiscordRichPresence)
-			set(MPEngineIncludeDirectories ${MPEngineIncludeDirectories} ${OpenJKLibDir}/discord-rpc/include)
-			set(MPEngineDefines ${MPEngineDefines} "DISCORD")
-			set(MPEngineLibraries ${MPEngineLibraries} ${OpenJKLibDir}/discord-rpc/lib/discord-rpc.lib)
-		endif(BuildDiscordRichPresence)
+	endif()
+
+	if(MSVC AND BuildDiscordRichPresence)
+		set(MPEngineIncludeDirectories ${MPEngineIncludeDirectories} ${OpenJKLibDir}/discord-rpc/include)
+		set(MPEngineDefines ${MPEngineDefines} "DISCORD")
+		if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+			set(MPEngineLibraries ${MPEngineLibraries} ${OpenJKLibDir}/discord-rpc/lib/x86/discord-rpc.lib)
+		else()
+			set(MPEngineLibraries ${MPEngineLibraries} ${OpenJKLibDir}/discord-rpc/lib/x64/discord-rpc.lib)
+		endif()
 	endif()
 
 	if(UseInternalSDL2)

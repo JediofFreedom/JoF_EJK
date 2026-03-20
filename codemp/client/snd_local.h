@@ -98,7 +98,6 @@ typedef struct sfx_s {
 } sfx_t;
 
 typedef struct soundBuffer_s {
-	int soundCount;
 	int lastReset;
 	int maxSoundsPerSec = 50;
 } soundBuffer_t;

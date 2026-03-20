@@ -27,6 +27,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "client.h"
 
 #include <limits.h>
+#include <SDL_vulkan.h>
+
 #include "ghoul2/G2.h"
 #include "qcommon/cm_public.h"
 #include "qcommon/MiniHeap.h"
@@ -136,6 +138,8 @@ cvar_t	*cl_afkTime;
 cvar_t	*cl_afkTimeUnfocused;
 
 cvar_t	*cl_logChat;
+
+cvar_t	*ui_vulkan_supported;
 
 #if defined(DISCORD) && defined(FINAL_BUILD)
 cvar_t	*cl_discordRichPresence;
@@ -2993,6 +2997,27 @@ static IHeapAllocator *GetG2VertSpaceServer( void ) {
 	return G2VertSpaceServer;
 }
 
+static void CL_UpdateVulkanAvailability(void)
+{
+	ui_vulkan_supported = Cvar_Get("ui_vulkan_supported", "0", CVAR_ROM);
+
+#ifdef SDL_VIDEO_VULKAN
+	const int result = SDL_Vulkan_LoadLibrary(NULL);
+	if (result == 0)
+	{
+		Cvar_Set("ui_vulkan_supported", "1");
+		SDL_Vulkan_UnloadLibrary();
+	}
+	else
+	{
+		Com_Printf("SDL_Vulkan_LoadLibrary failed: %s\n", SDL_GetError());
+		Cvar_Set("ui_vulkan_supported", "0");
+	}
+#else
+	Cvar_Set("ui_vulkan_supported", "0");
+#endif
+}
+
 #define DEFAULT_RENDER_LIBRARY "rd-eternaljk"
 
 void CL_InitRef( void ) {
@@ -3004,7 +3029,7 @@ void CL_InitRef( void ) {
 //	Com_Printf( "----- Initializing Renderer ----\n" );
 	Com_Printf( "---------- Initializing Renderer ---------\n" );
 
-	cl_renderer = Cvar_Get( "cl_renderer", DEFAULT_RENDER_LIBRARY, CVAR_ARCHIVE|CVAR_LATCH|CVAR_PROTECTED, "Which renderer library to use" );
+	cl_renderer = Cvar_Get( "cl_renderer", DEFAULT_RENDER_LIBRARY, CVAR_ARCHIVE|CVAR_LATCH, "Which renderer library to use" );
 
 	Com_sprintf( dllName, sizeof( dllName ), "%s_" ARCH_STRING DLL_EXT, cl_renderer->string );
 
@@ -3777,6 +3802,8 @@ void CL_Init( void ) {
 
 	cl_conXOffset = Cvar_Get ("cl_conXOffset", "0", 0);
 	cl_inGameVideo = Cvar_Get ("r_inGameVideo", "1", CVAR_ARCHIVE_ND );
+	
+	CL_UpdateVulkanAvailability();
 
 	cl_serverStatusResendTime = Cvar_Get ("cl_serverStatusResendTime", "750", 0);
 
