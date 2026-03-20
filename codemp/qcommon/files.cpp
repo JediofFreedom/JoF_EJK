@@ -38,6 +38,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "qcommon/qcommon.h"
 
+static std::mutex fs_listMutex;
+
 #ifndef DEDICATED
 #ifndef FINAL_BUILD
 #include "client/client.h"
@@ -2418,7 +2420,7 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 		if (file_info.uncompressed_size > 0) {
 			fs_headerLongs[fs_numHeaderLongs++] = LittleLong(file_info.crc);
 		}
-		Q_strlwr( filename_inzip );
+		// Q_strlwr( filename_inzip ); // Redundant? Hash is case insensitive, and we do a case insensitive compare when looking up files? + Files read from pk3s are always lowercase from this?
 		hash = FS_HashFileName(filename_inzip, pack->hashSize);
 		buildBuffer[i].name = namePtr;
 		strcpy( buildBuffer[i].name, filename_inzip );
@@ -2573,6 +2575,8 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 	if ( !extension ) {
 		extension = "";
 	}
+
+	std::lock_guard<std::mutex> lock(fs_listMutex);
 
 	pathLength = strlen( path );
 	if ( path[pathLength-1] == '\\' || path[pathLength-1] == '/' ) {
@@ -3505,6 +3509,8 @@ Frees all resources and closes all files
 void FS_Shutdown( qboolean closemfp ) {
 	searchpath_t	*p, *next;
 	int	i;
+
+	std::lock_guard<std::mutex> lock(fs_listMutex);
 
 #if defined(_WIN32)
 	// Delete temporary files

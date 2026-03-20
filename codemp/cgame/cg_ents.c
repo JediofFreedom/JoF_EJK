@@ -1297,8 +1297,11 @@ static void CG_General( centity_t *cent ) {
 
 			trap->G2API_SetRootSurface(cent->ghoul2, 0, limbName);
 
-			trap->G2API_SetNewOrigin(cent->ghoul2, trap->G2API_AddBolt(cent->ghoul2, 0, rotateBone));
-
+			int boltIndex = trap->G2API_AddBolt(cent->ghoul2, 0, rotateBone);
+			if (boltIndex != -1) {
+				trap->G2API_SetNewOrigin(cent->ghoul2, boltIndex);
+			}
+			
 			trap->G2API_SetSurfaceOnOff(cent->ghoul2, limbCapName, 0);
 
 			trap->G2API_SetSurfaceOnOff(clEnt->ghoul2, limbName, 0x00000100);
@@ -3836,6 +3839,23 @@ Ghoul2 Insert Start
 			trap->S_AddLocalSet(soundSet, cg.refdef.vieworg, cent->lerpOrigin, cent->currentState.number, cg.time);
 		}
 	}
+
+	if (cgs.serverMod >= SVMOD_JAPLUS
+		&& cent->currentState.eFlags2 & EF2_BOBAFIRED)
+	{
+		matrix3_t axis;
+		AnglesToAxis(cent->lerpAngles, axis);
+
+		if (cent->flameThrowerHitTime < cg.snap->serverTime)
+		{
+			cent->flameThrowerHitTime = cg.snap->serverTime + 100;
+			trap->FX_PlayEntityEffectID(cgs.effects.flameThrowerHit,
+				cent->lerpOrigin,
+				axis,
+				-1, -1, -1, -1);
+		}
+	}
+		
 /*
 Ghoul2 Insert End
 */

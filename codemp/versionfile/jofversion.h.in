@@ -1,8 +1,12 @@
 #pragma once
 
+// MAJOR and MINOR are read by CI to determine the version family.
+// JOF_VERSION_STRING is the full display version computed by the build system.
 #define JOF_VERSION_MAJOR "1"
 #define JOF_VERSION_MINOR "6"
-#define JOF_VERSION_BUILD "@BUILD_NUMBER@"
+
+#define JOF_VERSION_STRING "@JOF_VERSION_STRING@"
+#define JOF_VERSION_SUFFIX "@JOF_VERSION_SUFFIX@"
 
 #define JOF_COMMIT_SHA "@GIT_SHA@"
 #define JOF_COMMIT_SHA_SHORT "@GIT_SHA_SHORT@"

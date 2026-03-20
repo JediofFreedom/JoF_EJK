@@ -73,7 +73,7 @@ vec4_t colorTable[CT_MAX] =
 	{0.648f, 0.562f, 0.784f, 1},	// CT_VLTPURPLE1 -- needs values
 	{0.648f, 0.562f, 0.784f, 1},	// CT_LTPURPLE1
 	{0.437f, 0.335f, 0.597f, 1},	// CT_DKPURPLE1
-	{0.308f, 0.269f, 0.375f, 1},	// CT_VDKPURPLE1
+	{0.675f, 0.016f, 0.675f, 1},	// CT_VDKPURPLE1
 
 	{0.816f, 0.531f, 0.710f, 1},	// CT_VLTPURPLE2 -- needs values
 	{0.816f, 0.531f, 0.710f, 1},	// CT_LTPURPLE2

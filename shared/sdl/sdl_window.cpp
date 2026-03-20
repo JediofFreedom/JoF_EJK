@@ -734,20 +734,6 @@ static rserr_t GLimp_SetMode(
 	{
 #if 1
 		int w = glConfig->vidWidth, h = glConfig->vidHeight;
-		if (windowDesc->api == GRAPHICS_API_VULKAN) {
-			if (fullscreen || (noborder && (mode == -2 || (mode == -1 && glConfig->vidWidth >= desktopMode.w && glConfig->vidHeight >= desktopMode.h)))) //lol
-			{
-				w = desktopMode.w;
-				h = desktopMode.h;
-				x = 0;
-				y = 0;
-				fullscreen = qfalse;
-				noborder = qtrue;
-				flags &= ~SDL_WINDOW_FULLSCREEN;
-				//if (!noborder)
-				flags |= SDL_WINDOW_BORDERLESS;
-			}
-		}
 
 		// Just create a regular window
 		screen = SDL_CreateWindow(

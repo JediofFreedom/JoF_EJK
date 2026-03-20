@@ -112,7 +112,7 @@ XCVAR_DEF( cg_duelMusic,						"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_saberHum,							"0",	NULL,								CVAR_ARCHIVE )
 
 //Visuals
-XCVAR_DEF( cg_remaps,							"1",	NULL,								CVAR_ARCHIVE|CVAR_LATCH )
+XCVAR_DEF( cg_remaps,							"2",	NULL,								CVAR_ARCHIVE|CVAR_LATCH )
 XCVAR_DEF( cg_instantDuck,						"0",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_screenShake,						"2",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawScreenTints,					"1",	NULL,								CVAR_ARCHIVE )
@@ -120,6 +120,8 @@ XCVAR_DEF( cg_cameraFPS,						"125",	CG_ClearThirdPersonDamp,			CVAR_ARCHIVE ) /
 XCVAR_DEF( cg_blood,							"0",	NULL,								CVAR_ARCHIVE ) //JAPRO - Clientside - re add cg_blood
 XCVAR_DEF( cg_thirdPersonFlagAlpha,				"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_stylePlayer,						"0",	NULL,								CVAR_ARCHIVE )
+XCVAR_DEF( cg_jetpackOnSound,					"1",	NULL,								CVAR_ARCHIVE )
+XCVAR_DEF( cg_jetpackHoverSound,				"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_headTurn,							"1",	NULL,								CVAR_NONE )
 
 XCVAR_DEF( cg_alwaysShowAbsorb,					"0",	NULL,								CVAR_ARCHIVE )
@@ -144,10 +146,15 @@ XCVAR_DEF( cg_jumpHeight,						"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_zoomSensitivity,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_leadIndicator,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawHitBox,						"0",	NULL,					CVAR_TEMP )
+XCVAR_DEF( cg_holsteredSaberBolt,				"rfemurX",	NULL,				CVAR_ROM )
+XCVAR_DEF( cg_holsteredSaberBolt2,				"lfemurX",	NULL,				CVAR_ROM )
+XCVAR_DEF( cg_holsteredSaberPos,				"0 3.5 0",	NULL,				CVAR_ROM )
+XCVAR_DEF( cg_holsteredSaberAng1,				"0 0 270",	NULL,				CVAR_ROM )
+XCVAR_DEF( cg_holsteredSaberAng2,				"0 0 270",	NULL,				CVAR_ROM )
 XCVAR_DEF( cg_drawPlayerNames,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawPlayerNamesScale,				"0.5",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_hideDuelerNames,					"0",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_drawInventory,					"1",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_drawInventory,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawPowerUpIcons,					"1",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_autoScreenshot,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_autoRecordDemo,					"0",	NULL,					CVAR_ARCHIVE )
@@ -217,7 +224,7 @@ XCVAR_DEF( cg_strafeTrailRadius,				"2",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_strafeTrailFPS,					"40",	NULL,					0 )
 XCVAR_DEF( cg_strafeTrailGhost,					"1",	NULL,					CVAR_ARCHIVE )
 
-XCVAR_DEF( cg_drainFX,							"1",	NULL,					CVAR_NONE )
+XCVAR_DEF( cg_drainFX,							"1",	NULL,					CVAR_ARCHIVE )
 //Make maxpackets userinfo maybe idk
 
 #if 1
@@ -300,7 +307,7 @@ XCVAR_DEF( cg_fov,								"90",					NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_fovAspectAdjust,					"1",					NULL,					CVAR_ARCHIVE ) //fixed skyportal issue
 XCVAR_DEF( cg_fovViewmodel,						"80",					NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_fovViewmodelAdjust,				"1",					NULL,					CVAR_ARCHIVE ) // shifts viewmodels down above 90 fov
-XCVAR_DEF( cg_fpls,								"0",					NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_fpls,								"1",					NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_g2TraceLod,						"2",					NULL,					CVAR_NONE )
 XCVAR_DEF( cg_ghoul2Marks,						"16",					NULL,					CVAR_NONE )
 XCVAR_DEF( cg_gunX,								"0",					NULL,					CVAR_ARCHIVE )

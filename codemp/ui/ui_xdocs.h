@@ -376,6 +376,20 @@ XDOCS_CVAR_DEF("g_gametype", "Gametype that the server is currently on",
 
 XDOCS_CMD_DEF("clientlist", "Displays a list of all connected clients and their real client numbers")
 
+XDOCS_CMD_DEF("telegun", "Teleports you to where your crosshair is pointing to, or teleports you by the provided distance offset amount in the direction you are facing." NL
+	"Usage: /telegun [distance offset] [angle offset]"
+)
+
+XDOCS_CMD_DEF("get", "Teleports the selected player in front of you, or teleports the seleted player to you by the provided distance offset amount in the direction you are facing." NL
+"If no target is selected, it will teleport the player you are aiming at." NL
+"Usage: /get [<player>/gun] [distance offset] [angle offset]"
+)
+
+XDOCS_CMD_DEF("goto", "Teleports you to the selected player, or teleports you to the selected player by the provided distance offset amount in the direction they are facing." NL
+"If no target is selected, it will teleport you to the player you are aiming at." NL
+"Usage: /goto [<player>/gun] [distance offset] [angle offset]"
+)
+
 // ...
 
 #undef NL
