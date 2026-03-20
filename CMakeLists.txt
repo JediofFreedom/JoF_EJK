@@ -197,7 +197,7 @@ if(MSVC)
 	set(SharedDefines ${SharedDefines} "_CRT_SECURE_NO_WARNINGS")
 	set(SharedDefines ${SharedDefines} "_SCL_SECURE_NO_WARNINGS")
 	set(SharedDefines ${SharedDefines} "_CRT_NONSTDC_NO_DEPRECATE")
-	set(SharedDefines ${SharedDefines} "WINDOWS_IGNORE_PACKING_MISMATCH")
+	#set(SharedDefines ${SharedDefines} "WINDOWS_IGNORE_PACKING_MISMATCH")
 
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /EHsc /arch:SSE2 /we4013 /we4431")
 
