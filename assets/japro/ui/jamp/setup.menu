@@ -1010,13 +1010,48 @@
 //	VIDEO 1 MENU BUTTONS
 //
 //----------------------------------------------------------------------------------------------
+		itemDef
+		{
+			name				renderer
+			group				video
+			type				ITEM_TYPE_MULTI
+			text				"Renderer:"
+			rect				260 188 340 14
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			174
+			textaligny			0
+			font 				4
+			textscale 			1
+			forecolor			.615 .615 .956 1
+			cvarStrList			{  "Default Mode (Vanilla)" , "rd-eternaljk" , "Performance Mode (Vulkan)", "rd-vulkan" }
+			descText			"Change the renderer library to use. (Vulkan only supported on newer GPUs)"
+			cvar				"ui_cl_renderer"
+			visible				1
+
+			mouseenter
+			{
+				show			highlight1
+			}
+			mouseexit
+			{
+				hide			highlight1
+			}
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+				setcvar			ui_r_modified	1 ;
+				setcvar			ui_vidrestart	1 ;
+				show			applyChanges
+			}
+		}
+		
 		itemDef 
 		{
 				name 			graphics				
 			group 			video
 			text			@MENUS_VIDEO_QUALITY
 				type 			ITEM_TYPE_MULTI	
-			rect			260 188 340 14
+			rect			260 216 340 14
 				textalign		ITEM_ALIGN_RIGHT
 			textalignx		174
 			textaligny		0
@@ -1040,11 +1075,11 @@
 
 			mouseenter 
 			{ 
-				show			highlight1
+				show			highlight3
 			}
 			mouseexit 
 			{ 
-				hide			highlight1
+				hide			highlight3
 			} 
 			action 
 			{ 
@@ -1064,7 +1099,7 @@
 			text				@MENUS_VIDEO_MODE
 			cvarFloatList			{  @MENUS_640_X_480 3 @MENUS_800_X_600 4  @MENUS_1024_X_768 6 @MENUS_1152_X_864 7  @MENUS_1280_X_1024 8  @MENUS_1600_X_1200 9  @MENUS_2048_X_1536 10 @MENUS_2400_X_600 12 }
 			cvar				"ui_r_mode"
-			rect				260 216 340 14
+			rect				260 230 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174
 			textaligny			0
@@ -1076,11 +1111,11 @@
 
 			mouseenter 
 			{ 
-				show			highlight3
+				show			highlight4
 			}
 			mouseexit 
 			{ 
-				hide			highlight3
+				hide			highlight4
 			} 
 			action 
 			{ 
@@ -1097,7 +1132,7 @@
 			group				video
 			type				ITEM_TYPE_MULTI
 			text				@MENUS_COLOR_DEPTH
-			rect				260 230 340 14
+			rect				260 244 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174
 			textaligny			0
@@ -1111,11 +1146,11 @@
 
 			mouseenter 
 			{ 
-				show			highlight4
+				show			highlight5
 			}
 			mouseexit 
 			{ 
-				hide			highlight4
+				hide			highlight5
 			} 
 			action 
 			{ 
@@ -1133,7 +1168,7 @@
 			group				video
 			type				ITEM_TYPE_MULTI
 			text				@MENUS_FULL_SCREEN
-			rect				260 244 340 14
+			rect				260 258 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174
 			textaligny			0
@@ -1147,11 +1182,11 @@
 
 			mouseenter 
 			{ 
-				show			highlight5
+				show			highlight6
 			}
 			mouseexit 
 			{ 
-				hide			highlight5
+				hide			highlight6
 			} 
 			action 
 			{ 
@@ -1168,7 +1203,7 @@
 			group				video
 			type				ITEM_TYPE_MULTI
 			text				@MENUS_GEOMETRIC_DETAIL
-			rect				260 258 340 14
+			rect				260 272 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174
 			textaligny			0
@@ -1182,11 +1217,11 @@
 
 			mouseenter 
 			{ 
-				show			highlight6
+				show			highlight7
 			}
 			mouseexit 
 			{ 
-				hide			highlight6
+				hide			highlight7
 			} 
 			action 
 			{ 
@@ -1204,7 +1239,7 @@
 			group				video
 			type				ITEM_TYPE_MULTI
 			text				@MENUS_TEXTURE_DETAIL
-			rect				260 272 340 14
+			rect				260 286 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174
 			textaligny			0
@@ -1214,41 +1249,6 @@
 			cvarFloatList			{  @MENUS_LOW 3 @MENUS_MEDIUM 2 @MENUS_HIGH 1 @MENUS_VERY_HIGH 0 }
 			descText			@MENUS_SELECT_THE_RESOLUTION
 			cvar				"ui_r_picmip"
-			visible				1
-
-			mouseenter 
-			{ 
-				show			highlight7
-			}
-			mouseexit 
-			{ 
-				hide			highlight7
-			} 
-			action 
-			{ 
-				play			"sound/interface/button1.wav" ; 
-				uiScript		glCustom ;
-				setcvar			ui_r_modified	1 ;
-				show			applyChanges
-			}
-		}
-
-		itemDef 
-		{	
-			name				texture_quality
-			group				video
-			type				ITEM_TYPE_MULTI
-			text				@MENUS_TEXTURE_QUALITY
-			rect				260 286 340 14
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			174
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-			cvarFloatList			{  @MENUS_DEFAULT 0 @MENUS_16_BIT 16 @MENUS_32_BIT 32 }
-			descText			@MENUS_SELECT_THE_NUMBER_OF
-			cvar				"ui_r_texturebits"
 			visible				1
 
 			mouseenter 
@@ -1270,10 +1270,10 @@
 
 		itemDef 
 		{	
-			name				texture_filter
+			name				texture_quality
 			group				video
 			type				ITEM_TYPE_MULTI
-			text				@MENUS_TEXTURE_FILTER
+			text				@MENUS_TEXTURE_QUALITY
 			rect				260 300 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174
@@ -1281,9 +1281,9 @@
 			font 				4
 			textscale 			1
 			forecolor			.615 .615 .956 1
-			cvarStrList			{  @MENUS_BILINEAR , "GL_LINEAR_MIPMAP_NEAREST" , @MENUS_TRILINEAR , "GL_LINEAR_MIPMAP_LINEAR" }
-			descText			@MENUS_ADJUST_HOW_WELL_THE_TEXTURES
-			cvar				"ui_r_texturemode"
+			cvarFloatList			{  @MENUS_DEFAULT 0 @MENUS_16_BIT 16 @MENUS_32_BIT 32 }
+			descText			@MENUS_SELECT_THE_NUMBER_OF
+			cvar				"ui_r_texturebits"
 			visible				1
 
 			mouseenter 
@@ -1305,11 +1305,46 @@
 
 		itemDef 
 		{	
+			name				texture_filter
+			group				video
+			type				ITEM_TYPE_MULTI
+			text				@MENUS_TEXTURE_FILTER
+			rect				260 314 340 14
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			174
+			textaligny			0
+			font 				4
+			textscale 			1
+			forecolor			.615 .615 .956 1
+			cvarStrList			{  @MENUS_BILINEAR , "GL_LINEAR_MIPMAP_NEAREST" , @MENUS_TRILINEAR , "GL_LINEAR_MIPMAP_LINEAR" }
+			descText			@MENUS_ADJUST_HOW_WELL_THE_TEXTURES
+			cvar				"ui_r_texturemode"
+			visible				1
+
+			mouseenter 
+			{ 
+				show			highlight10
+			}
+			mouseexit 
+			{ 
+				hide			highlight10
+			} 
+			action 
+			{ 
+				play			"sound/interface/button1.wav" ; 
+				uiScript		glCustom ;
+				setcvar			ui_r_modified	1 ;
+				show			applyChanges
+			}
+		}
+
+		itemDef 
+		{	
 			name				simple_shaders
 			group				video
 			type				ITEM_TYPE_MULTI
 			text				@MENUS_DETAILED_SHADERS
-			rect				260 314 340 14
+			rect				260 328 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174
 			textaligny			0
@@ -1323,11 +1358,11 @@
 
 			mouseenter 
 			{ 
-				show			highlight10
+				show			highlight11
 			}
 			mouseexit 
 			{ 
-				hide			highlight10
+				hide			highlight11
 			} 
 			action 
 			{ 
@@ -1351,7 +1386,7 @@
 				@MENUS_OFF 	0 
 				@MENUS_ON 	1 
 			}
-			rect				260 328 340 14
+			rect				260 342 340 14
 				textalign			ITEM_ALIGN_RIGHT
 			textalignx			174
 			textaligny			0
@@ -1366,11 +1401,11 @@
 			}
 			mouseenter 
 			{ 
-				show			highlight11
+				show			highlight12
 			}
 			mouseexit 
 			{ 
-				hide			highlight11
+				hide			highlight12
 			} 
 		}
 
@@ -2478,7 +2513,7 @@
 				English	english
 				@MENUS_LANG_FRENCH  francais
 				Deutsch	deutsch
-				"Español"	espanol
+				"Espaï¿½ol"	espanol
 			}
 			rect				260 342 340 14
 				textalign			ITEM_ALIGN_RIGHT

@@ -830,11 +830,11 @@
 		//	VIDEO 1 MENU BUTTONS
 		//
 		//----------------------------------------------------------------------------------------------
-		itemDef
+        itemDef
 		{
-				name 			graphics
-			group 			video
-			text			@MENUS_VIDEO_QUALITY
+			name				renderer
+			group 			    video
+			text				"Renderer:"
 				type 			ITEM_TYPE_MULTI
 			rect			220 43 300 20
 				textalign		ITEM_ALIGN_RIGHT
@@ -844,20 +844,10 @@
 			textscale 		1
 			style			WINDOW_STYLE_FILLED
 			forecolor		.615 .615 .956 1
-			descText		@MENUS_SELECT_PRESET_GRAPHIC
-
-				visible 		0
-
-			cvar 			"ui_r_glCustom"
-			cvarFloatList
-			{
-				@MENUS_HIGH_QUALITY	0
-				@MENUS_NORMAL		1
-				@MENUS_FAST			2
-				@MENUS_FASTEST		3
-				@MENUS_CUSTOM		4
-			}
-
+			cvarStrList			{  "Default Mode (Vanilla)" , "rd-eternaljk" , "Performance Mode (Vulkan)", "rd-vulkan" }
+			descText			"Change the renderer library to use. (Vulkan only supported on newer GPUs)"
+			cvar				"ui_cl_renderer"
+			visible				1
 			mouseenter
 			{
 				show			highlight1
@@ -874,709 +864,589 @@
 				setcvar			ui_vidrestart	1
 			}
 		}
-
-		itemDef
-		{
-			name				aspect_ratio
-			group				video
-	  		type				ITEM_TYPE_MULTI
-			text				"Aspect Ratio:"
-			cvarFloatList
-			{ "Desktop Resolution" -1
-			"4:3" 0
-			"16:9" 1
-			"16:10" 2 }
-			cvar				"ui_aspectratio"
-			rect				220 63 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-			descText			"Change the aspect ratio."
-			cvarTest			ui_aspectratio
-			showCvar			{ -1 }
-			visible				0
-
-			mouseenter			{ show highlight2 }
-			mouseexit			{ hide highlight2 }
-			action
-			{
-				play "sound/interface/button1"
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-				setcvar			ui_resolution	0
-				uiScript update "ui_resolution"
-			}
-		}
-
-		itemDef
-		{
-			name				aspect_ratio
-			group				video
-	  		type				ITEM_TYPE_MULTI
-			text				"Aspect Ratio:"
-			cvarFloatList
-			{ "Desktop Resolution" -1
-			"4:3" 0
-			"16:9" 1
-			"16:10" 2
-			"Custom" 3 }
-			cvar				"ui_aspectratio"
-			rect				220 63 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-			descText			"Change the aspect ratio."
-			cvarTest			ui_aspectratio
-			hideCvar			{ -1 }
-			visible				0
-
-			mouseenter			{ show highlight2 }
-			mouseexit			{ hide highlight2 }
-			action
-			{
-				play "sound/interface/button1"
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-				setcvar			ui_resolution	0
-				uiScript update "ui_resolution"
-			}
-		}
-
-		itemDef
-		{
-			name				resolution
-			group				video
-	  		type				ITEM_TYPE_MULTI
-			text				"Resolution:"
-			cvarFloatList
-			{
-			/*"320 X 240" 0
-			"400 X 300" 1
-			"512 X 384" 2*/
-			@MENUS_640_X_480 3
-			@MENUS_800_X_600 4
-			"960 X 720" 5
-			@MENUS_1024_X_768 6
-			@MENUS_1152_X_864 7
-			"1280 X 960" 11
-			@MENUS_1280_X_1024 8
-			"1440 X 1080" 12
-			@MENUS_1600_X_1200 9
-			"1920 X 1440" 13
-			@MENUS_2048_X_1536 10 }
-			cvar				"ui_resolution"
-			rect				220 83 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-			descText			@MENUS_CHANGE_THE_DISPLAY_RESOLUTION
-			cvarTest			ui_aspectratio
-			showCvar			{ 0 }
-			visible				0
-
-			mouseenter
-			{
-				show			highlight3
-			}
-			mouseexit
-			{
-				hide			highlight3
-			}
-			action
-			{
-				play			"sound/interface/button1"
-				uiScript update "ui_resolution"
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-			}
-		}
-
-		itemDef
-		{
-			name				resolution
-			group				video
-	  		type				ITEM_TYPE_MULTI
-			text				"Resolution:"
-			cvarFloatList
-			{
-			/*640 X 360" 0
-			"800 X 450" 1
-			"1024 X 576" 2*/
-			"852 X 480" 3
-			"1280 X 720" 4
-			"1360 X 768" 5
-			"1366 X 768" 6
-			"1600 X 900" 7
-			"1920 X 1080" 8
-			//"2560 X 1440" 9
-			}
-			cvar				"ui_resolution"
-			rect				220 83 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-			descText			@MENUS_CHANGE_THE_DISPLAY_RESOLUTION
-			cvarTest			ui_aspectratio
-			showCvar			{ 1 }
-			visible				0
-
-			mouseenter
-			{
-				show			highlight3
-			}
-			mouseexit
-			{
-				hide			highlight3
-			}
-			action
-			{
-				play			"sound/interface/button1"
-				uiScript update "ui_resolution"
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-			}
-		}
-
-		itemDef
-		{
-			name				resolution
-			group				video
-	  		type				ITEM_TYPE_MULTI
-			text				"Resolution:"
-			cvarFloatList
-			{
-			/*"640 X 400" 0
-			"800 X 500" 1
-			"1024 X 640" 2*/
-			"720 X 480" 0
-			"1280 X 768" 1
-			"1280 X 800" 2
-			"1440 X 900" 3
-			"1600 X 1024" 4
-			//"1600 X 1000" 5
-			"1680 X 1050" 5
-			"1920 X 1200" 6
-			"2560 X 1600" 7
-			}
-			cvar				"ui_resolution"
-			rect				220 83 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-			descText			@MENUS_CHANGE_THE_DISPLAY_RESOLUTION
-			cvarTest			ui_aspectratio
-			showCvar			{ 2 }
-			visible				0
-
-			mouseenter
-			{
-				show			highlight3
-			}
-			mouseexit
-			{
-				hide			highlight3
-			}
-			action
-			{
-				play			"sound/interface/button1"
-				uiScript update "ui_resolution"
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-			}
-		}
-
-		itemDef
-		{
-			name				resolution
-			group				video
-	  		type				ITEM_TYPE_TEXT
-			text				"Resolution:"
-			rect				220 83 170 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-			descText			@MENUS_CHANGE_THE_DISPLAY_RESOLUTION
-			cvarTest			ui_aspectratio
-			showCvar			{ 3 }
-			visible				0
-
-			action
-			{
-				play			"sound/interface/button1"
-			}
-		}
-
-		itemDef
-		{
-			name				customResolutionWidth
-			group				video
-	  		type				ITEM_TYPE_NUMERICFIELD
-			text				""
-			cvar				"ui_r_customWidth"
-			rect				392 83 26 20
-			textalign			ITEM_ALIGN_LEFT
-			textalignx			0
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-			descText			@MENUS_CHANGE_THE_DISPLAY_RESOLUTION
-			cvarTest			ui_aspectratio
-			showCvar			{ 3 }
-			visible				0
-
-			action
-			{
-				play			"sound/interface/button1"
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-			}
-		}
-
-		itemDef
-		{
-			name				customResolutionCross
-			group				video
-	  		type				ITEM_TYPE_TEXT
-			text				"X"
-			rect				420 83 8 20
-			textalign			ITEM_ALIGN_LEFT
-			textalignx			0
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			1 1 1 1
-			cvarTest			ui_aspectratio
-			showCvar			{ 3 }
-			visible				0
-		}
-
-		itemDef
-		{
-			name				customResolutionHeight
-			group				video
-	  		type				ITEM_TYPE_NUMERICFIELD
-			text				""
-			cvar				"ui_r_customHeight"
-			rect				432 83 26 20
-			textalign			ITEM_ALIGN_LEFT
-			textalignx			0
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-			backcolor			.5 .5 .5 1
-			descText			@MENUS_CHANGE_THE_DISPLAY_RESOLUTION
-			cvarTest			ui_aspectratio
-			showCvar			{ 3 }
-			visible				0
-
-			action
-			{
-				play			"sound/interface/button1"
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-			}
-		}
-
-		itemDef
-		{
-			name				fullscreen
-			group				video
-			type				ITEM_TYPE_MULTI
-			text				@MENUS_FULL_SCREEN
-			rect				220 103 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor		.615 .615 .956 1
-
-			cvarFloatList		{ @MENUS_OFF 0 @MENUS_ON 1 }
-			descText			@MENUS_TOGGLE_BETWEEN_FULL_SCREEN
-			cvar				"ui_r_fullscreen"
-
-			visible			0
-
-			mouseenter
-			{
-				show			highlight4
-			}
-			mouseexit
-			{
-				hide			highlight4
-			}
-			action
-			{
-				play			"sound/interface/button1"
-				uiScript		glCustom
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-			}
-		}
-
-		itemDef
-		{
-			name				windowborder
-			group				video
-			type				ITEM_TYPE_MULTI
-			text				"Window Border:"
-			rect				220 123 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor		.615 .615 .956 1
-
-			cvarFloatList		{ @MENUS_OFF 1 @MENUS_ON 0 }
-			descText			@MENUS_TOGGLE_BETWEEN_FULL_SCREEN
-			cvar				"r_noborder"
-			cvarTest			ui_r_fullscreen
-			showCvar			{ 0 }
-			/*cvarTest			ui_r_mode
-			showCvar			{ -2 }*/
-
-			visible			0
-
-			mouseenter
-			{
-				show			highlight5
-			}
-			mouseexit
-			{
-				hide			highlight5
-			}
-			action
-			{
-				play			"sound/interface/button1"
-				uiScript		glCustom
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-			}
-		}
-
-		itemDef
-		{
-			name				color_depth
-			group				video
-			type				ITEM_TYPE_MULTI
-			text				@MENUS_COLOR_DEPTH
-			rect				220 143 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-
-			cvarFloatList		{ @MENUS_DEFAULT 0 @MENUS_16_BIT 16 @MENUS_32_BIT 32 }
-			descText			@MENUS_CHANGE_THE_NUMBER_OF
-			cvar				"ui_r_colorbits"
-
-			visible				0
-
-			mouseenter
-			{
-				show			highlight6
-			}
-			mouseexit
-			{
-				hide			highlight6
-			}
-			action
-			{
-				play			"sound/interface/button1"
-				uiScript		glCustom
-				uiScript update "ui_r_colorbits"
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-			}
-		}
-
-		itemDef
-		{
-			name				geometric_detail
-			group				video
-			type				ITEM_TYPE_MULTI
-			text				@MENUS_GEOMETRIC_DETAIL
-			rect				220 163 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor		.615 .615 .956 1
-			cvarFloatList		{  "Very Low" 3 @MENUS_LOW 2 @MENUS_MEDIUM 1 @MENUS_HIGH 0 }
-			descText			@MENUS_ADJUST_THE_NUMBER_OF
-			cvar				"ui_geometricdetail"
-
-			visible				0
-
-			mouseenter
-			{
-				show			highlight7
-			}
-			mouseexit
-			{
-				hide			highlight7
-			}
-			action
-			{
-				play			"sound/interface/button1"
-				uiScript		glCustom
-				uiScript update "ui_geometricdetail"
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-			}
-		}
-
-		itemDef
-		{
-			name				texture_detail
-			group				video
-			type				ITEM_TYPE_MULTI
-			text				@MENUS_TEXTURE_DETAIL
-			rect				220 183 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor		.615 .615 .956 1
-			cvarFloatList		{ @MENUS_LOW 3 @MENUS_MEDIUM 2 @MENUS_HIGH 1 @MENUS_VERY_HIGH 0 }
-			descText			@MENUS_SELECT_THE_RESOLUTION
-			cvar				"ui_r_picmip"
-
-			visible				0
-
-			mouseenter
-			{
-				show			highlight8
-			}
-			mouseexit
-			{
-				hide			highlight8
-			}
-			action
-			{
-				play			"sound/interface/button1"
-				uiScript		glCustom
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-			}
-		}
-
-		itemDef
-		{
-			name				texture_filter
-			group				video
-			type				ITEM_TYPE_MULTI
-			text				@MENUS_TEXTURE_FILTER
-			rect				220 203 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor		.615 .615 .956 1
-			cvarStrList		{  @MENUS_BILINEAR , "GL_LINEAR_MIPMAP_NEAREST" , @MENUS_TRILINEAR , "GL_LINEAR_MIPMAP_LINEAR" }
-			descText			@MENUS_ADJUST_HOW_WELL_THE_TEXTURES
-			cvar				"ui_r_texturemode"
-
-			visible				0
-
-			mouseenter
-			{
-				show			highlight9
-			}
-			mouseexit
-			{
-				hide			highlight9
-			}
-			action
-			{
-				play			"sound/interface/button1.wav"
-				uiScript		glCustom
-				setcvar			ui_r_modified	1
-			}
-		}
-
-		itemDef
-		{
-			name				video_mode
-			group				video
-			type				ITEM_TYPE_MULTI
-			text				@MENUS_ANISOTROPIC_FILTERING
-			cvarTest			r_ext_texture_filter_anisotropic_avail
-			disableCvar			{ 0 }
-			rect				220 223 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-			visible				0
-			cvar				"r_ext_texture_filter_anisotropic"
-			cvarStrList
-			{
-				"@MENUS_OFF" 0
-				"2x" 2
-				"4x" 4
-				"8x" 8
-				"16x" 16
-			}
-			descText			@MENUS_TOGGLE_ADVANCED_TEXTURE
-			mouseenter			{ show highlight10 }
-			mouseexit			{ hide highlight10 }
-			action
-			{
-				play			"sound/interface/button1"
-			}
-		}
-
-		itemDef
-		{
-			name				video_mode
-			group				video
-			type				ITEM_TYPE_MULTI
-			text				"Anti-aliasing:"
-			rect				220 243 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-			visible				0
-			cvar				"r_ext_multisample"
-			cvarStrList
-			{
-				"@MENUS_OFF" 0
-				" 2x" 2
-				" 4x" 4
-				" 8x" 8
-				//"16x" 16 //kinda broken w/ dynamic glow
-			}
-			descText			"Multi-sampled anti-aliasing (MSAA)"
-			mouseenter			{ show highlight11 }
-			mouseexit			{ hide highlight11 }
-			action
-			{
-				play			"sound/interface/button1"
-				setcvar			ui_r_modified	1
-				setcvar			ui_vidrestart	1
-			}
-		}
-
-		itemDef
-		{
-			name				VIDEO_SYNC
-			group				video
-	  			type				ITEM_TYPE_MULTI
-			text				@MENUS_VIDEO_SYNC
-			cvar				"r_swapInterval"
-			cvarFloatList
-			{
-				@MENUS_OFF 0
-				@MENUS_ON 1
-			}
-			rect				220 263 300 20
-				textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor		.615 .615 .956 1
-			visible			0
-			// appearance_slot		1
-			descText			@MENUS_VIDEO_SYNC_DESC
-			action
-			{
-				play			"sound/interface/button1"
-			}
-
-			mouseenter
-			{
-				show			highlight12
-			}
-			mouseexit
-			{
-				hide			highlight12
-			}
-		}
-
-		itemDef
-		{
-			name				MAX_FPS
-			group				video
-	  		type				ITEM_TYPE_MULTI
-			text				"Max FPS:"
-			cvar				"com_maxfps"
-			cvarFloatList
-			{
-				"Uncapped" 0
-				/*"30" 30
-				"60" 60
-				"70" 70
-				"75" 75
-				"85 JAMP.EXE" 85
-				"100" 100
-				"111" 111*/
-				"125 (Default)" 125
-				"142" 142
-				"166" 166
-				"200" 200
-				"250" 250
-				"333" 333
-				"500" 500
-			}
-			rect				220 283 300 20
-				textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			textaligny			0
-			font 				4
-			textscale 			1
-			forecolor			.615 .615 .956 1
-			visible				0
-			cvarTest			r_swapInterval
-			hideCvar			{ 1 }
-			// appearance_slot		1
-			descText			"Max FPS setting."
-			action
-			{
-				play			"sound/interface/button1"
-			}
-
-			mouseenter
-			{
-				show			highlight13
-			}
-			mouseexit
-			{
-				hide			highlight13
-			}
-		}
+        
+        itemDef
+        		{
+        			name				aspect_ratio
+        			group				video
+        	  		type				ITEM_TYPE_MULTI
+        			text				"Aspect Ratio:"
+        			cvarFloatList
+        			{ "Desktop Resolution" -1
+        			"4:3" 0
+        			"16:9" 1
+        			"16:10" 2 }
+        			cvar				"ui_aspectratio"
+        			rect				220 63 300 20
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor			.615 .615 .956 1
+        			descText			"Change the aspect ratio."
+        			cvarTest			ui_aspectratio
+        			showCvar			{ -1 }
+        			visible				0
+        
+        			mouseenter			{ show highlight2 }
+        			mouseexit			{ hide highlight2 }
+        			action
+        			{
+        				play "sound/interface/button1"
+        				setcvar			ui_r_modified	1
+        				setcvar			ui_vidrestart	1
+        				setcvar			ui_resolution	0
+        				uiScript update "ui_resolution"
+        			}
+        		}
+        
+        itemDef
+        		{
+        			name				aspect_ratio
+        			group				video
+        	  		type				ITEM_TYPE_MULTI
+        			text				"Aspect Ratio:"
+        			cvarFloatList
+        			{ "Desktop Resolution" -1
+        			"4:3" 0
+        			"16:9" 1
+        			"16:10" 2
+        			"Custom" 3 }
+        			cvar				"ui_aspectratio"
+        			rect				220 63 300 20   
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor			.615 .615 .956 1
+        			descText			"Change the aspect ratio."
+        			cvarTest			ui_aspectratio
+        			hideCvar			{ -1 }
+        			visible				0
+        
+        			mouseenter			{ show highlight2 }
+        			mouseexit			{ hide highlight2 }
+        			action
+        			{
+        				play "sound/interface/button1"
+        				setcvar			ui_r_modified	1
+        				setcvar			ui_vidrestart	1
+        				setcvar			ui_resolution	0
+        				uiScript update "ui_resolution"
+        			}
+        		}
+        
+        itemDef
+        		{
+        			name				resolution
+        			group				video
+        	  		type				ITEM_TYPE_MULTI
+        			text				"Resolution:"
+        			cvarFloatList
+        			{
+        			@MENUS_640_X_480 3
+        			@MENUS_800_X_600 4
+        			"960 X 720" 5
+        			@MENUS_1024_X_768 6
+        			@MENUS_1152_X_864 7
+        			"1280 X 960" 11
+        			@MENUS_1280_X_1024 8
+        			"1440 X 1080" 12
+        			@MENUS_1600_X_1200 9
+        			"1920 X 1440" 13
+        			@MENUS_2048_X_1536 10 }
+        			cvar				"ui_resolution"
+        			rect				220 83 300 20
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor			.615 .615 .956 1
+        			descText			@MENUS_CHANGE_THE_DISPLAY_RESOLUTION
+        			cvarTest			ui_aspectratio
+        			showCvar			{ 0 }
+        			visible				0
+        
+        			mouseenter
+        			{
+        				show			highlight3
+        			}
+        			mouseexit
+        			{
+        				hide			highlight3
+        			}
+        			action
+        			{
+        				play			"sound/interface/button1"
+        				uiScript update "ui_resolution"
+        				setcvar			ui_r_modified	1
+        				setcvar			ui_vidrestart	1
+        			}
+        		}
+        
+        		itemDef
+        		{
+        			name				resolution
+        			group				video
+        	  		type				ITEM_TYPE_MULTI
+        			text				"Resolution:"
+        			cvarFloatList
+        			{
+        			"852 X 480" 3
+        			"1280 X 720" 4
+        			"1360 X 768" 5
+        			"1366 X 768" 6
+        			"1600 X 900" 7
+        			"1920 X 1080" 8
+        			}
+        			cvar				"ui_resolution"
+        			rect				220 83 300 20
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor			.615 .615 .956 1
+        			descText			@MENUS_CHANGE_THE_DISPLAY_RESOLUTION
+        			cvarTest			ui_aspectratio
+        			showCvar			{ 1 }
+        			visible				0
+        
+        			mouseenter
+        			{
+        				show			highlight3
+        			}
+        			mouseexit
+        			{
+        				hide			highlight3
+        			}
+        			action
+        			{
+        				play			"sound/interface/button1"
+        				uiScript update "ui_resolution"
+        				setcvar			ui_r_modified	1
+        				setcvar			ui_vidrestart	1
+        			}
+        		}
+        
+        		itemDef
+        		{
+        			name				resolution
+        			group				video
+        	  		type				ITEM_TYPE_MULTI
+        			text				"Resolution:"
+        			cvarFloatList
+        			{
+        			"720 X 480" 0
+        			"1280 X 768" 1
+        			"1280 X 800" 2
+        			"1440 X 900" 3
+        			"1600 X 1024" 4
+        			"1680 X 1050" 5
+        			"1920 X 1200" 6
+        			"2560 X 1600" 7
+        			}
+        			cvar				"ui_resolution"
+        			rect				220 83 300 20
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor			.615 .615 .956 1
+        			descText			@MENUS_CHANGE_THE_DISPLAY_RESOLUTION
+        			cvarTest			ui_aspectratio
+        			showCvar			{ 2 }
+        			visible				0
+        
+        			mouseenter
+        			{
+        				show			highlight3
+        			}
+        			mouseexit
+        			{
+        				hide			highlight3
+        			}
+        			action
+        			{
+        				play			"sound/interface/button1"
+        				uiScript update "ui_resolution"
+        				setcvar			ui_r_modified	1
+        				setcvar			ui_vidrestart	1
+        			}
+        		}
+        
+        		itemDef
+        		{
+        			name				fullscreen
+        			group				video
+        			type				ITEM_TYPE_MULTI
+        			text				@MENUS_FULL_SCREEN
+        			rect				220 103 300 20
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor		.615 .615 .956 1
+        
+        			cvarFloatList		{ @MENUS_OFF 0 @MENUS_ON 1 }
+        			descText			@MENUS_TOGGLE_BETWEEN_FULL_SCREEN
+        			cvar				"ui_r_fullscreen"
+        
+        			visible			0
+        
+        			mouseenter
+        			{
+        				show			highlight4
+        			}
+        			mouseexit
+        			{
+        				hide			highlight4
+        			}
+        			action
+        			{
+        				play			"sound/interface/button1"
+        				uiScript		glCustom
+        				setcvar			ui_r_modified	1
+        				setcvar			ui_vidrestart	1
+        			}
+        		}
+        
+        		itemDef
+        		{
+        			name				windowborder
+        			group				video
+        			type				ITEM_TYPE_MULTI
+        			text				"Window Border:"
+        			rect				220 123 300 20
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor		.615 .615 .956 1
+        
+        			cvarFloatList		{ @MENUS_OFF 1 @MENUS_ON 0 }
+        			descText			@MENUS_TOGGLE_BETWEEN_FULL_SCREEN
+        			cvar				"r_noborder"
+        			cvarTest			ui_r_fullscreen
+        			showCvar			{ 0 }
+        
+        			visible			0
+        
+        			mouseenter
+        			{
+        				show			highlight5
+        			}
+        			mouseexit
+        			{
+        				hide			highlight5
+        			}
+        			action
+        			{
+        				play			"sound/interface/button1"
+        				uiScript		glCustom
+        				setcvar			ui_r_modified	1
+        				setcvar			ui_vidrestart	1
+        			}
+        		}
+        
+        		itemDef
+        		{
+        			name				color_depth
+        			group				video
+        			type				ITEM_TYPE_MULTI
+        			text				@MENUS_COLOR_DEPTH
+        			rect				220 143 300 20
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor			.615 .615 .956 1
+        
+        			cvarFloatList		{ @MENUS_DEFAULT 0 @MENUS_16_BIT 16 @MENUS_32_BIT 32 }
+        			descText			@MENUS_CHANGE_THE_NUMBER_OF
+        			cvar				"ui_r_colorbits"
+        
+        			visible				0
+        
+        			mouseenter
+        			{
+        				show			highlight6
+        			}
+        			mouseexit
+        			{
+        				hide			highlight6
+        			}
+        			action
+        			{
+        				play			"sound/interface/button1"
+        				uiScript		glCustom
+        				uiScript update "ui_r_colorbits"
+        				setcvar			ui_r_modified	1
+        				setcvar			ui_vidrestart	1
+        			}
+        		}
+        
+        		itemDef
+        		{
+        			name				geometric_detail
+        			group				video
+        			type				ITEM_TYPE_MULTI
+        			text				@MENUS_GEOMETRIC_DETAIL
+        			rect				220 163 300 20
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor		.615 .615 .956 1
+        			cvarFloatList		{  "Very Low" 3 @MENUS_LOW 2 @MENUS_MEDIUM 1 @MENUS_HIGH 0 }
+        			descText			@MENUS_ADJUST_THE_NUMBER_OF
+        			cvar				"ui_geometricdetail"
+        
+        			visible				0
+        
+        			mouseenter
+        			{
+        				show			highlight7
+        			}
+        			mouseexit
+        			{
+        				hide			highlight7
+        			}
+        			action
+        			{
+        				play			"sound/interface/button1"
+        				uiScript		glCustom
+        				uiScript update "ui_geometricdetail"
+        				setcvar			ui_r_modified	1
+        				setcvar			ui_vidrestart	1
+        			}
+        		}
+        
+        		itemDef
+        		{
+        			name				texture_detail
+        			group				video
+        			type				ITEM_TYPE_MULTI
+        			text				@MENUS_TEXTURE_DETAIL
+        			rect				220 183 300 20
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor		.615 .615 .956 1
+        			cvarFloatList		{ @MENUS_LOW 3 @MENUS_MEDIUM 2 @MENUS_HIGH 1 @MENUS_VERY_HIGH 0 }
+        			descText			@MENUS_SELECT_THE_RESOLUTION
+        			cvar				"ui_r_picmip"
+        
+        			visible				0
+        
+        			mouseenter
+        			{
+        				show			highlight8
+        			}
+        			mouseexit
+        			{
+        				hide			highlight8
+        			}
+        			action
+        			{
+        				play			"sound/interface/button1"
+        				uiScript		glCustom
+        				setcvar			ui_r_modified	1
+        				setcvar			ui_vidrestart	1
+        			}
+        		}
+        
+        		itemDef
+        		{
+        			name				texture_filter
+        			group				video
+        			type				ITEM_TYPE_MULTI
+        			text				@MENUS_TEXTURE_FILTER
+        			rect				220 203 300 20
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor		.615 .615 .956 1
+        			cvarStrList		{  @MENUS_BILINEAR , "GL_LINEAR_MIPMAP_NEAREST" , @MENUS_TRILINEAR , "GL_LINEAR_MIPMAP_LINEAR" }
+        			descText			@MENUS_ADJUST_HOW_WELL_THE_TEXTURES
+        			cvar				"ui_r_texturemode"
+        
+        			visible				0
+        
+        			mouseenter
+        			{
+        				show			highlight9
+        			}
+        			mouseexit
+        			{
+        				hide			highlight9
+        			}
+        			action
+        			{
+        				play			"sound/interface/button1.wav"
+        				uiScript		glCustom
+        				setcvar			ui_r_modified	1
+        			}
+        		}
+        
+        		itemDef
+        		{
+        			name				video_mode
+        			group				video
+        			type				ITEM_TYPE_MULTI
+        			text				@MENUS_ANISOTROPIC_FILTERING
+        			cvarTest			r_ext_texture_filter_anisotropic_avail
+        			disableCvar			{ 0 }
+        			rect				220 223 300 20
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor			.615 .615 .956 1
+        			visible				0
+        			cvar				"r_ext_texture_filter_anisotropic"
+        			cvarStrList
+        			{
+        				"@MENUS_OFF" 0
+        				"2x" 2
+        				"4x" 4
+        				"8x" 8
+        				"16x" 16
+        			}
+        			descText			@MENUS_TOGGLE_ADVANCED_TEXTURE
+        			mouseenter			{ show highlight10 }
+        			mouseexit			{ hide highlight10 }
+        			action
+        			{
+        				play			"sound/interface/button1"
+        			}
+        		}
+        
+        		itemDef
+        		{
+        			name				video_mode
+        			group				video
+        			type				ITEM_TYPE_MULTI
+        			text				"Anti-aliasing:"
+        			rect				220 243 300 20
+        			textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor			.615 .615 .956 1
+        			visible				0
+        			cvar				"r_ext_multisample"
+        			cvarStrList
+        			{
+        				"@MENUS_OFF" 0
+        				" 2x" 2
+        				" 4x" 4
+        				" 8x" 8
+        			}
+        			descText			"Multi-sampled anti-aliasing (MSAA)"
+        			mouseenter			{ show highlight11 }
+        			mouseexit			{ hide highlight11 }
+        			action
+        			{
+        				play			"sound/interface/button1"
+        				setcvar			ui_r_modified	1
+        				setcvar			ui_vidrestart	1
+        			}
+        		}
+        
+        		itemDef
+        		{
+        			name				VIDEO_SYNC
+        			group				video
+        	  			type				ITEM_TYPE_MULTI
+        			text				@MENUS_VIDEO_SYNC
+        			cvar				"r_swapInterval"
+        			cvarFloatList
+        			{
+        				@MENUS_OFF 0
+        				@MENUS_ON 1
+        			}
+        			rect				220 263 300 20
+        				textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor		.615 .615 .956 1
+        			visible			0
+        			descText			@MENUS_VIDEO_SYNC_DESC
+        			action
+        			{
+        				play			"sound/interface/button1"
+        			}
+        
+        			mouseenter
+        			{
+        				show			highlight12
+        			}
+        			mouseexit
+        			{
+        				hide			highlight12
+        			}
+        		}
+        
+        		itemDef
+        		{
+        			name				MAX_FPS
+        			group				video
+        	  		type				ITEM_TYPE_MULTI
+        			text				"Max FPS:"
+        			cvar				"com_maxfps"
+        			cvarFloatList
+        			{
+        				"Uncapped" 0
+        				"125 (Default)" 125
+        				"142" 142
+        				"166" 166
+        				"200" 200
+        				"250" 250
+        				"333" 333
+        				"500" 500
+        			}
+        			rect				220 283 300 20
+        				textalign			ITEM_ALIGN_RIGHT
+        			textalignx			165
+        			textaligny			0
+        			font 				4
+        			textscale 			1
+        			forecolor			.615 .615 .956 1
+        			visible				0
+        			cvarTest			r_swapInterval
+        			hideCvar			{ 1 }
+        			descText			"Max FPS setting."
+        			action
+        			{
+        				play			"sound/interface/button1"
+        			}
+        
+        			mouseenter
+        			{
+        				show			highlight13
+        			}
+        			mouseexit
+        			{
+        				hide			highlight13
+        			}
+        		}
 
 		itemDef
 		{
@@ -1938,7 +1808,7 @@
 
 
 
-		itemDef
+	itemDef
 		{
 			name			vidrestart_yes_button
 			style			WINDOW_STYLE_SHADER
@@ -3888,7 +3758,7 @@
 				English  			english
 				@MENUS_LANG_FRENCH  francais
 				Deutsch				deutsch
-				"Español" 			espanol
+				"Espaï¿½ol" 			espanol
 			}
 			rect				220 263 300 20
 				textalign			ITEM_ALIGN_RIGHT

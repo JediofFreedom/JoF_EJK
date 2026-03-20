@@ -833,3 +833,23 @@ install(FILES
 		${CMAKE_CURRENT_BINARY_DIR}/japro-assets.pk3
 	DESTINATION "${JKAInstallDir}/EternalJK"
 	COMPONENT ${JKAMPCoreComponent})
+
+add_zip_command(JoF_Animations.pk3
+	FILES ${CMAKE_SOURCE_DIR}/assets/jofAnimations/*)
+add_custom_target(AssetsJofAnimations
+	ALL
+	DEPENDS JoF_Animations.pk3)
+install(FILES
+		${CMAKE_CURRENT_BINARY_DIR}/JoF_Animations.pk3
+	DESTINATION "${JKAInstallDir}/Base"
+	COMPONENT ${JKAMPCoreComponent})
+	
+add_zip_command(JoF_AssetsExtra.pk3
+	FILES ${CMAKE_SOURCE_DIR}/assets/jofAssetsExtra/*)
+add_custom_target(AssetsJofExtra
+	ALL
+	DEPENDS JoF_AssetsExtra.pk3)
+install(FILES
+		${CMAKE_CURRENT_BINARY_DIR}/JoF_AssetsExtra.pk3
+	DESTINATION "${JKAInstallDir}/Base"
+	COMPONENT ${JKAMPCoreComponent})

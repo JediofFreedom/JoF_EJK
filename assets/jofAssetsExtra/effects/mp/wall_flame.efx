@@ -1,0 +1,55 @@
+repeatDelay				148
+
+Particle
+{
+	spawnFlags			orgOnCylinder axisFromSphere rgbComponentInterpolation
+
+	count				5 15
+
+	life				500 1000
+
+	delay				175 75
+
+	origin				5 5 5 -5 -5 -5
+
+	radius				2
+
+	height				0
+
+	rotation			0 360
+
+	rotationDelta		4 -4
+
+	velocity			90 0 0 120 0 0
+
+	acceleration		-70 0 0 -80 0 0
+
+	gravity				5
+
+	rgb
+	{
+		start			1 1 1 0.9569 0.702 0.4667
+	}
+
+	alpha
+	{
+		start			0.2 0.4
+		end				0
+		parm			1
+		flags			linear
+	}
+
+	size
+	{
+		start			5 11
+		end				15 18
+		flags			linear
+	}
+
+	shaders
+	[
+		gfx/effects/fire2
+		gfx/effects/fire3
+		gfx/effects/fire4
+	]
+}

@@ -1,0 +1,61 @@
+repeatDelay				148
+
+Particle
+{
+	flags				expensivePhysics useBBox usePhysics impactFx
+
+	spawnFlags			cheapOrgCalc absoluteAccel evenDistribution rgbComponentInterpolation
+
+	life				700
+
+	delay				200
+
+	min					-1 -1 -1
+
+	max					1 1 1
+
+	origin				1 1 1 1 1 1
+
+	rotation			1
+
+	rotationDelta		20
+
+	velocity			320 10 10 400 10 10
+
+	acceleration		10 10 10 50 10 10
+
+rgb
+	{
+		start			0 0 0.7333 0.1255 0.1255 1
+		end				1 1 1 0.9569 0.702 0.4667
+		parm			50 60
+		flags			linear
+	}
+
+	alpha
+	{
+		end				0
+		parm			80 90
+		flags			linear nonlinear
+	}
+
+	size
+	{
+		start			2 3
+		end				30 55
+		parm			0 1
+		flags			linear
+	}
+
+	shaders
+	[
+		gfx/effects/fire2
+		gfx/effects/fire3
+		gfx/effects/fire4
+	]
+
+	impactfx
+	[
+		mp/wall_flame
+	]
+}
