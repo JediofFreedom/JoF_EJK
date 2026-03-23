@@ -10270,7 +10270,7 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 			trap->G2API_InitGhoul2Model(&ci->holsterGhoul2, ci->saber[0].model, 0, 0, 0, 0, 0);
 		}
 
-    	if (!ci->holsterGhoul2_2 && ci->saber[0].model[1] && newBolt2 != -1) {
+    	if (!ci->holsterGhoul2_2 && ci->saber[1].model[0] && newBolt2 != -1) {
     		trap->G2API_InitGhoul2Model(&ci->holsterGhoul2_2, ci->saber[1].model, 0, 0, 0, 0, 0);
     	}
 
