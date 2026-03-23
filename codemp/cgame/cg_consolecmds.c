@@ -1544,7 +1544,7 @@ static bitInfo_T pluginDisables[] = { // MAX_WEAPON_TWEAKS tweaks (24)
 	{"No new deathmsg"},//7
 	{"New sight effect"},//8
 	{"No alt dim effect"},//9
-	{"Remove JA+ Staff holster animation"},//10
+	{"Staff holstered on back"},//10
 	{"Ledge grab"},//11
 	{"Disable New DFA Primary"},//12
 	{"Disable New DFA Alt"},//13
