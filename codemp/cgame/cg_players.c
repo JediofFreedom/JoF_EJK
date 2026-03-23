@@ -12715,6 +12715,7 @@ stillDoSaber:
 					int m = 0;
 					int tagBolt;
 					char *tagName;
+					qboolean reloaded = qfalse;
 
 					while (m < ci->saber[0].numBlades)
 					{
@@ -12723,22 +12724,18 @@ stillDoSaber:
 
 						if (tagBolt == -1)
 						{
-							if (m == 0)
-							{ //guess this is an 0ldsk3wl saber
-								tagBolt = trap->G2API_AddBolt(saberEnt->ghoul2, 0, "*flash");
-
-								if (tagBolt == -1)
+							if (m == 0 && !reloaded)
+							{ //model lacks blade bolts, reload as default saber and retry
+								trap->G2API_CleanGhoul2Models(&(saberEnt->ghoul2));
+								saberEnt->ghoul2 = 0;
+								trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, "models/weapons2/saber_reborn/saber_w.glm", 0, 0, 0, 0, 0);
+								reloaded = qtrue;
+								if (saberEnt->ghoul2)
 								{
-									assert(0);
+									continue; //retry bolt adding with the default model
 								}
-								break;
 							}
-
-							if (tagBolt == -1)
-							{
-								assert(0);
-								break;
-							}
+							break;
 						}
 
 						m++;
