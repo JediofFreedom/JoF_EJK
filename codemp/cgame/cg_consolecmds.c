@@ -1544,7 +1544,7 @@ static bitInfo_T pluginDisables[] = { // MAX_WEAPON_TWEAKS tweaks (24)
 	{"No new deathmsg"},//7
 	{"New sight effect"},//8
 	{"No alt dim effect"},//9
-	{"Remove JA+ Staff holster animation"},//10
+	{"Holster staff on back"},//10
 	{"Ledge grab"},//11
 	{"Disable New DFA Primary"},//12
 	{"Disable New DFA Alt"},//13
@@ -1570,6 +1570,16 @@ static bitInfo_T pluginDisables[] = { // MAX_WEAPON_TWEAKS tweaks (24)
 };
 static const int MAX_PLUGINDISABLES = ARRAY_LEN( pluginDisables );
 
+static qboolean CG_PluginOptionEnabled(int index)
+{
+	if (index == 9)
+	{ // Plugin 9 is inverted: bit set means option disabled
+		return !(cp_pluginDisable.integer & (1 << index));
+	}
+
+	return (cp_pluginDisable.integer & (1 << index)) != 0;
+}
+
 void CG_PluginDisable_f( void ) {
 
 	if (cgs.serverMod < SVMOD_JAPLUS) {
@@ -1586,7 +1596,7 @@ void CG_PluginDisable_f( void ) {
 			if (cgs.serverMod == SVMOD_JAPRO && !japroPluginDisables[i])
 				continue;
 
-			if ( (cp_pluginDisable.integer & (1 << i)) ) {
+			if ( CG_PluginOptionEnabled(i) ) {
 				Com_Printf( "%2d [X] %s\n", display, pluginDisables[i].string );
 			}
 			else {
@@ -1629,7 +1639,7 @@ void CG_PluginDisable_f( void ) {
 		trap->Cvar_Set( "cp_pluginDisable", va( "%i", (1 << index2) ^ (cp_pluginDisable.integer & mask ) ) );
 		trap->Cvar_Update( &cp_pluginDisable );
 
-		Com_Printf( "%s %s^7\n", pluginDisables[index2].string, ((cp_pluginDisable.integer & (1 << index2))
+		Com_Printf( "%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(i)
 			? "^2Enabled" : "^1Disabled") );
 	}
 }

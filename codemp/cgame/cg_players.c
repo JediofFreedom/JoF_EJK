@@ -10164,14 +10164,14 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 	if (cp_pluginDisable.integer & JAPRO_PLUGIN_HOLSTEREDSABERS)
 		return;
 
+    if ( !cent->ghoul2 )
+        return;
+
 	if (cgs.serverMod != SVMOD_JAPLUS)
 		return;
 
-	if (cent->currentState.eFlags & EF_BOBAFIRE)
+	if (cent->currentState.eFlags & 0x1000)
 		return;
-
-    if ( !cent->ghoul2 )
-        return;
 
 	if (cent->currentState.weapon == WP_SABER)
 		return;

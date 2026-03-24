@@ -1023,7 +1023,7 @@
 			font 				4
 			textscale 			1
 			forecolor			.615 .615 .956 1
-			cvarStrList			{  "Default (Vanilla)" , "rd-eternaljk" , "Vulkan", "rd-vulkan" , "Rend2 (Experimental)", "rd-rend2-etjk" }
+			cvarStrList			{  "Default (Vanilla)" , "rd-eternaljk" , "Vulkan (Performance)", "rd-vulkan" , "Rend2 (Experimental)", "rd-rend2-etjk" }
 			descText			"Change the renderer library to use."
 			cvar				"ui_cl_renderer"
 			visible				1
