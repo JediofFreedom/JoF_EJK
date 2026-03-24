@@ -2934,7 +2934,7 @@ static void CL_ShutdownRef( qboolean restarting ) {
 	{
 		if ( re->Shutdown )
 		{
-			re->Shutdown( qtrue, restarting );
+			re->Shutdown(restarting ? qfalse : qtrue, restarting);
 		}
 	}
 
