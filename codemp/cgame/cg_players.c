@@ -10226,7 +10226,7 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 		VectorCopy( cent->lerpAngles, bAngles );
 		bAngles[PITCH] = 0;
 		bAngles[YAW] = cent->turAngles[YAW];
-
+		
 		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, newBolt, &matrix, bAngles, cent->lerpOrigin, time, gameModels, cent->modelScale );
 		
 		BG_GiveMeVectorFromMatrix( &matrix, ORIGIN, boltOrg );
@@ -10246,25 +10246,27 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 		MatrixMultiply(angAxis, re.axis, tempAxis);
 		AxisCopy(tempAxis, re.axis);
 
-		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, newBolt2, &matrix, bAngles, cent->lerpOrigin, time, gameModels, cent->modelScale );
+		if (newBolt != -1)
+		{
+			trap->G2API_GetBoltMatrix( cent->ghoul2, 0, newBolt2, &matrix, bAngles, cent->lerpOrigin, time, gameModels, cent->modelScale );
 
-		BG_GiveMeVectorFromMatrix( &matrix, ORIGIN, boltOrg2 );
-		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_X, re2.axis[0] );
-		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Y, re2.axis[1] );
-		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Z, re2.axis[2] );
-		VectorMA(boltOrg2, -holsterPos[0], re2.axis[1], boltOrg2);
-		VectorMA(boltOrg2, -holsterPos[1], re2.axis[0], boltOrg2);
-		VectorMA(boltOrg2, holsterPos[2], re2.axis[2], boltOrg2);
-		VectorCopy(re2.axis[0], boltAxis0);
-		VectorCopy(re2.axis[1], boltAxis1);
-		VectorCopy(re2.axis[2], boltAxis2);
-		VectorScale(boltAxis2, -1.0f, re2.axis[0]);
-		VectorCopy(boltAxis1, re2.axis[1]);
-		VectorCopy(boltAxis0, re2.axis[2]);
-		AnglesToAxis(holsterAng2, angAxis);
-		MatrixMultiply(angAxis, re2.axis, tempAxis);
-		AxisCopy(tempAxis, re2.axis);
-
+			BG_GiveMeVectorFromMatrix( &matrix, ORIGIN, boltOrg2 );
+			BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_X, re2.axis[0] );
+			BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Y, re2.axis[1] );
+			BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Z, re2.axis[2] );
+			VectorMA(boltOrg2, -holsterPos[0], re2.axis[1], boltOrg2);
+			VectorMA(boltOrg2, -holsterPos[1], re2.axis[0], boltOrg2);
+			VectorMA(boltOrg2, holsterPos[2], re2.axis[2], boltOrg2);
+			VectorCopy(re2.axis[0], boltAxis0);
+			VectorCopy(re2.axis[1], boltAxis1);
+			VectorCopy(re2.axis[2], boltAxis2);
+			VectorScale(boltAxis2, -1.0f, re2.axis[0]);
+			VectorCopy(boltAxis1, re2.axis[1]);
+			VectorCopy(boltAxis0, re2.axis[2]);
+			AnglesToAxis(holsterAng2, angAxis);
+			MatrixMultiply(angAxis, re2.axis, tempAxis);
+			AxisCopy(tempAxis, re2.axis);
+		}
     	
 		if (!ci->holsterGhoul2 && ci->saber[0].model[0]) {
 			trap->G2API_InitGhoul2Model(&ci->holsterGhoul2, ci->saber[0].model, 0, 0, 0, 0, 0);
