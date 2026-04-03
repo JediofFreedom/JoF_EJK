@@ -10246,7 +10246,7 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 		MatrixMultiply(angAxis, re.axis, tempAxis);
 		AxisCopy(tempAxis, re.axis);
 
-		if (newBolt != -1)
+		if (newBolt2 != -1)
 		{
 			trap->G2API_GetBoltMatrix( cent->ghoul2, 0, newBolt2, &matrix, bAngles, cent->lerpOrigin, time, gameModels, cent->modelScale );
 
