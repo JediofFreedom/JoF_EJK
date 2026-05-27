@@ -1067,7 +1067,9 @@ CL_MouseEvent
 =================
 */
 void CL_MouseEvent(int dx, int dy, int time) {
-	if (g_clAutoMapMode && cls.cgameStarted)
+	if (cls.cursorActive) {
+		CL_UpdateCursorPosition( dx, dy );
+	} else if (g_clAutoMapMode && cls.cgameStarted)
 	{ //automap input
 		autoMapInput_t* data = (autoMapInput_t*)cl.mSharedMemory;
 
@@ -1864,7 +1866,7 @@ void CL_CreateNewCommands( void ) {
 		return;
 
 	// cl_cmdratecap: when enabled, cap command generation at 125Hz.
-	// Uses fixed-step accumulator — advance by CMDRATECAP_MSEC on fire,
+	// Uses fixed-step accumulator ï¿½ advance by CMDRATECAP_MSEC on fire,
 	// carrying overshoot forward so cmds land at steady 8ms intervals.
 	// Button wasPressed and gcmdValue persist across skipped frames naturally.
 	if (cl_cmdratecap->integer) {
