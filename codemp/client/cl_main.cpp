@@ -1753,7 +1753,12 @@ void CL_InitDownloads(void) {
 		Com_Printf("Need paks: %s\n", clc.downloadList );
 
 		if ( *clc.downloadList ) {
-			// if autodownloading is not enabled on the server
+			const char *serverInfo = cl.gameState.stringData + cl.gameState.stringOffsets[ CS_SERVERINFO ];
+			if ( !atoi( Info_ValueForKey( serverInfo, "sv_allowDownload" ) ) ) {
+				Com_Error( ERR_DROP, "Server does not allow file downloads (sv_allowDownload 0).\nYou are missing required files:\n%s", clc.downloadList );
+				return;
+			}
+
 			cls.state = CA_CONNECTED;
 
 			*clc.downloadTempName = *clc.downloadName = 0;
