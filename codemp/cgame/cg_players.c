@@ -10777,7 +10777,7 @@ void CG_Player( centity_t *cent ) {
 
 			if (!cent->hasPlayedJetpackSounds)
 			{
-				trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cg_jetpackOnSound.integer <= 1 ? cgs.media.jetpackOnSound : cgs.media.jetpackOn2Sound );
+				trap->S_StartSound (cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, cg_jetpackOnSound.integer <= 1 ? cgs.media.jetpackOnSound : cgs.media.jetpackOn2Sound );
 				cent->hasPlayedJetpackSounds = qtrue;
 			}
 
@@ -10786,14 +10786,14 @@ void CG_Player( centity_t *cent ) {
 		}
 		else if (cent->hasPlayedJetpackSounds && !(cent->currentState.eFlags & EF_JETPACK_ACTIVE))
 		{
-			trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cgs.media.jetpackOffSound );
+			trap->S_StartSound (cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, cgs.media.jetpackOffSound );
 			cent->hasPlayedJetpackSounds = qfalse;
 		}
 	}
 	else if (cent->currentState.eFlags & EF_JETPACK && cent->currentState.eFlags & EF_DEAD && cg_g2JetpackInstance && !(cent->currentState.eFlags & EF_JETPACK_ACTIVE)
 		&& cent->hasPlayedJetpackSounds)
 	{
-		trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cgs.media.jetpackOffSound );
+		trap->S_StartSound (cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, cgs.media.jetpackOffSound );
 		cent->hasPlayedJetpackSounds = qfalse;
 	}
 	else if (trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 3))
