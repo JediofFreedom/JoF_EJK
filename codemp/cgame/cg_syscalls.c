@@ -279,18 +279,7 @@ void trap_R_AddAdditiveLightToScene( const vec3_t org, float intensity, float r,
 void trap_R_RenderScene( const refdef_t *fd ) {
 	Q_syscall( CG_R_RENDERSCENE, fd );
 }
-// Cache the last color passed to R_SetColor. The bitmap HUD glyphs inherit this ambient
-// color via CG_DrawPic; the font-based HUD path (cg_sharpHud) needs it as an explicit arg.
-vec4_t cg_lastSetColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 void trap_R_SetColor( const float *rgba ) {
-	if ( rgba ) {
-		cg_lastSetColor[0] = rgba[0];
-		cg_lastSetColor[1] = rgba[1];
-		cg_lastSetColor[2] = rgba[2];
-		cg_lastSetColor[3] = rgba[3];
-	} else {
-		cg_lastSetColor[0] = cg_lastSetColor[1] = cg_lastSetColor[2] = cg_lastSetColor[3] = 1.0f;
-	}
 	Q_syscall( CG_R_SETCOLOR, rgba );
 }
 void trap_R_DrawStretchPic( float x, float y, float w, float h, float s1, float t1, float s2, float t2, qhandle_t hShader ) {

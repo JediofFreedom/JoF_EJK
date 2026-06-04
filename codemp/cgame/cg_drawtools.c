@@ -549,7 +549,7 @@ Take x,y positions as if 640 x 480 and scales them to the proper resolution
 
 ==============
 */
-void CG_DrawNumField (float x, float y, int width, int value,float charWidth,float charHeight,int style,qboolean zeroFill)
+void CG_DrawNumField (float x, float y, int width, int value,float charWidth,float charHeight,int style,qboolean zeroFill, const float *color)
 {
 	char	num[16], *ptr;
 	int		l;
@@ -607,15 +607,14 @@ void CG_DrawNumField (float x, float y, int width, int value,float charWidth,flo
 
 	// Sharp HUD: render the digits with the scalable font instead of the low-res bitmap
 	// glyphs so they stay crisp at high resolution. The bitmap path right-aligns the
-	// number within a field 'width' digits wide, inheriting the ambient R_SetColor color;
-	// we mirror that placement and reuse the cached color (CG_Text_Paint needs it explicit).
+	// number within a field 'width' digits wide; we mirror that placement and use the
+	// caller's explicit color (CG_Text_Paint needs the color passed directly).
 	if ( cg_sharpHud.integer )
 	{
-		extern vec4_t cg_lastSetColor;
 		const int sharpFont = (style == NUM_FONT_BIG) ? FONT_MEDIUM : FONT_SMALL;
 		char disp[16];
-		float fontScale, fontH, textW, fieldRight, tx, ty, boldOfs;
-		vec4_t color;
+		float fontScale, fontH, textW, fieldRight, tx, ty;
+		vec4_t drawColor;
 		int pad;
 
 		// Build the displayed string: optional leading zeros, then the (clamped) number.
@@ -635,22 +634,20 @@ void CG_DrawNumField (float x, float y, int width, int value,float charWidth,flo
 		fieldRight = x + 2.0f + (xWidth * width);
 		textW = CG_Text_Width(disp, fontScale, sharpFont);
 		tx = fieldRight - textW;
-		ty = y - (charHeight * 0.22f);	// the font cell sits lower than the old bitmap digit; lift it up
+		ty = y - (charHeight * 0.30f);	// the font cell sits lower than the old bitmap digit; lift it up
 
-		// Match the bitmap path's color (inherited from the ambient R_SetColor), but force
-		// full alpha so the digits read as a solid, vivid color rather than a washed tint.
-		color[0] = cg_lastSetColor[0];
-		color[1] = cg_lastSetColor[1];
-		color[2] = cg_lastSetColor[2];
-		color[3] = 1.0f;
+		// Use the caller's color (red health, green armor, blue force, etc.), forcing full
+		// alpha so the digits read as a solid, vivid color rather than a washed tint.
+		if (color) {
+			drawColor[0] = color[0];
+			drawColor[1] = color[1];
+			drawColor[2] = color[2];
+		} else {
+			drawColor[0] = drawColor[1] = drawColor[2] = 1.0f;
+		}
+		drawColor[3] = 1.0f;
 
-		// Faux-bold: draw a shadowed base pass, then a second pass nudged right to thicken
-		// the strokes (the font has no native bold style).
-		boldOfs = fontScale * 0.9f;
-		if (boldOfs < 0.5f)
-			boldOfs = 0.5f;
-		CG_Text_Paint(tx, ty, fontScale, color, disp, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWED, sharpFont);
-		CG_Text_Paint(tx + boldOfs, ty, fontScale, color, disp, 0.0f, 0, ITEM_TEXTSTYLE_NORMAL, sharpFont);
+		CG_Text_Paint(tx, ty, fontScale, drawColor, disp, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWED, sharpFont);
 		return;
 	}
 
