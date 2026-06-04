@@ -605,6 +605,46 @@ void CG_DrawNumField (float x, float y, int width, int value,float charWidth,flo
 		break;
 	}
 
+	// Sharp HUD: render the digits with the scalable font instead of the low-res bitmap
+	// glyphs so they stay crisp at high resolution. The bitmap path right-aligns the
+	// number within a field 'width' digits wide, inheriting the ambient R_SetColor color;
+	// we mirror that placement and reuse the cached color (CG_Text_Paint needs it explicit).
+	if ( cg_sharpHud.integer )
+	{
+		extern vec4_t cg_lastSetColor;
+		const int sharpFont = (style == NUM_FONT_BIG) ? FONT_MEDIUM : FONT_SMALL;
+		char disp[16];
+		float fontScale, fontH, textW, fieldRight, tx;
+		vec4_t color;
+		int pad;
+
+		// Build the displayed string: optional leading zeros, then the (clamped) number.
+		disp[0] = '\0';
+		pad = zeroFill ? (width - l) : 0;
+		if (pad > 0) {
+			if (pad > (int)sizeof(disp) - 1)
+				pad = (int)sizeof(disp) - 1;
+			memset(disp, '0', pad);
+		}
+		Q_strncpyz(disp + pad, num, sizeof(disp) - pad);
+
+		fontH = CG_Text_Height("0", 1.0f, sharpFont);
+		fontScale = (fontH > 0.0f) ? (charHeight / fontH) : 1.0f;
+
+		// Right edge of the bitmap field, so the font number lines up the same way.
+		fieldRight = x + 2.0f + (xWidth * width);
+		textW = CG_Text_Width(disp, fontScale, sharpFont);
+		tx = fieldRight - textW;
+
+		color[0] = cg_lastSetColor[0];
+		color[1] = cg_lastSetColor[1];
+		color[2] = cg_lastSetColor[2];
+		color[3] = cg_lastSetColor[3];
+
+		CG_Text_Paint(tx, y, fontScale, color, disp, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWED, sharpFont);
+		return;
+	}
+
 	if ( zeroFill )
 	{
 		for (i = 0; i < (width - l); i++ )

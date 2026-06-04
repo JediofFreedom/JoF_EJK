@@ -5518,6 +5518,8 @@ static float CG_DrawSnapshot( float y ) {
 
 	if (drawFont < 4 && trap->R_Language_IsAsian())
 		drawFont = 5;
+	else if (drawFont < 4 && cg_sharpHud.integer)
+		drawFont = 4;	// sharp scalable font instead of the legacy bitmap string
 
 	switch (drawFont)
 	{
@@ -5590,6 +5592,8 @@ static float CG_DrawFPS( float y ) {
 
 	if (drawFont < 4 && trap->R_Language_IsAsian())
 		drawFont = 5;
+	else if (drawFont < 4 && cg_sharpHud.integer)
+		drawFont = 4;	// sharp scalable font instead of the legacy bitmap string
 
 	switch (drawFont)
 	{
@@ -5655,6 +5659,8 @@ static float CG_DrawTimer( float y ) {
 
 	if (drawTimerStyle < 4 && trap->R_Language_IsAsian())
 		drawTimerStyle = 5;
+	else if (drawTimerStyle < 4 && cg_sharpHud.integer)
+		drawTimerStyle = 4;	// sharp scalable font instead of the legacy bitmap string
 
 	switch (drawTimerStyle)
 	{
