@@ -614,7 +614,7 @@ void CG_DrawNumField (float x, float y, int width, int value,float charWidth,flo
 		extern vec4_t cg_lastSetColor;
 		const int sharpFont = (style == NUM_FONT_BIG) ? FONT_MEDIUM : FONT_SMALL;
 		char disp[16];
-		float fontScale, fontH, textW, fieldRight, tx;
+		float fontScale, fontH, textW, fieldRight, tx, ty, boldOfs;
 		vec4_t color;
 		int pad;
 
@@ -635,13 +635,22 @@ void CG_DrawNumField (float x, float y, int width, int value,float charWidth,flo
 		fieldRight = x + 2.0f + (xWidth * width);
 		textW = CG_Text_Width(disp, fontScale, sharpFont);
 		tx = fieldRight - textW;
+		ty = y - (charHeight * 0.22f);	// the font cell sits lower than the old bitmap digit; lift it up
 
+		// Match the bitmap path's color (inherited from the ambient R_SetColor), but force
+		// full alpha so the digits read as a solid, vivid color rather than a washed tint.
 		color[0] = cg_lastSetColor[0];
 		color[1] = cg_lastSetColor[1];
 		color[2] = cg_lastSetColor[2];
-		color[3] = cg_lastSetColor[3];
+		color[3] = 1.0f;
 
-		CG_Text_Paint(tx, y, fontScale, color, disp, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWED, sharpFont);
+		// Faux-bold: draw a shadowed base pass, then a second pass nudged right to thicken
+		// the strokes (the font has no native bold style).
+		boldOfs = fontScale * 0.9f;
+		if (boldOfs < 0.5f)
+			boldOfs = 0.5f;
+		CG_Text_Paint(tx, ty, fontScale, color, disp, 0.0f, 0, ITEM_TEXTSTYLE_SHADOWED, sharpFont);
+		CG_Text_Paint(tx + boldOfs, ty, fontScale, color, disp, 0.0f, 0, ITEM_TEXTSTYLE_NORMAL, sharpFont);
 		return;
 	}
 
