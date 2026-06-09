@@ -763,7 +763,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 	qboolean compactHasRows = qfalse;
 	int lineHeight;
 	int topBorderSize, bottomBorderSize;
-	qboolean maxClientsScoreboard = cgs.numClients > 20;
+	qboolean maxClientsScoreboard = cgs.numClients >= 20;
 	qboolean intermissionOrDead =
 	cg.predictedPlayerState.pm_type == PM_DEAD ||
 	cg.predictedPlayerState.pm_type == PM_INTERMISSION ||
