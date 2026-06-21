@@ -422,7 +422,7 @@ jobs:
 
           # Ignore docs/md/.gitignore changes
           CHANGES=$(git diff --name-only "$LAST_COMMIT" HEAD \
-            | grep -vE '(\.md$|^\.gitignore$|^docs/)' || true)
+            | grep -vE '(\.md$|^\.gitignore$|^docs/|^\.github/)' || true)
 
           if [ -z "$CHANGES" ]; then
             echo "No relevant changes; skipping nightly/manual build."
