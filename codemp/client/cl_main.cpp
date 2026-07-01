@@ -144,6 +144,9 @@ cvar_t	*cl_afkPrefix;
 cvar_t	*cl_afkTime;
 cvar_t	*cl_afkTimeUnfocused;
 
+cvar_t* cl_unfocusedChatbox;
+cvar_t* cl_minimizedChatbox;
+
 cvar_t	*cl_logChat;
 
 cvar_t	*ui_vulkan_supported;
@@ -4093,6 +4096,9 @@ void CL_Init( void ) {
 	cl_afkPrefix = Cvar_Get("cl_afkPrefix", "[AFK]", CVAR_ARCHIVE, "Prefix to add to player name when AFK");
 	cl_unfocusedTime = 0;
 	cl_afkPrefix->modified = qfalse;
+
+	cl_unfocusedChatbox = Cvar_Get("cl_unfocusedChatbox", "1", CVAR_ARCHIVE_ND, "Automatically show chatbox balloon when the game is unfocused");
+	cl_minimizedChatbox = Cvar_Get("cl_minimizedChatbox", "1", CVAR_ARCHIVE_ND, "Automatically show chatbox balloon when the game is minimised");
 
 	cl_logChat = Cvar_Get("cl_logChat", "0", CVAR_ARCHIVE, "Toggle engine chat logs");
 

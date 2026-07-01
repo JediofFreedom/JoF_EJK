@@ -539,6 +539,9 @@ extern cvar_t	*cl_afkPrefix;
 extern cvar_t	*cl_afkTime;
 extern cvar_t	*cl_afkTimeUnfocused;
 
+extern cvar_t	*cl_unfocusedChatbox;
+extern cvar_t	*cl_minimizedChatbox;
+
 extern cvar_t	*cl_logChat;
 
 #if defined(DISCORD) && defined(FINAL_BUILD)

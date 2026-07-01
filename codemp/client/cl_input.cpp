@@ -1722,7 +1722,7 @@ void CL_CmdButtons( usercmd_t *cmd ) {
 		}
 	}
 
-	if ( Key_GetCatcher( ) || com_unfocused->integer || com_minimized->integer ) {
+	if ( Key_GetCatcher( ) || cl_unfocusedChatbox->integer && com_unfocused->integer || cl_minimizedChatbox->integer && com_minimized->integer) {
 		cmd->buttons |= BUTTON_TALK;
 	}
 
