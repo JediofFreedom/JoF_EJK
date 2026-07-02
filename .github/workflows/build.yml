@@ -4,10 +4,11 @@ permissions:
   contents: write
 
 on:
-  # Beta: build on push
+  # Beta/Alpha: build on push
   push:
     branches:
       - beta
+      - alpha
     paths-ignore:
       - "**.md"
       - ".gitignore"
@@ -376,6 +377,366 @@ jobs:
             --arg title "New beta release: ${DISPLAY}" \
             --arg url "https://github.com/${REPO}/releases/tag/${TAG}" \
             --arg desc "A new beta build is available for download." \
+            '{username:"JoF Releases", embeds:[{title:$title, url:$url, description:$desc, color:15844367}]}')
+          curl -sf -H "Content-Type: application/json" -X POST -d "$payload" "$DISCORD_WEBHOOK"
+
+  # =========================
+  # ALPHA
+  # =========================
+  alpha-version:
+    if: github.ref == 'refs/heads/alpha' && github.event_name == 'push'
+    name: Compute Alpha Version
+    runs-on: ubuntu-latest
+    outputs:
+      tag_version: ${{ steps.version.outputs.tag_version }}
+      base_version: ${{ steps.version.outputs.base_version }}
+      version_suffix: ${{ steps.version.outputs.version_suffix }}
+    steps:
+      - name: Checkout alpha branch
+        uses: actions/checkout@v4
+        with:
+          ref: alpha
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compute alpha version
+        id: version
+        shell: bash
+        run: |
+          # Find the latest non-prerelease release tag (e.g. 1.6.0)
+          LAST_RELEASE=$(git tag --list | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          if [ -z "$LAST_RELEASE" ]; then LAST_RELEASE="0.0.0"; fi
+          echo "Base release: $LAST_RELEASE"
+
+          # Find the highest existing alpha number and increment
+          LAST_ALPHA=$(git tag --list "${LAST_RELEASE}-alpha.*" | sed "s/${LAST_RELEASE}-alpha\.//" | sort -n | tail -1)
+          if [ -z "$LAST_ALPHA" ]; then LAST_ALPHA=0; fi
+          ALPHA_NUM=$((LAST_ALPHA + 1))
+
+          TAG_VERSION="${LAST_RELEASE}-alpha.${ALPHA_NUM}"
+          VERSION_SUFFIX=" alpha ${ALPHA_NUM}"
+
+          echo "tag_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+          echo "base_version=$LAST_RELEASE" >> $GITHUB_OUTPUT
+          echo "version_suffix=$VERSION_SUFFIX" >> $GITHUB_OUTPUT
+          echo "Computed version: $TAG_VERSION (base: $LAST_RELEASE, suffix: $VERSION_SUFFIX)"
+
+  windows-alpha:
+    if: github.ref == 'refs/heads/alpha' && github.event_name == 'push'
+    name: Windows ${{ matrix.arch }} Release (Alpha)
+    needs: alpha-version
+    runs-on: windows-2022
+    strategy:
+      matrix:
+        include:
+          - arch: x86
+            platform: Win32
+          - arch: x86_64
+            platform: x64
+    steps:
+      - name: Checkout alpha branch
+        uses: actions/checkout@v4
+        with:
+          ref: alpha
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Download Sunny's Vulkan DLL
+        shell: bash
+        run: |
+          mkdir -p external
+          if [ "${{ matrix.arch }}" = "x86" ]; then
+            ZIP_NAME=EternalJK-windows-x86.zip
+            DLL_NAME=rd-vulkan_x86.dll
+          else
+            ZIP_NAME=EternalJK-windows-x86_64.zip
+            DLL_NAME=rd-vulkan_x86_64.dll
+          fi
+          curl -L -o external/$ZIP_NAME \
+            https://github.com/JKSunny/EternalJK/releases/download/latest/$ZIP_NAME
+          unzip -j external/$ZIP_NAME "$DLL_NAME" -d external
+          echo "RD_VULKAN_DLL=${{ github.workspace }}/external/$DLL_NAME" >> $GITHUB_ENV
+
+      - name: Create build directory
+        run: cmake -E make_directory build
+
+      - name: Configure CMake
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: |
+          cmake .. -A ${{ matrix.platform }} \
+            -DCMAKE_INSTALL_PREFIX=bin \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DJOF_VERSION_STRING="${{ needs.alpha-version.outputs.base_version }}" \
+            -DJOF_VERSION_SUFFIX="${{ needs.alpha-version.outputs.version_suffix }}" \
+            -DGIT_SHA=${{ github.sha }} \
+            -DGIT_BRANCH=${{ github.ref_name }} \
+            -DEXTERNAL_RD_VULKAN_DLL="$RD_VULKAN_DLL"
+
+      - name: Build
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: cmake --build . --config Release -j $NUMBER_OF_PROCESSORS
+
+      - name: Install
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: cmake --install . --config Release
+
+      - name: Download JoF base assets
+        shell: bash
+        run: |
+          mkdir -p build/bin/GameData/base
+          curl -L -o build/bin/GameData/base/JoF_Animations.pk3 \
+            https://jofhub.eu/apps/cloud/repository/assets/JoF_Animations.pk3
+          curl -L -o build/bin/GameData/base/JoF_AssetsExtra.pk3 \
+            https://jofhub.eu/apps/cloud/repository/assets/JoF_AssetsExtra.pk3
+
+      - name: Upload Alpha Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JoF-alpha-windows-${{ matrix.arch }}
+          path: build/bin
+          if-no-files-found: error
+
+  linux-alpha:
+    if: github.ref == 'refs/heads/alpha' && github.event_name == 'push'
+    name: Linux ${{ matrix.arch }} Release (Alpha)
+    needs: alpha-version
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86, x86_64]
+    steps:
+      - name: Checkout alpha branch
+        uses: actions/checkout@v4
+        with:
+          ref: alpha
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ matrix.arch }}" = "x86" ]; then
+            sudo dpkg --add-architecture i386
+            sudo apt-get -qq update
+            sudo apt-get -y install gcc-multilib g++-multilib libjpeg-dev:i386 libpng-dev:i386 zlib1g-dev:i386 libsdl2-dev:i386
+          else
+            sudo apt-get -qq update
+            sudo apt-get -y install libjpeg-dev libpng-dev zlib1g-dev libsdl2-dev
+          fi
+
+      - name: Create build directory
+        run: cmake -E make_directory build
+
+      - name: Configure CMake
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: |
+          OPTIONS=(
+            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install
+            -DUseInternalLibs=OFF
+            -DBuildPortableVersion=OFF
+            "-DJOF_VERSION_STRING=${{ needs.alpha-version.outputs.base_version }}"
+            "-DJOF_VERSION_SUFFIX=${{ needs.alpha-version.outputs.version_suffix }}"
+            -DGIT_SHA=${{ github.sha }}
+            -DGIT_BRANCH=${{ github.ref_name }}
+          )
+          if [ "${{ matrix.arch }}" = "x86" ]; then
+            OPTIONS+=(-DCMAKE_TOOLCHAIN_FILE=cmake/Toolchains/linux-i686.cmake)
+          fi
+          cmake $GITHUB_WORKSPACE "${OPTIONS[@]}"
+
+      - name: Build
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: cmake --build . -j $(nproc)
+
+      - name: Install
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: cmake --install .
+
+      - name: Download JoF base assets
+        shell: bash
+        run: |
+          mkdir -p ${{ github.workspace }}/install/JediAcademy/base
+          curl -L -o ${{ github.workspace }}/install/JediAcademy/base/JoF_Animations.pk3 \
+            https://jofhub.eu/apps/cloud/repository/assets/JoF_Animations.pk3
+          curl -L -o ${{ github.workspace }}/install/JediAcademy/base/JoF_AssetsExtra.pk3 \
+            https://jofhub.eu/apps/cloud/repository/assets/JoF_AssetsExtra.pk3
+
+      - name: Create binary archive
+        working-directory: ${{ github.workspace }}/install/JediAcademy
+        shell: bash
+        run: tar -czvf ${{ github.workspace }}/JoF-alpha-linux-${{ matrix.arch }}.tar.gz *
+
+      - name: Upload Alpha Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JoF-alpha-linux-${{ matrix.arch }}
+          path: ${{ github.workspace }}/JoF-alpha-linux-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+
+  macos-alpha:
+    if: github.ref == 'refs/heads/alpha' && github.event_name == 'push'
+    name: macOS ${{ matrix.arch }} Release (Alpha)
+    needs: alpha-version
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: macos-15-intel
+            cmake_extra: ""
+          - arch: arm64
+            runner: macos-15
+            cmake_extra: "-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_SYSTEM_PROCESSOR=arm64"
+    steps:
+      - name: Checkout alpha branch
+        uses: actions/checkout@v4
+        with:
+          ref: alpha
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install dependencies
+        run: |
+          brew install sdl2
+          cmake -E make_directory build
+
+      - name: Configure CMake
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: |
+          cmake $GITHUB_WORKSPACE ${{ matrix.cmake_extra }} \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/install \
+            -DUseInternalLibs=OFF \
+            -DBuildPortableVersion=OFF \
+            -DJOF_VERSION_STRING="${{ needs.alpha-version.outputs.base_version }}" \
+            -DJOF_VERSION_SUFFIX="${{ needs.alpha-version.outputs.version_suffix }}" \
+            -DGIT_SHA=${{ github.sha }} \
+            -DGIT_BRANCH=${{ github.ref_name }}
+
+      - name: Build
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: cmake --build . -j $(sysctl -n hw.ncpu)
+
+      - name: Install
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: cmake --install .
+
+      - name: Download JoF base assets
+        shell: bash
+        run: |
+          mkdir -p ${{ github.workspace }}/install/JediAcademy/base
+          curl -L -o ${{ github.workspace }}/install/JediAcademy/base/JoF_Animations.pk3 \
+            https://jofhub.eu/apps/cloud/repository/assets/JoF_Animations.pk3
+          curl -L -o ${{ github.workspace }}/install/JediAcademy/base/JoF_AssetsExtra.pk3 \
+            https://jofhub.eu/apps/cloud/repository/assets/JoF_AssetsExtra.pk3
+
+      - name: Create binary archive
+        working-directory: ${{ github.workspace }}/install/JediAcademy
+        shell: bash
+        run: |
+          chmod +x eternaljk.${{ matrix.arch }}.app/Contents/MacOS/eternaljk.${{ matrix.arch }}
+          tar -czvf ${{ github.workspace }}/JoF-alpha-macos-${{ matrix.arch }}.tar.gz *
+
+      - name: Upload Alpha Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JoF-alpha-macos-${{ matrix.arch }}
+          path: ${{ github.workspace }}/JoF-alpha-macos-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+
+  publish-alpha:
+    if: github.ref == 'refs/heads/alpha' && github.event_name == 'push'
+    name: Publish Alpha Release
+    needs: [alpha-version, windows-alpha, linux-alpha, macos-alpha]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout alpha branch
+        uses: actions/checkout@v4
+        with:
+          ref: alpha
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Set version env vars
+        run: |
+          echo "TAG_VERSION=${{ needs.alpha-version.outputs.tag_version }}" >> $GITHUB_ENV
+          echo "DISPLAY_VERSION=${{ needs.alpha-version.outputs.base_version }}${{ needs.alpha-version.outputs.version_suffix }}" >> $GITHUB_ENV
+
+      - name: Create archives
+        run: |
+          zip -r JoF-windows-x86.zip     JoF-alpha-windows-x86
+          zip -r JoF-windows-x86_64.zip  JoF-alpha-windows-x86_64
+          mv JoF-alpha-linux-x86/JoF-alpha-linux-x86.tar.gz       JoF-linux-x86.tar.gz
+          mv JoF-alpha-linux-x86_64/JoF-alpha-linux-x86_64.tar.gz JoF-linux-x86_64.tar.gz
+          mv JoF-alpha-macos-x86_64/JoF-alpha-macos-x86_64.tar.gz JoF-macos-x86_64.tar.gz
+          mv JoF-alpha-macos-arm64/JoF-alpha-macos-arm64.tar.gz   JoF-macos-arm64.tar.gz
+
+      - name: Setup git authentication for tag push
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/JediofFreedom/JoF_EJK.git
+
+      - name: Create version tag
+        id: tag
+        run: |
+          git tag "$TAG_VERSION"
+          git push origin "$TAG_VERSION"
+          echo "tag=$TAG_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Update latest-alpha tag
+        run: |
+          git tag -f latest-alpha
+          git push origin latest-alpha --force
+
+      - name: Create GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ env.DISPLAY_VERSION }}
+          prerelease: true
+          generate_release_notes: true
+          files: |
+            JoF-windows-x86.zip
+            JoF-windows-x86_64.zip
+            JoF-linux-x86.tar.gz
+            JoF-linux-x86_64.tar.gz
+            JoF-macos-x86_64.tar.gz
+            JoF-macos-arm64.tar.gz
+
+      - name: Notify Discord
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          DISPLAY: ${{ env.DISPLAY_VERSION }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK secret is not set; skipping notification."
+            exit 0
+          fi
+          payload=$(jq -n \
+            --arg title "New alpha release: ${DISPLAY}" \
+            --arg url "https://github.com/${REPO}/releases/tag/${TAG}" \
+            --arg desc "A new alpha build is available for download." \
             '{username:"JoF Releases", embeds:[{title:$title, url:$url, description:$desc, color:15844367}]}')
           curl -sf -H "Content-Type: application/json" -X POST -d "$payload" "$DISCORD_WEBHOOK"
 

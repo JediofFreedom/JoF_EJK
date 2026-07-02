@@ -2224,6 +2224,9 @@ void CG_DrawHUD(centity_t	*cent)
 		scoreStr = "";
 	}
 
+	if (cg_showClientIDs.integer && scoreStr[0])
+		scoreStr = va("%s [%i]", scoreStr, cg.snap->ps.clientNum);
+
 	if (cg.predictedPlayerState.pm_type != PM_SPECTATOR)
 	{
 		if (cgs.newHud && cg_hudFiles.integer == 1)

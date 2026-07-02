@@ -716,7 +716,11 @@ static rserr_t GLimp_SetMode(
 
 	if( fullscreen )
 	{
+#ifdef MACOS_X
+		flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+#else
 		flags |= SDL_WINDOW_FULLSCREEN;
+#endif
 		glConfig->isFullscreen = qtrue;
 	}
 	else
@@ -1044,6 +1048,63 @@ void *WIN_GL_GetProcAddress( const char *proc )
 qboolean WIN_GL_ExtensionSupported( const char *extension )
 {
 	return SDL_GL_ExtensionSupported( extension ) == SDL_TRUE ? qtrue : qfalse;
+}
+
+// Release the GL context from the calling thread so another thread can acquire it.
+void WIN_ReleaseGLContext( void )
+{
+	if ( opengl_context )
+		SDL_GL_MakeCurrent( screen, NULL );
+}
+
+// Make the main GL context current on the calling thread.
+void WIN_ReacquireGLContext( void )
+{
+	if ( opengl_context )
+		SDL_GL_MakeCurrent( screen, opengl_context );
+}
+
+static bool g_asyncLoadTemporaryDesktopFS = false;
+
+// Called on the main thread (which still owns the GL context) before handing
+// the GL context to the async load worker thread.
+//
+// Exclusive fullscreen (SDL_WINDOW_FULLSCREEN) makes SDL call
+// ChangeDisplaySettingsEx in its WM_ACTIVATEAPP handler — including on focus
+// GAIN to restore the fullscreen display mode — regardless of the
+// SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS hint.  That display-mode change can
+// invalidate a wglMakeCurrent'd context on another thread, producing an SEH
+// access violation that bypasses catch(int) and kills the process.
+//
+// Desktop fullscreen (SDL_WINDOW_FULLSCREEN_DESKTOP) is a borderless window
+// at the current desktop resolution; SDL never calls ChangeDisplaySettingsEx
+// for it, so focus events during the worker-thread load are safe.  We switch
+// to it here (main thread, GL context valid) and restore exclusive fullscreen
+// in WIN_EndAsyncLoad (main thread, after GL context is reclaimed).
+void WIN_BeginAsyncLoad( void )
+{
+	g_asyncLoadTemporaryDesktopFS = false;
+	if ( !screen )
+		return;
+	Uint32 flags = SDL_GetWindowFlags( screen );
+	// SDL_WINDOW_FULLSCREEN_DESKTOP == (SDL_WINDOW_FULLSCREEN | 0x1000).
+	// Match exactly SDL_WINDOW_FULLSCREEN to detect exclusive (not desktop) mode.
+	if ( ( flags & SDL_WINDOW_FULLSCREEN_DESKTOP ) == SDL_WINDOW_FULLSCREEN )
+	{
+		if ( SDL_SetWindowFullscreen( screen, SDL_WINDOW_FULLSCREEN_DESKTOP ) == 0 )
+			g_asyncLoadTemporaryDesktopFS = true;
+	}
+}
+
+// Called on the main thread after reclaiming the GL context from the async
+// load worker thread.  Restores exclusive fullscreen if WIN_BeginAsyncLoad
+// switched it away.
+void WIN_EndAsyncLoad( void )
+{
+	if ( !screen || !g_asyncLoadTemporaryDesktopFS )
+		return;
+	SDL_SetWindowFullscreen( screen, SDL_WINDOW_FULLSCREEN );
+	g_asyncLoadTemporaryDesktopFS = false;
 }
 
 //#if WIN32

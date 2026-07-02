@@ -27,7 +27,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "client.h"
 
 #include <limits.h>
+#include <SDL.h>
 #include <SDL_vulkan.h>
+#include <atomic>
+#include <thread>
 
 #include "ghoul2/G2.h"
 #include "qcommon/cm_public.h"
@@ -93,6 +96,8 @@ cvar_t	*m_side;
 cvar_t	*m_filter;
 
 cvar_t	*cl_activeAction;
+
+cvar_t	*cl_asyncMapLoad;
 
 cvar_t	*cl_motdString;
 
@@ -1575,16 +1580,73 @@ void CL_DownloadsComplete( void ) {
 
 	// starting to load a map so we get out of full screen ui mode
 	Cvar_Set("r_uiFullScreen", "0");
+	
+	if ( cl_asyncMapLoad->integer ) {
+		// Hand the GL context to the worker thread so it can own the full load stage.
+		// Main thread pumps OS events so the window stays responsive during connect->load.
 
-	// flush client memory and start loading stuff
-	// this will also (re)load the UI
-	// if this is a local client then only the client part of the hunk
-	// will be cleared, note that this is done after the hunk mark has been set
-	CL_FlushMemory();
+		// Prevent SDL from calling ChangeDisplaySettingsEx while the GL context
+		// belongs to the worker thread.  Exclusive fullscreen triggers this on
+		// both focus loss (minimize path) and focus gain (restore path), either
+		// of which can invalidate a wglMakeCurrent'd context on another thread,
+		// producing an SEH access violation that bypasses catch(int).
+		// WIN_BeginAsyncLoad temporarily switches to desktop fullscreen (no
+		// ChangeDisplaySettingsEx) so focus events during the load are harmless.
+		// The minimize hint suppresses any remaining minimise-on-focus-loss path.
+		const char *prevMinOnFocusTmp = SDL_GetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS);
+		std::string prevMinOnFocus = prevMinOnFocusTmp ? prevMinOnFocusTmp : "";
+		SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS, "0");
+		WIN_BeginAsyncLoad();
 
-	// initialize the CGame
-	cls.cgameStarted = qtrue;
-	CL_InitCGame();
+		WIN_ReleaseGLContext();
+
+		std::atomic<bool> loadDone{false};
+		int loadError = 0;
+		std::thread loadThread([&]() {
+			WIN_ReacquireGLContext();
+			try {
+				// This includes the expensive pre-map flush/restart work before cgame init.
+				CL_FlushMemory();
+				cls.cgameStarted = qtrue;
+				CL_InitCGame();
+			} catch (int code) {
+				// Com_Error throws an int; catch here so std::terminate() is not called,
+				// then re-throw on the main thread after join where Com_Frame can catch it.
+				loadError = code;
+			} catch (...) {
+				// Any other C++ exception (e.g. from a DLL) also must not escape the thread.
+				loadError = ERR_DROP;
+			}
+			WIN_ReleaseGLContext();
+			loadDone.store(true, std::memory_order_release);
+		});
+
+		while (!loadDone.load(std::memory_order_acquire)) {
+			SDL_PumpEvents();
+			Sys_Sleep(10);
+		}
+
+		loadThread.join();
+		WIN_ReacquireGLContext();
+		WIN_EndAsyncLoad();
+
+		SDL_SetHint(SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS,
+			prevMinOnFocus.empty() ? "1" : prevMinOnFocus.c_str());
+
+		if (loadError) {
+			throw loadError;
+		}
+	} else {
+		// flush client memory and start loading stuff
+		// this will also (re)load the UI
+		// if this is a local client then only the client part of the hunk
+		// will be cleared, note that this is done after the hunk mark has been set
+		CL_FlushMemory();
+
+		// initialize the CGame
+		cls.cgameStarted = qtrue;
+		CL_InitCGame();
+	}
 
 	// set pure checksums
 	CL_SendPureChecksums();
@@ -1755,7 +1817,9 @@ void CL_InitDownloads(void) {
 		if ( *clc.downloadList ) {
 			const char *serverInfo = cl.gameState.stringData + cl.gameState.stringOffsets[ CS_SERVERINFO ];
 			if ( !atoi( Info_ValueForKey( serverInfo, "sv_allowDownload" ) ) ) {
-				Com_Error( ERR_DROP, "Server does not allow file downloads (sv_allowDownload 0).\nYou are missing required files:\n%s", clc.downloadList );
+				// Server doesn't allow downloads — behave as if cl_allowDownload were 0
+				Com_Printf( "\nWARNING: Server does not allow file downloads (sv_allowDownload 0).\nYou might not be able to join the game\nYou are missing required files:\n%s\n", clc.downloadList );
+				CL_DownloadsComplete();
 				return;
 			}
 
@@ -3847,6 +3911,8 @@ void CL_Init( void ) {
 	cl_aviMotionJpeg = Cvar_Get ("cl_aviMotionJpeg", "1", CVAR_ARCHIVE);
 	cl_avi2GBLimit = Cvar_Get ("cl_avi2GBLimit", "1", CVAR_ARCHIVE );
 	cl_forceavidemo = Cvar_Get ("cl_forceavidemo", "0", 0);
+	
+	cl_asyncMapLoad = Cvar_Get ("cl_asyncMapLoad", "1", CVAR_ARCHIVE_ND );
 
 #if JAMME_PIPES
 	cl_aviPipe = Cvar_Get("cl_aviPipe", "0", CVAR_ARCHIVE_ND, "use ffmpeg pipe for avi recording");

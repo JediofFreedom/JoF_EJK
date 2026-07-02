@@ -64,6 +64,7 @@ XCVAR_DEF( cg_drawScoreboardIcons,			"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawScoreboardPlayerCount,	"1",	NULL,					CVAR_ARCHIVE )
 
 XCVAR_DEF( cg_scoreDeaths,			"1",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_showClientIDs,		"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_killMessage,			"1",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_newFont,				"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_chatBox,				"10000",NULL,					CVAR_ARCHIVE )
@@ -130,7 +131,8 @@ XCVAR_DEF( cg_zoomFov,							"30.0",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_fleshSparks,						"7",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_noFX,								"0",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_noTeleFX,							"0",	NULL,								CVAR_ARCHIVE )
-XCVAR_DEF( cl_ratioFix,							"1",	UI_Set2DRatio,						CVAR_ARCHIVE ) // Shared with UI module
+XCVAR_DEF( cg_altLoadingScreen,                 "0",    NULL,                               CVAR_ARCHIVE )
+XCVAR_DEF( cl_ratioFix,                            "1",    UI_Set2DRatio,                     CVAR_ARCHIVE ) // Shared with UI module
 
 //Features
 XCVAR_DEF( cg_simulatedProjectiles,				"0",	NULL,					CVAR_ARCHIVE )

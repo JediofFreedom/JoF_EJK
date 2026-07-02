@@ -32,6 +32,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 //static qhandle_t	loadingPlayerIcons[MAX_LOADING_PLAYER_ICONS];
 
 void CG_LoadBar(void);
+static void CG_DrawAltLoadingInfoBox( const char *info, const char *sysInfo );
 
 /*
 ======================
@@ -161,6 +162,11 @@ void CG_DrawInformation( void ) {
 
 	// draw the icons of things as they are loaded
 //	CG_DrawLoadingIcons();
+
+    if ( cg_altLoadingScreen.integer ) {
+        CG_DrawAltLoadingInfoBox( info, sysInfo );
+        return;
+    }
 
 	// the first 150 rows are reserved for the client connection
 	// screen to write into
@@ -380,6 +386,135 @@ void CG_DrawInformation( void ) {
 	}
 }
 
+static void CG_DrawAltLoadingInfoBox( const char *info, const char *sysInfo ) {
+    static const vec4_t screenTint = { 0.0f, 0.0f, 0.0f, 0.24f };
+    char mapName[MAX_QPATH];
+    char hostname[MAX_INFO_VALUE];
+    char modName[MAX_INFO_VALUE];
+    char hostLine[MAX_INFO_VALUE];
+    char buf[1024];
+    const char *pure = Info_ValueForKey( sysInfo, "sv_pure" );
+    const char *statusText;
+    const char *s;
+    float metaX = 430.0f;
+    float metaY = 24.0f;
+    const float metaStep = 16.0f;
+    int value, valueNOFP;
+
+    Q_strncpyz( mapName, Info_ValueForKey( info, "mapname" ), sizeof( mapName ) );
+    Q_strncpyz( hostname, Info_ValueForKey( info, "sv_hostname" ), sizeof( hostname ) );
+    Q_CleanAsciiStr( hostname );
+    Q_strncpyz( modName, Info_ValueForKey( info, "gamename" ), sizeof( modName ) );
+
+    if ( pure[0] == '1' ) {
+        Com_sprintf( hostLine, sizeof( hostLine ), "%s  %s", hostname, CG_GetStringEdString( "MP_INGAME", "PURE_SERVER" ) );
+    } else {
+        Q_strncpyz( hostLine, hostname, sizeof( hostLine ) );
+    }
+
+    statusText = cg.infoScreenText[0] ? va( CG_GetStringEdString( "MENUS", "LOADING_MAPNAME" ), cg.infoScreenText ) : CG_GetStringEdString( "MENUS", "AWAITING_SNAPSHOT" );
+
+    CG_FillRect( 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, screenTint );
+
+    //CG_DrawProportionalString( 24.0f, SCREEN_HEIGHT - 104.0f, mapName, UI_DROPSHADOW, colorWhite );
+    //CG_DrawProportionalString( 24.0f, SCREEN_HEIGHT - 72.0f, statusText, UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+
+    CG_DrawProportionalString( metaX, metaY, mapName, UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+    metaY += metaStep;
+    CG_DrawProportionalString( metaX, metaY, hostLine, UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+    metaY += metaStep;
+    if ( modName[0] && cgs.serverMod != SVMOD_JAPRO ) {
+        CG_DrawProportionalString( metaX, metaY, modName, UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+        metaY += metaStep;
+    }
+
+    trap->Cvar_VariableStringBuffer( "sv_running", buf, sizeof( buf ) );
+    if ( !atoi( buf ) ) {
+        metaY += 8.0f;
+    }
+
+    s = Info_ValueForKey( sysInfo, "sv_cheats" );
+    if ( s[0] == '1' ) {
+        CG_DrawProportionalString( metaX, metaY, CG_GetStringEdString("MP_INGAME", "CHEATSAREENABLED"), UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+        metaY += metaStep;
+    }
+
+    s = BG_GetGametypeString( cgs.gametype );
+    CG_DrawProportionalString( metaX, metaY, s, UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+    metaY += metaStep;
+
+    if (cgs.gametype != GT_SIEGE) {
+        value = atoi( Info_ValueForKey( info, "timelimit" ) );
+        if ( value ) {
+            CG_DrawProportionalString( metaX, metaY, va( "%s %i", CG_GetStringEdString("MP_INGAME", "TIMELIMIT"), value ), UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+            metaY += metaStep;
+        }
+
+        if (cgs.gametype < GT_CTF ) {
+            value = atoi( Info_ValueForKey( info, "fraglimit" ) );
+            if ( value ) {
+                CG_DrawProportionalString( metaX, metaY, va( "%s %i", CG_GetStringEdString("MP_INGAME", "FRAGLIMIT"), value ), UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+                metaY += metaStep;
+            }
+            if (cgs.gametype == GT_DUEL || cgs.gametype == GT_POWERDUEL) {
+                value = atoi( Info_ValueForKey( info, "duel_fraglimit" ) );
+                if ( value ) {
+                    CG_DrawProportionalString( metaX, metaY, va( "%s %i", CG_GetStringEdString("MP_INGAME", "WINLIMIT"), value ), UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+                    metaY += metaStep;
+                }
+            }
+        }
+    }
+
+    if (cgs.gametype >= GT_CTF) {
+        value = atoi( Info_ValueForKey( info, "capturelimit" ) );
+        if ( value ) {
+            CG_DrawProportionalString( metaX, metaY, va( "%s %i", CG_GetStringEdString("MP_INGAME", "CAPTURELIMIT"), value ), UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+            metaY += metaStep;
+        }
+    }
+
+    if (cgs.gametype >= GT_TEAM) {
+        value = atoi( Info_ValueForKey( info, "g_forceBasedTeams" ) );
+        if ( value ) {
+            CG_DrawProportionalString( metaX, metaY, CG_GetStringEdString("MP_INGAME", "FORCEBASEDTEAMS"), UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+            metaY += metaStep;
+        }
+    }
+
+    if (cgs.gametype != GT_SIEGE) {
+        valueNOFP = atoi( Info_ValueForKey( info, "g_forcePowerDisable" ) );
+        value = atoi( Info_ValueForKey( info, "g_maxForceRank" ) );
+        if ( value && !valueNOFP && (value < NUM_FORCE_MASTERY_LEVELS) ) {
+            char fmStr[1024];
+            trap->SE_GetStringTextString("MP_INGAME_MAXFORCERANK",fmStr, sizeof(fmStr));
+            CG_DrawProportionalString( metaX, metaY, va( "%s %s", fmStr, CG_GetStringEdString("MP_INGAME", forceMasteryLevels[value]) ), UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+            metaY += metaStep;
+        } else if (!valueNOFP) {
+            char fmStr[1024];
+            trap->SE_GetStringTextString("MP_INGAME_MAXFORCERANK",fmStr, sizeof(fmStr));
+            CG_DrawProportionalString( metaX, metaY, va( "%s %s", fmStr, (char *)CG_GetStringEdString("MP_INGAME", forceMasteryLevels[7]) ), UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+            metaY += metaStep;
+        }
+
+        if (cgs.gametype == GT_DUEL || cgs.gametype == GT_POWERDUEL) {
+            value = atoi( Info_ValueForKey( info, "g_duelWeaponDisable" ) );
+        } else {
+            value = atoi( Info_ValueForKey( info, "g_weaponDisable" ) );
+        }
+        if ( cgs.gametype != GT_JEDIMASTER && value ) {
+            CG_DrawProportionalString( metaX, metaY, (char *)CG_GetStringEdString("MP_INGAME", "SABERONLYSET"), UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+            metaY += metaStep;
+        }
+        if ( valueNOFP ) {
+            CG_DrawProportionalString( metaX, metaY, (char *)CG_GetStringEdString("MP_INGAME", "NOFPSET"), UI_SMALLFONT|UI_DROPSHADOW, colorWhite );
+            metaY += metaStep;
+        }
+    }
+
+
+	
+}
 /*
 ===================
 CG_LoadBar
@@ -387,8 +522,11 @@ CG_LoadBar
 */
 void CG_LoadBar(void)
 {
-	const int numticks = 9, tickwidth = 40, tickheight = 8;
-	const int tickpadx = 20, tickpady = 12;
+	const int numticks = 9;
+	const int tickwidth = cg_altLoadingScreen.integer ? 28 : 40;
+	const int tickheight = cg_altLoadingScreen.integer ? 5 : 8;
+	const int tickpadx = cg_altLoadingScreen.integer ? 14 : 20;
+	const int tickpady = cg_altLoadingScreen.integer ? 8 : 12;
 	const int capwidth = 8;
 	const int barwidth = numticks*tickwidth+tickpadx*2+capwidth*2, barleft = ((640-barwidth)/2);
 	const int barheight = tickheight + tickpady*2, bartop = 480-barheight;

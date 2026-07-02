@@ -1896,6 +1896,14 @@ void CG_StartMusic( qboolean bForceStart ) {
 	Q_strncpyz( parm1, COM_Parse( (const char **)&s ), sizeof( parm1 ) );
 	Q_strncpyz( parm2, COM_Parse( (const char **)&s ), sizeof( parm2 ) );
 
+	// musicless map: an empty CS_MUSIC means there's no track to start, so make
+	// sure anything currently playing (e.g. duel music) is stopped instead of
+	// leaving it running. S_StartBackgroundTrack won't stop it for an empty name.
+	if ( !parm1[0] ) {
+		trap->S_StopBackgroundTrack();
+		return;
+	}
+
 	trap->S_StartBackgroundTrack( parm1, parm2, !bForceStart );
 }
 
