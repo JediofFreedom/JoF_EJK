@@ -2960,7 +2960,7 @@
 			type				ITEM_TYPE_BIND
 			text				"Radial Menu:"
 			cvar				"+radialmenu"
-			rect				260 188 340 14
+			rect				260 190 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174 
 			textaligny			0
@@ -2971,17 +2971,17 @@
 			descText			"Hold button to show the radial quick-command menu."
 			action
 			{
-				play			"sound/interface/button1.wav" ; 
+				play			"sound/interface/button1.wav" ;
 			}
 
-			mouseenter 
+			mouseenter
 			{
-				show			highlight2
+				show			highlight1
 				show			keybindstatus
 			}
-			mouseexit 
-			{ 
-				hide			highlight2
+			mouseexit
+			{
+				hide			highlight1
 				hide			keybindstatus
 			}
 		}
@@ -2992,7 +2992,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Radial Slot 1:"
 			cvar				"cg_radialbind1"
-			rect				260 202 340 14
+			rect				260 204 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174 
 			textaligny			0
@@ -3005,17 +3005,17 @@
     		maxPaintChars   	32
 			action
 			{
-				play			"sound/interface/button1.wav" ; 
+				play			"sound/interface/button1.wav" ;
 			}
 
-			mouseenter 
+			mouseenter
 			{
-				show			highlight3
+				show			highlight2
 				show			keybindstatus
 			}
-			mouseexit 
-			{ 
-				hide			highlight3
+			mouseexit
+			{
+				hide			highlight2
 				hide			keybindstatus
 			}
 		}
@@ -3026,7 +3026,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Radial Slot 2:"
 			cvar				"cg_radialbind2"
-			rect				260 216 340 14
+			rect				260 218 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174 
 			textaligny			0
@@ -3039,17 +3039,17 @@
     		maxPaintChars   	32
 			action
 			{
-				play			"sound/interface/button1.wav" ; 
+				play			"sound/interface/button1.wav" ;
 			}
 
-			mouseenter 
+			mouseenter
 			{
-				show			highlight4
+				show			highlight3
 				show			keybindstatus
 			}
-			mouseexit 
-			{ 
-				hide			highlight4
+			mouseexit
+			{
+				hide			highlight3
 				hide			keybindstatus
 			}
 		}
@@ -3060,7 +3060,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Radial Slot 3:"
 			cvar				"cg_radialbind3"
-			rect				260 230 340 14
+			rect				260 232 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174 
 			textaligny			0
@@ -3073,17 +3073,17 @@
     		maxPaintChars   	32
 			action
 			{
-				play			"sound/interface/button1.wav" ; 
+				play			"sound/interface/button1.wav" ;
 			}
 
-			mouseenter 
+			mouseenter
 			{
-				show			highlight5
+				show			highlight4
 				show			keybindstatus
 			}
-			mouseexit 
-			{ 
-				hide			highlight5
+			mouseexit
+			{
+				hide			highlight4
 				hide			keybindstatus
 			}
 		}
@@ -3094,7 +3094,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Radial Slot 4:"
 			cvar				"cg_radialbind4"
-			rect				260 244 340 14
+			rect				260 246 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174 
 			textaligny			0
@@ -3107,17 +3107,17 @@
     		maxPaintChars   	32
 			action
 			{
-				play			"sound/interface/button1.wav" ; 
+				play			"sound/interface/button1.wav" ;
 			}
 
-			mouseenter 
+			mouseenter
 			{
-				show			highlight6
+				show			highlight5
 				show			keybindstatus
 			}
-			mouseexit 
-			{ 
-				hide			highlight6
+			mouseexit
+			{
+				hide			highlight5
 				hide			keybindstatus
 			}
 		}
@@ -3128,7 +3128,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Radial Slot 5:"
 			cvar				"cg_radialbind5"
-			rect				260 258 340 14
+			rect				260 260 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174 
 			textaligny			0
@@ -3141,17 +3141,17 @@
     		maxPaintChars   	32
 			action
 			{
-				play			"sound/interface/button1.wav" ; 
+				play			"sound/interface/button1.wav" ;
 			}
 
-			mouseenter 
+			mouseenter
 			{
-				show			highlight7
+				show			highlight6
 				show			keybindstatus
 			}
-			mouseexit 
-			{ 
-				hide			highlight7
+			mouseexit
+			{
+				hide			highlight6
 				hide			keybindstatus
 			}
 		}
@@ -3162,7 +3162,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Radial Slot 6:"
 			cvar				"cg_radialbind6"
-			rect				260 272 340 14
+			rect				260 274 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174 
 			textaligny			0
@@ -3175,17 +3175,17 @@
     		maxPaintChars   	32
 			action
 			{
-				play			"sound/interface/button1.wav" ; 
+				play			"sound/interface/button1.wav" ;
 			}
 
-			mouseenter 
+			mouseenter
 			{
-				show			highlight8
+				show			highlight7
 				show			keybindstatus
 			}
-			mouseexit 
-			{ 
-				hide			highlight8
+			mouseexit
+			{
+				hide			highlight7
 				hide			keybindstatus
 			}
 		}
@@ -3196,7 +3196,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Radial Slot 7:"
 			cvar				"cg_radialbind7"
-			rect				260 286 340 14
+			rect				260 288 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174 
 			textaligny			0
@@ -3209,17 +3209,17 @@
     		maxPaintChars   	32
 			action
 			{
-				play			"sound/interface/button1.wav" ; 
+				play			"sound/interface/button1.wav" ;
 			}
 
-			mouseenter 
+			mouseenter
 			{
-				show			highlight9
+				show			highlight8
 				show			keybindstatus
 			}
-			mouseexit 
-			{ 
-				hide			highlight9
+			mouseexit
+			{
+				hide			highlight8
 				hide			keybindstatus
 			}
 		}
@@ -3230,7 +3230,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Radial Slot 8:"
 			cvar				"cg_radialbind8"
-			rect				260 300 340 14
+			rect				260 302 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174 
 			textaligny			0
@@ -3243,17 +3243,17 @@
     		maxPaintChars   	32
 			action
 			{
-				play			"sound/interface/button1.wav" ; 
+				play			"sound/interface/button1.wav" ;
 			}
 
-			mouseenter 
+			mouseenter
 			{
-				show			highlight10
+				show			highlight9
 				show			keybindstatus
 			}
-			mouseexit 
-			{ 
-				hide			highlight10
+			mouseexit
+			{
+				hide			highlight9
 				hide			keybindstatus
 			}
 		}
