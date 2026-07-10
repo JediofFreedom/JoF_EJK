@@ -4150,39 +4150,6 @@
 				hide			keybindstatus
 			}
 		}
-		
-		itemDef 
-		{
-			group				japrocontrols
-			type				ITEM_TYPE_BIND
-			text				"Radial Menu:"
-			cvar				"+radialmenu"
-			rect				220 301 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			151 
-			textaligny			0
-			font				4
-			textscale			1
-			forecolor			.615 .615 .956 1
-			visible				0 
-			descText			"Open the radial quick-command menu."
-			action
-			{
-				play			"sound/interface/button1.wav" ; 
-			}
-
-			mouseenter 
-			{
-				show			highlight14
-				show			keybindstatus
-			}
-			mouseexit 
-			{ 
-				hide			highlight14
-				hide			keybindstatus
-			}
-		}
-		
 		//----------------------------------------------------------------------------------------------
 		//
 		//	Text

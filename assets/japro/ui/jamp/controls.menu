@@ -4374,12 +4374,12 @@
 			}
 		}
 		
-		itemDef 
+		itemDef
 		{
 			group				japrocontrols
 			type				ITEM_TYPE_BIND
-			text				"Radial Menu:"
-			cvar				"+radialmenu"
+			text				"Spot:"
+			cvar				"spot"
 			rect				260 361 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174 
@@ -4388,52 +4388,20 @@
 			textscale			1
 			forecolor			.615 .615 .956 1
 			visible				0 
-			descText			"Open the radial quick-command menu."
-			action 
-			{ 
+			descText			"Place a marker on spotted enemies."
+			action
+			{
 				play			"sound/interface/button1.wav" ;
 			}
 
-			mouseenter 
+			mouseenter
 			{
 				show			highlight13
 				show			keybindstatus
 			}
-			mouseexit 
-			{ 
-				hide			highlight13
-				hide			keybindstatus
-			}
-		}
-		
-		itemDef 
-		{
-			group				japrocontrols
-			type				ITEM_TYPE_BIND
-			text				"Spot:"
-			cvar				"spot"
-			rect				260 375 340 14
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			174 
-			textaligny			0
-			font				4
-			textscale			1
-			forecolor			.615 .615 .956 1
-			visible				0 
-			descText			"Place a marker on spotted enemies."
-			action 
-			{ 
-				play			"sound/interface/button1.wav" ;
-			}
-
-			mouseenter 
+			mouseexit
 			{
-				show			highlight14
-				show			keybindstatus
-			}
-			mouseexit 
-			{ 
-				hide			highlight14
+				hide			highlight13
 				hide			keybindstatus
 			}
 		}
