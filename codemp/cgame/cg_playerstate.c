@@ -246,6 +246,16 @@ void CG_CheckPlayerstateEvents( playerState_t *ps, playerState_t *ops ) {
 			|| (i > ops->eventSequence - MAX_PS_EVENTS && ps->events[i & (MAX_PS_EVENTS-1)] != ops->events[i & (MAX_PS_EVENTS-1)]) ) {
 
 			event = ps->events[ i & (MAX_PS_EVENTS-1) ];
+
+			// EV_GENERAL_SOUND is played from the server snapshot in
+			// CG_CheckServerSoundEvents; prediction replay can overwrite it
+			// in this ring before it fires here
+			if ( event == EV_GENERAL_SOUND ) {
+				cg.predictableEvents[ i & (MAX_PREDICTED_EVENTS-1) ] = event;
+				cg.eventSequence++;
+				continue;
+			}
+
 			cent->currentState.event = event;
 			cent->currentState.eventParm = ps->eventParms[ i & (MAX_PS_EVENTS-1) ];
 //JLF ADDED to hopefully mark events as player event
