@@ -1578,8 +1578,8 @@ static const int MAX_PLUGINDISABLES = ARRAY_LEN( pluginDisables );
 
 static qboolean CG_PluginOptionEnabled(int index)
 {
-	if (index == 9)
-	{ // Plugin 9 is inverted: bit set means option disabled
+	if (index == 9 || index == 10)
+	{ // Plugin 9 & 10 is inverted: bit set means option disabled
 		return !(cp_pluginDisable.integer & (1 << index));
 	}
 
