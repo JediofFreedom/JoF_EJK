@@ -10810,6 +10810,20 @@ static void BG_G2ClientNeckAngles( void *ghoul2, int time, const vec3_t lookAngl
 	trap->G2API_SetBoneAngles(ghoul2, 0, "thoracic", thoracicAngles, BONE_ANGLES_POSTMULT, POSITIVE_X, NEGATIVE_Y, NEGATIVE_Z, 0, 0, time);
 }
 
+#ifdef _CGAME
+//JA+ servers hang us off ledges with these anims; the whole skeleton has to stay
+//anim-driven or the hands drift off the edge.
+static qboolean BG_InLedgeMove( int anim )
+{
+	if ( cgs.serverMod == SVMOD_JAPLUS
+		&& anim >= BOTH_LEDGE_GRAB && anim <= BOTH_LEDGE_MERCPULL )
+	{
+		return qtrue;
+	}
+	return qfalse;
+}
+#endif
+
 //rww - Finally decided to convert all this stuff to BG form.
 static void BG_G2ClientSpineAngles( void *ghoul2, int motionBolt, vec3_t cent_lerpOrigin, vec3_t cent_lerpAngles, entityState_t *cent,
 							int time, vec3_t viewAngles, int ciLegs, int ciTorso, const vec3_t angles, vec3_t thoracicAngles,
@@ -10820,6 +10834,17 @@ static void BG_G2ClientSpineAngles( void *ghoul2, int motionBolt, vec3_t cent_le
 	//*tPitchAngle = viewAngles[PITCH];
 	viewAngles[YAW] = AngleDelta( cent_lerpAngles[YAW], angles[YAW] );
 	//*tYawAngle = viewAngles[YAW];
+
+#ifdef _CGAME
+	if ( BG_InLedgeMove( cent->legsAnim ) || BG_InLedgeMove( cent->torsoAnim )
+		|| BG_InLedgeMove( ciLegs ) || BG_InLedgeMove( ciTorso ) )
+	{ //don't distribute view pitch/yaw up the spine while hanging from a ledge
+		VectorClear( thoracicAngles );
+		VectorClear( ulAngles );
+		VectorClear( llAngles );
+		return;
+	}
+#endif
 
 #if 1
 	if ( !BG_FlippingAnim( cent->legsAnim ) &&
@@ -11372,6 +11397,13 @@ void BG_G2PlayerAngles(void *ghoul2, int motionBolt, entityState_t *cent, int ti
 		eyeAngles[i] = AngleNormalize180( eyeAngles[i] );
 	}
 	AnglesSubtract( lookAngles, eyeAngles, lookAngles );
+
+#ifdef _CGAME
+	if ( BG_InLedgeMove( cent->legsAnim ) || BG_InLedgeMove( cent->torsoAnim ) )
+	{ //keep the head anim-driven too so it can't pivot into the wall
+		VectorClear( lookAngles );
+	}
+#endif
 
 	BG_UpdateLookAngles(lookTime, lastHeadAngles, time, lookAngles, lookSpeed, -50.0f, 50.0f, -70.0f, 70.0f, -30.0f, 30.0f);
 
