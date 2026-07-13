@@ -1831,6 +1831,15 @@ CG_NewClientInfo
 void WP_SetSaber( int entNum, saberInfo_t *sabers, int saberNum, const char *saberName );
 static QINLINE void ParseRGBSaber(char *str, vec3_t c);//rgb
 
+//A model is off limits to players if it declares "notInMP 1" in its settings.txt,
+//or if the user has listed it in cg_modelBlacklist. NPCs are never affected.
+qboolean CG_ModelIsBlacklisted( const char *modelName ) {
+	if ( BG_ModelIsNPCOnly( modelName ) )
+		return qtrue;
+
+	return BG_ModelInList( modelName, cg_modelBlacklist.string );
+}
+
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	clientInfo_t *ci;
 	clientInfo_t newInfo;
@@ -2074,6 +2083,14 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 				*slash = 0;
 			}
 		}
+	}
+
+	//blacklisted models are not usable by players, no matter how they got here
+	//(own model, forceModel, forceAlly/EnemyModel) - fall back to the default model
+	if ( CG_ModelIsBlacklisted( newInfo.modelName ) ) {
+		Q_strncpyz( newInfo.modelName, DEFAULT_MODEL, sizeof( newInfo.modelName ) );
+		Q_strncpyz( newInfo.skinName, "default", sizeof( newInfo.skinName ) );
+		v = newInfo.modelName;
 	}
 
 	ci->useAlternateStandAnim = qfalse;
