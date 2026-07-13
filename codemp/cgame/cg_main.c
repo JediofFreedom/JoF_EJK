@@ -2772,6 +2772,104 @@ forceTicPos_t ammoTicPos[] =
 	69,  34, -10,  10, "gfx/hud/ammo_tick7", 0,
 };
 
+cosmetics_t localCosmetics;
+
+/*
+=================
+CG_LoadCosmetics
+
+Scans a cosmetics folder for .md3 files and registers each one as a wearable item.
+There is no list to maintain: dropping a model in the folder is all it takes to add a
+hat, and any pk3 a player has can extend the set. Names longer than MAX_COSMETIC_LENGTH
+can't survive the trip through the saber colour userinfo key, and names starting with a
+digit would be eaten by the atoi() on the receiving end, so both are refused here.
+=================
+*/
+static void CG_LoadCosmetics(const char *path, size_t pathLen, int *totalCosmetics, cosmeticItem_t **storePtr)
+{
+	int fileCnt, i, j;
+	size_t fileLen = 0;
+	char cosmeticFiles[MAX_QPATH * 256]; //256 cosmetics per category is plenty
+	char cosmetic[MAX_QPATH];
+	cosmeticItem_t *cosmeticsPtr;
+	char *ptr;
+
+	*storePtr = NULL;
+	*totalCosmetics = 0;
+
+	fileCnt = trap->FS_GetFileList(path, ".md3", cosmeticFiles, sizeof(cosmeticFiles));
+	if (!fileCnt)
+		return;
+
+	cosmeticsPtr = (cosmeticItem_t *)malloc(fileCnt * sizeof(*cosmeticsPtr));
+	if (!cosmeticsPtr)
+		trap->Error(ERR_DROP, S_COLOR_RED "ERROR: Failed to allocate memory for cosmetics.\n");
+
+	ptr = cosmeticFiles;
+	j = 0;
+
+	for (i = 0; i < fileCnt; i++, ptr += fileLen + 1)
+	{
+		memset(cosmetic, 0, sizeof(cosmetic));
+		fileLen = strlen(ptr);
+
+		if ((pathLen + fileLen) > (size_t)(MAX_QPATH - 1))
+		{
+			Com_Printf(S_COLOR_YELLOW "WARNING: Cosmetic [%s] path exceeded max length of %d, skipping...\n", ptr, MAX_QPATH - 1);
+			continue;
+		}
+
+		Q_strncpyz(cosmetic, ptr, sizeof(cosmetic));
+		COM_StripExtension(cosmetic, cosmetic, sizeof(cosmetic));
+
+		if (strlen(cosmetic) > (MAX_COSMETIC_LENGTH - 1))
+		{
+			Com_Printf(S_COLOR_YELLOW "WARNING: Cosmetic [%s] filename exceeded max length of %d, skipping...\n", cosmetic, MAX_COSMETIC_LENGTH - 1);
+			continue;
+		}
+
+		if (isdigit((unsigned char)cosmetic[0]))
+		{
+			Com_Printf(S_COLOR_YELLOW "WARNING: Cosmetic [%s] filename starts with a digit, skipping...\n", cosmetic);
+			continue;
+		}
+
+		Q_strncpyz(cosmeticsPtr[j].name, cosmetic, sizeof(cosmeticsPtr[j].name));
+		cosmeticsPtr[j].handle = trap->R_RegisterModel(va("%s%s.md3", path, cosmetic));
+		j++;
+	}
+
+	if (!j)
+	{
+		free(cosmeticsPtr);
+		return;
+	}
+
+	if (j < fileCnt)
+	{
+		cosmeticItem_t *temp = (cosmeticItem_t *)realloc(cosmeticsPtr, j * sizeof(*cosmeticsPtr));
+		if (!temp)
+			trap->Error(ERR_DROP, S_COLOR_RED "ERROR: Failed to reallocate memory for cosmetics.\n");
+		cosmeticsPtr = temp;
+	}
+
+	*storePtr = cosmeticsPtr;
+	*totalCosmetics = j;
+}
+
+void CG_LoadAllCosmetics(void)
+{
+	CG_LoadCosmetics(COSMETIC_HATS_PATH, COSMETIC_HATS_PATH_LENGTH, &localCosmetics.totalHats, &localCosmetics.hats);
+	CG_LoadCosmetics(COSMETIC_CAPES_PATH, COSMETIC_CAPES_PATH_LENGTH, &localCosmetics.totalCapes, &localCosmetics.capes);
+}
+
+void CG_FreeCosmetics(void)
+{
+	free(localCosmetics.hats);
+	free(localCosmetics.capes);
+	memset(&localCosmetics, 0, sizeof(localCosmetics));
+}
+
 /*
 =================
 CG_LoadEmojis
@@ -2886,6 +2984,9 @@ Ghoul2 Insert End
 
 	//Load emojis
 	CG_LoadEmojis();
+
+	//Scan the cosmetics folders for wearable hats and capes
+	CG_LoadAllCosmetics();
 
 	//Load sabers.cfg data
 	WP_SaberLoadParms();
@@ -3200,6 +3301,8 @@ Called before every level change or subsystem restart
 void CG_Shutdown( void )
 {
 	BG_ClearAnimsets(); //free all dynamic allocations made through the engine
+
+	CG_FreeCosmetics();
 
     CG_DestroyAllGhoul2();
 

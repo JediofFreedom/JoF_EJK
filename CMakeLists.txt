@@ -410,6 +410,10 @@ endif()
 # Always use bundled minizip (sets MINIZIP_{LIBRARIES,INCLUDE_DIR})
 add_subdirectory(lib/minizip)
 
+# Always use bundled cJSON (sets CJSON_{LIBRARIES,INCLUDE_DIRS}) - cgame reads the
+# per-model cosmetic offset files with it
+add_subdirectory(lib/cJSON)
+
 # Add projects
 add_subdirectory(${MPDir})
 # Windows Symbol Server tools

@@ -1878,15 +1878,20 @@ static bitInfo_T cosmetics[] = {
 static const int MAX_COSMETICS = ARRAY_LEN(cosmetics);
 
 void IntegerToRaceName(int style, char *styleString, size_t styleStringSize);
-static void CG_Cosmetics_f(void)
+
+//"cosmetics unlocks" - the jaPRO cosmetics the server has granted us, and what the rest cost.
+//Only a jaPRO-family server knows about these; the hats/capes below work anywhere.
+static void CG_Cosmetics_Unlocks_f(void)
 {
-	if (cgs.serverMod < SVMOD_JAPRO)
+	if (cgs.serverMod < SVMOD_JAPRO) {
+		Com_Printf("This server has no cosmetic unlocks.\n");
 		return;
+	}
 
 	//cosmeticUnlocks[i].bitvalue;
 	//trap->SendClientCommand( "cosmetics" );
 
-	if (trap->Cmd_Argc() == 1) {
+	if (trap->Cmd_Argc() == 2) {	//"cosmetics unlocks" - just list them
 		int i = 0, j = 0, display = 0;
 		char styleString[16] = {0};
 		qboolean found;
@@ -1950,16 +1955,15 @@ static void CG_Cosmetics_f(void)
 		}
 		return;
 	}
-	else {
+	else {	//"cosmetics unlocks <n>" - toggle one on
 		char arg[8] = { 0 };
 		int index;
-		const uint32_t mask = (1 << MAX_COSMETICS) - 1;
 
-		trap->Cmd_Argv(1, arg, sizeof(arg));
+		trap->Cmd_Argv(2, arg, sizeof(arg));
 		index = atoi(arg);
 
 		if (index < 0 || index >= MAX_COSMETICS) {
-			Com_Printf("style: Invalid range: %i [0, %i]\n", index, MAX_PLAYERSTYLES - 1);
+			Com_Printf("cosmetics unlocks: Invalid range: %i [0, %i]\n", index, MAX_COSMETICS - 1);
 			return;
 		}
 
@@ -1974,6 +1978,128 @@ static void CG_Cosmetics_f(void)
 		Com_Printf("%s %s^7\n", cosmetics[index].string, ((cp_cosmetics.integer & (1 << index))
 			? "^2Enabled" : "^1Disabled"));
 	}
+}
+
+cosmeticItem_t *CG_CosmeticForName(const char *name, cosmeticItem_t *cosmetics, int amount)
+{
+	int i;
+
+	if (!name || !name[0])
+		return NULL;
+
+	for (i = 0; i < amount; i++) {
+		if (!Q_stricmp(cosmetics[i].name, name))
+			return &cosmetics[i];
+	}
+
+	return NULL;
+}
+
+//Equipping is a cvar edit: the name is appended to the saber colour in color1/color2, which
+//is what carries it to everyone else. Clearing it just truncates back to the bare number.
+static void CG_Cosmetics_Wear_f(const char *category)
+{
+	cosmeticItem_t	*items, *worn, *item;
+	const char		*cvarName;
+	char			cvarValue[MAX_COSMETIC_LENGTH * 2];
+	char			arg[16] = { 0 };
+	int				total, i;
+
+	if (!Q_stricmp(category, "hats")) {
+		items = localCosmetics.hats;
+		total = localCosmetics.totalHats;
+		worn = cgs.clientinfo[cg.clientNum].hat;
+		cvarName = "color1";
+	}
+	else {
+		items = localCosmetics.capes;
+		total = localCosmetics.totalCapes;
+		worn = cgs.clientinfo[cg.clientNum].cape;
+		cvarName = "color2";
+	}
+
+	if (!total) {
+		Com_Printf("No %s installed. Drop .md3 models into %s to add some.\n",
+			category, !Q_stricmp(category, "hats") ? COSMETIC_HATS_PATH : COSMETIC_CAPES_PATH);
+		return;
+	}
+
+	if (trap->Cmd_Argc() == 2) {	//list what we have
+		Com_Printf("^5Available %s:\n", category);
+		for (i = 0; i < total; i++) {
+			Com_Printf("%2d %s %s\n", i, (worn == &items[i]) ? "^2[X]^7" : "[ ]", items[i].name);
+		}
+		Com_Printf("Wear one with ^3cosmetics %s <num>^7, take it off with the same command.\n", category);
+		return;
+	}
+
+	trap->Cmd_Argv(2, arg, sizeof(arg));
+
+	item = CG_CosmeticForName(arg, items, total);	//accept a name as well as a number
+	if (!item) {
+		if (!Q_isanumber(arg)) {
+			Com_Printf("No such %s: '%s'. Run ^3cosmetics %s^7 to see the list.\n", category, arg, category);
+			return;
+		}
+
+		i = atoi(arg);
+		if (i < 0 || i >= total) {
+			Com_Printf("cosmetics %s: Invalid range: %i [0, %i]\n", category, i, total - 1);
+			return;
+		}
+		item = &items[i];
+	}
+
+	trap->Cvar_VariableStringBuffer(cvarName, cvarValue, sizeof(cvarValue));
+
+	if (worn == item) {	//wearing it already - take it off
+		Com_sprintf(cvarValue, sizeof(cvarValue), "%d", atoi(cvarValue));
+		trap->Cvar_Set(cvarName, cvarValue);
+		Com_Printf("^3'%s' ^1removed\n", item->name);
+	}
+	else {
+		Com_sprintf(cvarValue, sizeof(cvarValue), "%d%s", atoi(cvarValue), item->name);
+		trap->Cvar_Set(cvarName, cvarValue);
+		Com_Printf("^3'%s' ^2equipped\n", item->name);
+	}
+}
+
+static void CG_Cosmetics_Clear_f(void)
+{
+	char value[MAX_COSMETIC_LENGTH * 2];
+
+	trap->Cvar_VariableStringBuffer("color1", value, sizeof(value));
+	trap->Cvar_Set("color1", va("%d", atoi(value)));
+
+	trap->Cvar_VariableStringBuffer("color2", value, sizeof(value));
+	trap->Cvar_Set("color2", va("%d", atoi(value)));
+
+	Com_Printf("Hat and cape removed.\n");
+}
+
+static void CG_Cosmetics_f(void)
+{
+	char arg[16] = { 0 };
+
+	if (trap->Cmd_Argc() == 1) {
+		Com_Printf("Usage: ^3cosmetics <hats|capes|clear|unlocks> [num]^7\n");
+		Com_Printf("  ^3hats^7 / ^3capes^7  list what you have, or wear one by number\n");
+		Com_Printf("  ^3clear^7         take off both\n");
+		Com_Printf("  ^3unlocks^7       jaPRO server-granted cosmetics\n");
+		Com_Printf("Hats and capes are visible to anyone else running this client, on any server.\n");
+		return;
+	}
+
+	trap->Cmd_Argv(1, arg, sizeof(arg));
+
+	if (!Q_stricmp(arg, "hats") || !Q_stricmp(arg, "capes"))
+		CG_Cosmetics_Wear_f(arg);
+	else if (!Q_stricmp(arg, "clear"))
+		CG_Cosmetics_Clear_f();
+	else if (!Q_stricmp(arg, "unlocks"))
+		CG_Cosmetics_Unlocks_f();
+	else
+		Com_Printf("Unknown category '%s'. Run ^3cosmetics^7 for usage.\n", arg);
 }
 
 static bitInfo_T chatLog[] = { // MAX_WEAPON_TWEAKS tweaks (24)
