@@ -79,6 +79,7 @@ typedef struct scrollInfo_s {
 	// Some extern functions hoisted from the middle of this file to get all the non-cgame,
 	// non-namespace stuff together
 extern void UI_SaberDrawBlades( itemDef_t *item, vec3_t origin, vec3_t angles );
+extern void UI_DrawCosmeticsOnCharacter( itemDef_t *item, vec3_t origin, vec3_t angles );
 
 extern void UI_SaberLoadParms( void );
 extern qboolean ui_saber_parms_parsed;
@@ -5562,6 +5563,7 @@ void Item_Model_Paint(itemDef_t *item)
 			ent.shaderRGBA[2] = ui_char_color_blue.integer;
 			ent.shaderRGBA[3] = 255;
 //			UI_TalkingHead(item);
+			UI_DrawCosmeticsOnCharacter( item, origin, angles );
 		}
 		if ( item->flags&ITF_ISANYSABER )
 		{//UGH, draw the saber blade!

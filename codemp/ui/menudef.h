@@ -135,6 +135,11 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 //EternalJK UI
 #define FEEDER_SCREEN_RESOLUTIONS			0x2D
 
+// Cosmetics - wearable hats and capes found in models/cosmetics/
+// NOTE: keep in sync with the copy of this file shipped in the assets pk3
+#define FEEDER_COSMETIC_HATS				0x2E
+#define FEEDER_COSMETIC_CAPES				0x2F
+
 // Xbox specific, hope no one minds
 #define FEEDER_XBL_ACCOUNTS					0xA0			// list of available XBL accounts
 #define FEEDER_XBL_PLAYERS					0xA1			// players (current and recent)
