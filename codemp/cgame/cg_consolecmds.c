@@ -1602,10 +1602,10 @@ void CG_PluginDisable_f( void ) {
 				continue;
 
 			if ( CG_PluginOptionEnabled(i) ) {
-				Com_Printf( "%2d [X] %s\n", display, pluginDisables[i].string );
+				Com_Printf( "%2d [ ] %s\n", display, pluginDisables[i].string );
 			}
 			else {
-				Com_Printf( "%2d [ ] %s\n", display, pluginDisables[i].string );
+				Com_Printf( "%2d [X] %s\n", display, pluginDisables[i].string );
 			}
 			display++;
 		}
