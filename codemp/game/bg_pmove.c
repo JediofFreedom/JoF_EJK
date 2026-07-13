@@ -12506,6 +12506,14 @@ void PmoveSingle (pmove_t *pmove) {
 		{
 			PM_SetPMViewAngle(pm->ps, pm->ps->viewangles, &pm->cmd);
 			stiffenedUp = qtrue;
+
+			if (pm->ps->legsAnim >= BOTH_LEDGE_GRAB && pm->ps->legsAnim <= BOTH_LEDGE_MERCPULL)
+			{ //the server owns our position on the ledge; predicting gravity just makes us
+			  //fall a little every frame and get snapped back each snapshot (camera shake).
+			  //1 and not 0: gravity <= 0 flips PM_CheckJump into its zero-G push-off mode
+			  //(and divides by zero in PM_CrashLand), which sends the camera flying
+				pm->ps->gravity = 1;
+			}
 		}
 		else
 		{
