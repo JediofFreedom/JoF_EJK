@@ -5777,6 +5777,24 @@ static const char *cg_pushBoneNames[] =
 	NULL
 };
 
+// JoF - jp_empowerEffect 1: arms only (two per arm)
+static const char *cg_empowerArmBoneNames[] =
+{
+	"rhand",
+	"lhand",
+	"lradius",
+	"rradius",
+	NULL
+};
+
+// JoF - jp_empowerEffect 2: only the bolt nearest each hand
+static const char *cg_empowerHandBoneNames[] =
+{
+	"rhand",
+	"lhand",
+	NULL
+};
+
 void CG_ForceGripped( const vec3_t org, qboolean darkSide )
 {
 	localEntity_t	*ex;
@@ -5833,12 +5851,17 @@ void CG_ForceGripped( const vec3_t org, qboolean darkSide )
 	ex->refEntity.customShader = trap->R_RegisterShader( "gfx/effects/forcePush" );
 }
 
-static void CG_ForcePushBodyBlur( centity_t *cent )
+static void CG_ForcePushBodyBlurBones( centity_t *cent, const char **boneNames )
 {
 	vec3_t fxOrg;
 	mdxaBone_t	boltMatrix;
 	int bolt;
 	int i;
+
+	if (!boneNames || !boneNames[0])
+	{ //nothing to draw
+		return;
+	}
 
 	if (cent->localAnimIndex > 1)
 	{ //Sorry, the humanoid IS IN ANOTHER CASTLE.
@@ -5857,13 +5880,13 @@ static void CG_ForcePushBodyBlur( centity_t *cent )
 
 	assert(cent->ghoul2);
 
-	for (i = 0; cg_pushBoneNames[i]; i++)
+	for (i = 0; boneNames[i]; i++)
 	{ //go through all the bones we want to put a blur effect on
-		bolt = trap->G2API_AddBolt(cent->ghoul2, 0, cg_pushBoneNames[i]);
+		bolt = trap->G2API_AddBolt(cent->ghoul2, 0, boneNames[i]);
 
 		if (bolt == -1)
 		{
-			assert(!"You've got an invalid bone/bolt name in cg_pushBoneNames");
+			assert(!"You've got an invalid bone/bolt name in the blur bone list");
 			continue;
 		}
 
@@ -5873,6 +5896,33 @@ static void CG_ForcePushBodyBlur( centity_t *cent )
 		//standard effect, don't be refractive (for now)
 		CG_ForcePushBlur(fxOrg, NULL);
 	}
+}
+
+static void CG_ForcePushBodyBlur( centity_t *cent )
+{ //being force-pushed: always the full bone set, unaffected by jp_empowerEffect
+	CG_ForcePushBodyBlurBones(cent, cg_pushBoneNames);
+}
+
+// JoF - empower glow. Bone set selected by the server's jp_empowerEffect.
+static void CG_EmpowerBodyBlur( centity_t *cent )
+{
+	const char **boneNames;
+
+	switch (cgs.empowerEffect)
+	{
+	case 1:
+		boneNames = cg_empowerArmBoneNames;
+		break;
+	case 2:
+		boneNames = cg_empowerHandBoneNames;
+		break;
+	case 0:
+	default:
+		boneNames = cg_pushBoneNames;
+		break;
+	}
+
+	CG_ForcePushBodyBlurBones(cent, boneNames);
 }
 
 static int cg_forceAnimFxNextTime[MAX_GENTITIES];
@@ -12323,11 +12373,21 @@ skipTrail:
 				}
 
 	//fullbody push effect - don't render it for anyone while the local player is zoomed (keeps the scope view clean)
+	//JoF - empower sets EF_BODYPUSH *and* EF_EMPOWERED (so old clients still see a
+	//glow). Check EF_EMPOWERED first and draw the jp_empowerEffect bone set; otherwise
+	//an empowered player would draw both the trimmed set and the full push set.
 	if ((cent->currentState.eFlags & EF_BODYPUSH) &&
 		forceFXVisible &&
 		!((cg.predictedPlayerState.zoomMode || !cg.renderingThirdPerson) && cent->currentState.number == cg.predictedPlayerState.clientNum))
 	{
-		CG_ForcePushBodyBlur(cent);
+		if (cent->currentState.eFlags & EF_EMPOWERED)
+		{
+			CG_EmpowerBodyBlur(cent);
+		}
+		else
+		{
+			CG_ForcePushBodyBlur(cent);
+		}
 	}
 
 

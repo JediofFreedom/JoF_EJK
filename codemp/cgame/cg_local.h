@@ -2130,6 +2130,7 @@ typedef struct cgs_s {
 	// parsed from serverinfo
 	int				siegeTeamSwitch;
 	int				showDuelHealths;
+	int				empowerEffect;		// JoF - jp_empowerEffect: 0=full body, 1=arms only, 2=hands only
 	gametype_t		gametype;
 	int				debugMelee;
 	int				stepSlideFix;
