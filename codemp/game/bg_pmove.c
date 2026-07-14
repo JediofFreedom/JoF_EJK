@@ -12513,6 +12513,21 @@ void PmoveSingle (pmove_t *pmove) {
 			  //1 and not 0: gravity <= 0 flips PM_CheckJump into its zero-G push-off mode
 			  //(and divides by zero in PM_CrashLand), which sends the camera flying
 				pm->ps->gravity = 1;
+
+				//the ledge anims are server-driven with finite timers, and prediction
+				//runs ~a ping ahead: the moment the predicted torsoTimer hits zero,
+				//PM_Weapon stomps the torso with a weapon-ready pose until the next
+				//snapshot restores it, restarting the shimmy anim from frame 0 over
+				//and over. Keep the timers alive so prediction never ends the anim
+				//(same trick the BOTH_MEDITATE handling uses above).
+				if (pm->ps->legsTimer < 100)
+				{
+					pm->ps->legsTimer = 100;
+				}
+				if (pm->ps->torsoTimer < 100)
+				{
+					pm->ps->torsoTimer = 100;
+				}
 			}
 		}
 		else
