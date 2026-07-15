@@ -173,49 +173,6 @@ void CG_SetInitialSnapshot( snapshot_t *snap ) {
 
 
 /*
-==================
-CG_CheckServerSoundEvents
-
-Server-injected sound events ride the playerState event ring, which only
-holds MAX_PS_EVENTS (2) entries. Under client prediction, the Pmove replay
-in CG_PredictPlayerState appends predicted events (footsteps, jumps) to the
-same ring and can overwrite a server sound before CG_TransitionPlayerState
-plays it, so the local player never heard their own server-driven sounds
-unless cg_nopredict was set. Play them straight off the server snapshot,
-where the event sequence is authoritative; CG_CheckPlayerstateEvents skips
-EV_GENERAL_SOUND so they can't double-play.
-==================
-*/
-static void CG_CheckServerSoundEvents( playerState_t *ps, playerState_t *ops ) {
-	int			i;
-
-	if ( ps->clientNum != ops->clientNum ) {
-		return;	// follow target changed, the event sequences are unrelated
-	}
-
-	for ( i = ps->eventSequence - MAX_PS_EVENTS; i < ps->eventSequence; i++ ) {
-		if ( i < ops->eventSequence ) {
-			continue;
-		}
-		if ( ps->events[ i & (MAX_PS_EVENTS-1) ] == EV_GENERAL_SOUND ) {
-			int parm = ps->eventParms[ i & (MAX_PS_EVENTS-1) ];
-
-			// play directly instead of routing through CG_EntityEvent with a
-			// faked entityState: the playerState carries no sound channel, and
-			// EV_GENERAL_SOUND would misread saberEntityNum as one (a saber
-			// entity number of 52-55 lands on the TRACK_CHANNEL force-loop
-			// path and leaks looping sounds)
-			if ( cgs.gameSounds[ parm ] ) {
-				trap->S_StartSound( NULL, ps->clientNum, CHAN_AUTO, cgs.gameSounds[ parm ] );
-			} else {
-				const char *s = CG_ConfigString( CS_SOUNDS + parm );
-				trap->S_StartSound( NULL, ps->clientNum, CHAN_AUTO, CG_CustomSound( ps->clientNum, s ) );
-			}
-		}
-	}
-}
-
-/*
 ===================
 CG_TransitionSnapshot
 
@@ -281,15 +238,18 @@ static void CG_TransitionSnapshot( void ) {
 			cg.thisFrameTeleport = qfalse; // clear for interpolated player with new camera damping
 		}
 
-		// server-driven sounds are played from the snapshot so prediction
-		// replay can't clobber them (see CG_CheckServerSoundEvents)
-		CG_CheckServerSoundEvents( ps, ops );
-
 		// if we are not doing client side movement prediction for any
 		// reason, then the client events and view changes will be issued now
 		if ( cg.demoPlayback || (cg.snap->ps.pm_flags & PMF_FOLLOW)
 			|| cg_noPredict.integer || g_synchronousClients.integer || CG_UsingEWeb() ) {
 			CG_TransitionPlayerState( ps, ops );
+		}
+		else {
+			// under prediction, server-injected events (ps.externalEvent) can
+			// be missed by the predicted-pair transition in
+			// CG_PredictPlayerState; dispatch them off the authoritative
+			// snapshot pair (deduped via cg.lastExternalEvent)
+			CG_CheckExternalEvent( ps, ops );
 		}
 	}
 

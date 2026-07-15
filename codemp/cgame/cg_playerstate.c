@@ -221,6 +221,44 @@ void CG_Respawn( void ) {
 
 /*
 ==============
+CG_CheckExternalEvent
+
+Plays a server-injected event (ps.externalEvent, set by G_AddEvent on a
+client entity). Called with the predicted playerstate pair from
+CG_CheckPlayerstateEvents and with the authoritative snapshot pair from
+CG_TransitionSnapshot: under prediction the predicted-pair comparison can
+miss the event (e.g. the EV_FALL splat of a flung player was never heard
+by the victim), so the snapshot pair is checked as well.
+cg.lastExternalEvent keeps the two paths from double-playing.
+==============
+*/
+void CG_CheckExternalEvent( playerState_t *ps, playerState_t *ops ) {
+	centity_t	*cent;
+
+	if ( !ps->externalEvent ) {
+		cg.lastExternalEvent = 0;
+		return;
+	}
+
+	if ( ps->clientNum != ops->clientNum ) {
+		// view changed (follow switch), don't replay the new view's pending event
+		cg.lastExternalEvent = ps->externalEvent;
+		return;
+	}
+
+	if ( ps->externalEvent == ops->externalEvent || ps->externalEvent == cg.lastExternalEvent ) {
+		return;
+	}
+	cg.lastExternalEvent = ps->externalEvent;
+
+	cent = &cg_entities[ ps->clientNum ];
+	cent->currentState.event = ps->externalEvent;
+	cent->currentState.eventParm = ps->externalEventParm;
+	CG_EntityEvent( cent, cent->lerpOrigin );
+}
+
+/*
+==============
 CG_CheckPlayerstateEvents
 ==============
 */
@@ -229,12 +267,7 @@ void CG_CheckPlayerstateEvents( playerState_t *ps, playerState_t *ops ) {
 	int			event;
 	centity_t	*cent;
 
-	if ( ps->externalEvent && ps->externalEvent != ops->externalEvent ) {
-		cent = &cg_entities[ ps->clientNum ];
-		cent->currentState.event = ps->externalEvent;
-		cent->currentState.eventParm = ps->externalEventParm;
-		CG_EntityEvent( cent, cent->lerpOrigin );
-	}
+	CG_CheckExternalEvent( ps, ops );
 
 	cent = &cg_entities[ ps->clientNum ];
 	// go through the predictable events buffer
@@ -246,16 +279,6 @@ void CG_CheckPlayerstateEvents( playerState_t *ps, playerState_t *ops ) {
 			|| (i > ops->eventSequence - MAX_PS_EVENTS && ps->events[i & (MAX_PS_EVENTS-1)] != ops->events[i & (MAX_PS_EVENTS-1)]) ) {
 
 			event = ps->events[ i & (MAX_PS_EVENTS-1) ];
-
-			// EV_GENERAL_SOUND is played from the server snapshot in
-			// CG_CheckServerSoundEvents; prediction replay can overwrite it
-			// in this ring before it fires here
-			if ( event == EV_GENERAL_SOUND ) {
-				cg.predictableEvents[ i & (MAX_PREDICTED_EVENTS-1) ] = event;
-				cg.eventSequence++;
-				continue;
-			}
-
 			cent->currentState.event = event;
 			cent->currentState.eventParm = ps->eventParms[ i & (MAX_PS_EVENTS-1) ];
 //JLF ADDED to hopefully mark events as player event

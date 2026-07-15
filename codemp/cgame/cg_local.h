@@ -1116,6 +1116,7 @@ typedef struct cg_s {
 
 	int			eventSequence;
 	int			predictableEvents[MAX_PREDICTED_EVENTS];
+	int			lastExternalEvent;		// last ps.externalEvent played, so the predicted and snapshot dispatch paths don't double-play
 
 	float		stepChange;				// for stair up smoothing
 	int			stepTime;
@@ -2641,6 +2642,7 @@ void CG_ShaderStateChanged(void);
 int CG_IsMindTricked(int trickIndex1, int trickIndex2, int trickIndex3, int trickIndex4, int client);
 void CG_Respawn( void );
 void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops );
+void CG_CheckExternalEvent( playerState_t *ps, playerState_t *ops );
 void CG_CheckChangedPredictableEvents( playerState_t *ps );
 
 
