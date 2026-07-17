@@ -1475,7 +1475,7 @@ static qboolean japroPluginDisables[] = {
 	qfalse,//{"End duel rotation"},//3
 	qtrue,//{"Black saber disable"},//4
 	qfalse,//{"Auto reply disable"},//5
-	qfalse,//{"New force effect"},//6
+	qfalse,//{"Disable new force effect"},//6
 	qfalse,//{"New deathmsg disable"},//7
 	qfalse,//{"New sight effect"},//8
 	qfalse,//{"No alt dim effect"},//9
@@ -1510,7 +1510,7 @@ static qboolean japlusPluginDisables[] = {
 	qtrue,//{"End duel rotation"},//3
 	qtrue,//{"Black saber disable"},//4
 	qtrue,//{"Auto reply disable"},//5
-	qtrue,//{"New force effect"},//6
+	qtrue,//{"Disable new force effect"},//6
 	qtrue,//{"New deathmsg disable"},//7
 	qtrue,//{"New sight effect"},//8
 	qtrue,//{"No alt dim effect"},//9
@@ -1545,7 +1545,7 @@ static bitInfo_T pluginDisables[] = { // MAX_WEAPON_TWEAKS tweaks (24)
 	{"End duel rotation"},//3
 	{"No black sabers"},//4
 	{"No auto replier"},//5
-	{"New force effect"},//6
+	{"Disable new force effects"},//6
 	{"No new deathmsg"},//7
 	{"New sight effect"},//8
 	{"No alt dim effect"},//9
