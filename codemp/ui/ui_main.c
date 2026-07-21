@@ -679,6 +679,7 @@ void UI_UpdateCurrentServerInfo(void) { //parses server info to contextually hid
 	char *value = NULL;
 
 	trap->Cvar_Set("ui_isJAPro", "0");
+	trap->Cvar_Set("ui_isJAPlus", "0");
 	trap->Cvar_Set("ui_raceMode", "0");
 	trap->Cvar_Set("ui_allowRegistration", "0");
 	trap->Cvar_Set("ui_allowSaberSwitch", "0");
@@ -696,6 +697,7 @@ void UI_UpdateCurrentServerInfo(void) { //parses server info to contextually hid
 	if (!Q_stricmpn(value, "JA+ Mod", 7) || !Q_stricmpn(value, "^4U^3A^5Galaxy", 14) || !Q_stricmpn(value, "AbyssMod", 8))
 	{
 		trap->Cvar_Set("ui_allowSaberSwitch", "1");
+		trap->Cvar_Set("ui_isJAPlus", "1");
 	}
 	else if (!Q_stricmpn(value, "japro", 5)) {
 		int jcinfo2;
@@ -8249,6 +8251,17 @@ static void UI_RunMenuScript(char **args)
 			Controls_SetConfig();
 		} else if (Q_stricmp(name, "loadControls") == 0) {
 			Controls_GetConfig();
+		} else if (Q_stricmp(name, "refreshModTabs") == 0) {
+			//JAPRO - show the JAPLUS controls tab only when connected to a detected
+			//JA+ server, and JAPRO otherwise (including disconnected/main menu).
+			//ui_isJAPlus/ui_isJAPro are refreshed by UI_UpdateCurrentServerInfo()
+			//on the relevant menu transitions.
+			menuDef_t *menu = Menu_GetFocused();
+			if (menu) {
+				qboolean isJaPlus = ui_isJAPlus.integer ? qtrue : qfalse;
+				Menu_ShowGroup(menu, "japlusbutton", isJaPlus);
+				Menu_ShowGroup(menu, "japrobutton", isJaPlus ? qfalse : qtrue);
+			}
 		} else if (Q_stricmp(name, "clearError") == 0) {
 			trap->Cvar_Set("com_errorMessage", "");
 		} else if (Q_stricmp(name, "loadGameInfo") == 0) {
