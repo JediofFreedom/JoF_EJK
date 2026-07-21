@@ -17,9 +17,10 @@
 		descColor				1 .682 0 .8
 		descAlignment			ITEM_ALIGN_CENTER		
 
-		onOpen 
+		onOpen
 		{
 			uiScript 		loadControls;
+			uiScript		refreshModTabs;
 
 			show			setup_background ;
 			show 			movecontrols ;
@@ -908,10 +909,10 @@
 		}
 
 		// japro  button
-		itemDef 
+		itemDef
 		{
 			name				japrocontrolbutton_glow
-			group				mods
+			group				japrobutton
 			style				WINDOW_STYLE_SHADER
 			rect				80 353 180 24
 			background			"gfx/menus/menu_blendbox2"			// Frame around button
@@ -923,7 +924,7 @@
 		itemDef 
 		{
 			name				japrocontrolbutton
-			group				none
+			group				japrobutton
 			text				JAPRO
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_EMPTY
@@ -1042,7 +1043,7 @@
 		itemDef
 		{
 			name				japluscontrolbutton_glow
-			group				mods
+			group				japlusbutton
 			style				WINDOW_STYLE_SHADER
 			rect				80 401 180 24
 			background			"gfx/menus/menu_blendbox2"			// Frame around button
@@ -1054,7 +1055,7 @@
 		itemDef
 		{
 			name				japluscontrolbutton
-			group				none
+			group				japlusbutton
 			text				JAPLUS
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_EMPTY
@@ -4207,7 +4208,7 @@
 		{
 			group				japluscontrols
 			type				ITEM_TYPE_BIND
-			text				"JoF Balanced Force Duel:"
+			text				"Balanced Force Duel:"
 			cvar				"engage_balancedforceduel"
 			rect				260 244 340 14
 			textalign			ITEM_ALIGN_RIGHT
@@ -4239,7 +4240,7 @@
 		{
 			group				japluscontrols
 			type				ITEM_TYPE_BIND
-			text				"JoF Force Dash:"
+			text				"Force Dash:"
 			cvar				"force_dash"
 			rect				260 259 340 14
 			textalign			ITEM_ALIGN_RIGHT
@@ -4271,7 +4272,7 @@
 		{
 			group				japluscontrols
 			type				ITEM_TYPE_BIND
-			text				"JoF Force Stasis:"
+			text				"Force Stasis:"
 			cvar				"+force_stasis"
 			rect				260 274 340 14
 			textalign			ITEM_ALIGN_RIGHT
@@ -4303,7 +4304,7 @@
 		{
 			group				japluscontrols
 			type				ITEM_TYPE_BIND
-			text				"JoF Force Repulse:"
+			text				"Force Repulse:"
 			cvar				"force_repulse"
 			rect				260 289 340 14
 			textalign			ITEM_ALIGN_RIGHT
