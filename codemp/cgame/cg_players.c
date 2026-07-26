@@ -3909,6 +3909,17 @@ static void CG_RunLerpFrame( centity_t *cent, clientInfo_t *ci, lerpFrame_t *lf,
 	}
 	else
 	{
+		if ( lf->lastForcedFrame != -1 )
+		{//we were force-frozen last frame and just came out of it - the freeze
+		 //above unconditionally overrode these 3 bones regardless of whether
+		 //this entity actually has them (noLumbar/localAnimIndex), but the
+		 //normal animation path below respects those gates, so it can't be
+		 //relied on to always release the override. Explicitly release it.
+			trap->G2API_RemoveBone(cent->ghoul2, "lower_lumbar", 0);
+			trap->G2API_RemoveBone(cent->ghoul2, "model_root", 0);
+			trap->G2API_RemoveBone(cent->ghoul2, "Motion", 0);
+		}
+
 		lf->lastForcedFrame = -1;
 
 		if ( (newAnimation != lf->animationNumber || cent->currentState.brokenLimbs != ci->brokenLimbs || lf->lastFlip != flipState || !lf->animation) || (CG_FirstAnimFrame(lf, torsoOnly, speedScale)) )
