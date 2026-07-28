@@ -1645,8 +1645,16 @@ void CG_PluginDisable_f( void ) {
 		trap->Cvar_Set( "cp_pluginDisable", va( "%i", (1 << index2) ^ (cp_pluginDisable.integer & mask ) ) );
 		trap->Cvar_Update( &cp_pluginDisable );
 
-		Com_Printf( "%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(i)
-			? "^2Enabled" : "^1Disabled") );
+		if (index2 == 10 || index2 == 5) {
+			Com_Printf("%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(index2)
+				? "^1Disabled" : "^2Enabled") );
+		}
+
+		else {
+			Com_Printf( "%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(index2)
+				? "^2Enabled" : "^1Disabled") );
+		}
+
 	}
 }
 
