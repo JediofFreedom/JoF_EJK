@@ -44,6 +44,7 @@
 			setitemcolor		othercontrolbutton 		forecolor 1 .682 0 1 ;
 			setitemcolor		japrocontrolbutton 		forecolor 1 .682 0 1 ;
 			setitemcolor		radialmenubutton 			forecolor 1 .682 0 1 ;
+			setitemcolor		japluscontrolbutton 		forecolor 1 .682 0 1 ;
 		}
 
 		onClose 
@@ -912,9 +913,9 @@
 		itemDef
 		{
 			name				japrocontrolbutton_glow
-			group				japrobutton
+			group				mods
 			style				WINDOW_STYLE_SHADER
-			rect				80 353 180 24
+			rect				80 377 180 24
 			background			"gfx/menus/menu_blendbox2"			// Frame around button
 			forecolor			1 1 1 1
 			visible				0
@@ -928,7 +929,7 @@
 			text				JAPRO
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_EMPTY
-			rect				80 353 170 24
+			rect				80 377 170 24
 			font				3
 			textscale			0.9
 			textalignx			160
@@ -979,7 +980,7 @@
 			name				radialmenubutton_glow
 			group				mods
 			style				WINDOW_STYLE_SHADER
-			rect				80 377 180 24
+			rect				80 401 180 24
 			background			"gfx/menus/menu_blendbox2"			// Frame around button
 			forecolor			1 1 1 1
 			visible				0
@@ -993,7 +994,7 @@
 			text				"radial menu"
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_EMPTY
-			rect				80 377 170 24
+			rect				80 401 170 24
 			font				3
 			textscale			0.9
 			textalignx			160
@@ -1043,9 +1044,9 @@
 		itemDef
 		{
 			name				japluscontrolbutton_glow
-			group				japlusbutton
+			group				mods
 			style				WINDOW_STYLE_SHADER
-			rect				80 401 180 24
+			rect				80 353 180 24
 			background			"gfx/menus/menu_blendbox2"			// Frame around button
 			forecolor			1 1 1 1
 			visible				0
@@ -1059,7 +1060,7 @@
 			text				JAPLUS
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_EMPTY
-			rect				80 401 170 24
+			rect				80 353 170 24
 			font				3
 			textscale			0.9
 			textalignx			160
@@ -4154,7 +4155,7 @@
 			textscale			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			descText			"Gives Jetpack"
+			descText			"Gives Jetpack (if enabled on server) and removes Jetpack"
 			action
 			{
 				play			"sound/interface/button1.wav" ;
@@ -4186,7 +4187,7 @@
 			textscale			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			descText			"Challenge an enemy to a private full force duel, or accept another's challenge."
+			descText			"Challenge an enemy to a private full force duel, or accept another's challenge. JoF JA+ servers only."
 			action
 			{
 				play			"sound/interface/button1.wav" ;
@@ -4218,7 +4219,7 @@
 			textscale			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			descText			"Challenge an enemy to a private balanced force duel, or accept another's challenge. JA+ servers only."
+			descText			"Challenge an enemy to a private balanced force duel, or accept another's challenge. JoF JA+ servers only."
 			action
 			{
 				play			"sound/interface/button1.wav" ;
@@ -4250,7 +4251,7 @@
 			textscale			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			descText			"Dash using the JA+ force dash ability. JA+ servers only."
+			descText			"Dash using the JA+ force dash ability. JoF JA+ servers only."
 			action
 			{
 				play			"sound/interface/button1.wav" ;
@@ -4282,7 +4283,7 @@
 			textscale			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			descText			"Uses the JA+ force stasis ability. JA+ servers only."
+			descText			"Uses the JA+ force stasis ability. JoF JA+ servers only."
 			action
 			{
 				play			"sound/interface/button1.wav" ;
@@ -4314,7 +4315,7 @@
 			textscale			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			descText			"Uses the JA+ force repulse ability. JA+ servers only."
+			descText			"Uses the JA+ force repulse ability. JoF JA+ servers only."
 			action
 			{
 				play			"sound/interface/button1.wav" ;
@@ -4351,7 +4352,7 @@
 			textscale			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			descText			"Gives Jetpack"
+			descText			"Gives Jetpack (if enabled on server) and removes Jetpack"
 			action 
 			{ 
 				play			"sound/interface/button1.wav" ;

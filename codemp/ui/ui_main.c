@@ -680,6 +680,7 @@ void UI_UpdateCurrentServerInfo(void) { //parses server info to contextually hid
 
 	trap->Cvar_Set("ui_isJAPro", "0");
 	trap->Cvar_Set("ui_isJAPlus", "0");
+	trap->Cvar_Set("ui_isJoFJAPlus", "0");
 	trap->Cvar_Set("ui_raceMode", "0");
 	trap->Cvar_Set("ui_allowRegistration", "0");
 	trap->Cvar_Set("ui_allowSaberSwitch", "0");
@@ -712,6 +713,11 @@ void UI_UpdateCurrentServerInfo(void) { //parses server info to contextually hid
 
 		if (trap->Cvar_VariableValue("g_gametype") < GT_TEAM && jcinfo2 & (1 << 2)) //allow /saber switch cmd
 			trap->Cvar_Set("ui_allowSaberSwitch", "1");
+	}
+
+	//JoF JA+ servers advertise this exact version string in serverinfo, mirrors CL_JoFTrustedServer() in cl_main.cpp
+	if (!Q_stricmp(Info_ValueForKey(info, "V"), "2.5B0")) {
+		trap->Cvar_Set("ui_isJoFJAPlus", "1");
 	}
 
 	//parse system info
@@ -8282,14 +8288,20 @@ static void UI_RunMenuScript(char **args)
 			Controls_GetConfig();
 		} else if (Q_stricmp(name, "refreshModTabs") == 0) {
 			//JAPRO - show the JAPLUS controls tab only when connected to a detected
-			//JA+ server, and JAPRO otherwise (including disconnected/main menu).
+			//JA+ server, and JAPRO otherwise. In the disconnected main menu (controlsMenu)
+			//we don't know what we'll connect to next, so show both tabs.
 			//ui_isJAPlus/ui_isJAPro are refreshed by UI_UpdateCurrentServerInfo()
 			//on the relevant menu transitions.
 			menuDef_t *menu = Menu_GetFocused();
 			if (menu) {
-				qboolean isJaPlus = ui_isJAPlus.integer ? qtrue : qfalse;
-				Menu_ShowGroup(menu, "japlusbutton", isJaPlus);
-				Menu_ShowGroup(menu, "japrobutton", isJaPlus ? qfalse : qtrue);
+				if (menu->window.name && !Q_stricmp(menu->window.name, "controlsMenu")) {
+					Menu_ShowGroup(menu, "japlusbutton", qtrue);
+					Menu_ShowGroup(menu, "japrobutton", qtrue);
+				} else {
+					qboolean isJaPlus = ui_isJAPlus.integer ? qtrue : qfalse;
+					Menu_ShowGroup(menu, "japlusbutton", isJaPlus);
+					Menu_ShowGroup(menu, "japrobutton", isJaPlus ? qfalse : qtrue);
+				}
 			}
 		} else if (Q_stricmp(name, "clearError") == 0) {
 			trap->Cvar_Set("com_errorMessage", "");
