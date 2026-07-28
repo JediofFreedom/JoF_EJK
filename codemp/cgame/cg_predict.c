@@ -1041,6 +1041,72 @@ static QINLINE int FindGrappleHook( int clientNum ) {
 }
 #endif
 
+extern qboolean PM_InKnockDown( playerState_t *ps ); //bg_panimate.c
+extern qboolean BG_InKnockDown( int anim ); //bg_pmove.c
+
+// True from the moment we're knocked down until the get-up animation has fully
+// played out. PM_InKnockDown alone isn't enough: JA+ can play the get-up on the
+// torso channel while the legs are already free, so check both channels.
+static qboolean CG_InKnockDownState( playerState_t *ps )
+{
+	if ( ps->forceHandExtend == HANDEXTEND_KNOCKDOWN )
+	{
+		return qtrue;
+	}
+	if ( PM_InKnockDown( ps ) )
+	{
+		return qtrue;
+	}
+	if ( BG_InKnockDown( ps->legsAnim ) && ps->legsTimer > 0 )
+	{
+		return qtrue;
+	}
+	if ( BG_InKnockDown( ps->torsoAnim ) && ps->torsoTimer > 0 )
+	{
+		return qtrue;
+	}
+	// JA+ kicks use these custom falling/get-up anims (seen with fhe already
+	// cleared); BG_InKnockDown only counts them on JA Pro servers, so handle
+	// them here explicitly.
+	switch ( ps->legsAnim )
+	{
+	case BOTH_BACK_FALLING:
+	case BOTH_BACK_FALLING_GETUP:
+	case BOTH_BACK_FALLING_GETUP_SLOW:
+		return qtrue;
+	default:
+		break;
+	}
+	switch ( ps->torsoAnim )
+	{
+	case BOTH_BACK_FALLING:
+	case BOTH_BACK_FALLING_GETUP:
+	case BOTH_BACK_FALLING_GETUP_SLOW:
+		return qtrue;
+	default:
+		break;
+	}
+	return qfalse;
+}
+
+// JA+ locks the local view server-side (it rewrites delta_angles every server
+// frame) while we're being kicked down, getting up, kissing or hanging from a
+// ledge. Mirrors the anim list bg_pmove's JA+ animation support locks for,
+// plus the kick knockdown window above.
+static qboolean CG_JAPlusViewLockedState( playerState_t *ps )
+{
+	if ( ps->legsAnim == BOTH_JUMP_BACKFLIP_ATCKEE || ps->torsoAnim == BOTH_JUMP_BACKFLIP_ATCKEE
+		|| ps->torsoAnim == BOTH_GETUP1 || ps->torsoAnim == BOTH_NEW_STABEE )
+	{
+		return qtrue;
+	}
+	if ( ps->legsAnim >= BOTH_KISSEE && ps->legsAnim <= BOTH_LEDGE_MERCPULL )
+	{
+		return qtrue;
+	}
+	return CG_InKnockDownState( ps );
+}
+
 void CG_PredictPlayerState( void ) {
 	int			cmdNum, current, i;
 	playerState_t	oldPlayerState;
@@ -1078,6 +1144,36 @@ void CG_PredictPlayerState( void ) {
 
 	// non-predicting local movement will grab the latest angles
 	if ( cg_noPredict.integer || g_synchronousClients.integer || CG_UsingEWeb() ) {
+		// cg_noPredict 1 doesn't need the JA+ knockdown fallback below (it never
+		// predicts), but the stutter comes back through the angles: while JA+ has
+		// our view locked it rewrites delta_angles every server frame, and
+		// grabbing the latest cmd here re-applies the live mouse on top of a
+		// stale lock, so every snapshot snaps the view back. For that window take
+		// the server's own (locked) angles instead of grabbing.
+		qboolean grabAngles = qtrue;
+
+		if ( cg_noPredict.integer == 1 && cgs.serverMod == SVMOD_JAPLUS
+			&& CG_JAPlusViewLockedState( &cg.snap->ps ) )
+		{
+			grabAngles = qfalse;
+		}
+		CG_InterpolatePlayerState( grabAngles );
+		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
+		{
+			CG_InterpolateVehiclePlayerState(qtrue);
+		}
+		return;
+	}
+
+	// JA+ kick knockdowns: the server runs its own knockdown/get-up rules that our
+	// bg_pmove doesn't replicate, so while we're down every movement input mispredicts
+	// and the constant error corrections make the camera stutter. We can't actually
+	// move during the knockdown anyway, so prediction buys nothing there: fall back to
+	// snapshot interpolation (cg_noPredict behavior) until we're back on our feet.
+	// With cg_noPredict set there is nothing to fall back from (the branch above
+	// already returned) - the !cg_noPredict here is belt and braces for reordering.
+	if ( !cg_noPredict.integer && cgs.serverMod == SVMOD_JAPLUS && CG_InKnockDownState( &cg.snap->ps ) )
+	{
 		CG_InterpolatePlayerState( qtrue );
 		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 		{
@@ -1353,7 +1449,12 @@ void CG_PredictPlayerState( void ) {
 				len = VectorLength( delta );
 				if ( len > 0.1 ) {
 					if ( cg_showMiss.integer ) {
-						trap->Print("Prediction miss: %f\n", len);
+						// dump the snapshot anim state too, to identify states (e.g. JA+
+						// knockdown get-ups) that slip past the knockdown prediction gate
+						trap->Print("Prediction miss: %f (legsAnim %d legsTimer %d torsoAnim %d torsoTimer %d fhe %d pm_type %d)\n",
+							len, cg.snap->ps.legsAnim, cg.snap->ps.legsTimer,
+							cg.snap->ps.torsoAnim, cg.snap->ps.torsoTimer,
+							cg.snap->ps.forceHandExtend, cg.snap->ps.pm_type);
 					}
 					if ( cg_errorDecay.integer ) {
 						int		t;

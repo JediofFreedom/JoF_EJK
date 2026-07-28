@@ -766,7 +766,7 @@ typedef enum {
 #define	EF_NOT_USED_6			(1<<15)		// not used
 #define	EF_GRAPPLE_SWING		(1<<16)		// not used
 #define	EF_BOBAFIRE				(1<<17)		
-#define	EF_NOT_USED_4			(1<<18)		// not used
+#define	EF_EMPOWERED			(1<<18)		// JoF - player is amempowered (set alongside EF_BODYPUSH)
 
 #define	EF_BODYPUSH				(1<<19)		//rww - claiming this for fullbody push effect
 
@@ -1809,6 +1809,13 @@ typedef struct saberInfo_s {
 
 
 bgEntity_t *PM_BGEntForNum( int num );
+
+//playermodel blacklisting: ext_data/modelblacklist/*.txt, "notInMP 1" in
+//models/players/<model>/settings.txt, or a user list cvar
+void BG_LoadModelBlacklist( void );
+qboolean BG_ModelIsNPCOnly( const char *modelName );
+qboolean BG_ModelInList( const char *modelName, const char *list );
+
 qboolean BG_KnockDownable(playerState_t *ps);
 qboolean BG_LegalizedForcePowers(char *powerOut, size_t powerOutSize, int maxRank, qboolean freeSaber, int teamForce, int gametype, int fpDisabled);
 qboolean BG_LegalizedForcePowers2(char* powerOut, size_t powerOutSize, int maxRank, qboolean freeSaber, int teamForce, int gametype, int fpDisabled, qboolean forceTeamForces);

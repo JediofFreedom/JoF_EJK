@@ -35,6 +35,7 @@ static qboolean mouseActive = qfalse;
 static cvar_t *in_mouse				= NULL;
 static cvar_t *in_nograb;
 static cvar_t *in_mouserepeat		= NULL;
+static cvar_t *in_noAltF4			= NULL;	// when set, swallow Alt+F4 so it won't quit the game
 
 cvar_t *in_joystick					= NULL;
 static cvar_t *in_joystickThreshold = NULL;
@@ -657,6 +658,12 @@ void IN_Init( void *windowData )
 	in_nograb = Cvar_Get( "in_nograb", "0", CVAR_ARCHIVE_ND );
 	in_mouserepeat = Cvar_Get("in_mouserepeat", "0", CVAR_ARCHIVE);
 
+	// when enabled, tell SDL to do normal key handling for Alt+F4 instead of
+	// generating a window-close event, so the keystroke can't quit the game
+	in_noAltF4 = Cvar_Get( "in_noAltF4", "0", CVAR_ARCHIVE_ND );
+	SDL_SetHint( SDL_HINT_WINDOWS_NO_CLOSE_ON_ALT_F4, in_noAltF4->integer ? "1" : "0" );
+	in_noAltF4->modified = qfalse;
+
 	SDL_StartTextInput( );
 
 	mouseAvailable = (qboolean)( in_mouse->value != 0 );
@@ -902,6 +909,12 @@ static void IN_ProcessEvents( int eventTime )
 
 	if( !SDL_WasInit( SDL_INIT_VIDEO ) )
 		return;
+
+	if ( in_noAltF4 && in_noAltF4->modified )
+	{
+		SDL_SetHint( SDL_HINT_WINDOWS_NO_CLOSE_ON_ALT_F4, in_noAltF4->integer ? "1" : "0" );
+		in_noAltF4->modified = qfalse;
+	}
 
 #ifdef _WIN32
 	if (con_alert && (com_unfocused->integer || com_minimized->integer))
@@ -1312,7 +1325,7 @@ void IN_Frame (void) {
 	flags = SDL_GetWindowFlags( SDL_window );
 	keyCatchers = Key_GetCatcher();
 
-	if ( !cls.glconfig.isFullscreen && loading )
+	if ( !cls.glconfig.isFullscreen && loading && !cls.cursorActive )
 	{
 		// Loading in windowed mode
 		IN_DeactivateMouse();
@@ -1368,7 +1381,7 @@ void IN_Frame(void) {
 		// Console is down in windowed mode
 		IN_DeactivateMouse();
 	}
-	else if (!cls.glconfig.isFullscreen && loading)
+	else if (!cls.glconfig.isFullscreen && loading && !cls.cursorActive)
 	{
 		// Loading in windowed mode
 		IN_DeactivateMouse();

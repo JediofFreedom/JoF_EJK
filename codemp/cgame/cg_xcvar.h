@@ -38,6 +38,9 @@ XCVAR_DEF( g_forceRegenTime,		"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cl_currentServerAddress,	"0",	NULL,					CVAR_ROM )
 
 //JAPRO HUD / DISPLAY
+// Render numeric HUD fields (health/armor/force/ammo) and the FPS/timer text with the
+// scalable font instead of the legacy low-res bitmap glyphs, so they stay sharp at high res.
+XCVAR_DEF( cg_sharpHud,				"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_movementKeys,			"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_movementKeysX,		"465",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_movementKeysY,		"432",	NULL,					CVAR_ARCHIVE )
@@ -64,6 +67,7 @@ XCVAR_DEF( cg_drawScoreboardIcons,			"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawScoreboardPlayerCount,	"1",	NULL,					CVAR_ARCHIVE )
 
 XCVAR_DEF( cg_scoreDeaths,			"1",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_showClientIDs,		"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_killMessage,			"1",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_newFont,				"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_chatBox,				"10000",NULL,					CVAR_ARCHIVE )
@@ -130,7 +134,8 @@ XCVAR_DEF( cg_zoomFov,							"30.0",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_fleshSparks,						"7",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_noFX,								"0",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_noTeleFX,							"0",	NULL,								CVAR_ARCHIVE )
-XCVAR_DEF( cl_ratioFix,							"1",	UI_Set2DRatio,						CVAR_ARCHIVE ) // Shared with UI module
+XCVAR_DEF( cg_altLoadingScreen,                 "0",    NULL,                               CVAR_ARCHIVE )
+XCVAR_DEF( cl_ratioFix,                            "1",    UI_Set2DRatio,                     CVAR_ARCHIVE ) // Shared with UI module
 
 //Features
 XCVAR_DEF( cg_simulatedProjectiles,				"0",	NULL,					CVAR_ARCHIVE )
@@ -139,6 +144,7 @@ XCVAR_DEF( cg_scopeSensitivity,					"1",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_defaultModelRandom,				"1",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_defaultModel,						"kyle",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_defaultFemaleModel,				"jan",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_modelBlacklist,					"",		CG_ForceModelChange,	CVAR_ARCHIVE )
 XCVAR_DEF( cg_forceModel,						"0",	CG_ForceModelChange,	CVAR_ARCHIVE )
 XCVAR_DEF( cg_forceAllyModel,					"none",	CG_ForceModelChange,	CVAR_ARCHIVE )
 XCVAR_DEF( cg_forceEnemyModel,					"none",	CG_ForceModelChange,	CVAR_ARCHIVE )
@@ -187,7 +193,11 @@ XCVAR_DEF( cg_drawHud,							"1",		NULL,				CVAR_ARCHIVE )
 
 XCVAR_DEF( cg_predictKnockback,					"0",		NULL,				0 )
 
+<<<<<<< HEAD
 XCVAR_DEF( cp_pluginDisable,					"1568",		NULL,				CVAR_ARCHIVE|CVAR_USERINFO ) //Disable all plugins
+=======
+XCVAR_DEF( cp_pluginDisable,					"1568",		NULL,				CVAR_ARCHIVE|CVAR_USERINFO ) //Disable all plugins except ledgegrab and new force effect
+>>>>>>> upstream/alpha
 XCVAR_DEF( com_maxFPS,							"125",		NULL,				CVAR_ARCHIVE )
 XCVAR_DEF( cg_displayCameraPosition,		"1 80 16",		NULL,				CVAR_ROM|CVAR_USERINFO )
 XCVAR_DEF( cg_displayNetSettings,			"125 0 125",	NULL,				CVAR_ROM|CVAR_USERINFO )
@@ -198,6 +208,9 @@ XCVAR_DEF( cl_timeNudge,						"0",	NULL,					CVAR_ARCHIVE )
 #endif
 XCVAR_DEF( cl_maxPackets,						"125",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cjp_client,						JOFCLIENTVERSION,	NULL,					CVAR_USERINFO|CVAR_ROM )
+// Advertise to a JoF JA+ server that this client wants the Force Stasis "it fired" sound.
+// The server only sends the reliable "stasis" servercmd when this userinfo key is non-empty.
+XCVAR_DEF( jofejk,							"1",	NULL,					CVAR_USERINFO|CVAR_ARCHIVE )
 XCVAR_DEF( cp_clanPwd,							"none",	NULL,					CVAR_USERINFO )
 XCVAR_DEF( cp_sbRGB1,							"0",	NULL,					CVAR_ARCHIVE | CVAR_USERINFO )
 XCVAR_DEF( cp_sbRGB2,							"0",	NULL,					CVAR_ARCHIVE | CVAR_USERINFO )

@@ -1,0 +1,80 @@
+name: rend2-sync
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  workflow_dispatch:
+  # Every release (master) or beta prerelease publish pushes a version
+  # tag, so this runs each time a release of any branch goes out.
+  push:
+    tags:
+      - "[0-9]*.[0-9]*.[0-9]*"
+  # Fallback poll so upstream fixes are still picked up between releases.
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+
+concurrency:
+  group: rend2-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Port new rend2 commits from SomaZ/OpenJK
+    runs-on: ubuntu-latest
+    env:
+      SYNC_BRANCH: automation/rend2-sync
+      GH_TOKEN: ${{ secrets.GH_PAT }}
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Skip if a sync PR is already open
+        id: guard
+        shell: bash
+        run: |
+          open_pr=$(gh pr list --head "$SYNC_BRANCH" --state open --json number --jq 'length')
+          if [ "$open_pr" != "0" ]; then
+            echo "An open rend2-sync PR already exists; merge or close it first."
+            echo "proceed=false" >> $GITHUB_OUTPUT
+          else
+            echo "proceed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run sync script
+        id: sync
+        if: steps.guard.outputs.proceed == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$SYNC_BRANCH"
+          SUMMARY_FILE=/tmp/rend2-sync-summary.md bash scripts/rend2-sync/rend2-sync.sh
+          echo "changes=$(git rev-list --count origin/master..HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Fail visibly if blocked on a conflict with nothing applied
+        if: steps.guard.outputs.proceed == 'true' && steps.sync.outputs.changes == '0' && steps.sync.outputs.conflict != ''
+        shell: bash
+        run: |
+          echo "::error::rend2-sync is blocked: '${{ steps.sync.outputs.conflict }}' conflicts and nothing could be applied. Port it manually and update scripts/rend2-sync/last-synced-commit."
+          exit 1
+
+      - name: Open pull request
+        if: steps.guard.outputs.proceed == 'true' && steps.sync.outputs.changes != '0'
+        shell: bash
+        run: |
+          git push -f origin "$SYNC_BRANCH"
+          title="Sync rend2 with SomaZ/OpenJK"
+          if [ -n "${{ steps.sync.outputs.conflict }}" ]; then
+            title="$title (stopped at conflict)"
+          fi
+          gh pr create \
+            --base master \
+            --head "$SYNC_BRANCH" \
+            --title "$title" \
+            --body-file /tmp/rend2-sync-summary.md

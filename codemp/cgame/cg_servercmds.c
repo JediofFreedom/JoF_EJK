@@ -196,6 +196,8 @@ void CG_ParseServerinfo( void ) {
 
 	cgs.showDuelHealths = atoi( Info_ValueForKey( info, "g_showDuelHealths" ) );
 
+	cgs.empowerEffect = atoi( Info_ValueForKey( info, "jp_empowerEffect" ) );	// JoF
+
 	cgs.gametype = atoi( Info_ValueForKey( info, "g_gametype" ) );
 	trap->Cvar_Set("g_gametype", va("%i", cgs.gametype));
 	cgs.needpass = atoi( Info_ValueForKey( info, "g_needpass" ) );
@@ -264,6 +266,7 @@ void CG_ParseServerinfo( void ) {
 			cgs.cinfo = atoi(Info_ValueForKey(info, "jp_cinfo"));//[JAPRO - Clientside - All - Add jp_cinfo variable to get cinfo from japlus servers]
 			cgs.hookpull = 800;
 			cgs.pluginSet = qtrue;
+			trap->Cvar_Set("cjp_client", JOFCLIENTVERSION);
 		}
 		else if (!Q_stricmpn(gamename, "japro", 5)) {
 			cgs.serverMod = SVMOD_JAPRO;
@@ -1797,6 +1800,27 @@ typedef struct serverCommand_s {
 	void		(*func)(void);
 } serverCommand_t;
 
+// Force Stasis (JoF JA+ V58): the server sends a reliable "stasis" command when the
+// power fires (only to clients that advertised the "jofejk" userinfo key). Play the
+// local feedback sound, with a client-side cooldown so bursts / replayed snapshots
+// don't spam it.
+static void CG_Stasis_f( void ) {
+	static int s_lastStasisSnd = 0;
+	if ( cg.time - s_lastStasisSnd < 250 )
+		return;
+	s_lastStasisSnd = cg.time;
+	trap->S_StartLocalSound( cgs.media.stasisSound, CHAN_LOCAL );
+}
+
+// Force Repulse (JoF JA+ V71): same pattern as Stasis — server sends "repulse" on fire.
+static void CG_Repulse_f( void ) {
+	static int s_lastRepulseSnd = 0;
+	if ( cg.time - s_lastRepulseSnd < 250 )
+		return;
+	s_lastRepulseSnd = cg.time;
+	trap->S_StartLocalSound( cgs.media.repulseSound, CHAN_LOCAL );
+}
+
 int svcmdcmp( const void *a, const void *b ) {
 	return Q_stricmp( (const char *)a, ((serverCommand_t*)b)->cmd );
 }
@@ -1823,6 +1847,8 @@ static serverCommand_t	commands[] = {
 	{ "scl",				CG_SiegeClassSelect_f },
 	{ "scores",				CG_ParseScores },
 	{ "spc",				CG_SiegeProfileMenu_f },
+	{ "repulse",			CG_Repulse_f },
+	{ "stasis",				CG_Stasis_f },
 	{ "sxd",				CG_ParseSiegeExtendedData },
 	{ "tchat",				CG_Chat_f },
 	{ "tinfo",				CG_ParseTeamInfo },
