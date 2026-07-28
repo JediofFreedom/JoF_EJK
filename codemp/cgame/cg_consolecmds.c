@@ -1480,7 +1480,7 @@ static qboolean japroPluginDisables[] = {
 	qfalse,//{"New sight effect"},//8
 	qfalse,//{"No alt dim effect"},//9
 	qfalse,//{"Holstered saber"},//10
-	qfalse,//{"Ledge grab"},//11
+	qfalse,//{"Disable Ledge grab"},//11
 	qfalse,//{"Disable New DFA Primary"},//12
 	qfalse,//{"Disable New DFA Alt"},//13
 	qfalse,//{"No SP Cartwheel"},//14
@@ -1515,7 +1515,7 @@ static qboolean japlusPluginDisables[] = {
 	qtrue,//{"New sight effect"},//8
 	qtrue,//{"No alt dim effect"},//9
 	qtrue,//{"Holstered saber"},//10
-	qtrue,//{"Ledge grab"},//11
+	qtrue,//{"Disable Ledge grab"},//11
 	qtrue,//{"Disable New DFA Primary"},//12
 	qtrue,//{"Disable New DFA Alt"},//13
 	qtrue,//{"No SP Cartwheel"},//14
@@ -1550,7 +1550,7 @@ static bitInfo_T pluginDisables[] = { // MAX_WEAPON_TWEAKS tweaks (24)
 	{"New sight effect"},//8
 	{"No alt dim effect"},//9
 	{"Holster staff on back"},//10
-	{"Ledge grab"},//11
+	{"Disable Ledge grab"},//11
 	{"Disable New DFA Primary"},//12
 	{"Disable New DFA Alt"},//13
 	{"No SP Cartwheel"},//14
@@ -1577,12 +1577,12 @@ static const int MAX_PLUGINDISABLES = ARRAY_LEN( pluginDisables );
 
 static qboolean CG_PluginOptionEnabled(int index)
 {
-	if (index == 9 || index == 10)
-	{ // Plugins 9 and 10 (holstered saber, ledge grab) are inverted: bit set means option disabled
-		return !(cp_pluginDisable.integer & (1 << index));
+	if (index == 9)
+	{ // Plugin 9 is inverted: bit set means option disabled
+		return (cp_pluginDisable.integer & (1 << index));
 	}
 
-	return (cp_pluginDisable.integer & (1 << index)) != 0;
+	return !(cp_pluginDisable.integer & (1 << index)) != 0;
 }
 
 void CG_PluginDisable_f( void ) {
@@ -1602,10 +1602,10 @@ void CG_PluginDisable_f( void ) {
 				continue;
 
 			if ( CG_PluginOptionEnabled(i) ) {
-				Com_Printf( "%2d [X] %s\n", display, pluginDisables[i].string );
+				Com_Printf( "%2d [ ] %s\n", display, pluginDisables[i].string );
 			}
 			else {
-				Com_Printf( "%2d [ ] %s\n", display, pluginDisables[i].string );
+				Com_Printf( "%2d [X] %s\n", display, pluginDisables[i].string );
 			}
 			display++;
 		}
@@ -1644,8 +1644,15 @@ void CG_PluginDisable_f( void ) {
 		trap->Cvar_Set( "cp_pluginDisable", va( "%i", (1 << index2) ^ (cp_pluginDisable.integer & mask ) ) );
 		trap->Cvar_Update( &cp_pluginDisable );
 
-		Com_Printf( "%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(index2)
-			? "^2Enabled" : "^1Disabled") );
+		if (index2 == 10 || index2 == 5) {
+			Com_Printf("%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(index2)
+				? "^1Disabled" : "^2Enabled") );
+		}
+
+		else {
+			Com_Printf( "%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(index2)
+				? "^2Enabled" : "^1Disabled") );
+		}
 	}
 }
 
