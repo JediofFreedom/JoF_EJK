@@ -381,7 +381,7 @@ centity_t			cg_entities[MAX_GENTITIES];
 centity_t			*cg_permanents[MAX_GENTITIES]; //rwwRMG - added
 int					cg_numpermanents = 0;
 
-weaponInfo_t		cg_weapons[MAX_WEAPONS];
+weaponInfo_t		cg_weapons[WP_NUM_WEAPONS]; // client-local render/sound lookup table only, never networked - can safely exceed MAX_WEAPONS (the STAT_WEAPONS wire width)
 itemInfo_t			cg_items[MAX_ITEMS];
 
 qboolean			cg_legacyCGameAPI = qfalse;

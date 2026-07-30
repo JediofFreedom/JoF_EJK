@@ -2325,7 +2325,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			int weapon = es->eventParm;
 			weaponInfo_t *weaponInfo;
 
-			assert(weapon >= 0 && weapon < MAX_WEAPONS);
+			assert(weapon >= 0 && weapon < WP_NUM_WEAPONS);
 
 			weaponInfo = &cg_weapons[weapon];
 

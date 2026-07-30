@@ -1137,6 +1137,12 @@ qboolean CG_WeaponSelectable( int i ) {
 		return qfalse;
 	}
 
+	if ( i == WP_WESTAR ) {
+		// ownership doesn't live in stats[STAT_WEAPONS] (bit 19 has no room there -
+		// see EF_WESTAR_OWNED) so this weapon needs its own ownership check here.
+		return (cg.predictedPlayerState.eFlags & EF_WESTAR_OWNED) ? qtrue : qfalse;
+	}
+
 	if ( ! (cg.predictedPlayerState.stats[ STAT_WEAPONS ] & ( 1 << i ) ) ) {
 		return qfalse;
 	}
@@ -1769,7 +1775,7 @@ void CG_Weapon_f( void ) {
 
 	cg.weaponSelectTime = cg.time;
 
-	if ( ! ( ps->stats[STAT_WEAPONS] & ( 1 << num ) ) )
+	if ( num != WP_WESTAR && ! ( ps->stats[STAT_WEAPONS] & ( 1 << num ) ) )
 	{
 		if (num == WP_SABER)
 		{ //don't have saber, try melee on the same slot
@@ -2844,7 +2850,7 @@ Ghoul2 Insert Start
 */
 
 // create one instance of all the weapons we are going to use so we can just copy this info into each clients gun ghoul2 object in fast way
-static void *g2WeaponInstances[MAX_WEAPONS];
+static void *g2WeaponInstances[WP_NUM_WEAPONS]; // client-local, never networked - can safely exceed MAX_WEAPONS (the STAT_WEAPONS wire width)
 
 void CG_InitG2Weapons(void)
 {
@@ -2855,7 +2861,7 @@ void CG_InitG2Weapons(void)
 	{
 		if ( item->giType == IT_WEAPON )
 		{
-			assert(item->giTag < MAX_WEAPONS);
+			assert(item->giTag < WP_NUM_WEAPONS);
 
 			// initialise model
 			trap->G2API_InitGhoul2Model(&g2WeaponInstances[/*i*/item->giTag], item->world_model[0], 0, 0, 0, 0, 0);
@@ -2875,7 +2881,7 @@ void CG_InitG2Weapons(void)
 				}
 				i++;
 			}
-			if (i == MAX_WEAPONS)
+			if (i == WP_NUM_WEAPONS)
 			{
 				assert(0);
 				break;
@@ -2889,7 +2895,7 @@ void CG_InitG2Weapons(void)
 void CG_ShutDownG2Weapons(void)
 {
 	int i;
-	for (i=0; i<MAX_WEAPONS; i++)
+	for (i=0; i<WP_NUM_WEAPONS; i++)
 	{
 		trap->G2API_CleanGhoul2Models(&g2WeaponInstances[i]);
 	}
@@ -2951,7 +2957,7 @@ void CG_CopyG2WeaponInstance(centity_t *cent, int weaponNum, void *toGhoul2)
 	}
 
 	//rww - the -1 is because there is no "weapon" for WP_NONE
-	assert(weaponNum < MAX_WEAPONS);
+	assert(weaponNum < WP_NUM_WEAPONS);
 	if (CG_G2WeaponInstance(cent, weaponNum/*-1*/))
 	{
 		if (weaponNum == WP_SABER)

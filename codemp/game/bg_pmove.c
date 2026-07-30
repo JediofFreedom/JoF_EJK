@@ -8279,8 +8279,10 @@ static void PM_Weapon( void )
 
 	// westar dual-pistol: mirror the server's cmd.weapon rewrite so local prediction
 	// doesn't snap-back when the ack for weapon 19 (rendered only, never wire-selectable) arrives.
+	// Gated on EF_WESTAR_OWNED rather than a stats[STAT_WEAPONS] bit - that field is already at
+	// MAX_WEAPONS capacity and widening it would break the wire format for older servers.
 	if ( pm->cmd.weapon == WP_WESTAR &&
-		(pm->ps->stats[STAT_WEAPONS] & (1 << WP_WESTAR)) ) {
+		(pm->ps->eFlags & EF_WESTAR_OWNED) ) {
 		pm->cmd.weapon = WP_BRYAR_PISTOL;
 		pm->ps->eFlags |= EF_WESTAR_MODE;
 	} else {
