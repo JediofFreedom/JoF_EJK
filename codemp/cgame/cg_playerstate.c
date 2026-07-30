@@ -616,8 +616,17 @@ void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops ) {
 	}
 
 	if (ops->weapon != ps->weapon) { //shows weapon select when spectating
-		cg.weaponSelect = ps->weapon;
-		cg.weaponSelectTime = cg.time;
+		// A westar-wielding player reports ps->weapon == WP_BRYAR_PISTOL, because the server
+		// substitutes the pistol on the wire and flags the real weapon in eFlags. Without this
+		// guard the first snapshot after selecting westar knocks the selection back to the
+		// pistol, and the next usercmd then tells the server we switched away from it - which
+		// is why selecting westar appeared to need two presses and kept reverting to blaster.
+		if ( !(cg.weaponSelect == WP_WESTAR && ps->weapon == WP_BRYAR_PISTOL &&
+			(ps->eFlags & EF_WESTAR_OWNED)) )
+		{
+			cg.weaponSelect = ps->weapon;
+			cg.weaponSelectTime = cg.time;
+		}
 	}
 
 	// check for going low on ammo

@@ -1161,6 +1161,17 @@ int weaponIcon(int i) {
 	return cgs.media.weaponIcons[i];
 }
 
+// Westar ownership rides in eFlags - bit 19 doesn't fit in stats[STAT_WEAPONS] - so the
+// wheel can't just test the stats bitfield for it like it does for every other weapon.
+static qboolean CG_WheelHasWeapon( int i, int bits )
+{
+	if ( i == WP_WESTAR )
+	{
+		return (cg.predictedPlayerState.eFlags & EF_WESTAR_OWNED) ? qtrue : qfalse;
+	}
+	return ( bits & ( 1 << i ) ) ? qtrue : qfalse;
+}
+
 /*
 ===================
 CG_DrawWeaponSelect
@@ -1176,6 +1187,7 @@ void CG_DrawWeaponSelect( void ) {
 	int				sideMax,holdCount,iconCnt;
 	int				height;
 	int		yOffset = 0;
+	int				wheelMax;
 	qboolean drewConc = qfalse;
 
 	if (cg.predictedPlayerState.emplacedIndex)
@@ -1199,6 +1211,11 @@ void CG_DrawWeaponSelect( void ) {
 
 	bits = cg.predictedPlayerState.stats[ STAT_WEAPONS ];
 
+	// Westar sits above the normal weapons, so the cycle has to run past LAST_USEABLE_WEAPON to
+	// reach it. 17 and 18 (emplaced gun, turret) fall in between but players never own them, so
+	// they get skipped by the ownership test. Without westar this is the old bound exactly.
+	wheelMax = (cg.predictedPlayerState.eFlags & EF_WESTAR_OWNED) ? WP_WESTAR : LAST_USEABLE_WEAPON;
+
 	// count the number of weapons owned
 	count = 0;
 
@@ -1211,7 +1228,7 @@ void CG_DrawWeaponSelect( void ) {
 
 	for ( i = 1 ; i < WP_NUM_WEAPONS ; i++ )
 	{
-		if ( bits & ( 1 << i ) )
+		if ( CG_WheelHasWeapon( i, bits ) )
 		{
 			if ( CG_WeaponSelectable(i) ||
 				(i != WP_THERMAL && i != WP_TRIP_MINE) )
@@ -1271,7 +1288,7 @@ void CG_DrawWeaponSelect( void ) {
 	}
 	if (i<1)
 	{
-		i = LAST_USEABLE_WEAPON;
+		i = wheelMax;
 	}
 
 	smallIconSize = 40;
@@ -1307,10 +1324,10 @@ void CG_DrawWeaponSelect( void ) {
 		{
 			//i = 13;
 			//...don't ever do this.
-			i = LAST_USEABLE_WEAPON;
+			i = wheelMax;
 		}
 
-		if ( !(bits & ( 1 << i )))	// Does he have this weapon?
+		if ( !CG_WheelHasWeapon( i, bits ) )	// Does he have this weapon?
 		{
 			if ( i == WP_CONCUSSION )
 			{
@@ -1380,7 +1397,7 @@ void CG_DrawWeaponSelect( void ) {
 	{
 		i = cg.weaponSelect + 1;
 	}
-	if (i> LAST_USEABLE_WEAPON)
+	if (i> wheelMax)
 	{
 		i = 1;
 	}
@@ -1399,12 +1416,12 @@ void CG_DrawWeaponSelect( void ) {
 		{
 			i = WP_CONCUSSION;
 		}
-		if (i>LAST_USEABLE_WEAPON)
+		if (i>wheelMax)
 		{
 			i = 1;
 		}
 
-		if ( !(bits & ( 1 << i )))	// Does he have this weapon?
+		if ( !CG_WheelHasWeapon( i, bits ) )	// Does he have this weapon?
 		{
 			if ( i == WP_CONCUSSION )
 			{
@@ -1626,8 +1643,8 @@ void CG_Weapon_f( void ) {
 		num = WP_STUN_BATON;
 	}
 	else if (!Q_stricmp(CG_Argv(1), "westar")) {
-		// westar sits past LAST_USEABLE_WEAPON on purpose (keeps it out of the
-		// vanilla 1-0 keybind bucket/wheel), so it's only reachable by name here.
+		// westar sits past LAST_USEABLE_WEAPON, so the numbered 1-0 bucket below can't
+		// reach it - it's selected by name here, or by cycling through the wheel.
 		num = WP_WESTAR;
 
 		if ( cg_westarDebug.integer )
@@ -2867,10 +2884,16 @@ Ghoul2 Insert Start
 // create one instance of all the weapons we are going to use so we can just copy this info into each clients gun ghoul2 object in fast way
 static void *g2WeaponInstances[WP_NUM_WEAPONS]; // client-local, never networked - can safely exceed MAX_WEAPONS (the STAT_WEAPONS wire width)
 
+// The westar is dual-wielded. Every instance above is bolted to bolt 0 (the right hand), so
+// the off-hand pistol needs an instance of its own bolted to bolt 1 (the left hand) - copying
+// the right-hand instance into the second model slot leaves both guns fighting over one bolt.
+static void *g2WestarLeftInstance = NULL;
+
 void CG_InitG2Weapons(void)
 {
 	int i = 0;
 	gitem_t		*item;
+	gitem_t		*westarItem;
 	memset(g2WeaponInstances, 0, sizeof(g2WeaponInstances));
 	for ( item = bg_itemlist + 1 ; item->classname ; item++ )
 	{
@@ -2904,6 +2927,18 @@ void CG_InitG2Weapons(void)
 
 		}
 	}
+
+	// second westar, bolted to the left hand
+	westarItem = BG_FindItemForWeapon(WP_WESTAR);
+	if (westarItem && westarItem->world_model[0])
+	{
+		trap->G2API_InitGhoul2Model(&g2WestarLeftInstance, westarItem->world_model[0], 0, 0, 0, 0, 0);
+		if (g2WestarLeftInstance)
+		{
+			trap->G2API_SetBoltInfo(g2WestarLeftInstance, 0, 1); // 0 = right hand, 1 = left hand
+			trap->G2API_AddBolt(g2WestarLeftInstance, 0, "*flash");
+		}
+	}
 }
 
 // clean out any g2 models we instanciated for copying purposes
@@ -2914,6 +2949,8 @@ void CG_ShutDownG2Weapons(void)
 	{
 		trap->G2API_CleanGhoul2Models(&g2WeaponInstances[i]);
 	}
+	trap->G2API_CleanGhoul2Models(&g2WestarLeftInstance);
+	g2WestarLeftInstance = NULL;
 }
 
 void *CG_G2WeaponInstance(centity_t *cent, int weapon)
@@ -3045,9 +3082,9 @@ void CG_CopyG2WeaponInstance(centity_t *cent, int weaponNum, void *toGhoul2)
 			{
 				trap->G2API_CopySpecificGhoul2Model(CG_G2WeaponInstance(cent, weaponNum/*-1*/), 0, toGhoul2, 1);
 
-				if (weaponNum == WP_WESTAR)
-				{ //dual pistols - put a second one in the off hand, same slot dual sabers use
-					trap->G2API_CopySpecificGhoul2Model(CG_G2WeaponInstance(cent, weaponNum), 0, toGhoul2, 2);
+				if (weaponNum == WP_WESTAR && g2WestarLeftInstance)
+				{ //dual pistols - off-hand copy comes from the left-hand-bolted instance
+					trap->G2API_CopySpecificGhoul2Model(g2WestarLeftInstance, 0, toGhoul2, 2);
 				}
 			}
 		}

@@ -400,7 +400,7 @@ int WeaponReadyAnim[WP_NUM_WEAPONS] =
 	//NOT VALID (e.g. should never really be used):
 	BOTH_STAND1,//WP_EMPLACED_GUN,
 	TORSO_WEAPONREADY1,//WP_TURRET,
-	TORSO_WEAPONREADY2//WP_WESTAR,
+	BOTH_SABERDUAL_STANCE//WP_WESTAR, - must match the anim the server plays or prediction fights it
 };
 
 int WeaponReadyLegsAnim[WP_NUM_WEAPONS] =
@@ -454,7 +454,7 @@ int WeaponAttackAnim[WP_NUM_WEAPONS] =
 	//NOT VALID (e.g. should never really be used):
 	BOTH_STAND1,//WP_EMPLACED_GUN,
 	BOTH_ATTACK1,//WP_TURRET,
-	BOTH_ATTACK2//WP_WESTAR,
+	BOTH_GUNSIT1//WP_WESTAR, - must match the anim the server plays or prediction fights it
 };
 
 qboolean BG_FileExists( const char *fileName ) {
