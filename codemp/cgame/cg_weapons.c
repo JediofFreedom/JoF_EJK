@@ -1619,6 +1619,11 @@ void CG_Weapon_f( void ) {
 	if (!Q_stricmp(CG_Argv(1), "stun")) {
 		num = WP_STUN_BATON;
 	}
+	else if (!Q_stricmp(CG_Argv(1), "westar")) {
+		// westar sits past LAST_USEABLE_WEAPON on purpose (keeps it out of the
+		// vanilla 1-0 keybind bucket/wheel), so it's only reachable by name here.
+		num = WP_WESTAR;
+	}
 	else {
 		num = atoi( CG_Argv( 1 ) );
 
@@ -2247,6 +2252,15 @@ void CG_FireWeapon( centity_t *cent, qboolean altFire ) {
 		return;
 
 	weap = &cg_weapons[ ent->weapon ];
+
+	// the server always sends weapon 4 (bryar pistol) for a westar-mode player -
+	// swap in the westar weaponInfo so we play its fire sound instead of the bryar's.
+	if ( ent->weapon == WP_BRYAR_PISTOL && (ent->eFlags & EF_WESTAR_MODE) ) {
+		if ( !cg_weapons[WP_WESTAR].registered ) {
+			CG_RegisterWeapon( WP_WESTAR );
+		}
+		weap = &cg_weapons[ WP_WESTAR ];
+	}
 
 	// mark the entity as muzzle flashing, so when it is added it will
 	// append the flash to the weapon model
@@ -2885,6 +2899,13 @@ void *CG_G2WeaponInstance(centity_t *cent, int weapon)
 {
 	clientInfo_t *ci = NULL;
 
+	// the server never puts 19 on the wire (vanilla clients don't know WP_WESTAR exists),
+	// it forces cmd/ps.weapon to the bryar pistol and flags the real mode in eFlags instead.
+	if (weapon == WP_BRYAR_PISTOL && (cent->currentState.eFlags & EF_WESTAR_MODE))
+	{
+		weapon = WP_WESTAR;
+	}
+
 	if (weapon != WP_SABER)
 	{
 		return g2WeaponInstances[weapon];
@@ -2924,6 +2945,11 @@ void *CG_G2WeaponInstance(centity_t *cent, int weapon)
 // what ghoul2 model do we want to copy ?
 void CG_CopyG2WeaponInstance(centity_t *cent, int weaponNum, void *toGhoul2)
 {
+	if (weaponNum == WP_BRYAR_PISTOL && (cent->currentState.eFlags & EF_WESTAR_MODE))
+	{
+		weaponNum = WP_WESTAR;
+	}
+
 	//rww - the -1 is because there is no "weapon" for WP_NONE
 	assert(weaponNum < MAX_WEAPONS);
 	if (CG_G2WeaponInstance(cent, weaponNum/*-1*/))
@@ -2975,7 +3001,7 @@ void CG_CopyG2WeaponInstance(centity_t *cent, int weaponNum, void *toGhoul2)
 		{
 			qboolean g2HasSecondSaber = trap->G2API_HasGhoul2ModelOnIndex(&(toGhoul2), 2);
 
-			if (g2HasSecondSaber)
+			if (g2HasSecondSaber && weaponNum != WP_WESTAR)
 			{ //remove it now since we're switching away from sabers
 				trap->G2API_RemoveGhoul2Model(&(toGhoul2), 2);
 			}
@@ -2997,6 +3023,11 @@ void CG_CopyG2WeaponInstance(centity_t *cent, int weaponNum, void *toGhoul2)
 			else
 			{
 				trap->G2API_CopySpecificGhoul2Model(CG_G2WeaponInstance(cent, weaponNum/*-1*/), 0, toGhoul2, 1);
+
+				if (weaponNum == WP_WESTAR)
+				{ //dual pistols - put a second one in the off hand, same slot dual sabers use
+					trap->G2API_CopySpecificGhoul2Model(CG_G2WeaponInstance(cent, weaponNum), 0, toGhoul2, 2);
+				}
 			}
 		}
 	}

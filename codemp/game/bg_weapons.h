@@ -48,6 +48,7 @@ typedef enum {
 	WP_BRYAR_OLD,
 	WP_EMPLACED_GUN,
 	WP_TURRET,
+	WP_WESTAR,
 
 //	WP_GAUNTLET,
 //	WP_MACHINEGUN,			// Bryar

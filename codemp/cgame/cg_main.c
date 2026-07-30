@@ -3048,6 +3048,16 @@ Ghoul2 Insert End
 		}
 		i++;
 	}
+
+	// westar sits past LAST_USEABLE_WEAPON on purpose (see CG_Weapon_f), so the loop
+	// above skips it - register its wheel/HUD icon separately here.
+	item = BG_FindItemForWeapon(WP_WESTAR);
+	if (item && item->icon && item->icon[0])
+	{
+		cgs.media.weaponIcons[WP_WESTAR] = trap->R_RegisterShaderNoMip(item->icon);
+		cgs.media.weaponIcons_NA[WP_WESTAR] = trap->R_RegisterShaderNoMip(va("%s_na", item->icon));
+	}
+
 	trap->Cvar_VariableStringBuffer("com_buildscript", buf, sizeof(buf));
 	if (atoi(buf))
 	{

@@ -616,6 +616,48 @@ void CG_RegisterWeapon( int weaponNum) {
 		trap->FX_RegisterEffect("effects/blaster/flesh_impact.efx");
 		break;
 
+	case WP_WESTAR:
+		weaponInfo->selectSound			= trap->S_RegisterSound("sound/weapons/bryar/select.wav");
+
+		weaponInfo->flashSound[0]		= trap->S_RegisterSound( "sound/jof/westarfire.mp3");
+		weaponInfo->firingSound			= NULL_SOUND;
+		weaponInfo->chargeSound			= NULL_SOUND;
+		weaponInfo->muzzleEffect		= trap->FX_RegisterEffect( "bryar/muzzle_flash" );
+		weaponInfo->missileModel		= NULL_HANDLE;
+		weaponInfo->missileSound		= NULL_SOUND;
+		weaponInfo->missileDlight		= 0;
+		weaponInfo->missileHitSound		= NULL_SOUND;
+		weaponInfo->missileTrailFunc	= FX_BryarProjectileThink;
+
+		weaponInfo->altFlashSound[0]	= trap->S_RegisterSound( "sound/jof/westaraltfire.mp3");
+		weaponInfo->altFiringSound		= NULL_SOUND;
+		weaponInfo->altChargeSound		= trap->S_RegisterSound( "sound/weapons/bryar/altcharge.wav");
+		weaponInfo->altMuzzleEffect		= trap->FX_RegisterEffect( "bryar/muzzle_flash" );
+		weaponInfo->altMissileModel		= NULL_HANDLE;
+		weaponInfo->altMissileSound		= NULL_SOUND;
+		weaponInfo->altMissileDlight	= 0;
+		weaponInfo->altMissileHitSound	= NULL_SOUND;
+		weaponInfo->altMissileTrailFunc = FX_BryarAltProjectileThink;
+
+		cgs.effects.bryarShotEffect			= trap->FX_RegisterEffect( "bryar/shot" );
+		cgs.effects.bryarWallImpactEffect	= trap->FX_RegisterEffect( "bryar/wall_impact" );
+		cgs.effects.bryarWallImpactEffect2	= trap->FX_RegisterEffect( "bryar/wall_impact2" );
+		cgs.effects.bryarWallImpactEffect3	= trap->FX_RegisterEffect( "bryar/wall_impact3" );
+		cgs.effects.bryarFleshImpactEffect	= trap->FX_RegisterEffect( "bryar/flesh_impact" );
+		cgs.effects.bryarDroidImpactEffect	= trap->FX_RegisterEffect( "bryar/droid_impact" );
+
+		// defensive fallback: if the westar pk3 (sound/jof/*) isn't loaded, S_RegisterSound
+		// returns 0 and S_StartSound silently no-ops, so a westar-owning player would fire
+		// in total silence for clients on mismatched pk3s. Fall back to the regular bryar
+		// pistol fire sounds instead.
+		if ( !weaponInfo->flashSound[0] ) {
+			weaponInfo->flashSound[0] = trap->S_RegisterSound( "sound/weapons/bryar/fire.wav" );
+		}
+		if ( !weaponInfo->altFlashSound[0] ) {
+			weaponInfo->altFlashSound[0] = trap->S_RegisterSound( "sound/weapons/bryar/alt_fire.wav" );
+		}
+		break;
+
 	 default:
 		MAKERGB( weaponInfo->flashDlightColor, 1, 1, 1 );
 		weaponInfo->flashSound[0] = trap->S_RegisterSound( "sound/weapons/rocket/rocklf1a.wav" );

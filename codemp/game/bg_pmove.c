@@ -8277,6 +8277,16 @@ static void PM_Weapon( void )
 	bgEntity_t *veh = NULL;
 	qboolean vehicleRocketLock = qfalse;
 
+	// westar dual-pistol: mirror the server's cmd.weapon rewrite so local prediction
+	// doesn't snap-back when the ack for weapon 19 (rendered only, never wire-selectable) arrives.
+	if ( pm->cmd.weapon == WP_WESTAR &&
+		(pm->ps->stats[STAT_WEAPONS] & (1 << WP_WESTAR)) ) {
+		pm->cmd.weapon = WP_BRYAR_PISTOL;
+		pm->ps->eFlags |= EF_WESTAR_MODE;
+	} else {
+		pm->ps->eFlags &= ~EF_WESTAR_MODE;
+	}
+
 #ifdef _GAME
 	if (pm->ps->clientNum >= MAX_CLIENTS &&
 		pm->ps->weapon == WP_NONE &&

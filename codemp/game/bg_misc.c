@@ -399,7 +399,8 @@ int WeaponReadyAnim[WP_NUM_WEAPONS] =
 
 	//NOT VALID (e.g. should never really be used):
 	BOTH_STAND1,//WP_EMPLACED_GUN,
-	TORSO_WEAPONREADY1//WP_TURRET,
+	TORSO_WEAPONREADY1,//WP_TURRET,
+	TORSO_WEAPONREADY2//WP_WESTAR,
 };
 
 int WeaponReadyLegsAnim[WP_NUM_WEAPONS] =
@@ -425,7 +426,8 @@ int WeaponReadyLegsAnim[WP_NUM_WEAPONS] =
 
 	//NOT VALID (e.g. should never really be used):
 	BOTH_STAND1,//WP_EMPLACED_GUN,
-	BOTH_STAND1//WP_TURRET,
+	BOTH_STAND1,//WP_TURRET,
+	BOTH_STAND1//WP_WESTAR,
 };
 
 int WeaponAttackAnim[WP_NUM_WEAPONS] =
@@ -451,7 +453,8 @@ int WeaponAttackAnim[WP_NUM_WEAPONS] =
 
 	//NOT VALID (e.g. should never really be used):
 	BOTH_STAND1,//WP_EMPLACED_GUN,
-	BOTH_ATTACK1//WP_TURRET,
+	BOTH_ATTACK1,//WP_TURRET,
+	BOTH_ATTACK2//WP_WESTAR,
 };
 
 qboolean BG_FileExists( const char *fileName ) {
@@ -1599,6 +1602,25 @@ NOTENOTE This weapon is not yet complete.  Don't place it.
 /* precache */ "",
 /* sounds */ "",
 		""					// description
+	},
+
+/*QUAKED weapon_westar (.3 .3 1) (-16 -16 -16) (16 16 16) suspended
+Don't place this
+*/
+	{
+		"weapon_westar",
+		"sound/weapons/w_pkup.wav",
+        { "models/weapons2/westar34/westar34.glm",
+		0, 0, 0},
+/* view */		"models/weapons2/westar34/westar34.glm",
+/* icon */		"gfx/jof/w_icon_westar",
+/* pickup *///	"Westar",
+		100,
+		IT_WEAPON,
+		WP_WESTAR,
+/* precache */ "",
+/* sounds */ "",
+		"@MENUS_BLASTER_PISTOL_DESC"					// description
 	},
 
 	//
