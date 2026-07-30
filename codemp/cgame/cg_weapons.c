@@ -449,14 +449,22 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	{	// The left-hand bolt is mirrored relative to the right, so the off-hand pistol lands
 		// rotated. Corrected here rather than on the shared source instance so the cvars can
 		// be tuned live; zeroed out this is a no-op.
-		vec3_t	offHandAngles;
+		vec3_t		offHandAngles;
+		qboolean	rotated;
 
 		offHandAngles[PITCH]	= cg_westarLeftPitch.value;
 		offHandAngles[YAW]		= cg_westarLeftYaw.value;
 		offHandAngles[ROLL]		= cg_westarLeftRoll.value;
 
-		trap->G2API_SetBoneAngles( cent->ghoul2, 2, "model_root", offHandAngles,
+		rotated = trap->G2API_SetBoneAngles( cent->ghoul2, 2, cg_westarLeftBone.string, offHandAngles,
 			BONE_ANGLES_PREMULT, POSITIVE_X, POSITIVE_Y, POSITIVE_Z, cgs.gameModels, 0, cg.time );
+
+		if ( !rotated && cg_westarDebug.integer && cent->currentState.number == cg.predictedPlayerState.clientNum )
+		{	// Wrong bone name fails silently and looks exactly like "the angles did nothing",
+			// so say so rather than leaving it to guesswork.
+			trap->Print( S_COLOR_YELLOW "[WESTAR] off-hand rotate failed: no bone \"%s\" on the weapon model\n",
+				cg_westarLeftBone.string );
+		}
 	}
 
 	if (cent->currentState.weapon == WP_EMPLACED_GUN)
@@ -528,9 +536,24 @@ Ghoul2 Insert Start
 				// the pk3. Offsets are cvars so the placement can be dialled in in-game.
 				refEntity_t	offHand = gun;
 
+				// axis[1] is the left vector (AnglesToAxis stores -right), so a positive Y
+				// offset moves the off-hand gun to the left of the screen.
 				VectorMA( offHand.origin, cg_westarViewX.value, parent->axis[0], offHand.origin );
 				VectorMA( offHand.origin, cg_westarViewY.value, parent->axis[1], offHand.origin );
 				VectorMA( offHand.origin, cg_westarViewZ.value, parent->axis[2], offHand.origin );
+
+				if ( cg_westarViewRoll.value )
+				{	// Roll about the barrel so the off-hand gun reads as the mirror of the main
+					// one. Mirroring properly - negating a single axis - would flip the model's
+					// handedness, and GL_Cull only compensates for portal mirrors, so the gun
+					// would render inside out. Rotating two axes keeps the winding intact.
+					vec3_t	rolledLeft, rolledUp;
+
+					RotatePointAroundVector( rolledLeft, offHand.axis[0], gun.axis[1], cg_westarViewRoll.value );
+					RotatePointAroundVector( rolledUp,   offHand.axis[0], gun.axis[2], cg_westarViewRoll.value );
+					VectorCopy( rolledLeft, offHand.axis[1] );
+					VectorCopy( rolledUp,   offHand.axis[2] );
+				}
 
 				CG_AddWeaponWithPowerups( &offHand, cent->currentState.powerups );
 			}
@@ -720,6 +743,23 @@ Ghoul2 Insert End
 
 		//FX_AddSprite( flash.origin, NULL, NULL, 3.0f * val, 0.0f, 0.7f, 0.7f, WHITE, WHITE, Q_flrand(0.0f, 1.0f) * 360, 0.0f, 1.0f, shader, FX_USE_ALPHA );
 		trap->FX_AddSprite(&fxSArgs);
+
+		if ( weaponNum == WP_WESTAR && thirdPerson )
+		{	// charge up the off-hand pistol as well - same reasoning as the muzzle flash, the
+			// sprite above only ever comes off ghoul2 model index 1
+			mdxaBone_t	lBoltMatrix;
+			vec3_t		lChargeOrigin;
+
+			if ( trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 2) &&
+				trap->G2API_GetBoltMatrix(cent->ghoul2, 2, 0, &lBoltMatrix, newAngles,
+					cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale) )
+			{
+				BG_GiveMeVectorFromMatrix(&lBoltMatrix, ORIGIN, lChargeOrigin);
+				VectorCopy(lChargeOrigin, fxSArgs.origin);
+				fxSArgs.rotation = Q_flrand(0.0f, 1.0f)*360;
+				trap->FX_AddSprite(&fxSArgs);
+			}
+		}
 	}
 
 	// make sure we aren't looking at cg.predictedPlayerEntity for LG

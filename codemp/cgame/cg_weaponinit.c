@@ -640,11 +640,17 @@ void CG_RegisterWeapon( int weaponNum) {
 		weaponInfo->altMissileTrailFunc = FX_BryarAltProjectileThink;
 
 		cgs.effects.bryarShotEffect			= trap->FX_RegisterEffect( "bryar/shot" );
+		cgs.effects.bryarPowerupShotEffect	= trap->FX_RegisterEffect( "bryar/crackleShot" );
 		cgs.effects.bryarWallImpactEffect	= trap->FX_RegisterEffect( "bryar/wall_impact" );
 		cgs.effects.bryarWallImpactEffect2	= trap->FX_RegisterEffect( "bryar/wall_impact2" );
 		cgs.effects.bryarWallImpactEffect3	= trap->FX_RegisterEffect( "bryar/wall_impact3" );
 		cgs.effects.bryarFleshImpactEffect	= trap->FX_RegisterEffect( "bryar/flesh_impact" );
 		cgs.effects.bryarDroidImpactEffect	= trap->FX_RegisterEffect( "bryar/droid_impact" );
+
+		// The alt-fire charge sprite is drawn with this shader, and it was only ever
+		// registered by the bryar pistol's case - a player who goes straight to westar
+		// never runs that, leaving the handle at 0 and the charge-up invisible.
+		cgs.media.bryarFrontFlash = trap->R_RegisterShader( "gfx/effects/bryarFrontFlash" );
 
 		// defensive fallback: if the westar pk3 (sound/jof/*) isn't loaded, S_RegisterSound
 		// returns 0 and S_StartSound silently no-ops, so a westar-owning player would fire
