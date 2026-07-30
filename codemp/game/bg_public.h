@@ -784,7 +784,7 @@ typedef enum {
 #define EF_JETPACK				(1<<29)		//rww - wearing a jetpack
 #define EF_JETPACK_FLAMING		(1<<30)		//rww - jetpack fire effect
 
-#define EF_WESTAR_OWNED			(1<<31)		// player has been granted the westar (gates switching to it - stats[STAT_WEAPONS]
+#define EF_WESTAR_OWNED			(1u<<31)	// player has been granted the westar (gates switching to it - stats[STAT_WEAPONS]
 											// has no spare bits left, so ownership travels here instead of bit 19 of that field)
 
 //These new EF2_??? flags were added for NPCs, they really should not be used often.
