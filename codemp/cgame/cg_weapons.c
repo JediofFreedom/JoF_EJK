@@ -1629,6 +1629,21 @@ void CG_Weapon_f( void ) {
 		// westar sits past LAST_USEABLE_WEAPON on purpose (keeps it out of the
 		// vanilla 1-0 keybind bucket/wheel), so it's only reachable by name here.
 		num = WP_WESTAR;
+
+		if ( cg_westarDebug.integer )
+		{	// snap = straight off the wire, predicted = after our pmove ran. Printing both
+			// separates "the bit never arrived" from "something client-side ate it".
+			unsigned int snapEF = cg.snap ? (unsigned int)cg.snap->ps.eFlags : 0u;
+			unsigned int predEF = (unsigned int)cg.predictedPlayerState.eFlags;
+
+			trap->Print( S_COLOR_YELLOW "[WESTAR] snap.eFlags=0x%08x (owned=%d) predicted.eFlags=0x%08x (owned=%d mode=%d) selectable=%d ps.weapon=%d weaponSelect=%d\n",
+				snapEF, (snapEF & (unsigned int)EF_WESTAR_OWNED) ? 1 : 0,
+				predEF, (predEF & (unsigned int)EF_WESTAR_OWNED) ? 1 : 0,
+				(predEF & (unsigned int)EF_WESTAR_MODE) ? 1 : 0,
+				(int)CG_WeaponSelectable( WP_WESTAR ),
+				cg.predictedPlayerState.weapon,
+				cg.weaponSelect );
+		}
 	}
 	else {
 		num = atoi( CG_Argv( 1 ) );

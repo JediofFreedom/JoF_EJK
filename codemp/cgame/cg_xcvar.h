@@ -160,6 +160,9 @@ XCVAR_DEF( cg_holsteredSaberAng2,				"0 0 270",	NULL,				CVAR_ROM )
 XCVAR_DEF( cg_drawPlayerNames,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawPlayerNamesScale,				"0.5",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_hideDuelerNames,					"0",	NULL,					CVAR_ARCHIVE )
+// Print the eFlags/selectable state behind "weapon westar" every time it runs, to work out
+// where westar selection is failing (bit never arrived vs. eaten client-side). Not archived.
+XCVAR_DEF( cg_westarDebug,						"0",	NULL,					CVAR_TEMP )
 XCVAR_DEF( cg_drawInventory,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawPowerUpIcons,					"1",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_autoScreenshot,					"0",	NULL,					CVAR_ARCHIVE )
