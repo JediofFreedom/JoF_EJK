@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // cg_weapons.c -- events and effects dealing with weapons
 #include "cg_local.h"
 #include "fx_local.h"
+#include "ghoul2/G2.h"	// BONE_ANGLES_* for the off-hand westar orientation fixup
 
 extern vec4_t	bluehudtint;
 extern vec4_t	redhudtint;
@@ -436,6 +437,28 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 
 	weaponNum = cent->currentState.weapon;
 
+	// The server reports the bryar pistol for a westar wielder, so without this the view
+	// model, muzzle effect and dlight all come from the wrong weapon.
+	if ( weaponNum == WP_BRYAR_PISTOL && (cent->currentState.eFlags & EF_WESTAR_MODE) )
+	{
+		weaponNum = WP_WESTAR;
+	}
+
+	if ( weaponNum == WP_WESTAR && thirdPerson &&
+		trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 2) )
+	{	// The left-hand bolt is mirrored relative to the right, so the off-hand pistol lands
+		// rotated. Corrected here rather than on the shared source instance so the cvars can
+		// be tuned live; zeroed out this is a no-op.
+		vec3_t	offHandAngles;
+
+		offHandAngles[PITCH]	= cg_westarLeftPitch.value;
+		offHandAngles[YAW]		= cg_westarLeftYaw.value;
+		offHandAngles[ROLL]		= cg_westarLeftRoll.value;
+
+		trap->G2API_SetBoneAngles( cent->ghoul2, 2, "model_root", offHandAngles,
+			BONE_ANGLES_PREMULT, POSITIVE_X, POSITIVE_Y, POSITIVE_Z, cgs.gameModels, 0, cg.time );
+	}
+
 	if (cent->currentState.weapon == WP_EMPLACED_GUN)
 	{
 		return;
@@ -497,6 +520,20 @@ Ghoul2 Insert Start
 			cg.snap->ps.clientNum))
 		{
 			CG_AddWeaponWithPowerups( &gun, cent->currentState.powerups ); //don't draw the weapon if the player is invisible
+
+			if ( weaponNum == WP_WESTAR )
+			{	// Second pistol for the first-person view. There is only one view model and one
+				// hand, so this is the same gun drawn again alongside it rather than a true
+				// off-hand model - a view model with both pistols in it would need to come from
+				// the pk3. Offsets are cvars so the placement can be dialled in in-game.
+				refEntity_t	offHand = gun;
+
+				VectorMA( offHand.origin, cg_westarViewX.value, parent->axis[0], offHand.origin );
+				VectorMA( offHand.origin, cg_westarViewY.value, parent->axis[1], offHand.origin );
+				VectorMA( offHand.origin, cg_westarViewZ.value, parent->axis[2], offHand.origin );
+
+				CG_AddWeaponWithPowerups( &offHand, cent->currentState.powerups );
+			}
 			/*
 			if ( weaponNum == WP_STUN_BATON )
 			{
@@ -742,35 +779,39 @@ Ghoul2 Insert End
 
 		if ( cg.time - cent->muzzleFlashTime <= MUZZLE_FLASH_TIME + 10 )
 		{	// Handle muzzle flashes
-			if ( cent->currentState.eFlags & EF_ALT_FIRING )
-			{	// Check the alt firing first.
-				if (weapon->altMuzzleEffect)
+			fxHandle_t muzzleFX = ( cent->currentState.eFlags & EF_ALT_FIRING )
+				? weapon->altMuzzleEffect		// Check the alt firing first.
+				: weapon->muzzleEffect;			// Regular firing
+
+			if (muzzleFX)
+			{
+				if (!thirdPerson)
 				{
-					if (!thirdPerson)
-					{
-						trap->FX_PlayEntityEffectID(weapon->altMuzzleEffect, flashorigin, flash.axis, -1, -1, -1, -1);
-					}
-					else
-					{
-						trap->FX_PlayEffectID(weapon->altMuzzleEffect, flashorigin, flashdir, -1, -1, qfalse);
-					}
-					cent->muzzleFlashTime = 0; //japro - fix loud gunshots with high fps
+					trap->FX_PlayEntityEffectID(muzzleFX, flashorigin, flash.axis, -1, -1, -1, -1);
 				}
-			}
-			else
-			{	// Regular firing
-				if (weapon->muzzleEffect)
+				else
 				{
-					if (!thirdPerson)
-					{
-						trap->FX_PlayEntityEffectID(weapon->muzzleEffect, flashorigin, flash.axis, -1, -1, -1, -1);
-					}
-					else
-					{
-						trap->FX_PlayEffectID(weapon->muzzleEffect, flashorigin, flashdir, -1, -1, qfalse);
-					}
-					cent->muzzleFlashTime = 0; //japro - fix loud gunshots with high fps
+					trap->FX_PlayEffectID(muzzleFX, flashorigin, flashdir, -1, -1, qfalse);
 				}
+
+				if ( weaponNum == WP_WESTAR && thirdPerson )
+				{	// The flash above comes off the right-hand gun (ghoul2 model index 1). The
+					// off-hand pistol is a separate model with its own *flash bolt, and nothing
+					// was ever asking for it - hence no flash on the left gun.
+					mdxaBone_t	lBoltMatrix;
+					vec3_t		lFlashOrigin, lFlashDir;
+
+					if ( trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 2) &&
+						trap->G2API_GetBoltMatrix(cent->ghoul2, 2, 0, &lBoltMatrix, newAngles,
+							cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale) )
+					{
+						BG_GiveMeVectorFromMatrix(&lBoltMatrix, ORIGIN, lFlashOrigin);
+						BG_GiveMeVectorFromMatrix(&lBoltMatrix, POSITIVE_X, lFlashDir);
+						trap->FX_PlayEffectID(muzzleFX, lFlashOrigin, lFlashDir, -1, -1, qfalse);
+					}
+				}
+
+				cent->muzzleFlashTime = 0; //japro - fix loud gunshots with high fps
 			}
 		}
 
@@ -848,8 +889,18 @@ void CG_AddViewWeapon( playerState_t *ps ) {
 		fovOffset = 0;
 
 	cent = &cg_entities[ps->clientNum];
-	CG_RegisterWeapon( ps->weapon );
-	weapon = &cg_weapons[ ps->weapon ];
+	{	// westar reports as the bryar pistol, so the hands model has to be looked up by the
+		// weapon actually being held or first person shows the wrong gun
+		int viewWeapon = ps->weapon;
+
+		if ( viewWeapon == WP_BRYAR_PISTOL && (ps->eFlags & EF_WESTAR_MODE) )
+		{
+			viewWeapon = WP_WESTAR;
+		}
+
+		CG_RegisterWeapon( viewWeapon );
+		weapon = &cg_weapons[ viewWeapon ];
+	}
 
 	memset (&hand, 0, sizeof(hand));
 

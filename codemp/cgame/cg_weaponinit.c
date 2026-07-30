@@ -656,6 +656,16 @@ void CG_RegisterWeapon( int weaponNum) {
 		if ( !weaponInfo->altFlashSound[0] ) {
 			weaponInfo->altFlashSound[0] = trap->S_RegisterSound( "sound/weapons/bryar/alt_fire.wav" );
 		}
+
+		// Same fallback for the first-person models. The westar pk3 may only carry the .glm
+		// world model - without an .md3 view model CG_AddPlayerWeapon bails on a null hModel
+		// and first person shows no gun at all, so borrow the blaster pistol's.
+		if ( !weaponInfo->viewModel ) {
+			weaponInfo->viewModel = trap->R_RegisterModel( "models/weapons2/blaster_pistol/blaster_pistol.md3" );
+		}
+		if ( !weaponInfo->handsModel ) {
+			weaponInfo->handsModel = trap->R_RegisterModel( "models/weapons2/blaster_pistol/blaster_pistol_hand.md3" );
+		}
 		break;
 
 	 default:

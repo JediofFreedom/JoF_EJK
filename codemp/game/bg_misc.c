@@ -1612,7 +1612,7 @@ Don't place this
 		"sound/weapons/w_pkup.wav",
         { "models/weapons2/westar34/westar34.glm",
 		0, 0, 0},
-/* view */		"models/weapons2/westar34/westar34.glm",
+/* view */		"models/weapons2/westar34/westar34.md3",
 /* icon */		"gfx/jof/w_icon_westar",
 /* pickup *///	"Westar",
 		100,
