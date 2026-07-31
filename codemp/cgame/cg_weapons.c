@@ -24,11 +24,14 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // cg_weapons.c -- events and effects dealing with weapons
 #include "cg_local.h"
 #include "fx_local.h"
-#include "ghoul2/G2.h"	// BONE_ANGLES_* for the off-hand westar orientation fixup
 
 // One-shot latch for the off-hand bone probe below - it sits in the per-frame draw path, so
 // without this the failure reports every single frame. Cleared on map load.
-qboolean		cgWestarBoneReported = qfalse;
+// Where the off-hand westar ended up this frame. It is drawn as a free-standing entity rather
+// than bolted, so the muzzle flash and charge sprite have no ghoul2 slot to read back from.
+static vec3_t	cgWestarOffHandOrigin;
+static vec3_t	cgWestarOffHandDir;
+static qboolean	cgWestarOffHandValid = qfalse;
 
 extern vec4_t	bluehudtint;
 extern vec4_t	redhudtint;
@@ -448,62 +451,56 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 		weaponNum = WP_WESTAR;
 	}
 
-	if ( weaponNum == WP_WESTAR && thirdPerson &&
-		trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 2) )
-	{	// The left-hand bolt is mirrored relative to the right, so the off-hand pistol lands
-		// rotated. Corrected here rather than on the shared source instance so the cvars can
-		// be tuned live; zeroed out this is a no-op.
-		vec3_t		offHandAngles;
-		qboolean	rotated;
+	if ( weaponNum == WP_WESTAR && thirdPerson && g2WestarLeftInstance && cent->ghoul2 )
+	{	// Draw the off-hand pistol ourselves rather than bolting it to the left hand. The
+		// left-hand bone carries its own orientation, which is what had the gun sitting at a
+		// wrong angle, and the model has no skeleton (gla "*default") so there is no bone to
+		// rotate it back with. Taking the position from the left hand and the orientation
+		// straight off the right-hand bolt gives it the same angle as the other pistol.
+		mdxaBone_t	lHandMatrix, rHandMatrix;
 
-		offHandAngles[PITCH]	= cg_westarLeftPitch.value;
-		offHandAngles[YAW]		= cg_westarLeftYaw.value;
-		offHandAngles[ROLL]		= cg_westarLeftRoll.value;
+		if ( trap->G2API_GetBoltMatrix(cent->ghoul2, 0, 1, &lHandMatrix, newAngles,
+				cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale) &&
+			trap->G2API_GetBoltMatrix(cent->ghoul2, 0, 0, &rHandMatrix, newAngles,
+				cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale) )
+		{
+			refEntity_t	offHand;
 
-		rotated = ( offHandAngles[PITCH] || offHandAngles[YAW] || offHandAngles[ROLL] )
-			? trap->G2API_SetBoneAngles( cent->ghoul2, 2, cg_westarLeftBone.string, offHandAngles,
-				BONE_ANGLES_PREMULT, POSITIVE_X, POSITIVE_Y, POSITIVE_Z, cgs.gameModels, 0, cg.time )
-			: qtrue;
+			memset( &offHand, 0, sizeof(offHand) );
 
-		if ( cg_westarDebug.integer && !cgWestarBoneReported &&
-			cent->currentState.number == cg.predictedPlayerState.clientNum )
-		{	// A wrong bone name fails silently and looks exactly like "the angles did nothing",
-			// so name the model's skeleton and probe for a bone that does exist rather than
-			// leaving it to guesswork. Reported once, not per frame - this is a draw path.
-			static const char *candidates[] = {
-				"model_root", "root", "origin", "Bone", "bone_root", "Object01", "mesh_root"
-			};
-			char	glaName[MAX_QPATH];
-			size_t	c;
-			int		found = 0;
+			BG_GiveMeVectorFromMatrix( &lHandMatrix, ORIGIN, offHand.origin );
 
-			cgWestarBoneReported = qtrue;
+			BG_GiveMeVectorFromMatrix( &rHandMatrix, POSITIVE_X, offHand.axis[0] );
+			BG_GiveMeVectorFromMatrix( &rHandMatrix, POSITIVE_Y, offHand.axis[1] );
+			BG_GiveMeVectorFromMatrix( &rHandMatrix, POSITIVE_Z, offHand.axis[2] );
 
-			glaName[0] = '\0';
-			trap->G2API_GetGLAName( cent->ghoul2, 2, glaName );
+			offHand.ghoul2 = g2WestarLeftInstance;	// MOD_BAD + ghoul2 renders via R_AddGhoulSurfaces
+			offHand.hModel = 0;
+			offHand.renderfx = parent->renderfx;
+			VectorCopy( parent->lightingOrigin, offHand.lightingOrigin );
+			offHand.shadowPlane = parent->shadowPlane;
 
-			trap->Print( S_COLOR_YELLOW "[WESTAR] off-hand model gla: %s, current bone \"%s\" %s\n",
-				glaName[0] ? glaName : "none", cg_westarLeftBone.string,
-				trap->G2API_DoesBoneExist( cent->ghoul2, 2, cg_westarLeftBone.string ) ? "exists" : "MISSING" );
-
-			for ( c = 0; c < ARRAY_LEN(candidates); c++ )
-			{
-				if ( trap->G2API_DoesBoneExist( cent->ghoul2, 2, candidates[c] ) )
-				{
-					trap->Print( S_COLOR_GREEN "[WESTAR]   usable bone: %s   (cg_westarLeftBone %s)\n",
-						candidates[c], candidates[c] );
-					found++;
-				}
+			if ( cent->modelScale[0] || cent->modelScale[1] || cent->modelScale[2] )
+			{	// only when the player is actually scaled - leaving modelScale zeroed means
+				// "unscaled", so it must not be copied blindly
+				VectorCopy( cent->modelScale, offHand.modelScale );
+				ScaleModelAxis( &offHand );
 			}
 
-			if ( !found )
-			{	// Weapon .glm models generally carry no riggable skeleton, so this is the
-				// likely outcome - the off-hand gun can't be rotated through ghoul2 at all.
-				trap->Print( S_COLOR_RED "[WESTAR]   no usable bone found - the off-hand gun cannot be rotated this way\n" );
-			}
+			VectorCopy( offHand.origin, cgWestarOffHandOrigin );
+			VectorCopy( offHand.axis[0], cgWestarOffHandDir );
+			cgWestarOffHandValid = qtrue;
+
+			trap->R_AddRefEntityToScene( &offHand );
 		}
-
-		(void)rotated;
+		else
+		{
+			cgWestarOffHandValid = qfalse;
+		}
+	}
+	else
+	{
+		cgWestarOffHandValid = qfalse;
 	}
 
 	if (cent->currentState.weapon == WP_EMPLACED_GUN)
@@ -785,21 +782,11 @@ Ghoul2 Insert End
 		//FX_AddSprite( flash.origin, NULL, NULL, 3.0f * val, 0.0f, 0.7f, 0.7f, WHITE, WHITE, Q_flrand(0.0f, 1.0f) * 360, 0.0f, 1.0f, shader, FX_USE_ALPHA );
 		trap->FX_AddSprite(&fxSArgs);
 
-		if ( weaponNum == WP_WESTAR && thirdPerson )
-		{	// charge up the off-hand pistol as well - same reasoning as the muzzle flash, the
-			// sprite above only ever comes off ghoul2 model index 1
-			mdxaBone_t	lBoltMatrix;
-			vec3_t		lChargeOrigin;
-
-			if ( trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 2) &&
-				trap->G2API_GetBoltMatrix(cent->ghoul2, 2, 0, &lBoltMatrix, newAngles,
-					cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale) )
-			{
-				BG_GiveMeVectorFromMatrix(&lBoltMatrix, ORIGIN, lChargeOrigin);
-				VectorCopy(lChargeOrigin, fxSArgs.origin);
-				fxSArgs.rotation = Q_flrand(0.0f, 1.0f)*360;
-				trap->FX_AddSprite(&fxSArgs);
-			}
+		if ( weaponNum == WP_WESTAR && thirdPerson && cgWestarOffHandValid )
+		{	// charge up the off-hand pistol as well - same reasoning as the muzzle flash
+			VectorCopy(cgWestarOffHandOrigin, fxSArgs.origin);
+			fxSArgs.rotation = Q_flrand(0.0f, 1.0f)*360;
+			trap->FX_AddSprite(&fxSArgs);
 		}
 	}
 
@@ -875,21 +862,10 @@ Ghoul2 Insert End
 					trap->FX_PlayEffectID(muzzleFX, flashorigin, flashdir, -1, -1, qfalse);
 				}
 
-				if ( weaponNum == WP_WESTAR && thirdPerson )
-				{	// The flash above comes off the right-hand gun (ghoul2 model index 1). The
-					// off-hand pistol is a separate model with its own *flash bolt, and nothing
-					// was ever asking for it - hence no flash on the left gun.
-					mdxaBone_t	lBoltMatrix;
-					vec3_t		lFlashOrigin, lFlashDir;
-
-					if ( trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 2) &&
-						trap->G2API_GetBoltMatrix(cent->ghoul2, 2, 0, &lBoltMatrix, newAngles,
-							cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale) )
-					{
-						BG_GiveMeVectorFromMatrix(&lBoltMatrix, ORIGIN, lFlashOrigin);
-						BG_GiveMeVectorFromMatrix(&lBoltMatrix, POSITIVE_X, lFlashDir);
-						trap->FX_PlayEffectID(muzzleFX, lFlashOrigin, lFlashDir, -1, -1, qfalse);
-					}
+				if ( weaponNum == WP_WESTAR && thirdPerson && cgWestarOffHandValid )
+				{	// The flash above comes off the right-hand gun. Fire one off the off-hand
+					// pistol too, from wherever it was placed this frame.
+					trap->FX_PlayEffectID(muzzleFX, cgWestarOffHandOrigin, cgWestarOffHandDir, -1, -1, qfalse);
 				}
 
 				cent->muzzleFlashTime = 0; //japro - fix loud gunshots with high fps
@@ -3027,7 +3003,7 @@ void CG_InitG2Weapons(void)
 	gitem_t		*item;
 	gitem_t		*westarItem;
 	memset(g2WeaponInstances, 0, sizeof(g2WeaponInstances));
-	cgWestarBoneReported = qfalse;
+	cgWestarOffHandValid = qfalse;
 	for ( item = bg_itemlist + 1 ; item->classname ; item++ )
 	{
 		if ( item->giType == IT_WEAPON )
@@ -3065,10 +3041,21 @@ void CG_InitG2Weapons(void)
 	westarItem = BG_FindItemForWeapon(WP_WESTAR);
 	if (westarItem && westarItem->world_model[0])
 	{
-		trap->G2API_InitGhoul2Model(&g2WestarLeftInstance, westarItem->world_model[0], 0, 0, 0, 0, 0);
-		if (g2WestarLeftInstance)
+		// Prefer a purpose-built mirrored model for the off hand. Mirroring can't be done with
+		// a transform - negating an axis flips the model's winding and no stock renderer
+		// compensates - so a genuinely flipped pistol has to come from the asset. Falls back
+		// to the normal model, which then reads the same way round as the right-hand one.
+		trap->G2API_InitGhoul2Model(&g2WestarLeftInstance, "models/weapons2/westar34/westar34_left.glm", 0, 0, 0, 0, 0);
+
+		if (!g2WestarLeftInstance)
 		{
-			trap->G2API_SetBoltInfo(g2WestarLeftInstance, 0, 1); // 0 = right hand, 1 = left hand
+			trap->G2API_InitGhoul2Model(&g2WestarLeftInstance, westarItem->world_model[0], 0, 0, 0, 0, 0);
+		}
+
+		if (g2WestarLeftInstance)
+		{	// Deliberately not bolted. Bolting to the left hand inherits that bone's own
+			// orientation, which is what left the pistol sitting at a wrong angle; this is
+			// positioned and oriented by hand in CG_AddPlayerWeapon instead.
 			trap->G2API_AddBolt(g2WestarLeftInstance, 0, "*flash");
 		}
 	}
@@ -3192,7 +3179,7 @@ void CG_CopyG2WeaponInstance(centity_t *cent, int weaponNum, void *toGhoul2)
 		{
 			qboolean g2HasSecondSaber = trap->G2API_HasGhoul2ModelOnIndex(&(toGhoul2), 2);
 
-			if (g2HasSecondSaber && weaponNum != WP_WESTAR)
+			if (g2HasSecondSaber)
 			{ //remove it now since we're switching away from sabers
 				trap->G2API_RemoveGhoul2Model(&(toGhoul2), 2);
 			}
@@ -3214,11 +3201,9 @@ void CG_CopyG2WeaponInstance(centity_t *cent, int weaponNum, void *toGhoul2)
 			else
 			{
 				trap->G2API_CopySpecificGhoul2Model(CG_G2WeaponInstance(cent, weaponNum/*-1*/), 0, toGhoul2, 1);
-
-				if (weaponNum == WP_WESTAR && g2WestarLeftInstance)
-				{ //dual pistols - off-hand copy comes from the left-hand-bolted instance
-					trap->G2API_CopySpecificGhoul2Model(g2WestarLeftInstance, 0, toGhoul2, 2);
-				}
+				// The off-hand westar is no longer attached here - it is drawn as its own
+				// entity in CG_AddPlayerWeapon so its orientation isn't dictated by the
+				// left-hand bone. Attaching it as well would draw it twice.
 			}
 		}
 	}

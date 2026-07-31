@@ -163,15 +163,6 @@ XCVAR_DEF( cg_hideDuelerNames,					"0",	NULL,					CVAR_ARCHIVE )
 // Print the eFlags/selectable state behind "weapon westar" every time it runs, to work out
 // where westar selection is failing (bit never arrived vs. eaten client-side). Not archived.
 XCVAR_DEF( cg_westarDebug,						"0",	NULL,					CVAR_TEMP )
-// Orientation correction for the third-person off-hand westar. The left-hand bolt is mirrored
-// relative to the right, so an asymmetric model like a pistol lands rotated. Applied live so
-// the values can be dialled in from the console, then baked in as the defaults here.
-// cg_westarLeftBone is the bone the rotation is applied to - weapon .glm models don't all use
-// the same root bone name, and the wrong name fails silently (cg_westarDebug 1 reports it).
-XCVAR_DEF( cg_westarLeftPitch,					"0",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarLeftYaw,					"0",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarLeftRoll,					"0",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarLeftBone,			"model_root",	NULL,					CVAR_ARCHIVE )
 // Where the off-hand pistol sits in the first-person view, relative to the main one:
 // forward/back, left/right (positive = left), up/down, and roll about its own barrel.
 // Roll defaults to 0 - 180 turns the gun upside down rather than mirroring it, because a
