@@ -170,14 +170,16 @@ XCVAR_DEF( cg_westarDebug,						"0",	NULL,					CVAR_TEMP )
 // the same root bone name, and the wrong name fails silently (cg_westarDebug 1 reports it).
 XCVAR_DEF( cg_westarLeftPitch,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_westarLeftYaw,					"0",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarLeftRoll,					"180",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_westarLeftRoll,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_westarLeftBone,			"model_root",	NULL,					CVAR_ARCHIVE )
 // Where the off-hand pistol sits in the first-person view, relative to the main one:
 // forward/back, left/right (positive = left), up/down, and roll about its own barrel.
+// Roll defaults to 0 - 180 turns the gun upside down rather than mirroring it, because a
+// real mirror can't be expressed as a rotation (see CG_AddPlayerWeapon).
 XCVAR_DEF( cg_westarViewX,						"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_westarViewY,						"7",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_westarViewZ,						"0",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarViewRoll,					"180",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_westarViewRoll,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawInventory,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawPowerUpIcons,					"1",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_autoScreenshot,					"0",	NULL,					CVAR_ARCHIVE )

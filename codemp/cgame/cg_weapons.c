@@ -543,10 +543,12 @@ Ghoul2 Insert Start
 				VectorMA( offHand.origin, cg_westarViewZ.value, parent->axis[2], offHand.origin );
 
 				if ( cg_westarViewRoll.value )
-				{	// Roll about the barrel so the off-hand gun reads as the mirror of the main
-					// one. Mirroring properly - negating a single axis - would flip the model's
-					// handedness, and GL_Cull only compensates for portal mirrors, so the gun
-					// would render inside out. Rotating two axes keeps the winding intact.
+				{	// Optional roll about the barrel. NOT a mirror, and can't be made into one:
+					// mirroring means negating one axis, which flips the model's handedness, and
+					// nothing downstream compensates - R_RotateForEntity copies entity axes
+					// verbatim, GL_Cull only knows about portal mirrors, and there is no
+					// per-entity mirror renderfx. A mirrored gun would render inside out, so a
+					// true mirror needs a renderer change, not a cgame one. Defaults to 0.
 					vec3_t	rolledLeft, rolledUp;
 
 					RotatePointAroundVector( rolledLeft, offHand.axis[0], gun.axis[1], cg_westarViewRoll.value );
