@@ -26,6 +26,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "fx_local.h"
 #include "ghoul2/G2.h"	// BONE_ANGLES_* for the off-hand westar orientation fixup
 
+// One-shot latch for the off-hand bone probe below - it sits in the per-frame draw path, so
+// without this the failure reports every single frame. Cleared on map load.
+qboolean		cgWestarBoneReported = qfalse;
+
 extern vec4_t	bluehudtint;
 extern vec4_t	redhudtint;
 extern float	*hudTintColor;
@@ -456,15 +460,50 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 		offHandAngles[YAW]		= cg_westarLeftYaw.value;
 		offHandAngles[ROLL]		= cg_westarLeftRoll.value;
 
-		rotated = trap->G2API_SetBoneAngles( cent->ghoul2, 2, cg_westarLeftBone.string, offHandAngles,
-			BONE_ANGLES_PREMULT, POSITIVE_X, POSITIVE_Y, POSITIVE_Z, cgs.gameModels, 0, cg.time );
+		rotated = ( offHandAngles[PITCH] || offHandAngles[YAW] || offHandAngles[ROLL] )
+			? trap->G2API_SetBoneAngles( cent->ghoul2, 2, cg_westarLeftBone.string, offHandAngles,
+				BONE_ANGLES_PREMULT, POSITIVE_X, POSITIVE_Y, POSITIVE_Z, cgs.gameModels, 0, cg.time )
+			: qtrue;
 
-		if ( !rotated && cg_westarDebug.integer && cent->currentState.number == cg.predictedPlayerState.clientNum )
-		{	// Wrong bone name fails silently and looks exactly like "the angles did nothing",
-			// so say so rather than leaving it to guesswork.
-			trap->Print( S_COLOR_YELLOW "[WESTAR] off-hand rotate failed: no bone \"%s\" on the weapon model\n",
-				cg_westarLeftBone.string );
+		if ( cg_westarDebug.integer && !cgWestarBoneReported &&
+			cent->currentState.number == cg.predictedPlayerState.clientNum )
+		{	// A wrong bone name fails silently and looks exactly like "the angles did nothing",
+			// so name the model's skeleton and probe for a bone that does exist rather than
+			// leaving it to guesswork. Reported once, not per frame - this is a draw path.
+			static const char *candidates[] = {
+				"model_root", "root", "origin", "Bone", "bone_root", "Object01", "mesh_root"
+			};
+			char	glaName[MAX_QPATH];
+			size_t	c;
+			int		found = 0;
+
+			cgWestarBoneReported = qtrue;
+
+			glaName[0] = '\0';
+			trap->G2API_GetGLAName( cent->ghoul2, 2, glaName );
+
+			trap->Print( S_COLOR_YELLOW "[WESTAR] off-hand model gla: %s, current bone \"%s\" %s\n",
+				glaName[0] ? glaName : "none", cg_westarLeftBone.string,
+				trap->G2API_DoesBoneExist( cent->ghoul2, 2, cg_westarLeftBone.string ) ? "exists" : "MISSING" );
+
+			for ( c = 0; c < ARRAY_LEN(candidates); c++ )
+			{
+				if ( trap->G2API_DoesBoneExist( cent->ghoul2, 2, candidates[c] ) )
+				{
+					trap->Print( S_COLOR_GREEN "[WESTAR]   usable bone: %s   (cg_westarLeftBone %s)\n",
+						candidates[c], candidates[c] );
+					found++;
+				}
+			}
+
+			if ( !found )
+			{	// Weapon .glm models generally carry no riggable skeleton, so this is the
+				// likely outcome - the off-hand gun can't be rotated through ghoul2 at all.
+				trap->Print( S_COLOR_RED "[WESTAR]   no usable bone found - the off-hand gun cannot be rotated this way\n" );
+			}
 		}
+
+		(void)rotated;
 	}
 
 	if (cent->currentState.weapon == WP_EMPLACED_GUN)
@@ -2988,6 +3027,7 @@ void CG_InitG2Weapons(void)
 	gitem_t		*item;
 	gitem_t		*westarItem;
 	memset(g2WeaponInstances, 0, sizeof(g2WeaponInstances));
+	cgWestarBoneReported = qfalse;
 	for ( item = bg_itemlist + 1 ; item->classname ; item++ )
 	{
 		if ( item->giType == IT_WEAPON )
