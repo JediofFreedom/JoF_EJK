@@ -174,8 +174,12 @@ XCVAR_DEF( cg_westarDebug,						"0",	NULL,					CVAR_TEMP )
 // 180 about Z reverses the barrel and the side while leaving up alone, which is the mirror-like
 // result wanted. Axis 1 is the same flip but ends up inverted; axis 0 only rolls.
 //   0 = X (barrel/forward)   1 = Y   2 = Z (up)
+// cg_westarLeftBarrel is a residual twist about the barrel applied after the flip: the flip
+// sets which way the gun points, this sets how it is rotated around that line (grip down vs
+// grip sideways). Between them any needed orientation is reachable.
 XCVAR_DEF( cg_westarLeftRoll,					"180",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_westarLeftAxis,					"2",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_westarLeftBarrel,					"0",	NULL,					CVAR_ARCHIVE )
 // Where the off-hand pistol sits in the first-person view, relative to the main one:
 // forward/back, left/right (positive = left), up/down, and roll about its own barrel.
 // Roll defaults to 0 - 180 turns the gun upside down rather than mirroring it, because a

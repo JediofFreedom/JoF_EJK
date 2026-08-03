@@ -482,23 +482,36 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 			BG_GiveMeVectorFromMatrix( &lHandMatrix, POSITIVE_Z, offHand.axis[2] );
 
 			if ( cg_westarLeftRoll.value )
-			{	// Turn about one of the bolt's own axes. Which one matters: the rig's bone roll
-				// is measured about the bone's Y, the bolt's X is the barrel, and if those two
-				// don't line up then no angle about the wrong axis will ever look right.
+			{	// The flip. The left socket points backwards relative to the mirrored right
+				// one, so this is what reverses the barrel; which axis it turns about decides
+				// whether "up" or "side" comes along with it.
 				int		spin = cg_westarLeftAxis.integer;
-				int		a = (spin + 1) % 3;
-				int		b = (spin + 2) % 3;
+				int		a, b;
 				vec3_t	rolledA, rolledB;
 
 				if ( spin < 0 || spin > 2 )
 				{
-					spin = 0; a = 1; b = 2;
+					spin = 2;
 				}
+				a = (spin + 1) % 3;
+				b = (spin + 2) % 3;
 
 				RotatePointAroundVector( rolledA, offHand.axis[spin], offHand.axis[a], cg_westarLeftRoll.value );
 				RotatePointAroundVector( rolledB, offHand.axis[spin], offHand.axis[b], cg_westarLeftRoll.value );
 				VectorCopy( rolledA, offHand.axis[a] );
 				VectorCopy( rolledB, offHand.axis[b] );
+			}
+
+			if ( cg_westarLeftBarrel.value )
+			{	// Residual twist about the barrel, applied after the flip. The flip fixes which
+				// way the gun points; this fixes how it is rotated around that line - grip down
+				// versus grip sideways - which the flip alone can't set.
+				vec3_t	twistedY, twistedZ;
+
+				RotatePointAroundVector( twistedY, offHand.axis[0], offHand.axis[1], cg_westarLeftBarrel.value );
+				RotatePointAroundVector( twistedZ, offHand.axis[0], offHand.axis[2], cg_westarLeftBarrel.value );
+				VectorCopy( twistedY, offHand.axis[1] );
+				VectorCopy( twistedZ, offHand.axis[2] );
 			}
 
 			offHand.ghoul2 = g2WestarLeftInstance;	// MOD_BAD + ghoul2 renders via R_AddGhoulSurfaces
@@ -523,9 +536,9 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 			{	// "the angle never changes" looks identical whether the gun is drawing at the
 				// wrong angle or not drawing at all - say which, once, rather than per frame.
 				cgWestarDrawReported = qtrue;
-				trap->Print( S_COLOR_YELLOW "[WESTAR] off-hand drawn at %.0f %.0f %.0f, roll %.0f about axis %i\n",
+				trap->Print( S_COLOR_YELLOW "[WESTAR] off-hand drawn at %.0f %.0f %.0f - flip %.0f about axis %i, barrel twist %.0f\n",
 					offHand.origin[0], offHand.origin[1], offHand.origin[2],
-					cg_westarLeftRoll.value, cg_westarLeftAxis.integer );
+					cg_westarLeftRoll.value, cg_westarLeftAxis.integer, cg_westarLeftBarrel.value );
 			}
 
 			trap->R_AddRefEntityToScene( &offHand );
