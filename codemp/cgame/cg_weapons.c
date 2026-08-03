@@ -452,16 +452,18 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	}
 
 	if ( weaponNum == WP_WESTAR && thirdPerson && g2WestarLeftInstance && cent->ghoul2 )
-	{	// Draw the off-hand pistol ourselves rather than bolting it to the left hand. The
-		// left-hand bone carries its own orientation, which is what had the gun sitting at a
-		// wrong angle, and the model has no skeleton (gla "*default") so there is no bone to
-		// rotate it back with. Taking the position from the left hand and the orientation
-		// straight off the right-hand bolt gives it the same angle as the other pistol.
-		mdxaBone_t	lHandMatrix, rHandMatrix;
+	{	// Draw the off-hand pistol ourselves rather than bolting it to the left hand, because
+		// the model has no skeleton (gla "*default") and so cannot be rotated once attached.
+		//
+		// Orientation comes from the left hand, so the gun tracks that hand through every
+		// animation, with a fixed roll correction on top: in the source skeleton the two hand
+		// bones do not share a roll (right -125, left -55), and that 70 degree difference is
+		// what had the off-hand pistol sitting at a wrong angle. Rolling about the bolt's X
+		// axis - the barrel direction, the same vector the muzzle flash fires along - cancels
+		// it without breaking the gun away from the hand.
+		mdxaBone_t	lHandMatrix;
 
 		if ( trap->G2API_GetBoltMatrix(cent->ghoul2, 0, 1, &lHandMatrix, newAngles,
-				cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale) &&
-			trap->G2API_GetBoltMatrix(cent->ghoul2, 0, 0, &rHandMatrix, newAngles,
 				cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale) )
 		{
 			refEntity_t	offHand;
@@ -470,9 +472,19 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 
 			BG_GiveMeVectorFromMatrix( &lHandMatrix, ORIGIN, offHand.origin );
 
-			BG_GiveMeVectorFromMatrix( &rHandMatrix, POSITIVE_X, offHand.axis[0] );
-			BG_GiveMeVectorFromMatrix( &rHandMatrix, POSITIVE_Y, offHand.axis[1] );
-			BG_GiveMeVectorFromMatrix( &rHandMatrix, POSITIVE_Z, offHand.axis[2] );
+			BG_GiveMeVectorFromMatrix( &lHandMatrix, POSITIVE_X, offHand.axis[0] );
+			BG_GiveMeVectorFromMatrix( &lHandMatrix, POSITIVE_Y, offHand.axis[1] );
+			BG_GiveMeVectorFromMatrix( &lHandMatrix, POSITIVE_Z, offHand.axis[2] );
+
+			if ( cg_westarLeftRoll.value )
+			{
+				vec3_t	rolledY, rolledZ;
+
+				RotatePointAroundVector( rolledY, offHand.axis[0], offHand.axis[1], cg_westarLeftRoll.value );
+				RotatePointAroundVector( rolledZ, offHand.axis[0], offHand.axis[2], cg_westarLeftRoll.value );
+				VectorCopy( rolledY, offHand.axis[1] );
+				VectorCopy( rolledZ, offHand.axis[2] );
+			}
 
 			offHand.ghoul2 = g2WestarLeftInstance;	// MOD_BAD + ghoul2 renders via R_AddGhoulSurfaces
 			offHand.hModel = 0;
