@@ -163,10 +163,14 @@ XCVAR_DEF( cg_hideDuelerNames,					"0",	NULL,					CVAR_ARCHIVE )
 // Print the eFlags/selectable state behind "weapon westar" every time it runs, to work out
 // where westar selection is failing (bit never arrived vs. eaten client-side). Not archived.
 XCVAR_DEF( cg_westarDebug,						"0",	NULL,					CVAR_TEMP )
-// Roll correction for the third-person off-hand westar, in degrees about the barrel. The two
-// hand bones in the source skeleton don't share a roll (right -125, left -55), so a gun placed
-// on the left hand lands 70 degrees out. Flip the sign if it over-rotates the wrong way.
+// Orientation correction for the third-person off-hand westar. The two hand tag bones in the
+// source rig don't share a roll (rhang_tag_bone -125, lhang_tag_bone -55), so a gun placed on
+// the left hand lands 70 degrees out. cg_westarLeftRoll is the angle; cg_westarLeftAxis picks
+// which of the bolt's own axes it turns about, because Blender bone roll is about the bone's Y
+// while the bolt matrix's X is the barrel - if those don't line up, no angle alone can fix it.
+//   0 = X (barrel/forward)   1 = Y   2 = Z
 XCVAR_DEF( cg_westarLeftRoll,					"-70",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_westarLeftAxis,					"0",	NULL,					CVAR_ARCHIVE )
 // Where the off-hand pistol sits in the first-person view, relative to the main one:
 // forward/back, left/right (positive = left), up/down, and roll about its own barrel.
 // Roll defaults to 0 - 180 turns the gun upside down rather than mirroring it, because a

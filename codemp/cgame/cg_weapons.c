@@ -36,6 +36,7 @@ static void		*g2WestarLeftInstance = NULL;
 static vec3_t	cgWestarOffHandOrigin;
 static vec3_t	cgWestarOffHandDir;
 static qboolean	cgWestarOffHandValid = qfalse;
+static qboolean	cgWestarDrawReported = qfalse;
 
 extern vec4_t	bluehudtint;
 extern vec4_t	redhudtint;
@@ -481,13 +482,23 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 			BG_GiveMeVectorFromMatrix( &lHandMatrix, POSITIVE_Z, offHand.axis[2] );
 
 			if ( cg_westarLeftRoll.value )
-			{
-				vec3_t	rolledY, rolledZ;
+			{	// Turn about one of the bolt's own axes. Which one matters: the rig's bone roll
+				// is measured about the bone's Y, the bolt's X is the barrel, and if those two
+				// don't line up then no angle about the wrong axis will ever look right.
+				int		spin = cg_westarLeftAxis.integer;
+				int		a = (spin + 1) % 3;
+				int		b = (spin + 2) % 3;
+				vec3_t	rolledA, rolledB;
 
-				RotatePointAroundVector( rolledY, offHand.axis[0], offHand.axis[1], cg_westarLeftRoll.value );
-				RotatePointAroundVector( rolledZ, offHand.axis[0], offHand.axis[2], cg_westarLeftRoll.value );
-				VectorCopy( rolledY, offHand.axis[1] );
-				VectorCopy( rolledZ, offHand.axis[2] );
+				if ( spin < 0 || spin > 2 )
+				{
+					spin = 0; a = 1; b = 2;
+				}
+
+				RotatePointAroundVector( rolledA, offHand.axis[spin], offHand.axis[a], cg_westarLeftRoll.value );
+				RotatePointAroundVector( rolledB, offHand.axis[spin], offHand.axis[b], cg_westarLeftRoll.value );
+				VectorCopy( rolledA, offHand.axis[a] );
+				VectorCopy( rolledB, offHand.axis[b] );
 			}
 
 			offHand.ghoul2 = g2WestarLeftInstance;	// MOD_BAD + ghoul2 renders via R_AddGhoulSurfaces
@@ -506,6 +517,16 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 			VectorCopy( offHand.origin, cgWestarOffHandOrigin );
 			VectorCopy( offHand.axis[0], cgWestarOffHandDir );
 			cgWestarOffHandValid = qtrue;
+
+			if ( cg_westarDebug.integer && !cgWestarDrawReported &&
+				cent->currentState.number == cg.predictedPlayerState.clientNum )
+			{	// "the angle never changes" looks identical whether the gun is drawing at the
+				// wrong angle or not drawing at all - say which, once, rather than per frame.
+				cgWestarDrawReported = qtrue;
+				trap->Print( S_COLOR_YELLOW "[WESTAR] off-hand drawn at %.0f %.0f %.0f, roll %.0f about axis %i\n",
+					offHand.origin[0], offHand.origin[1], offHand.origin[2],
+					cg_westarLeftRoll.value, cg_westarLeftAxis.integer );
+			}
 
 			trap->R_AddRefEntityToScene( &offHand );
 		}
@@ -3018,6 +3039,7 @@ void CG_InitG2Weapons(void)
 	gitem_t		*westarItem;
 	memset(g2WeaponInstances, 0, sizeof(g2WeaponInstances));
 	cgWestarOffHandValid = qfalse;
+	cgWestarDrawReported = qfalse;
 	for ( item = bg_itemlist + 1 ; item->classname ; item++ )
 	{
 		if ( item->giType == IT_WEAPON )
