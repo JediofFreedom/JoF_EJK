@@ -163,14 +163,19 @@ XCVAR_DEF( cg_hideDuelerNames,					"0",	NULL,					CVAR_ARCHIVE )
 // Print the eFlags/selectable state behind "weapon westar" every time it runs, to work out
 // where westar selection is failing (bit never arrived vs. eaten client-side). Not archived.
 XCVAR_DEF( cg_westarDebug,						"0",	NULL,					CVAR_TEMP )
-// Orientation correction for the third-person off-hand westar. The two hand tag bones in the
-// source rig don't share a roll (rhang_tag_bone -125, lhang_tag_bone -55), so a gun placed on
-// the left hand lands 70 degrees out. cg_westarLeftRoll is the angle; cg_westarLeftAxis picks
-// which of the bolt's own axes it turns about, because Blender bone roll is about the bone's Y
-// while the bolt matrix's X is the barrel - if those don't line up, no angle alone can fix it.
-//   0 = X (barrel/forward)   1 = Y   2 = Z
-XCVAR_DEF( cg_westarLeftRoll,					"-70",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarLeftAxis,					"0",	NULL,					CVAR_ARCHIVE )
+// Orientation correction for the third-person off-hand westar.
+//
+// The rig's two hand tag bones are mirror-symmetric in position but their directions are not:
+// rhang_tag_bone runs (2.339,-0.312,-0.993) and lhang_tag_bone runs (2.339,0.311,0.993), which
+// is 179.98 degrees away from the mirror of the right one. The left socket points backwards, so
+// a gun on it has its barrel reversed - not rolled. That is why no angle about the barrel ever
+// looked right: rolling about the barrel cannot reverse the barrel.
+//
+// 180 about Z reverses the barrel and the side while leaving up alone, which is the mirror-like
+// result wanted. Axis 1 is the same flip but ends up inverted; axis 0 only rolls.
+//   0 = X (barrel/forward)   1 = Y   2 = Z (up)
+XCVAR_DEF( cg_westarLeftRoll,					"180",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_westarLeftAxis,					"2",	NULL,					CVAR_ARCHIVE )
 // Where the off-hand pistol sits in the first-person view, relative to the main one:
 // forward/back, left/right (positive = left), up/down, and roll about its own barrel.
 // Roll defaults to 0 - 180 turns the gun upside down rather than mirroring it, because a
