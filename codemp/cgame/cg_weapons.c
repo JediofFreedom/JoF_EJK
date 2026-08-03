@@ -27,8 +27,12 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 // One-shot latch for the off-hand bone probe below - it sits in the per-frame draw path, so
 // without this the failure reports every single frame. Cleared on map load.
-// Where the off-hand westar ended up this frame. It is drawn as a free-standing entity rather
-// than bolted, so the muzzle flash and charge sprite have no ghoul2 slot to read back from.
+// The off-hand westar. Declared up here rather than beside the other ghoul2 weapon instances
+// at the bottom of the file because CG_AddPlayerWeapon draws it, and that comes first.
+static void		*g2WestarLeftInstance = NULL;
+
+// Where it ended up this frame. It is drawn as a free-standing entity rather than bolted, so
+// the muzzle flash and charge sprite have no ghoul2 slot to read the position back from.
 static vec3_t	cgWestarOffHandOrigin;
 static vec3_t	cgWestarOffHandDir;
 static qboolean	cgWestarOffHandValid = qfalse;
@@ -3004,10 +3008,8 @@ Ghoul2 Insert Start
 // create one instance of all the weapons we are going to use so we can just copy this info into each clients gun ghoul2 object in fast way
 static void *g2WeaponInstances[WP_NUM_WEAPONS]; // client-local, never networked - can safely exceed MAX_WEAPONS (the STAT_WEAPONS wire width)
 
-// The westar is dual-wielded. Every instance above is bolted to bolt 0 (the right hand), so
-// the off-hand pistol needs an instance of its own bolted to bolt 1 (the left hand) - copying
-// the right-hand instance into the second model slot leaves both guns fighting over one bolt.
-static void *g2WestarLeftInstance = NULL;
+// g2WestarLeftInstance, the dual-wielded off-hand pistol, is declared at the top of the file -
+// CG_AddPlayerWeapon needs it and comes before this.
 
 void CG_InitG2Weapons(void)
 {
