@@ -526,6 +526,15 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 				VectorCopy( twistedZ, offHand.axis[2] );
 			}
 
+			if ( cg_westarLeftFwd.value || cg_westarLeftSide.value || cg_westarLeftUp.value )
+			{	// Seat the gun in the hand. Nudged along the gun's own axes rather than world
+				// ones, and after the rotations above so those axes are final - so "forward"
+				// stays along the barrel whichever way the player happens to be facing.
+				VectorMA( offHand.origin, cg_westarLeftFwd.value,  offHand.axis[0], offHand.origin );
+				VectorMA( offHand.origin, cg_westarLeftSide.value, offHand.axis[1], offHand.origin );
+				VectorMA( offHand.origin, cg_westarLeftUp.value,   offHand.axis[2], offHand.origin );
+			}
+
 			offHand.ghoul2 = g2WestarLeftInstance;	// MOD_BAD + ghoul2 renders via R_AddGhoulSurfaces
 			offHand.hModel = 0;
 			offHand.renderfx = parent->renderfx;

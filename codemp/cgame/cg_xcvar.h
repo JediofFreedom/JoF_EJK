@@ -186,6 +186,11 @@ XCVAR_DEF( cg_westarLeftFollowHand,				"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_westarLeftRoll,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_westarLeftAxis,					"2",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_westarLeftBarrel,					"0",	NULL,					CVAR_ARCHIVE )
+// Seats the off-hand pistol in the hand, in units along the gun's own axes (so "forward" is
+// along the barrel regardless of which way the player faces). Try steps of 1.
+XCVAR_DEF( cg_westarLeftFwd,					"0",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_westarLeftSide,					"0",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_westarLeftUp,						"0",	NULL,					CVAR_ARCHIVE )
 // Where the off-hand pistol sits in the first-person view, relative to the main one:
 // forward/back, left/right (positive = left), up/down, and roll about its own barrel.
 // Roll defaults to 0 - 180 turns the gun upside down rather than mirroring it, because a
