@@ -3059,14 +3059,25 @@ void CG_InitG2Weapons(void)
 		// a transform - negating an axis flips the model's winding and no stock renderer
 		// compensates - so a genuinely flipped pistol has to come from the asset. Falls back
 		// to the normal model, which then reads the same way round as the right-hand one.
-		trap->G2API_InitGhoul2Model(&g2WestarLeftInstance, "models/weapons2/westar34/westar34_left.glm", 0, 0, 0, 0, 0);
+		//
+		// Test the return value, not the pointer: G2API_InitGhoul2Model allocates the instance
+		// before it ever looks at the file, so a model that failed to load still leaves a
+		// non-NULL pointer behind - one holding mModelindex -1, which draws nothing at all.
+		int leftModel = trap->G2API_InitGhoul2Model(&g2WestarLeftInstance, "models/weapons2/westar34/westar34_left.glm", 0, 0, 0, 0, 0);
 
-		if (!g2WestarLeftInstance)
-		{
-			trap->G2API_InitGhoul2Model(&g2WestarLeftInstance, westarItem->world_model[0], 0, 0, 0, 0, 0);
+		if (leftModel < 0)
+		{	// no mirrored model shipped - fall back to the standard one
+			trap->G2API_CleanGhoul2Models(&g2WestarLeftInstance);
+			g2WestarLeftInstance = NULL;
+			leftModel = trap->G2API_InitGhoul2Model(&g2WestarLeftInstance, westarItem->world_model[0], 0, 0, 0, 0, 0);
 		}
 
-		if (g2WestarLeftInstance)
+		if (leftModel < 0)
+		{	// no westar model at all - don't leave a dead instance behind for the draw path
+			trap->G2API_CleanGhoul2Models(&g2WestarLeftInstance);
+			g2WestarLeftInstance = NULL;
+		}
+		else
 		{	// Deliberately not bolted. Bolting to the left hand inherits that bone's own
 			// orientation, which is what left the pistol sitting at a wrong angle; this is
 			// positioned and oriented by hand in CG_AddPlayerWeapon instead.
