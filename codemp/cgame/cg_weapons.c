@@ -466,20 +466,32 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 		// what had the off-hand pistol sitting at a wrong angle. Rolling about the bolt's X
 		// axis - the barrel direction, the same vector the muzzle flash fires along - cancels
 		// it without breaking the gun away from the hand.
-		mdxaBone_t	lHandMatrix;
+		mdxaBone_t	lHandMatrix, rHandMatrix;
 
 		if ( trap->G2API_GetBoltMatrix(cent->ghoul2, 0, 1, &lHandMatrix, newAngles,
+				cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale) &&
+			trap->G2API_GetBoltMatrix(cent->ghoul2, 0, 0, &rHandMatrix, newAngles,
 				cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale) )
 		{
 			refEntity_t	offHand;
+			mdxaBone_t	*aim;
 
 			memset( &offHand, 0, sizeof(offHand) );
 
+			// Position always comes from the left hand. Orientation defaults to the RIGHT
+			// hand's, because that socket is the one the visible, correct-looking pistol is
+			// already bolted to - so the off-hand gun is guaranteed to sit at a sane angle
+			// without needing to know how the rig's bone axes map onto the bolt matrix.
+			// The left socket points backwards relative to the mirror of the right one (its
+			// direction is 179.98 degrees off), so following it needs a correction; that is
+			// what cg_westarLeftFollowHand plus the flip/twist below are for.
+			aim = cg_westarLeftFollowHand.integer ? &lHandMatrix : &rHandMatrix;
+
 			BG_GiveMeVectorFromMatrix( &lHandMatrix, ORIGIN, offHand.origin );
 
-			BG_GiveMeVectorFromMatrix( &lHandMatrix, POSITIVE_X, offHand.axis[0] );
-			BG_GiveMeVectorFromMatrix( &lHandMatrix, POSITIVE_Y, offHand.axis[1] );
-			BG_GiveMeVectorFromMatrix( &lHandMatrix, POSITIVE_Z, offHand.axis[2] );
+			BG_GiveMeVectorFromMatrix( aim, POSITIVE_X, offHand.axis[0] );
+			BG_GiveMeVectorFromMatrix( aim, POSITIVE_Y, offHand.axis[1] );
+			BG_GiveMeVectorFromMatrix( aim, POSITIVE_Z, offHand.axis[2] );
 
 			if ( cg_westarLeftRoll.value )
 			{	// The flip. The left socket points backwards relative to the mirrored right

@@ -177,7 +177,13 @@ XCVAR_DEF( cg_westarDebug,						"0",	NULL,					CVAR_TEMP )
 // cg_westarLeftBarrel is a residual twist about the barrel applied after the flip: the flip
 // sets which way the gun points, this sets how it is rotated around that line (grip down vs
 // grip sideways). Between them any needed orientation is reachable.
-XCVAR_DEF( cg_westarLeftRoll,					"180",	NULL,					CVAR_ARCHIVE )
+// cg_westarLeftFollowHand 0 (default) orients the off-hand pistol like the RIGHT hand's - that
+// socket already carries the visible, correct-looking gun, so this needs no knowledge of how
+// the rig's bone axes map onto the bolt matrix. It does mean the off-hand gun doesn't follow
+// the left hand's own rotation. Set to 1 to orient from the left socket instead, which then
+// needs the flip and twist below to undo that socket pointing backwards.
+XCVAR_DEF( cg_westarLeftFollowHand,				"0",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_westarLeftRoll,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_westarLeftAxis,					"2",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_westarLeftBarrel,					"0",	NULL,					CVAR_ARCHIVE )
 // Where the off-hand pistol sits in the first-person view, relative to the main one:
