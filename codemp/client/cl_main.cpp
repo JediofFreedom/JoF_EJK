@@ -982,6 +982,21 @@ void CL_Disconnect( qboolean showMainMenu ) {
 		FS_FCloseFile( clc.download );
 		clc.download = 0;
 	}
+
+	// Remove any incomplete download .tmp file left behind.
+	if (*clc.downloadTempName) {
+		char* ospath;
+		//maybe hacky but engine requires os filesystem paths for fs_remove
+		ospath = FS_BuildOSPath(
+			Cvar_VariableString("fs_homepath"),
+			clc.downloadTempName,
+			""
+		);
+
+		ospath[strlen(ospath) - 1] = '\0';
+		FS_Remove(ospath);
+	}
+
 	*clc.downloadTempName = *clc.downloadName = 0;
 	Cvar_Set( "cl_downloadName", "" );
 
