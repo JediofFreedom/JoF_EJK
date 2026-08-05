@@ -27,6 +27,13 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 // One-shot latch for the off-hand bone probe below - it sits in the per-frame draw path, so
 // without this the failure reports every single frame. Cleared on map load.
+// Placement of the off-hand westar, found by eye in game and fixed here. The barrel twist
+// rights the gun after it takes the right hand's orientation; side and up seat it in the grip,
+// since the bolt origin is the rig's socket point rather than where the hand actually holds it.
+#define WESTAR_OFFHAND_BARREL	180.0f
+#define WESTAR_OFFHAND_SIDE		1.0f
+#define WESTAR_OFFHAND_UP		0.5f
+
 // The off-hand westar. Declared up here rather than beside the other ghoul2 weapon instances
 // at the bottom of the file because CG_AddPlayerWeapon draws it, and that comes first.
 static void		*g2WestarLeftInstance = NULL;
@@ -36,7 +43,6 @@ static void		*g2WestarLeftInstance = NULL;
 static vec3_t	cgWestarOffHandOrigin;
 static vec3_t	cgWestarOffHandDir;
 static qboolean	cgWestarOffHandValid = qfalse;
-static qboolean	cgWestarDrawReported = qfalse;
 
 extern vec4_t	bluehudtint;
 extern vec4_t	redhudtint;
@@ -457,15 +463,16 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 	}
 
 	if ( weaponNum == WP_WESTAR && thirdPerson && g2WestarLeftInstance && cent->ghoul2 )
-	{	// Draw the off-hand pistol ourselves rather than bolting it to the left hand, because
-		// the model has no skeleton (gla "*default") and so cannot be rotated once attached.
+	{	// Draw the off-hand pistol ourselves rather than bolting it to the left hand: the model
+		// has no skeleton (gla "*default") so it cannot be rotated once attached, and the left
+		// socket points backwards anyway - its direction sits 179.98 degrees from the mirror of
+		// the right one, so a gun bolted to it has its barrel reversed.
 		//
-		// Orientation comes from the left hand, so the gun tracks that hand through every
-		// animation, with a fixed roll correction on top: in the source skeleton the two hand
-		// bones do not share a roll (right -125, left -55), and that 70 degree difference is
-		// what had the off-hand pistol sitting at a wrong angle. Rolling about the bolt's X
-		// axis - the barrel direction, the same vector the muzzle flash fires along - cancels
-		// it without breaking the gun away from the hand.
+		// Position comes from the left hand; orientation from the RIGHT hand's socket, which is
+		// the one already carrying the visible, correct-looking pistol. That sidesteps needing
+		// to know how the rig's bone axes map onto the bolt matrix. The trade is that the
+		// off-hand gun doesn't follow the left hand's own rotation, which doesn't show in the
+		// dual-pistol stances.
 		mdxaBone_t	lHandMatrix, rHandMatrix;
 
 		if ( trap->G2API_GetBoltMatrix(cent->ghoul2, 0, 1, &lHandMatrix, newAngles,
@@ -473,67 +480,29 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 			trap->G2API_GetBoltMatrix(cent->ghoul2, 0, 0, &rHandMatrix, newAngles,
 				cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale) )
 		{
+			vec3_t		twistedY, twistedZ;
 			refEntity_t	offHand;
-			mdxaBone_t	*aim;
 
 			memset( &offHand, 0, sizeof(offHand) );
 
-			// Position always comes from the left hand. Orientation defaults to the RIGHT
-			// hand's, because that socket is the one the visible, correct-looking pistol is
-			// already bolted to - so the off-hand gun is guaranteed to sit at a sane angle
-			// without needing to know how the rig's bone axes map onto the bolt matrix.
-			// The left socket points backwards relative to the mirror of the right one (its
-			// direction is 179.98 degrees off), so following it needs a correction; that is
-			// what cg_westarLeftFollowHand plus the flip/twist below are for.
-			aim = cg_westarLeftFollowHand.integer ? &lHandMatrix : &rHandMatrix;
-
 			BG_GiveMeVectorFromMatrix( &lHandMatrix, ORIGIN, offHand.origin );
 
-			BG_GiveMeVectorFromMatrix( aim, POSITIVE_X, offHand.axis[0] );
-			BG_GiveMeVectorFromMatrix( aim, POSITIVE_Y, offHand.axis[1] );
-			BG_GiveMeVectorFromMatrix( aim, POSITIVE_Z, offHand.axis[2] );
+			BG_GiveMeVectorFromMatrix( &rHandMatrix, POSITIVE_X, offHand.axis[0] );
+			BG_GiveMeVectorFromMatrix( &rHandMatrix, POSITIVE_Y, offHand.axis[1] );
+			BG_GiveMeVectorFromMatrix( &rHandMatrix, POSITIVE_Z, offHand.axis[2] );
 
-			if ( cg_westarLeftRoll.value )
-			{	// The flip. The left socket points backwards relative to the mirrored right
-				// one, so this is what reverses the barrel; which axis it turns about decides
-				// whether "up" or "side" comes along with it.
-				int		spin = cg_westarLeftAxis.integer;
-				int		a, b;
-				vec3_t	rolledA, rolledB;
+			// Half a turn about the barrel: the right hand's orientation lands the off-hand gun
+			// upside down, and this rights it without changing where it points.
+			RotatePointAroundVector( twistedY, offHand.axis[0], offHand.axis[1], WESTAR_OFFHAND_BARREL );
+			RotatePointAroundVector( twistedZ, offHand.axis[0], offHand.axis[2], WESTAR_OFFHAND_BARREL );
+			VectorCopy( twistedY, offHand.axis[1] );
+			VectorCopy( twistedZ, offHand.axis[2] );
 
-				if ( spin < 0 || spin > 2 )
-				{
-					spin = 2;
-				}
-				a = (spin + 1) % 3;
-				b = (spin + 2) % 3;
-
-				RotatePointAroundVector( rolledA, offHand.axis[spin], offHand.axis[a], cg_westarLeftRoll.value );
-				RotatePointAroundVector( rolledB, offHand.axis[spin], offHand.axis[b], cg_westarLeftRoll.value );
-				VectorCopy( rolledA, offHand.axis[a] );
-				VectorCopy( rolledB, offHand.axis[b] );
-			}
-
-			if ( cg_westarLeftBarrel.value )
-			{	// Residual twist about the barrel, applied after the flip. The flip fixes which
-				// way the gun points; this fixes how it is rotated around that line - grip down
-				// versus grip sideways - which the flip alone can't set.
-				vec3_t	twistedY, twistedZ;
-
-				RotatePointAroundVector( twistedY, offHand.axis[0], offHand.axis[1], cg_westarLeftBarrel.value );
-				RotatePointAroundVector( twistedZ, offHand.axis[0], offHand.axis[2], cg_westarLeftBarrel.value );
-				VectorCopy( twistedY, offHand.axis[1] );
-				VectorCopy( twistedZ, offHand.axis[2] );
-			}
-
-			if ( cg_westarLeftFwd.value || cg_westarLeftSide.value || cg_westarLeftUp.value )
-			{	// Seat the gun in the hand. Nudged along the gun's own axes rather than world
-				// ones, and after the rotations above so those axes are final - so "forward"
-				// stays along the barrel whichever way the player happens to be facing.
-				VectorMA( offHand.origin, cg_westarLeftFwd.value,  offHand.axis[0], offHand.origin );
-				VectorMA( offHand.origin, cg_westarLeftSide.value, offHand.axis[1], offHand.origin );
-				VectorMA( offHand.origin, cg_westarLeftUp.value,   offHand.axis[2], offHand.origin );
-			}
+			// Seat it in the hand. The bolt origin is the rig's socket point rather than where
+			// the grip wants to sit, so nudge along the gun's own axes - after the rotation
+			// above, so "up" and "side" stay relative to the gun whichever way the player faces.
+			VectorMA( offHand.origin, WESTAR_OFFHAND_SIDE, offHand.axis[1], offHand.origin );
+			VectorMA( offHand.origin, WESTAR_OFFHAND_UP,   offHand.axis[2], offHand.origin );
 
 			offHand.ghoul2 = g2WestarLeftInstance;	// MOD_BAD + ghoul2 renders via R_AddGhoulSurfaces
 			offHand.hModel = 0;
@@ -551,16 +520,6 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 			VectorCopy( offHand.origin, cgWestarOffHandOrigin );
 			VectorCopy( offHand.axis[0], cgWestarOffHandDir );
 			cgWestarOffHandValid = qtrue;
-
-			if ( cg_westarDebug.integer && !cgWestarDrawReported &&
-				cent->currentState.number == cg.predictedPlayerState.clientNum )
-			{	// "the angle never changes" looks identical whether the gun is drawing at the
-				// wrong angle or not drawing at all - say which, once, rather than per frame.
-				cgWestarDrawReported = qtrue;
-				trap->Print( S_COLOR_YELLOW "[WESTAR] off-hand drawn at %.0f %.0f %.0f - flip %.0f about axis %i, barrel twist %.0f\n",
-					offHand.origin[0], offHand.origin[1], offHand.origin[2],
-					cg_westarLeftRoll.value, cg_westarLeftAxis.integer, cg_westarLeftBarrel.value );
-			}
 
 			trap->R_AddRefEntityToScene( &offHand );
 		}
@@ -636,36 +595,12 @@ Ghoul2 Insert Start
 		{
 			CG_AddWeaponWithPowerups( &gun, cent->currentState.powerups ); //don't draw the weapon if the player is invisible
 
-			if ( weaponNum == WP_WESTAR )
-			{	// Second pistol for the first-person view. There is only one view model and one
-				// hand, so this is the same gun drawn again alongside it rather than a true
-				// off-hand model - a view model with both pistols in it would need to come from
-				// the pk3. Offsets are cvars so the placement can be dialled in in-game.
-				refEntity_t	offHand = gun;
-
-				// axis[1] is the left vector (AnglesToAxis stores -right), so a positive Y
-				// offset moves the off-hand gun to the left of the screen.
-				VectorMA( offHand.origin, cg_westarViewX.value, parent->axis[0], offHand.origin );
-				VectorMA( offHand.origin, cg_westarViewY.value, parent->axis[1], offHand.origin );
-				VectorMA( offHand.origin, cg_westarViewZ.value, parent->axis[2], offHand.origin );
-
-				if ( cg_westarViewRoll.value )
-				{	// Optional roll about the barrel. NOT a mirror, and can't be made into one:
-					// mirroring means negating one axis, which flips the model's handedness, and
-					// nothing downstream compensates - R_RotateForEntity copies entity axes
-					// verbatim, GL_Cull only knows about portal mirrors, and there is no
-					// per-entity mirror renderfx. A mirrored gun would render inside out, so a
-					// true mirror needs a renderer change, not a cgame one. Defaults to 0.
-					vec3_t	rolledLeft, rolledUp;
-
-					RotatePointAroundVector( rolledLeft, offHand.axis[0], gun.axis[1], cg_westarViewRoll.value );
-					RotatePointAroundVector( rolledUp,   offHand.axis[0], gun.axis[2], cg_westarViewRoll.value );
-					VectorCopy( rolledLeft, offHand.axis[1] );
-					VectorCopy( rolledUp,   offHand.axis[2] );
-				}
-
-				CG_AddWeaponWithPowerups( &offHand, cent->currentState.powerups );
-			}
+			// No second pistol in first person. Drawing the view model twice at an offset was
+			// only ever an approximation of one - a real mirror means negating an axis, which
+			// flips the model's winding, and nothing downstream compensates (R_RotateForEntity
+			// copies entity axes verbatim, GL_Cull only knows about portal mirrors, and there
+			// is no per-entity mirror renderfx), so it would render inside out. A proper
+			// dual-pistol first person needs a view model built with both guns in it.
 			/*
 			if ( weaponNum == WP_STUN_BATON )
 			{
@@ -1825,21 +1760,6 @@ void CG_Weapon_f( void ) {
 		// westar sits past LAST_USEABLE_WEAPON, so the numbered 1-0 bucket below can't
 		// reach it - it's selected by name here, or by cycling through the wheel.
 		num = WP_WESTAR;
-
-		if ( cg_westarDebug.integer )
-		{	// snap = straight off the wire, predicted = after our pmove ran. Printing both
-			// separates "the bit never arrived" from "something client-side ate it".
-			unsigned int snapEF = cg.snap ? (unsigned int)cg.snap->ps.eFlags : 0u;
-			unsigned int predEF = (unsigned int)cg.predictedPlayerState.eFlags;
-
-			trap->Print( S_COLOR_YELLOW "[WESTAR] snap.eFlags=0x%08x (owned=%d) predicted.eFlags=0x%08x (owned=%d mode=%d) selectable=%d ps.weapon=%d weaponSelect=%d\n",
-				snapEF, (snapEF & (unsigned int)EF_WESTAR_OWNED) ? 1 : 0,
-				predEF, (predEF & (unsigned int)EF_WESTAR_OWNED) ? 1 : 0,
-				(predEF & (unsigned int)EF_WESTAR_MODE) ? 1 : 0,
-				(int)CG_WeaponSelectable( WP_WESTAR ),
-				cg.predictedPlayerState.weapon,
-				cg.weaponSelect );
-		}
 	}
 	else {
 		num = atoi( CG_Argv( 1 ) );
@@ -3073,7 +2993,6 @@ void CG_InitG2Weapons(void)
 	gitem_t		*westarItem;
 	memset(g2WeaponInstances, 0, sizeof(g2WeaponInstances));
 	cgWestarOffHandValid = qfalse;
-	cgWestarDrawReported = qfalse;
 	for ( item = bg_itemlist + 1 ; item->classname ; item++ )
 	{
 		if ( item->giType == IT_WEAPON )

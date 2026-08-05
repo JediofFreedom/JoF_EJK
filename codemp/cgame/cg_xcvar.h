@@ -160,45 +160,6 @@ XCVAR_DEF( cg_holsteredSaberAng2,				"0 0 270",	NULL,				CVAR_ROM )
 XCVAR_DEF( cg_drawPlayerNames,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawPlayerNamesScale,				"0.5",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_hideDuelerNames,					"0",	NULL,					CVAR_ARCHIVE )
-// Print the eFlags/selectable state behind "weapon westar" every time it runs, to work out
-// where westar selection is failing (bit never arrived vs. eaten client-side). Not archived.
-XCVAR_DEF( cg_westarDebug,						"0",	NULL,					CVAR_TEMP )
-// Orientation correction for the third-person off-hand westar.
-//
-// The rig's two hand tag bones are mirror-symmetric in position but their directions are not:
-// rhang_tag_bone runs (2.339,-0.312,-0.993) and lhang_tag_bone runs (2.339,0.311,0.993), which
-// is 179.98 degrees away from the mirror of the right one. The left socket points backwards, so
-// a gun on it has its barrel reversed - not rolled. That is why no angle about the barrel ever
-// looked right: rolling about the barrel cannot reverse the barrel.
-//
-// 180 about Z reverses the barrel and the side while leaving up alone, which is the mirror-like
-// result wanted. Axis 1 is the same flip but ends up inverted; axis 0 only rolls.
-//   0 = X (barrel/forward)   1 = Y   2 = Z (up)
-// cg_westarLeftBarrel is a residual twist about the barrel applied after the flip: the flip
-// sets which way the gun points, this sets how it is rotated around that line (grip down vs
-// grip sideways). Between them any needed orientation is reachable.
-// cg_westarLeftFollowHand 0 (default) orients the off-hand pistol like the RIGHT hand's - that
-// socket already carries the visible, correct-looking gun, so this needs no knowledge of how
-// the rig's bone axes map onto the bolt matrix. It does mean the off-hand gun doesn't follow
-// the left hand's own rotation. Set to 1 to orient from the left socket instead, which then
-// needs the flip and twist below to undo that socket pointing backwards.
-XCVAR_DEF( cg_westarLeftFollowHand,				"0",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarLeftRoll,					"0",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarLeftAxis,					"2",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarLeftBarrel,					"0",	NULL,					CVAR_ARCHIVE )
-// Seats the off-hand pistol in the hand, in units along the gun's own axes (so "forward" is
-// along the barrel regardless of which way the player faces). Try steps of 1.
-XCVAR_DEF( cg_westarLeftFwd,					"0",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarLeftSide,					"0",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarLeftUp,						"0",	NULL,					CVAR_ARCHIVE )
-// Where the off-hand pistol sits in the first-person view, relative to the main one:
-// forward/back, left/right (positive = left), up/down, and roll about its own barrel.
-// Roll defaults to 0 - 180 turns the gun upside down rather than mirroring it, because a
-// real mirror can't be expressed as a rotation (see CG_AddPlayerWeapon).
-XCVAR_DEF( cg_westarViewX,						"0",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarViewY,						"7",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarViewZ,						"0",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_westarViewRoll,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawInventory,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawPowerUpIcons,					"1",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_autoScreenshot,					"0",	NULL,					CVAR_ARCHIVE )
