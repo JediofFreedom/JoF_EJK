@@ -542,6 +542,21 @@ void G_Give( gentity_t *ent, const char *name, const char *args, int argc )
 			return;
 	}
 
+	if ( give_all || !Q_stricmp( name, "westar" ) )
+	{	// Westar ownership doesn't live in stats[STAT_WEAPONS] - bit 19 doesn't fit in that
+		// field's network width - so it can't be handed out by the weapon paths above.
+		// Mirrors what the JA+ server's "ocgive westar" does, for local devmap testing.
+		ent->client->ps.eFlags |= EF_WESTAR_OWNED;
+		ent->client->ps.stats[STAT_WEAPONS] |= (1 << WP_BRYAR_PISTOL);
+		ent->client->ps.ammo[weaponData[WP_WESTAR].ammoIndex] = ammoData[weaponData[WP_WESTAR].ammoIndex].max;
+
+		if ( !give_all )
+		{	// only worth saying when it was asked for by name - "give all" is noisy enough
+			trap->SendServerCommand( ent-g_entities, "print \"Westar granted - select it with: weapon westar\n\"" );
+			return;
+		}
+	}
+
 	if ( !give_all && !Q_stricmp( name, "weaponnum" ) )
 	{
 		ent->client->ps.stats[STAT_WEAPONS] |= (1 << atoi( args ));

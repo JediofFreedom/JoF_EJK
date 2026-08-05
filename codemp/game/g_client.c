@@ -3821,7 +3821,9 @@ void ClientSpawn(gentity_t *ent) {
 
 	// toggle the teleport bit so the client knows to not lerp
 	// and never clear the voted flag
-	flags = ent->client->ps.eFlags & (EF_TELEPORT_BIT);
+	// EF_WESTAR_OWNED rides along because it is a grant, not a property of the current life -
+	// without it the westar is lost on every death, which makes it useless to test with.
+	flags = ent->client->ps.eFlags & (EF_TELEPORT_BIT|EF_WESTAR_OWNED);
 	flags ^= EF_TELEPORT_BIT;
 	gameFlags = ent->client->mGameFlags & ( PSG_VOTED | PSG_TEAMVOTED);
 
