@@ -373,14 +373,14 @@ weaponData_t weaponData[WP_NUM_WEAPONS] =
 		0,						//	int		maxCharge;			// stop subtracting once charged for this many ms
 		0						//	int		altMaxCharge;		// above for secondary
 	},
-	{	// WP_WESTAR - dual bryar pistols, fires at 3x the bryar pistol rate
+	{	// WP_WESTAR - dual bryar pistols, alternating barrels at 2.6x the bryar pistol rate
 		AMMO_BLASTER,			//	int		ammoIndex;			// Index to proper ammo slot
 		0,						//	int		ammoLow;			// Count when ammo is low
 		0,						//	int		energyPerShot;		// Amount of energy used per shot
-		267,					//	int		fireTime;			// Amount of time between firings (800/3)
+		308,					//	int		fireTime;			// Amount of time between firings (800/2.6, matches the server)
 		8192,					//	int		range;				// Range of weapon
 		0,						//	int		altEnergyPerShot;	// Amount of energy used for alt-fire
-		267,					//	int		altFireTime;		// Amount of time between alt-firings
+		308,					//	int		altFireTime;		// Amount of time between alt-firings
 		8192,					//	int		altRange;			// Range of alt-fire
 		0,						//	int		chargeSubTime;		// ms interval for subtracting ammo during charge
 		0,						//	int		altChargeSubTime;	// above for secondary

@@ -61,11 +61,13 @@ pml_t		pml;
 bgEntity_t *pm_entSelf = NULL;
 bgEntity_t *pm_entVeh = NULL;
 
-// Which weapon's animations to play. A westar-wielding player carries ps->weapon ==
-// WP_BRYAR_PISTOL (the server substitutes it so vanilla clients cope), so the anim tables
-// have to be indexed by the real weapon or prediction plays pistol anims over the dual-pistol
-// ones the server sends - the two then fight every snapshot and the anim never runs.
-static int PM_AnimWeapon( void )
+// The weapon actually being held. A westar-wielding player carries ps->weapon ==
+// WP_BRYAR_PISTOL, because the server substitutes the pistol on the wire so vanilla clients
+// cope, and flags the real weapon in eFlags instead. Anything keyed off ps->weapon therefore
+// has to resolve it back, or prediction runs as a bryar pistol: pistol anims fighting the
+// dual-pistol ones the server sends every snapshot, and the pistol's fire delay instead of
+// the westar's much shorter one.
+static int PM_RealWeapon( void )
 {
 	if ( pm->ps->weapon == WP_BRYAR_PISTOL && (pm->ps->eFlags & EF_WESTAR_MODE) )
 	{
@@ -4965,7 +4967,7 @@ static void PM_CrashLand( void ) {
 			}
 			else
 			{
-				PM_StartTorsoAnim( WeaponReadyAnim[PM_AnimWeapon()] );
+				PM_StartTorsoAnim( WeaponReadyAnim[PM_RealWeapon()] );
 			}
 		}
 	}
@@ -6662,7 +6664,7 @@ static void PM_Footsteps( void ) {
 							}
 							else
 							{
-								PM_ContinueLegsAnim(PM_LegsSlopeBackTransition(WeaponReadyLegsAnim[PM_AnimWeapon()]));
+								PM_ContinueLegsAnim(PM_LegsSlopeBackTransition(WeaponReadyLegsAnim[PM_RealWeapon()]));
 							}
 						}
 					}
@@ -7696,7 +7698,7 @@ static qboolean PM_DoChargedWeapons( qboolean vehicleRocketLock, bgEntity_t *veh
 		//------------------
 		case WP_ROCKET_LAUNCHER:
 			if ( (pm->cmd.buttons & BUTTON_ALT_ATTACK)
-				&& pm->ps->ammo[weaponData[pm->ps->weapon].ammoIndex] >= weaponData[pm->ps->weapon].altEnergyPerShot )
+				&& pm->ps->ammo[weaponData[PM_RealWeapon()].ammoIndex] >= weaponData[PM_RealWeapon()].altEnergyPerShot )
 			{
 #ifdef _GAME
 				if (!(g_tweakWeapons.integer & WT_ROCKET_MORTAR) || pm->ps->stats[STAT_RACEMODE]) {
@@ -7775,7 +7777,7 @@ static qboolean PM_DoChargedWeapons( qboolean vehicleRocketLock, bgEntity_t *veh
 				// charge isn't started, so do it now
 				pm->ps->weaponstate = WEAPON_CHARGING_ALT;
 				pm->ps->weaponChargeTime = pm->cmd.serverTime;
-				pm->ps->weaponChargeSubtractTime = pm->cmd.serverTime + weaponData[pm->ps->weapon].altChargeSubTime;
+				pm->ps->weaponChargeSubtractTime = pm->cmd.serverTime + weaponData[PM_RealWeapon()].altChargeSubTime;
 
 #ifdef _DEBUG
 			//	Com_Printf("Starting charge\n");
@@ -7792,21 +7794,21 @@ static qboolean PM_DoChargedWeapons( qboolean vehicleRocketLock, bgEntity_t *veh
 					goto rest;
 				}
 			}
-			else if (pm->ps->ammo[weaponData[pm->ps->weapon].ammoIndex] < (weaponData[pm->ps->weapon].altChargeSub+weaponData[pm->ps->weapon].altEnergyPerShot))
+			else if (pm->ps->ammo[weaponData[PM_RealWeapon()].ammoIndex] < (weaponData[PM_RealWeapon()].altChargeSub+weaponData[PM_RealWeapon()].altEnergyPerShot))
 			{
 				pm->ps->weaponstate = WEAPON_CHARGING_ALT;
 
 				goto rest;
 			}
-			else if ((pm->cmd.serverTime - pm->ps->weaponChargeTime) < weaponData[pm->ps->weapon].altMaxCharge)
+			else if ((pm->cmd.serverTime - pm->ps->weaponChargeTime) < weaponData[PM_RealWeapon()].altMaxCharge)
 			{
 				if (pm->ps->weaponChargeSubtractTime < pm->cmd.serverTime)
 				{
 #ifdef _GAME
 					if (!pm->ps->stats[STAT_RACEMODE] && !(g_tweakWeapons.integer & WT_INFINITE_AMMO))
 #endif
-						pm->ps->ammo[weaponData[pm->ps->weapon].ammoIndex] -= weaponData[pm->ps->weapon].altChargeSub;
-					pm->ps->weaponChargeSubtractTime = pm->cmd.serverTime + weaponData[pm->ps->weapon].altChargeSubTime;
+						pm->ps->ammo[weaponData[PM_RealWeapon()].ammoIndex] -= weaponData[PM_RealWeapon()].altChargeSub;
+					pm->ps->weaponChargeSubtractTime = pm->cmd.serverTime + weaponData[PM_RealWeapon()].altChargeSubTime;
 				}
 			}
 		}
@@ -7817,7 +7819,7 @@ static qboolean PM_DoChargedWeapons( qboolean vehicleRocketLock, bgEntity_t *veh
 				// charge isn't started, so do it now
 				pm->ps->weaponstate = WEAPON_CHARGING;
 				pm->ps->weaponChargeTime = pm->cmd.serverTime;
-				pm->ps->weaponChargeSubtractTime = pm->cmd.serverTime + weaponData[pm->ps->weapon].chargeSubTime;
+				pm->ps->weaponChargeSubtractTime = pm->cmd.serverTime + weaponData[PM_RealWeapon()].chargeSubTime;
 
 #ifdef _DEBUG
 			//	Com_Printf("Starting charge\n");
@@ -7833,21 +7835,21 @@ static qboolean PM_DoChargedWeapons( qboolean vehicleRocketLock, bgEntity_t *veh
 					goto rest;
 				}
 			}
-			else if (pm->ps->ammo[weaponData[pm->ps->weapon].ammoIndex] < (weaponData[pm->ps->weapon].chargeSub+weaponData[pm->ps->weapon].energyPerShot))
+			else if (pm->ps->ammo[weaponData[PM_RealWeapon()].ammoIndex] < (weaponData[PM_RealWeapon()].chargeSub+weaponData[PM_RealWeapon()].energyPerShot))
 			{
 				pm->ps->weaponstate = WEAPON_CHARGING;
 
 				goto rest;
 			}
-			else if ((pm->cmd.serverTime - pm->ps->weaponChargeTime) < weaponData[pm->ps->weapon].maxCharge)
+			else if ((pm->cmd.serverTime - pm->ps->weaponChargeTime) < weaponData[PM_RealWeapon()].maxCharge)
 			{
 				if (pm->ps->weaponChargeSubtractTime < pm->cmd.serverTime)
 				{
 #ifdef _GAME
 					if (!pm->ps->stats[STAT_RACEMODE] && !(g_tweakWeapons.integer & WT_INFINITE_AMMO))
 #endif
-						pm->ps->ammo[weaponData[pm->ps->weapon].ammoIndex] -= weaponData[pm->ps->weapon].chargeSub;
-					pm->ps->weaponChargeSubtractTime = pm->cmd.serverTime + weaponData[pm->ps->weapon].chargeSubTime;
+						pm->ps->ammo[weaponData[PM_RealWeapon()].ammoIndex] -= weaponData[PM_RealWeapon()].chargeSub;
+					pm->ps->weaponChargeSubtractTime = pm->cmd.serverTime + weaponData[PM_RealWeapon()].chargeSubTime;
 				}
 			}
 		}
@@ -8412,7 +8414,7 @@ static void PM_Weapon( void )
 				}
 				else
 				{
-					//PM_StartTorsoAnim( WeaponReadyAnim[PM_AnimWeapon()] );
+					//PM_StartTorsoAnim( WeaponReadyAnim[PM_RealWeapon()] );
 					PM_StartTorsoAnim( TORSO_RAISEWEAP1);
 				}
 			}
@@ -8697,18 +8699,18 @@ if (pm->ps->duelInProgress)
 		{
 			if (pm->ps->weapon == WP_THERMAL)
 			{
-				if ((pm->ps->torsoAnim) == WeaponAttackAnim[PM_AnimWeapon()] &&
+				if ((pm->ps->torsoAnim) == WeaponAttackAnim[PM_RealWeapon()] &&
 					(pm->ps->weaponTime-200) <= 0)
 				{
-					PM_StartTorsoAnim( WeaponReadyAnim[PM_AnimWeapon()] );
+					PM_StartTorsoAnim( WeaponReadyAnim[PM_RealWeapon()] );
 				}
 			}
 			else
 			{
-				if ((pm->ps->torsoAnim) == WeaponAttackAnim[PM_AnimWeapon()] &&
+				if ((pm->ps->torsoAnim) == WeaponAttackAnim[PM_RealWeapon()] &&
 					(pm->ps->weaponTime-700) <= 0)
 				{
-					PM_StartTorsoAnim( WeaponReadyAnim[PM_AnimWeapon()] );
+					PM_StartTorsoAnim( WeaponReadyAnim[PM_RealWeapon()] );
 				}
 			}
 		}
@@ -8870,7 +8872,7 @@ if (pm->ps->duelInProgress)
 		}
 	}
 
-	amount = weaponData[pm->ps->weapon].energyPerShot;
+	amount = weaponData[PM_RealWeapon()].energyPerShot;
 
 	// take an ammo away if not infinite
 	if ( pm->ps->weapon != WP_NONE &&
@@ -8880,11 +8882,11 @@ if (pm->ps->duelInProgress)
 #endif
 		(pm->ps->weaponTime <= 0 || pm->ps->weaponstate != WEAPON_FIRING) )
 	{
-		if ( pm->ps->clientNum < MAX_CLIENTS && pm->ps->ammo[ weaponData[pm->ps->weapon].ammoIndex ] != -1 )
+		if ( pm->ps->clientNum < MAX_CLIENTS && pm->ps->ammo[ weaponData[PM_RealWeapon()].ammoIndex ] != -1 )
 		{
 			// enough energy to fire this weapon?
-			if (pm->ps->ammo[weaponData[pm->ps->weapon].ammoIndex] < weaponData[pm->ps->weapon].energyPerShot &&
-				pm->ps->ammo[weaponData[pm->ps->weapon].ammoIndex] < weaponData[pm->ps->weapon].altEnergyPerShot
+			if (pm->ps->ammo[weaponData[PM_RealWeapon()].ammoIndex] < weaponData[PM_RealWeapon()].energyPerShot &&
+				pm->ps->ammo[weaponData[PM_RealWeapon()].ammoIndex] < weaponData[PM_RealWeapon()].altEnergyPerShot
 #ifdef _GAME
 				&& (!(g_tweakWeapons.integer & WT_STAKE_GUN) || (pm->ps->weapon != WP_FLECHETTE)) //I guess we have to make the stake gun
 #endif
@@ -8900,7 +8902,7 @@ if (pm->ps->duelInProgress)
 				return;
 			}
 
-			if (pm->ps->weapon == WP_DET_PACK && !pm->ps->hasDetPackPlanted && pm->ps->ammo[weaponData[pm->ps->weapon].ammoIndex] < 1)
+			if (pm->ps->weapon == WP_DET_PACK && !pm->ps->hasDetPackPlanted && pm->ps->ammo[weaponData[PM_RealWeapon()].ammoIndex] < 1)
 			{
 				PM_AddEventWithParm( EV_NOAMMO, WP_NUM_WEAPONS+pm->ps->weapon );
 
@@ -8984,7 +8986,7 @@ if (pm->ps->duelInProgress)
 					}
 					else
 					{
-						PM_StartTorsoAnim( WeaponReadyAnim[PM_AnimWeapon()] );
+						PM_StartTorsoAnim( WeaponReadyAnim[PM_RealWeapon()] );
 					}
 				}
 			}
@@ -8997,11 +8999,11 @@ if (pm->ps->duelInProgress)
 		pm->ps->weaponstate == WEAPON_READY && pm->ps->weaponTime <= 0 &&
 		(pm->ps->weapon >= WP_BRYAR_PISTOL || pm->ps->weapon == WP_STUN_BATON) &&
 		pm->ps->torsoTimer <= 0 &&
-		(pm->ps->torsoAnim) != WeaponReadyAnim[PM_AnimWeapon()] &&
+		(pm->ps->torsoAnim) != WeaponReadyAnim[PM_RealWeapon()] &&
 		pm->ps->torsoAnim != TORSO_WEAPONIDLE3 &&
 		pm->ps->weapon != WP_EMPLACED_GUN)
 	{
-		PM_StartTorsoAnim( WeaponReadyAnim[PM_AnimWeapon()] );
+		PM_StartTorsoAnim( WeaponReadyAnim[PM_RealWeapon()] );
 	}
 	else if (PM_CanSetWeaponAnims() &&
 		pm->ps->weapon == WP_MELEE)
@@ -9049,7 +9051,7 @@ if (pm->ps->duelInProgress)
 		}
 		else if (PM_CanSetWeaponAnims())
 		{
-			PM_StartTorsoAnim( WeaponReadyAnim[PM_AnimWeapon()] );
+			PM_StartTorsoAnim( WeaponReadyAnim[PM_RealWeapon()] );
 		}
 	}
 	else if (((pm->ps->torsoAnim) != TORSO_WEAPONREADY4 &&
@@ -9109,7 +9111,7 @@ if (pm->ps->duelInProgress)
 
 	if (pm->ps->weapon == WP_EMPLACED_GUN)
 	{
-		addTime = weaponData[pm->ps->weapon].fireTime;
+		addTime = weaponData[PM_RealWeapon()].fireTime;
 		pm->ps->weaponTime += addTime;
 		if ( (pm->cmd.buttons & BUTTON_ALT_ATTACK) )
 		{
@@ -9303,12 +9305,12 @@ if (pm->ps->duelInProgress)
 	}
 	else
 	{
-		PM_StartTorsoAnim( WeaponAttackAnim[PM_AnimWeapon()] );
+		PM_StartTorsoAnim( WeaponAttackAnim[PM_RealWeapon()] );
 	}
 
 	if (pm->cmd.buttons & BUTTON_ALT_ATTACK)
 	{
-		amount = weaponData[pm->ps->weapon].altEnergyPerShot;
+		amount = weaponData[PM_RealWeapon()].altEnergyPerShot;
 #ifdef _GAME
 		if (pm->ps->stats[STAT_RACEMODE]) {
 			if (pm->ps->stats[STAT_MOVEMENTSTYLE] == MV_COOP_JKA)
@@ -9328,7 +9330,7 @@ if (pm->ps->duelInProgress)
 	}
 	else
 	{
-		amount = weaponData[pm->ps->weapon].energyPerShot;
+		amount = weaponData[PM_RealWeapon()].energyPerShot;
 #ifdef _GAME
 		if (pm->ps->stats[STAT_RACEMODE]) {
 			if (pm->ps->stats[STAT_MOVEMENTSTYLE] == MV_COOP_JKA)
@@ -9350,15 +9352,15 @@ if (pm->ps->duelInProgress)
 	pm->ps->weaponstate = WEAPON_FIRING;
 
 	// take an ammo away if not infinite
-	if ( pm->ps->clientNum < MAX_CLIENTS && pm->ps->ammo[ weaponData[pm->ps->weapon].ammoIndex ] != -1 )
+	if ( pm->ps->clientNum < MAX_CLIENTS && pm->ps->ammo[ weaponData[PM_RealWeapon()].ammoIndex ] != -1 )
 	{
 		// enough energy to fire this weapon?
-		if ((pm->ps->ammo[weaponData[pm->ps->weapon].ammoIndex] - amount) >= 0)
+		if ((pm->ps->ammo[weaponData[PM_RealWeapon()].ammoIndex] - amount) >= 0)
 		{
 #ifdef _GAME
 			if (!pm->ps->stats[STAT_RACEMODE])
 #endif
-				pm->ps->ammo[weaponData[pm->ps->weapon].ammoIndex] -= amount;
+				pm->ps->ammo[weaponData[PM_RealWeapon()].ammoIndex] -= amount;
 		}
 		else	// Not enough energy
 		{
@@ -9386,7 +9388,7 @@ if (pm->ps->duelInProgress)
 		if ( pm->cmd.buttons & BUTTON_ALT_ATTACK ) 	{
 			if (pm->ps->weapon == WP_DISRUPTOR && pm->ps->zoomMode != 1) {
 				PM_AddEvent( EV_FIRE_WEAPON );
-				addTime = weaponData[pm->ps->weapon].fireTime;
+				addTime = weaponData[PM_RealWeapon()].fireTime;
 			}
 			else {
 				if (pm->ps->weapon != WP_MELEE || !pm->ps->m_iVehicleNum)
@@ -9402,7 +9404,7 @@ if (pm->ps->duelInProgress)
 					addTime = 100;
 				else
 #endif
-					addTime = weaponData[pm->ps->weapon].altFireTime;
+					addTime = weaponData[PM_RealWeapon()].altFireTime;
 			}
 		}
 		else {
@@ -9417,7 +9419,7 @@ if (pm->ps->duelInProgress)
 				addTime = 1500;
 			else
 #endif
-			addTime = weaponData[pm->ps->weapon].fireTime;
+			addTime = weaponData[PM_RealWeapon()].fireTime;
 			if ( pm->gametype == GT_SIEGE && pm->ps->weapon == WP_DET_PACK )
 				addTime *= 2;
 		}

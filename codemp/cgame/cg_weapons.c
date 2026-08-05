@@ -44,6 +44,11 @@ static vec3_t	cgWestarOffHandOrigin;
 static vec3_t	cgWestarOffHandDir;
 static qboolean	cgWestarOffHandValid = qfalse;
 
+// Primary fire alternates barrels, but the server sends the same EV_FIRE_WEAPON either way and
+// doesn't say which one went off - so track it here, flipping on each shot, and flash only that
+// gun. Alt fire puts both out at once and ignores this.
+static qboolean	cgWestarRightShot[MAX_CLIENTS];
+
 extern vec4_t	bluehudtint;
 extern vec4_t	redhudtint;
 extern float	*hudTintColor;
@@ -517,8 +522,36 @@ void CG_AddPlayerWeapon( refEntity_t *parent, playerState_t *ps, centity_t *cent
 				ScaleModelAxis( &offHand );
 			}
 
+			// Work out where this gun's muzzle is. The right-hand pistol is bolted through
+			// ghoul2 and carries a *flash tag, so the offset from its bolt origin to that tag
+			// is the model's own muzzle offset - measure it there and apply the same offset in
+			// the off-hand gun's axes. Beats a hand-tuned distance, and follows the model.
 			VectorCopy( offHand.origin, cgWestarOffHandOrigin );
 			VectorCopy( offHand.axis[0], cgWestarOffHandDir );
+
+			{
+				mdxaBone_t	rFlashMatrix;
+
+				if ( trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 1) &&
+					trap->G2API_GetBoltMatrix(cent->ghoul2, 1, 0, &rFlashMatrix, newAngles,
+						cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale) )
+				{
+					vec3_t	rHandPos, rFlashPos, muzzle, rX, rY, rZ;
+
+					BG_GiveMeVectorFromMatrix( &rHandMatrix,  ORIGIN, rHandPos );
+					BG_GiveMeVectorFromMatrix( &rFlashMatrix, ORIGIN, rFlashPos );
+					VectorSubtract( rFlashPos, rHandPos, muzzle );
+
+					BG_GiveMeVectorFromMatrix( &rHandMatrix, POSITIVE_X, rX );
+					BG_GiveMeVectorFromMatrix( &rHandMatrix, POSITIVE_Y, rY );
+					BG_GiveMeVectorFromMatrix( &rHandMatrix, POSITIVE_Z, rZ );
+
+					VectorMA( cgWestarOffHandOrigin, DotProduct(muzzle, rX), offHand.axis[0], cgWestarOffHandOrigin );
+					VectorMA( cgWestarOffHandOrigin, DotProduct(muzzle, rY), offHand.axis[1], cgWestarOffHandOrigin );
+					VectorMA( cgWestarOffHandOrigin, DotProduct(muzzle, rZ), offHand.axis[2], cgWestarOffHandOrigin );
+				}
+			}
+
 			cgWestarOffHandValid = qtrue;
 
 			trap->R_AddRefEntityToScene( &offHand );
@@ -859,18 +892,38 @@ Ghoul2 Insert End
 
 			if (muzzleFX)
 			{
-				if (!thirdPerson)
-				{
-					trap->FX_PlayEntityEffectID(muzzleFX, flashorigin, flash.axis, -1, -1, -1, -1);
-				}
-				else
-				{
-					trap->FX_PlayEffectID(muzzleFX, flashorigin, flashdir, -1, -1, qfalse);
+				qboolean	westarDual = (qboolean)( weaponNum == WP_WESTAR && thirdPerson && cgWestarOffHandValid );
+				qboolean	fireRight = qtrue;
+				qboolean	fireOffHand = qfalse;
+
+				if ( westarDual )
+				{	// Alt fire empties both barrels together; primary alternates, so only the
+					// barrel that actually went off should flash.
+					if ( cent->currentState.eFlags & EF_ALT_FIRING )
+					{
+						fireOffHand = qtrue;
+					}
+					else
+					{
+						fireRight   = (qboolean)( cent->currentState.number >= MAX_CLIENTS || cgWestarRightShot[cent->currentState.number] );
+						fireOffHand = (qboolean)!fireRight;
+					}
 				}
 
-				if ( weaponNum == WP_WESTAR && thirdPerson && cgWestarOffHandValid )
-				{	// The flash above comes off the right-hand gun. Fire one off the off-hand
-					// pistol too, from wherever it was placed this frame.
+				if (fireRight)
+				{
+					if (!thirdPerson)
+					{
+						trap->FX_PlayEntityEffectID(muzzleFX, flashorigin, flash.axis, -1, -1, -1, -1);
+					}
+					else
+					{
+						trap->FX_PlayEffectID(muzzleFX, flashorigin, flashdir, -1, -1, qfalse);
+					}
+				}
+
+				if (fireOffHand)
+				{	// off-hand muzzle, worked out from the model's own *flash tag
 					trap->FX_PlayEffectID(muzzleFX, cgWestarOffHandOrigin, cgWestarOffHandDir, -1, -1, qfalse);
 				}
 
@@ -2397,6 +2450,13 @@ void CG_FireWeapon( centity_t *cent, qboolean altFire ) {
 			CG_RegisterWeapon( WP_WESTAR );
 		}
 		weap = &cg_weapons[ WP_WESTAR ];
+
+		if ( !altFire && ent->number < MAX_CLIENTS ) {
+			// Primary alternates barrels - right, left, right - and the wire carries no hint
+			// of which, so keep our own count. Alt fire discharges both, so it doesn't advance
+			// this and doesn't read it.
+			cgWestarRightShot[ent->number] = (qboolean)!cgWestarRightShot[ent->number];
+		}
 	}
 
 	// mark the entity as muzzle flashing, so when it is added it will
