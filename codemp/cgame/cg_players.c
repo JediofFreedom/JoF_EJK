@@ -6394,7 +6394,17 @@ static void CG_RGBForSaberColor(saber_colors_t color, vec3_t rgb, int cnum, int 
 	}
 }
 
-static void CG_DoSaberLight( saberInfo_t *saber, int cnum, int bnum )//rgb
+static float CG_SaberModelScale( const centity_t *cent )
+{
+	if ( cent && cent->modelScale[0] > 0.0f )
+	{
+		return cent->modelScale[0];
+	}
+
+	return 1.0f;
+}
+
+static void CG_DoSaberLight( saberInfo_t *saber, int cnum, int bnum, float scale )//rgb
 {
 	vec3_t		positions[MAX_BLADES*2], mid={0}, rgbs[MAX_BLADES*2], rgb={0};
 	float		lengths[MAX_BLADES*2]={0}, totallength = 0, numpositions = 0, dist, diameter = 0;
@@ -6419,16 +6429,16 @@ static void CG_DoSaberLight( saberInfo_t *saber, int cnum, int bnum )//rgb
 		{
 			//FIXME: make RGB sabers
 			CG_RGBForSaberColor( saber->blade[i].color, rgbs[i], cnum, bnum );//rgb
-			lengths[i] = saber->blade[i].length;
-			if ( saber->blade[i].length*2.0f > diameter )
+			lengths[i] = saber->blade[i].length * scale;
+			if ( lengths[i]*2.0f > diameter )
 			{
-				diameter = saber->blade[i].length*2.0f;
+				diameter = lengths[i]*2.0f;
 			}
-			totallength += saber->blade[i].length;
-			VectorMA( saber->blade[i].muzzlePoint, saber->blade[i].length, saber->blade[i].muzzleDir, positions[i] );
+			totallength += lengths[i];
+			VectorMA( saber->blade[i].muzzlePoint, lengths[i], saber->blade[i].muzzleDir, positions[i] );
 			if ( !numpositions )
 			{//first blade, store middle of that as midpoint
-				VectorMA( saber->blade[i].muzzlePoint, saber->blade[i].length*0.5, saber->blade[i].muzzleDir, mid );
+				VectorMA( saber->blade[i].muzzlePoint, lengths[i]*0.5f, saber->blade[i].muzzleDir, mid );
 				VectorCopy( rgbs[i], rgb );
 			}
 			numpositions++;
@@ -7693,6 +7703,9 @@ void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, in
 	int i = 0;
 	float trailDur;
 	float saberLen;
+	float saberLengthMax;
+	float saberRadius;
+	float saberScale;
 	float diff;
 	clientInfo_t *client;
 	centity_t *saberEnt;
@@ -7715,7 +7728,10 @@ void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, in
 	}
 
 	saberEnt = &cg_entities[cent->currentState.saberEntityNum];
-	saberLen = client->saber[saberNum].blade[bladeNum].length;
+	saberScale = CG_SaberModelScale( cent );
+	saberLen = client->saber[saberNum].blade[bladeNum].length * saberScale;
+	saberLengthMax = client->saber[saberNum].blade[bladeNum].lengthMax * saberScale;
+	saberRadius = client->saber[saberNum].blade[bladeNum].radius * saberScale;
 
 	if (saberLen <= 0 && !dontDraw)
 	{ //don't bother then.
@@ -7767,7 +7783,7 @@ void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, in
 
 	VectorMA( org_, saberLen, axis_[0], end );
 
-	VectorAdd( end, axis_[0], end );
+	VectorMA( end, saberScale, axis_[0], end );
 
 	if (cent->currentState.eType == ET_NPC)
 	{
@@ -8410,7 +8426,7 @@ JustDoIt:
 		if ( client->saber[saberNum].numBlades < 3
 			&& !(client->saber[saberNum].saberFlags2&SFL2_NO_DLIGHT) )
 		{//hmm, but still add the dlight
-			CG_DoSaberLight( &client->saber[saberNum], cent->currentState.clientNum, saberNum );//rgb
+			CG_DoSaberLight( &client->saber[saberNum], cent->currentState.clientNum, saberNum, saberScale );//rgb
 		}
 		return;
 	}
@@ -8421,13 +8437,13 @@ JustDoIt:
 	//	scolor, renderfx, (qboolean)(saberNum==0&&bladeNum==0) );
 	if (!sfxSabers)
 	{
-		CG_DoSaber( org_, axis_[0], saberLen, client->saber[saberNum].blade[bladeNum].lengthMax, client->saber[saberNum].blade[bladeNum].radius,
+		CG_DoSaber( org_, axis_[0], saberLen, saberLengthMax, saberRadius,
 			scolor, renderfx, (qboolean)(client->saber[saberNum].numBlades < 3 && !(client->saber[saberNum].saberFlags2 & SFL2_NO_DLIGHT)), cent->currentState.clientNum, saberNum );//rgb -- fix casting?
 	}
 	else
 	{
 		CG_DoSFXSaber( fx.mVerts[0].origin, fx.mVerts[1].origin, fx.mVerts[2].origin, fx.mVerts[3].origin,
-			(client->saber[saberNum].blade[bladeNum].lengthMax), (client->saber[saberNum].blade[bladeNum].radius),
+			saberLengthMax, saberRadius,
 			scolor, renderfx, (qboolean)(client->saber[saberNum].numBlades < 3 && !(client->saber[saberNum].saberFlags2 & SFL2_NO_DLIGHT)), cent->currentState.clientNum, saberNum );
 
 		if (cg.time > saberTrail->inAction)
@@ -13221,6 +13237,7 @@ stillDoSaber:
 				}
 
 				saberEnt->currentState.modelGhoul2 = 1;
+				saberEnt->currentState.iModelScale = cent->currentState.iModelScale;
 				CG_ManualEntityRender(saberEnt);
 				saberEnt->bolt3 = 0;
 				saberEnt->currentState.modelGhoul2 = 127;
@@ -13277,7 +13294,7 @@ stillDoSaber:
 					}
 					if ( ci->saber[l].numBlades > 2 )
 					{//add a single glow for the saber based on all the blade colors combined
-						CG_DoSaberLight( &ci->saber[l], cent->currentState.clientNum, l );//rgb
+						CG_DoSaberLight( &ci->saber[l], cent->currentState.clientNum, l, CG_SaberModelScale( cent ) );//rgb
 					}
 
 					l++;
@@ -13481,7 +13498,7 @@ stillDoSaber:
 			}
 			if ( ci->saber[l].numBlades > 2 )
 			{//add a single glow for the saber based on all the blade colors combined
-				CG_DoSaberLight( &ci->saber[l], cent->currentState.clientNum, l );//rgb
+				CG_DoSaberLight( &ci->saber[l], cent->currentState.clientNum, l, CG_SaberModelScale( cent ) );//rgb
 			}
 
 			l++;
