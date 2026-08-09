@@ -6061,7 +6061,12 @@ static void CG_RGBForSaberColor(saber_colors_t color, vec3_t rgb, int cnum, int 
 
 static float CG_SaberModelScale( const centity_t *cent )
 {
-	if ( cent && cent->modelScale[0] > 0.0f )
+	if ( !cent || cent->currentState.eType == ET_NPC )
+	{
+		return 1.0f;
+	}
+
+	if ( cent->modelScale[0] > 0.0f )
 	{
 		return cent->modelScale[0];
 	}
@@ -12838,7 +12843,9 @@ stillDoSaber:
 				}
 
 				saberEnt->currentState.modelGhoul2 = 1;
-				saberEnt->currentState.iModelScale = cent->currentState.iModelScale;
+				saberEnt->currentState.iModelScale = cent->currentState.eType == ET_NPC
+					? 0
+					: cent->currentState.iModelScale;
 				CG_ManualEntityRender(saberEnt);
 				saberEnt->bolt3 = 0;
 				saberEnt->currentState.modelGhoul2 = 127;
