@@ -12893,14 +12893,22 @@ void PmoveSingle (pmove_t *pmove) {
 		}
 	}
 
-#ifdef _GAME
-	if (pm->ps->pm_type == PM_FREEZE && (g_emotesDisable.integer == ((1 << E_ALL) - 1))) {//Sad hack loda fixme
-		return;		// no movement at all
-	}
-#else
 	if (pm->ps->pm_type == PM_FREEZE)
+	{
+		// PM_FREEZE returns before PM_CheckDuck, so keep the predicted camera
+		// height in sync if the model scale changes while movement is frozen.
+		pm->ps->viewheight = PM_ModelScaledViewheight(
+			(pm->ps->pm_flags & PMF_DUCKED) ? CROUCH_VIEWHEIGHT : DEFAULT_VIEWHEIGHT);
+
+#ifdef _GAME
+		if (g_emotesDisable.integer == ((1 << E_ALL) - 1)) //Sad hack loda fixme
+		{
+			return;		// no movement at all
+		}
+#else
 		return;		// no movement at all
 #endif
+	}
 
 	if ( pm->ps->pm_type == PM_INTERMISSION || pm->ps->pm_type == PM_SPINTERMISSION) {
 		return;		// no movement at all
