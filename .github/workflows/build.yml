@@ -246,9 +246,27 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Install dependencies
+      - name: Build SDL2 from source
+        shell: bash
         run: |
-          brew install sdl2
+          # Homebrew's `sdl2` formula is now an alias for `sdl2-compat`, which is
+          # an SDL2 shim over SDL3. It dlopen()s "libSDL3.dylib" at runtime, so
+          # fixup_bundle cannot see that dependency and never copies it into the
+          # .app -- users without Homebrew's sdl3 then get "Failed loading SDL3
+          # library." Build genuine SDL2 ourselves so the bundle stays complete.
+          SDL2_VERSION=2.32.10
+          curl -L -o SDL2.tar.gz \
+            https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz
+          tar xzf SDL2.tar.gz
+          cmake -S SDL2-${SDL2_VERSION} -B sdl2-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/sdl2-prefix \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9 \
+            -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST=OFF
+          cmake --build sdl2-build -j $(sysctl -n hw.ncpu)
+          cmake --install sdl2-build
+          echo "SDL2DIR=${{ github.workspace }}/sdl2-prefix" >> $GITHUB_ENV
           cmake -E make_directory build
 
       - name: Configure CMake
@@ -1010,9 +1028,27 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Install dependencies
+      - name: Build SDL2 from source
+        shell: bash
         run: |
-          brew install sdl2
+          # Homebrew's `sdl2` formula is now an alias for `sdl2-compat`, which is
+          # an SDL2 shim over SDL3. It dlopen()s "libSDL3.dylib" at runtime, so
+          # fixup_bundle cannot see that dependency and never copies it into the
+          # .app -- users without Homebrew's sdl3 then get "Failed loading SDL3
+          # library." Build genuine SDL2 ourselves so the bundle stays complete.
+          SDL2_VERSION=2.32.10
+          curl -L -o SDL2.tar.gz \
+            https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz
+          tar xzf SDL2.tar.gz
+          cmake -S SDL2-${SDL2_VERSION} -B sdl2-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/sdl2-prefix \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9 \
+            -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST=OFF
+          cmake --build sdl2-build -j $(sysctl -n hw.ncpu)
+          cmake --install sdl2-build
+          echo "SDL2DIR=${{ github.workspace }}/sdl2-prefix" >> $GITHUB_ENV
           cmake -E make_directory build
 
       - name: Configure CMake
