@@ -5019,9 +5019,14 @@ static const char *g_bindCommands[] = {
 	"+button12", //grapple on ja+/japro
 	"+button13", //dash on japro
 	"+button14", //jetpack on japro
+	"+grapple",
+	"+force_stasis",
 	"throwflag",
 	"engage_fullforceduel",
+	"engage_balancedforceduel",
 	"engage_gunduel",
+	"force_dash",
+	"force_repulse",
 	"amTeleMark", //teleport marker
 	"amTele", //teleport to marker
 	"noclip",
