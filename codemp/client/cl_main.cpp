@@ -3976,7 +3976,9 @@ void CL_Init( void ) {
 	cl_avi2GBLimit = Cvar_Get ("cl_avi2GBLimit", "1", CVAR_ARCHIVE );
 	cl_forceavidemo = Cvar_Get ("cl_forceavidemo", "0", 0);
 	
-	cl_asyncMapLoad = Cvar_Get ("cl_asyncMapLoad", "1", CVAR_ARCHIVE_ND );
+	// Experimental: worker-thread map load. Known driver-dependent crash/hang
+	// modes while minimized or on HDMI mode re-sync, so off by default.
+	cl_asyncMapLoad = Cvar_Get ("cl_asyncMapLoad", "0", CVAR_ARCHIVE_ND );
 
 #if JAMME_PIPES
 	cl_aviPipe = Cvar_Get("cl_aviPipe", "0", CVAR_ARCHIVE_ND, "use ffmpeg pipe for avi recording");
