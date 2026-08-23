@@ -15,7 +15,8 @@
 	
 		onOpen
 		{ 
-			uiScript		update  "ui_GetName" 
+			uiScript		update  "ui_GetName"
+			uiScript		"playerpreview"
 		}
 									
 		onESC 
@@ -532,7 +533,7 @@
 		itemDef 
 		{
 			name 				headlist
-			rect 				30 224 404 194
+			rect 				30 224 292 194
 //			rect 				126 215 80 200
 			type 				ITEM_TYPE_LISTBOX
 			style 				WINDOW_STYLE_FILLED
@@ -560,6 +561,29 @@
 			{ 
 				setitemcolor headlist bordercolor .5 .5 .5 1 
 			}
+		}
+
+		itemDef
+		{
+			name				playerpreview
+			group				models
+			type 				ITEM_TYPE_MODEL
+			style				WINDOW_STYLE_FILLED
+			rect				327 224 98 194
+			backcolor			0 0 0 1
+			border				1
+			bordercolor			.5 .5 .5 1
+			model_g2anim 		"BOTH_STAND1"
+			asset_model			"ui_char_model"
+			model_angle			180
+			model_g2mins		-30 -15 -14
+			model_g2maxs		20 15 30
+			model_rotation		50
+			model_fovx			50
+			model_fovy			50
+			isCharacter			1
+			visible				1
+			decoration
 		}
 
 // Custom skin

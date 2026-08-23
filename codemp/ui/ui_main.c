@@ -7541,6 +7541,80 @@ extern qboolean UI_SaberSkinForSaber( const char *saberName, char *saberSkin );
 extern qboolean ItemParse_asset_model_go( itemDef_t *item, const char *name,int *runTimeLength );
 extern qboolean ItemParse_model_g2skin_go( itemDef_t *item, const char *skinName );
 
+static void UI_UpdatePlayerModelPreviewForMenu( const char *menuName )
+{
+	menuDef_t	*menu;
+	itemDef_t	*item;
+	char		model[MAX_QPATH], modelPath[MAX_QPATH], skinPath[MAX_QPATH];
+	char		*skin;
+	int			animRunLength;
+
+	menu = Menus_FindByName( menuName );
+	if ( !menu )
+	{
+		return;
+	}
+
+	item = (itemDef_t *)Menu_FindItemByName( menu, "playerpreview" );
+	if ( !item )
+	{
+		return;
+	}
+
+	trap->Cvar_VariableStringBuffer( "model", model, sizeof( model ) );
+	if ( !model[0] )
+	{
+		Q_strncpyz( model, "kyle/default", sizeof( model ) );
+	}
+
+	if ( strchr( model, '|' ) )
+	{
+		skin = strchr( model, '/' );
+	}
+	else
+	{
+		skin = strrchr( model, '/' );
+	}
+
+	if ( skin )
+	{
+		*skin = '\0';
+		skin++;
+	}
+
+	if ( !skin || !skin[0] )
+	{
+		skin = "default";
+	}
+
+	if ( strchr( skin, '|' ) )
+	{
+		Com_sprintf( skinPath, sizeof( skinPath ), "models/players/%s/|%s", model, skin );
+	}
+	else
+	{
+		Com_sprintf( skinPath, sizeof( skinPath ), "models/players/%s/model_%s.skin", model, skin );
+	}
+
+	Com_sprintf( modelPath, sizeof( modelPath ), "models/players/%s/model.glm", model );
+	ItemParse_asset_model_go( item, modelPath, &animRunLength );
+	ItemParse_model_g2skin_go( item, skinPath );
+	UI_SaberAttachToChar( item );
+}
+
+static void UI_UpdatePlayerModelPreviews( void )
+{
+	trap->Cvar_Set( "ui_char_color_red", UI_Cvar_VariableString( "char_color_red" ) );
+	trap->Cvar_Set( "ui_char_color_green", UI_Cvar_VariableString( "char_color_green" ) );
+	trap->Cvar_Set( "ui_char_color_blue", UI_Cvar_VariableString( "char_color_blue" ) );
+	trap->Cvar_Update( &ui_char_color_red );
+	trap->Cvar_Update( &ui_char_color_green );
+	trap->Cvar_Update( &ui_char_color_blue );
+
+	UI_UpdatePlayerModelPreviewForMenu( "playerMenu" );
+	UI_UpdatePlayerModelPreviewForMenu( "ingame_player" );
+}
+
 static void UI_UpdateSaberType( void )
 {
 	char sType[MAX_QPATH];
@@ -8120,7 +8194,11 @@ static void UI_RunMenuScript(char **args)
 
 	if (String_Parse(args, &name))
 	{
-		if (Q_stricmp(name, "StartServer") == 0)
+		if (Q_stricmp(name, "playerpreview") == 0)
+		{
+			UI_UpdatePlayerModelPreviews();
+		}
+		else if (Q_stricmp(name, "StartServer") == 0)
 		{
 			int i, added = 0;
 			float skill;
@@ -11489,6 +11567,7 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 				trap->Cvar_Set("char_color_green", "255");
 				trap->Cvar_Set("char_color_blue", "255");
 			}
+			UI_UpdatePlayerModelPreviews();
 		}
 	}
 	else if (feederID == FEEDER_MOVES)
