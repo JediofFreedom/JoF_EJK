@@ -575,8 +575,8 @@
 			model_g2mins		-30 -15 -14
 			model_g2maxs		20 15 30
 			model_rotation		50
-			model_fovx			50
-			model_fovy			50
+			model_fovx			40
+			model_fovy			40
 			isCharacter			1
 			visible				1
 			decoration
