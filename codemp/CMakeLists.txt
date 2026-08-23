@@ -689,10 +689,21 @@ if(BuildMPEngine)
 	endif(WIN32)
 
 	if(MakeApplicationBundles)
+		# A source-built SDL2 has an @rpath install name rather than an absolute
+		# one, which fixup_bundle cannot resolve on its own. Hand it the library
+		# directory explicitly; harmless when the install name is already absolute.
+		set(MPEngineBundleDirs "")
+		foreach(BundleLib ${SDL2_LIBRARY})
+			if(EXISTS "${BundleLib}")
+				get_filename_component(BundleLibDir "${BundleLib}" DIRECTORY)
+				list(APPEND MPEngineBundleDirs "${BundleLibDir}")
+			endif()
+		endforeach()
+		list(REMOVE_DUPLICATES MPEngineBundleDirs)
 		install(CODE "
 			include(BundleUtilities)
 			set(BU_CHMOD_BUNDLE_ITEMS ON)
-			fixup_bundle(\"${CMAKE_BINARY_DIR}/${MPEngine}.app\" \"\" \"\")
+			fixup_bundle(\"${CMAKE_BINARY_DIR}/${MPEngine}.app\" \"\" \"${MPEngineBundleDirs}\")
 			"
 			COMPONENT Runtime)
 		install(TARGETS ${MPEngine}
