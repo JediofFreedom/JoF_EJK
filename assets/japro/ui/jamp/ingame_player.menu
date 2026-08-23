@@ -42,6 +42,7 @@
 			uiScript				update "ui_GetName"
 			uiScript				updateForceStatus
 			uiScript				getcharcvars
+			uiScript				"playerpreview"
 			hide					highlights
 		}
 		onClose 
@@ -243,7 +244,6 @@
 				open			ingame_cosmetics
 			}
 		}
-
 		itemDef
 		{
 			name				modeltitle
@@ -408,7 +408,7 @@
 		{
 			name 				headlist
 //			rect 				20 90 388 82
-			rect 				20 90 404 194
+			rect 				20 90 292 194
 			type 				ITEM_TYPE_LISTBOX
 			style 			WINDOW_STYLE_FILLED
 			elementwidth 		32
@@ -435,6 +435,29 @@
 			{ 
 				setitemcolor 	headlist bordercolor 1 .682 0 .7
 			}
+		}
+
+		itemDef
+		{
+			name				playerpreview
+			group				models
+			type 				ITEM_TYPE_MODEL
+			style				WINDOW_STYLE_FILLED
+			rect				317 90 103 194
+			backcolor			0 0 0 1
+			border				1
+			bordercolor			1 .682 0 1
+			model_g2anim 		"BOTH_STAND1"
+			asset_model			"ui_char_model"
+			model_angle			180
+			model_g2mins		-30 -15 -14
+			model_g2maxs		20 15 30
+			model_rotation		50
+			model_fovx			50
+			model_fovy			50
+			isCharacter			1
+			visible				1
+			decoration
 		}
 
 //------------------------------------------------------------------------------------------------
