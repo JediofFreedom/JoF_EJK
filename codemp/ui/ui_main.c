@@ -1382,13 +1382,24 @@ uiQ3ModelBuild_t uiQ3ModelBuild;
 void UI_CleanupGhoul2(void);
 void UI_FreeAllSpecies(void);
 
+static void UI_CancelQ3ModelListBuild(void)
+{
+	if (uiQ3ModelBuild.fileJob)
+	{
+		trap->FS_AsyncFree(uiQ3ModelBuild.fileJob);
+	}
+	if (uiQ3ModelBuild.dirJob)
+	{
+		trap->FS_AsyncFree(uiQ3ModelBuild.dirJob);
+	}
+	memset(&uiQ3ModelBuild, 0, sizeof(uiQ3ModelBuild));
+}
+
 void UI_Shutdown( void ) {
 	trap->LAN_SaveCachedServers();
 	UI_CleanupGhoul2();
 	UI_FreeAllSpecies();
-	uiQ3ModelBuild.inProgress = qfalse;
-	if (uiQ3ModelBuild.dirJob)
-		trap->FS_AsyncFree( uiQ3ModelBuild.dirJob );
+	UI_CancelQ3ModelListBuild();
 }
 
 char *defaultMenu = NULL;
@@ -12472,14 +12483,16 @@ void UI_BuildQ3Model_List_Process()
 
 void UI_BuildQ3Model_List_Async(void)
 {
-	if (uiInfo.q3HeadCount > 0)
-		return;
-	
-	memset(&uiQ3ModelBuild, 0, sizeof(uiQ3ModelBuild));
+	UI_CancelQ3ModelListBuild();
 	uiInfo.q3HeadCount = 0;
 	uiQ3ModelBuild.dirCount = -1;
 	uiQ3ModelBuild.dirJob = trap->FS_GetFileListAsync("models/players", "/", sizeof(uiQ3ModelBuild.dirList));
-	uiQ3ModelBuild.inProgress = qtrue;
+	uiQ3ModelBuild.inProgress = uiQ3ModelBuild.dirJob > 0;
+	if (!uiQ3ModelBuild.inProgress)
+	{
+		uiQ3ModelBuild.dirJob = 0;
+		UI_BuildQ3Model_List(uiQ3ModelBuild.dirList, uiQ3ModelBuild.fileList, sizeof(uiQ3ModelBuild.fileList));
+	}
 	trap->Cvar_Set("ui_hasStartedAsyncQ3ModelBuild", "1");
 }
 
