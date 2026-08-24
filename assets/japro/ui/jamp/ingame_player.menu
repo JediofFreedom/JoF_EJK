@@ -521,9 +521,9 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Default Male Model:"
 			cvar				cg_defaultModel
-			rect				415 178 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				445 178 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -544,9 +544,9 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Default Female:"
 			cvar				cg_defaultFemaleModel
-			rect				415 198 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				445 198 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -572,9 +572,9 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				425 218 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				445 218 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -600,9 +600,9 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				425 238 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				445 238 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -623,9 +623,9 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Ally Model:"
 			cvar				cg_forceAllyModel
-			rect				425 258 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				445 258 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -646,9 +646,9 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Enemy Model:"
 			cvar				cg_forceEnemyModel
-			rect				425 278 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				445 278 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -674,9 +674,9 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				425 198 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				445 198 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -702,9 +702,9 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				425 218 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				445 218 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -725,9 +725,9 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Ally Model:"
 			cvar				cg_forceAllyModel
-			rect				425 238 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				445 238 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -748,9 +748,9 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Enemy Model:"
 			cvar				cg_forceEnemyModel
-			rect				425 258 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				445 258 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
