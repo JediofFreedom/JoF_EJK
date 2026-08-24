@@ -521,7 +521,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Default Male Model:"
 			cvar				cg_defaultModel
-			rect				445 178 140 20
+			rect				435 178 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -544,7 +544,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Default Female:"
 			cvar				cg_defaultFemaleModel
-			rect				445 198 140 20
+			rect				435 198 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -572,7 +572,7 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				445 218 140 20
+			rect				435 218 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -600,7 +600,7 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				445 238 140 20
+			rect				435 238 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -623,7 +623,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Ally Model:"
 			cvar				cg_forceAllyModel
-			rect				445 258 140 20
+			rect				435 258 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -646,7 +646,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Enemy Model:"
 			cvar				cg_forceEnemyModel
-			rect				445 278 140 20
+			rect				435 278 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -674,7 +674,7 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				445 198 140 20
+			rect				435 198 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -702,7 +702,7 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				445 218 140 20
+			rect				435 218 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -725,7 +725,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Ally Model:"
 			cvar				cg_forceAllyModel
-			rect				445 238 140 20
+			rect				435 238 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -748,7 +748,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Enemy Model:"
 			cvar				cg_forceEnemyModel
-			rect				445 258 140 20
+			rect				435 258 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
