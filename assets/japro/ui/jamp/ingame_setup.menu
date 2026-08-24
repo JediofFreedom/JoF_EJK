@@ -4404,6 +4404,32 @@
 			mouseexit			{ hide highlight9 }
 		}
 
+		itemDef
+		{
+			name			cmdratecap
+			group			network
+			type			ITEM_TYPE_MULTI
+			text			"Command Rate Cap:"
+			cvar			"cl_cmdratecap"
+			cvarFloatList
+			{
+				"Off"	 	0
+				"On" 		1
+			}
+			rect			220 223 300 20
+				textalign		ITEM_ALIGN_RIGHT
+			textalignx		165
+			textaligny		0
+			font 			4
+			textscale 		1
+			forecolor		.615 .615 .956 1
+			visible			0
+			descText		"Cap command rate at 125Hz for balanced physics at high FPS (turn it on when using FPS above 142)."
+			action			{ play "sound/interface/button1" }
+			mouseenter		{ show highlight10 }
+			mouseexit		{ hide highlight10 }
+		}
+
 		// APPLY CHANGES BUTTON
 		itemDef
 		{

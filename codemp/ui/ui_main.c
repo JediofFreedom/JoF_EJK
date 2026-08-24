@@ -1048,6 +1048,9 @@ void UI_BuildPlayerModel_List( qboolean inGameLoad )
 		dirListSize = sizeof(stackDirList);
 	}
 
+	//re-read the blacklist files, so pk3s loaded since the last build are picked up
+	BG_LoadModelBlacklist();
+
 	uiInfo.playerSpeciesCount = 0;
 	uiInfo.playerSpeciesIndex = 0;
 	uiInfo.playerSpeciesMax = 8;
@@ -1076,6 +1079,10 @@ void UI_BuildPlayerModel_List( qboolean inGameLoad )
 		}
 
 		if (!Q_stricmp(dirptr, ".") || !Q_stricmp(dirptr, ".."))
+			continue;
+
+		//models that are off limits to players don't belong in the picker
+		if (BG_ModelIsNPCOnly(dirptr) || BG_ModelInList(dirptr, cg_modelBlacklist.string))
 			continue;
 
 		Com_sprintf(fpath, sizeof(fpath), "models/players/%s/PlayerChoice.txt", dirptr);

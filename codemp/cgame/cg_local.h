@@ -1064,6 +1064,7 @@ typedef struct cg_s {
 
 	int			eventSequence;
 	int			predictableEvents[MAX_PREDICTED_EVENTS];
+	int			lastExternalEvent;		// last ps.externalEvent played, so the predicted and snapshot dispatch paths don't double-play
 
 	float		stepChange;				// for stair up smoothing
 	int			stepTime;
@@ -1802,6 +1803,8 @@ typedef struct cgMedia_s {
 	sfxHandle_t jetpackOffSound;
 	sfxHandle_t jetpackHoverSound;
 	sfxHandle_t jetpackHover2Sound;
+	sfxHandle_t stasisSound;
+	sfxHandle_t repulseSound;
 
 	// new stuff
 	qhandle_t patrolShader;
@@ -1831,6 +1834,8 @@ typedef struct cgMedia_s {
 
 	//force power icons
 	qhandle_t forcePowerIcons[NUM_FORCE_POWERS];
+	qhandle_t repulseIcon;		// JoF: custom Force Repulse wheel icon
+	qhandle_t dashIcon;			// JoF: custom Force Dash wheel icon
 
 	qhandle_t rageRecShader;
 
@@ -2074,6 +2079,7 @@ typedef struct cgs_s {
 	// parsed from serverinfo
 	int				siegeTeamSwitch;
 	int				showDuelHealths;
+	int				empowerEffect;		// JoF - jp_empowerEffect: 0=full body, 1=arms only, 2=hands only
 	gametype_t		gametype;
 	int				debugMelee;
 	int				stepSlideFix;
@@ -2247,6 +2253,11 @@ void CG_NextInventory_f(void);
 void CG_PrevInventory_f(void);
 void CG_NextForcePower_f(void);
 void CG_PrevForcePower_f(void);
+qboolean ForcePower_Valid(int i);
+qboolean CG_HasStasis(void);
+qboolean CG_HasRepulse(void);
+qboolean CG_HasDash(void);
+int CG_BuildForceWheel(int *slots);
 
 //
 // cg_view.c
@@ -2368,6 +2379,7 @@ void CG_Player( centity_t *cent );
 void CG_ResetPlayerEntity( centity_t *cent );
 void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team );
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized );
+qboolean CG_ModelIsBlacklisted( const char *modelName );
 sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName );
 void CG_PlayerShieldHit(int entitynum, vec3_t angles, int amount);
 
@@ -2575,6 +2587,7 @@ void CG_ShaderStateChanged(void);
 int CG_IsMindTricked(int trickIndex1, int trickIndex2, int trickIndex3, int trickIndex4, int client);
 void CG_Respawn( void );
 void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops );
+void CG_CheckExternalEvent( playerState_t *ps, playerState_t *ops );
 void CG_CheckChangedPredictableEvents( playerState_t *ps );
 
 

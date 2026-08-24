@@ -608,7 +608,6 @@ typedef struct cgameImport_s {
 	void			(*OpenUIMenu)							( int menu );
 	void			(*SetClientForceAngle)					( int time, vec3_t angle );
 	void			(*SetUserCmdValue)						( int stateValue, float sensitivityScale, float mPitchOverride, float mYawOverride, float mSensitivityOverride, int fpSel, int invenSel, qboolean fighterControls );
-	void			(*GetRadialMenuState)					( qboolean *active, float *x, float *y );
 
 	// keys
 	int				(*Key_GetCatcher)						( void );
@@ -717,6 +716,8 @@ typedef struct cgameImport_s {
 	qboolean		(*G2API_OverrideServer)					( void *serverInstance );
 	void			(*G2API_GetSurfaceName)					( void *ghoul2, int surfNumber, int modelIndex, char *fillBuf );
 
+	// --- EJK extensions (appended at end to preserve struct layout compatibility with stock OpenJK cgame DLLs) ---
+	void			(*GetRadialMenuState)					( qboolean *active, float *x, float *y );
 	struct {
 		float		(*R_Font_StrLenPixels)					( const char *text, const int iFontIndex, const float scale );
 	} ext;

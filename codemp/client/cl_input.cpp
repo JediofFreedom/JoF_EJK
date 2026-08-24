@@ -31,6 +31,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #endif
 unsigned	frame_msec;
 int			old_com_frameTime;
+#define		CMDRATECAP_HZ 125
+#define		CMDRATECAP_MSEC (1000 / CMDRATECAP_HZ)   // = 8ms
+int         cmdratecap_lastFireTime;
+int			cmdratecap_commandGenerated = 0;
 
 float cl_mPitchOverride = 0.0f;
 float cl_mYawOverride = 0.0f;
@@ -839,6 +843,12 @@ void IN_Button14Up(void) {IN_KeyUp(&in_buttons[14]);}
 void IN_Button15Down(void) {IN_KeyDown(&in_buttons[15]);}
 void IN_Button15Up(void) {IN_KeyUp(&in_buttons[15]);}
 
+// Force Stasis (JoF JA+ V58): a dedicated key-button so the engage bind can be gated
+// on the server having actually granted stasis, independently of a raw +button14 bind.
+kbutton_t	in_forceStasis;
+void IN_ForceStasisDown(void) {IN_KeyDown(&in_forceStasis);}
+void IN_ForceStasisUp(void) {IN_KeyUp(&in_forceStasis);}
+
 void IN_CenterView (void) {
 	cl.viewangles[PITCH] = -SHORT2ANGLE(cl.snap.ps.delta_angles[PITCH]);
 }
@@ -1063,7 +1073,9 @@ CL_MouseEvent
 =================
 */
 void CL_MouseEvent(int dx, int dy, int time) {
-	if (g_clAutoMapMode && cls.cgameStarted)
+	if (cls.cursorActive) {
+		CL_UpdateCursorPosition( dx, dy );
+	} else if (g_clAutoMapMode && cls.cgameStarted)
 	{ //automap input
 		autoMapInput_t* data = (autoMapInput_t*)cl.mSharedMemory;
 
@@ -1650,6 +1662,57 @@ void CL_CmdButtons( usercmd_t *cmd ) {
 		in_buttons[i].wasPressed = qfalse;
 	}
 
+	// Force Stasis (JoF JA+ V58): route the dedicated +force_stasis bind to usercmd
+	// bit 14, but only when the server has granted stasis (i.e. it's a JoF JA+ server
+	// that set the spare forcePowersKnown bit). Inert and harmless everywhere else.
+	if ( in_forceStasis.active || in_forceStasis.wasPressed ) {
+		if ( cl.snap.valid && (cl.snap.ps.fd.forcePowersKnown & (1 << STASIS_KNOWN_BIT)) )
+			cmd->buttons |= (1 << STASIS_ENGAGE_BTN);
+	}
+	in_forceStasis.wasPressed = qfalse;
+
+	// When a pseudo-slot is the selected wheel entry (cgame mirrors this via cvars), remap
+	// +useforce so the real force power is suppressed and the JoF ability fires instead.
+	// Must run BEFORE the BUTTON_FORCEPOWER->USE_HOLDABLE remap below so they don't fight.
+	// Only one pseudo-slot can be selected at a time so else-if ordering is fine.
+	{
+		static cvar_t *cl_stasisSelected  = NULL;
+		static cvar_t *cl_repulseSelected = NULL;
+		static cvar_t *cl_dashSelected    = NULL;
+		static qboolean s_repulseWasDown  = qfalse;
+		static qboolean s_dashWasDown     = qfalse;
+		if ( !cl_stasisSelected )
+			cl_stasisSelected  = Cvar_Get( "cl_stasisSelected",  "0", CVAR_ROM );
+		if ( !cl_repulseSelected )
+			cl_repulseSelected = Cvar_Get( "cl_repulseSelected", "0", CVAR_ROM );
+		if ( !cl_dashSelected )
+			cl_dashSelected    = Cvar_Get( "cl_dashSelected",    "0", CVAR_ROM );
+
+		if ( (cmd->buttons & BUTTON_FORCEPOWER) && cl_stasisSelected->integer ) {
+			cmd->buttons &= ~BUTTON_FORCEPOWER;
+			cmd->buttons |= (1 << STASIS_ENGAGE_BTN);
+			s_repulseWasDown = qfalse;
+			s_dashWasDown = qfalse;
+		} else if ( cl_repulseSelected->integer ) {
+			qboolean down = (cmd->buttons & BUTTON_FORCEPOWER) ? qtrue : qfalse;
+			cmd->buttons &= ~BUTTON_FORCEPOWER;		// suppress the real force power
+			if ( down && !s_repulseWasDown )
+				Cbuf_AddText( "force_repulse\n" );	// send the ClientCommand once per press
+			s_repulseWasDown = down;
+			s_dashWasDown = qfalse;
+		} else if ( cl_dashSelected->integer ) {
+			qboolean down = (cmd->buttons & BUTTON_FORCEPOWER) ? qtrue : qfalse;
+			cmd->buttons &= ~BUTTON_FORCEPOWER;		// suppress the real force power
+			if ( down && !s_dashWasDown )
+				Cbuf_AddText( "force_dash\n" );		// send the ClientCommand once per press
+			s_dashWasDown = down;
+			s_repulseWasDown = qfalse;
+		} else {
+			s_repulseWasDown = qfalse;
+			s_dashWasDown = qfalse;
+		}
+	}
+
 	if (cmd->buttons & BUTTON_FORCEPOWER)
 	{ //check for transferring a use force to a use inventory...
 		if ((cmd->buttons & BUTTON_USE) || CL_NoUseableForce())
@@ -1659,7 +1722,7 @@ void CL_CmdButtons( usercmd_t *cmd ) {
 		}
 	}
 
-	if ( Key_GetCatcher( ) || com_unfocused->integer || com_minimized->integer ) {
+	if ( Key_GetCatcher( ) || cl_unfocusedChatbox->integer && com_unfocused->integer || cl_minimizedChatbox->integer && com_minimized->integer) {
 		cmd->buttons |= BUTTON_TALK;
 	}
 
@@ -1859,6 +1922,27 @@ void CL_CreateNewCommands( void ) {
 	if ( cls.state < CA_PRIMED )
 		return;
 
+	// cl_cmdratecap: when enabled, cap command generation at 125Hz.
+	// Uses fixed-step accumulator � advance by CMDRATECAP_MSEC on fire,
+	// carrying overshoot forward so cmds land at steady 8ms intervals.
+	// Button wasPressed and gcmdValue persist across skipped frames naturally.
+	if (cl_cmdratecap->integer) {
+		int elapsed = com_frameTime - cmdratecap_lastFireTime;
+		if (elapsed < CMDRATECAP_MSEC) {
+			return;
+		}
+
+		// Advance by exactly CMDRATECAP_MSEC, not com_frameTime.
+		// This preserves overshoot so we average exactly 125 cmds/sec.
+		cmdratecap_lastFireTime += CMDRATECAP_MSEC;
+
+		// Safety clamp: if we fell way behind (hitch/alt-tab), snap forward
+		// to prevent a burst of rapid cmds trying to catch up.
+		if (com_frameTime - cmdratecap_lastFireTime > CMDRATECAP_MSEC * 2) {
+			cmdratecap_lastFireTime = com_frameTime;
+		}
+	}
+
 	frame_msec = com_frameTime - old_com_frameTime;
 
 	// if running over 1000fps, act as if each frame is 1ms
@@ -1873,6 +1957,7 @@ void CL_CreateNewCommands( void ) {
 
 	old_com_frameTime = com_frameTime;
 	// generate a command for this frame
+	cmdratecap_commandGenerated = 1;
 	cl.cmdNumber++;
 	cmdNum = cl.cmdNumber & REAL_CMD_MASK;//Loda - FPS UNLOCK ENGINE
 	cl.cmds[cmdNum] = CL_CreateCmd ();
@@ -2208,6 +2293,8 @@ static const cmdList_t inputCmds[] =
 	{ "-button13", NULL, IN_Button13Up, NULL },
 	{ "+button14", "Button 14", IN_Button14Down, NULL },
 	{ "-button14", NULL, IN_Button14Up, NULL },
+	{ "+force_stasis", "Hold to use stasis force power", IN_ForceStasisDown, NULL },
+	{ "-force_stasis", NULL, IN_ForceStasisUp, NULL },
 	{ "+button15", "Button 15", IN_Button15Down, NULL },
 	{ "-button15", NULL, IN_Button15Up, NULL },
 	{ "+mlook", "Hold to use mouse look", IN_MLookDown, NULL },
@@ -2262,6 +2349,7 @@ void CL_InitInput( void ) {
 	cl_debugMove = Cvar_Get ("cl_debugMove", "0", 0);
 
 	cl_idrive = Cvar_Get ("cl_idrive", "0", CVAR_ARCHIVE);//JAPRO ENGINE
+	cmdratecap_lastFireTime = 0;
 }
 
 /*
