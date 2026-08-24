@@ -43,12 +43,14 @@
 			uiScript				updateForceStatus
 			uiScript				getcharcvars
 			uiScript				"updateplayerpreview"
+			uiScript				clearModelSearch
 			hide					highlights
 		}
 		onClose 
 		{ 
 			uiScript				update "ui_SetName"
 			uiScript				updateForceStatus
+			uiScript				clearModelSearch
 			hide					highlights
 		}
 
@@ -276,9 +278,9 @@
 			name				modelname
 			style				0	
 			cvar				model
-			rect				50 78 160 20
+			rect				22 78 150 20
 			textalign			ITEM_ALIGN_LEFT
-			textalignx			-28
+			textalignx			0
 			textaligny			205
 			outlinecolor		1 .5 .5 .5
 			backcolor			0 0 0 0
@@ -301,6 +303,29 @@
 			}
 		}
 
+		itemDef
+		{
+			name				modelSearch
+			type				ITEM_TYPE_EDITFIELD
+			text				"Search:"
+			cvar				ui_modelSearch
+			rect				172 275 152 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
+			textaligny			8
+			font				2
+			textscale			.5
+			forecolor			1 .682 0 1
+			maxChars			32
+			maxPaintChars		18
+			visible				1
+			descText			"Filter player models by model or skin name."
+			action
+			{
+				play			"sound/interface/button1"
+			}
+		}
+
 //------------------------------------------------------------------------------------------------
 // Skin/Team Color Chooser
 //------------------------------------------------------------------------------------------------
@@ -310,7 +335,7 @@
 			style				0	
 			text				@MENUS_TEAM_COLOR
 			ownerdraw			UI_SKIN_COLOR
-			rect				50 78 160 20
+			rect				22 78 150 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			-5
@@ -344,7 +369,7 @@
 			style				0	
 			text				@MENUS_TEAM_COLOR
 			ownerdraw			UI_SKIN_COLOR
-			rect				50 78 160 20
+			rect				22 78 150 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			-5
@@ -384,7 +409,7 @@
 				@MENUS_ON 1
 				"All" 2
 			}
-			rect				160 78 160 20
+			rect				172 78 152 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			-5

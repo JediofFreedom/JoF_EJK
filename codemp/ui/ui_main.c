@@ -7019,6 +7019,10 @@ const char *UI_GetModelWithSkin(char *model) {
 	return modelWithSkin;
 }
 
+static qboolean UI_HeadMatchesSearch(const char *model) {
+	return !ui_modelSearch.string[0] || Q_stristr(model, ui_modelSearch.string) != NULL;
+}
+
 int UI_HeadIndexForModel(const char *model) {
 	char *teamname;
 	int i;
@@ -7082,7 +7086,7 @@ int UI_HeadIndexForModel(const char *model) {
 			matchesTeam = qtrue;
 		}
 
-		if (matchesTeam) {
+		if (matchesTeam && UI_HeadMatchesSearch(uiInfo.q3HeadNames[i])) {
 			if (!Q_stricmp(uiInfo.q3HeadNames[i], model)) {
 				return c;
 			}
@@ -8384,6 +8388,8 @@ static void UI_RunMenuScript(char **args)
 			}
 		} else if (Q_stricmp(name, "clearError") == 0) {
 			trap->Cvar_Set("com_errorMessage", "");
+		} else if (Q_stricmp(name, "clearModelSearch") == 0) {
+			trap->Cvar_Set("ui_modelSearch", "");
 		} else if (Q_stricmp(name, "loadGameInfo") == 0) {
 			UI_ParseGameInfo("ui/jamp/gameinfo.txt");
 		} else if (Q_stricmp(name, "RefreshServers") == 0) {
@@ -9813,6 +9819,7 @@ static int UI_HeadCountByColor(void) {
 	int v = (int)trap->Cvar_VariableValue("cg_defaultModelRandom");
 	char *teamname;
 	char *skinName = NULL;
+	qboolean valid;
 
 	c = 0;
 
@@ -9849,6 +9856,7 @@ static int UI_HeadCountByColor(void) {
 	{
 		if (uiInfo.q3HeadNames[i][0] && Q_stristr(uiInfo.q3HeadNames[i], "/") != NULL)
 		{
+			valid = qfalse;
 			skinName = uiInfo.q3HeadNames[i];
 			while (*skinName != '/') {
 				*skinName++;
@@ -9859,20 +9867,25 @@ static int UI_HeadCountByColor(void) {
 			if (uiSkinColor == TEAM_FREE)
 			{
 				if (!Q_stricmp(skinName, teamname))
-					c++;
+					valid = qtrue;
 				else if (!ui_sv_pure.integer && !Q_stricmp(skinName, "/sp") && Q_stricmp(uiInfo.q3HeadNames[i], "trandoshan/sp") && Q_stricmp(uiInfo.q3HeadNames[i], "weequay/sp"))
-					c++;
+					valid = qtrue;
 				else if (!ui_sv_pure.integer &&  ui_showAllSkins.integer && Q_stricmpn(uiInfo.q3HeadNames[i], "default", 7) && Q_stricmp(skinName, "/red") && Q_stricmp(skinName, "/blue") && Q_stricmp(skinName, "/sp") && Q_stricmpn(skinName, "/rgb", 4))
-					c++;
+					valid = qtrue;
 			}
 			else if (uiSkinColor == 3)
 			{
 				if (!Q_stricmpn(skinName, teamname, strlen(teamname)))
-					c++;
+					valid = qtrue;
 				else if (!ui_sv_pure.integer && !Q_stricmp(skinName, "/sp") && (!Q_stricmp(uiInfo.q3HeadNames[i], "trandoshan/sp") || !Q_stricmp(uiInfo.q3HeadNames[i], "weequay/sp")))
-					c++;
+					valid = qtrue;
 			}
 			else if (!Q_stricmp(skinName, teamname))
+			{
+				valid = qtrue;
+			}
+
+			if (valid && UI_HeadMatchesSearch(uiInfo.q3HeadNames[i]))
 			{
 				c++;
 			}
@@ -11062,7 +11075,7 @@ static const char *UI_SelectedTeamHead(int index, int *actual) {
 				valid = qtrue;
 			}
 
-			if (valid)
+			if (valid && UI_HeadMatchesSearch(uiInfo.q3HeadNames[i]))
 			{
 				if (c==index)
 				{
