@@ -44,6 +44,33 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 	extern qboolean TryGrapple(gentity_t *ent); //g_cmds.c
 #elif defined _CGAME
 	extern int cg_dueltypes[MAX_CLIENTS];//JAPRO - Serverside - Fullforce Dueling
+
+static qboolean PM_InJAPlusLedgeMove( int anim )
+{
+	if ( cgs.serverMod != SVMOD_JAPLUS )
+	{
+		return qfalse;
+	}
+
+	switch ( anim )
+	{
+	case BOTH_LEDGE_GRAB:
+	case BOTH_LEDGE_HOLD:
+	case BOTH_LEDGE_LEFT:
+	case BOTH_LEDGE_RIGHT:
+	case BOTH_LEDGE_MERCPULL:
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
+static qboolean PM_JAPlusLedgeGrabEnabled( void )
+{
+	return cgs.serverMod == SVMOD_JAPLUS &&
+		(cgs.cinfo & JAPLUS_CINFO_LEDGEGRAB) &&
+		!(cp_pluginDisable.integer & JAPRO_PLUGIN_LEDGEGRAB);
+}
 #endif
 
 extern qboolean BG_FullBodyTauntAnim( int anim );
@@ -1869,6 +1896,13 @@ static float BG_ForceWallJumpStrength( void )
 
 qboolean PM_AdjustAngleForWallJump( playerState_t *ps, usercmd_t *ucmd, qboolean doMove )
 {
+#ifdef _CGAME
+	if ( PM_InJAPlusLedgeMove( ps->legsAnim ) )
+	{//JA++ ledge movement owns PMF_STUCK_TO_WALL while these animations are active.
+		return qfalse;
+	}
+#endif
+
 	if ( ( ( BG_InReboundJump( ps->legsAnim ) || BG_InReboundHold( ps->legsAnim ) )
 			&& ( BG_InReboundJump( ps->torsoAnim ) || BG_InReboundHold( ps->torsoAnim ) ) )
 		|| (pm->ps->pm_flags&PMF_STUCK_TO_WALL) )
@@ -2080,6 +2114,336 @@ void PM_GrabWallForJump( int anim )
 	PM_AddEvent( EV_JUMP );//make sound for grab
 	pm->ps->pm_flags |= PMF_STUCK_TO_WALL;
 }
+
+#ifdef _CGAME
+
+#define LEDGEGRABMAXHEIGHT 70
+#define LEDGEGRABHEIGHT 52.4f
+#define LEDGEVERTOFFSET LEDGEGRABHEIGHT
+#define LEDGEGRABMINHEIGHT 40
+#define LEDGEGRABDISTANCE 40
+#define LEDGEHOROFFSET 22.3f
+
+static void PM_LetGoOfJAPlusLedge( playerState_t *ps )
+{
+	ps->pm_flags &= ~PMF_STUCK_TO_WALL;
+	ps->torsoTimer = 0;
+	ps->legsTimer = 0;
+}
+
+static float PM_GetJAPlusLedgeAnimPoint( playerState_t *ps )
+{
+	float animLength = 0.0f;
+	float animSpeedFactor = 1.0f;
+	const int animIndex = pm_entSelf->localAnimIndex;
+
+	BG_SaberStartTransAnim( ps->clientNum, ps->fd.saberAnimLevel, ps->weapon,
+		ps->legsAnim, &animSpeedFactor, ps->brokenLimbs );
+
+	if ( animSpeedFactor > 0.0f )
+	{
+		animLength = (bgAllAnims[animIndex].anims[ps->legsAnim].numFrames - 1) *
+			fabs((float)bgAllAnims[animIndex].anims[ps->legsAnim].frameLerp) *
+			(1.0f / animSpeedFactor);
+		animLength--;
+	}
+
+	return animLength > 0.0f ? ps->legsTimer / animLength : 0.0f;
+}
+
+static void PM_SetVelocityForJAPlusLedgeMove( playerState_t *ps, int anim )
+{
+	vec3_t fwdAngles, moveDir;
+	const float animationPoint = PM_GetJAPlusLedgeAnimPoint( ps );
+
+	switch ( anim )
+	{
+	case BOTH_LEDGE_GRAB:
+	case BOTH_LEDGE_HOLD:
+		VectorClear( ps->velocity );
+		return;
+
+	case BOTH_LEDGE_LEFT:
+		if ( animationPoint > .333f && animationPoint < .666f )
+		{
+			VectorSet( fwdAngles, 0, ps->viewangles[YAW], 0 );
+			AngleVectors( fwdAngles, NULL, moveDir, NULL );
+			VectorScale( moveDir, -30, ps->velocity );
+		}
+		else
+		{
+			VectorClear( ps->velocity );
+		}
+		break;
+
+	case BOTH_LEDGE_RIGHT:
+		if ( animationPoint > .333f && animationPoint < .666f )
+		{
+			VectorSet( fwdAngles, 0, ps->viewangles[YAW], 0 );
+			AngleVectors( fwdAngles, NULL, moveDir, NULL );
+			VectorScale( moveDir, 30, ps->velocity );
+		}
+		else
+		{
+			VectorClear( ps->velocity );
+		}
+		break;
+
+	case BOTH_LEDGE_MERCPULL:
+		if ( animationPoint > .8f && animationPoint < .925f )
+		{
+			ps->velocity[0] = ps->velocity[1] = 0;
+			ps->velocity[2] = 77;
+		}
+		else if ( animationPoint > .7f && animationPoint < .75f )
+		{
+			ps->velocity[0] = ps->velocity[1] = 0;
+			ps->velocity[2] = 16;
+		}
+		else if ( animationPoint > .375f && animationPoint < .7f )
+		{
+			ps->velocity[0] = ps->velocity[1] = 0;
+			ps->velocity[2] = 70;
+		}
+		else if ( animationPoint < .375f )
+		{
+			VectorSet( fwdAngles, 0, ps->viewangles[YAW], 0 );
+			AngleVectors( fwdAngles, moveDir, NULL, NULL );
+			VectorScale( moveDir, 70, ps->velocity );
+		}
+		else
+		{
+			VectorClear( ps->velocity );
+		}
+		break;
+
+	default:
+		VectorClear( ps->velocity );
+		break;
+	}
+}
+
+#define JA_PLUS_LEDGE_PACE_FLAGS (SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD|SETANIM_FLAG_HOLDLESS|SETANIM_FLAG_PACE)
+
+static void PM_AdjustAngleForJAPlusLedgeGrab( playerState_t *ps, usercmd_t *ucmd )
+{
+	if ( !(ps->pm_flags & PMF_STUCK_TO_WALL) || !PM_InJAPlusLedgeMove(ps->legsAnim) )
+	{
+		return;
+	}
+
+	if ( ps->legsAnim != BOTH_LEDGE_MERCPULL )
+	{
+		vec3_t traceTo, traceFrom, fwd, fwdAngles;
+		trace_t trace;
+
+		VectorSet( fwdAngles, 0, ps->viewangles[YAW], 0 );
+		AngleVectors( fwdAngles, fwd, NULL, NULL );
+		VectorNormalize( fwd );
+
+		VectorCopy( ps->origin, traceFrom );
+		traceFrom[2] += LEDGEGRABHEIGHT - 1;
+		VectorMA( traceFrom, LEDGEGRABDISTANCE, fwd, traceTo );
+		pm->trace( &trace, traceFrom, NULL, NULL, traceTo, ps->clientNum, MASK_SOLID );
+
+		if ( trace.fraction == 1.0f )
+		{
+			PM_LetGoOfJAPlusLedge( ps );
+			return;
+		}
+
+		ps->viewangles[YAW] = vectoyaw( trace.plane.normal ) + 180;
+	}
+
+	ucmd->angles[YAW] = ANGLE2SHORT( ps->viewangles[YAW] ) - ps->delta_angles[YAW];
+
+	if ( ps->legsTimer <= 50 )
+	{
+		if ( ps->legsAnim == BOTH_LEDGE_MERCPULL )
+		{
+			ps->pm_flags &= ~PMF_STUCK_TO_WALL;
+		}
+		else
+		{
+			PM_SetAnim( SETANIM_BOTH, BOTH_LEDGE_HOLD, SETANIM_FLAG_OVERRIDE );
+			ps->torsoTimer = ps->legsTimer = 100;
+			ps->weaponTime = ps->legsTimer;
+		}
+	}
+	else if ( ps->legsAnim == BOTH_LEDGE_HOLD )
+	{
+		if ( ucmd->rightmove )
+		{
+			PM_SetAnim( SETANIM_BOTH,
+				ucmd->rightmove < 0 ? BOTH_LEDGE_LEFT : BOTH_LEDGE_RIGHT,
+				JA_PLUS_LEDGE_PACE_FLAGS );
+			ps->weaponTime = ps->legsTimer;
+		}
+		else if ( ucmd->forwardmove < 0 )
+		{
+			PM_LetGoOfJAPlusLedge( ps );
+		}
+		else if ( ucmd->forwardmove > 0 )
+		{
+			PM_SetAnim( SETANIM_BOTH, BOTH_LEDGE_MERCPULL,
+				SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD|SETANIM_FLAG_HOLDLESS );
+			ps->weaponTime = ps->legsTimer;
+		}
+		else
+		{
+			ps->torsoTimer = ps->legsTimer = 100;
+			ps->weaponTime = ps->legsTimer;
+		}
+	}
+
+	PM_SetVelocityForJAPlusLedgeMove( ps, ps->legsAnim );
+	ucmd->rightmove = ucmd->upmove = ucmd->forwardmove = 0;
+}
+
+static qboolean PM_JAPlusLedgeTrace( trace_t *trace, vec3_t dir,
+	float *lerpUp, float *lerpForward, float *lerpYaw )
+{
+	vec3_t traceTo, traceFrom, wallAngles;
+
+	if ( !PM_JAPlusLedgeGrabEnabled() )
+	{
+		return qfalse;
+	}
+
+	VectorMA( pm->ps->origin, LEDGEGRABDISTANCE, dir, traceTo );
+	VectorCopy( pm->ps->origin, traceFrom );
+	traceFrom[2] += LEDGEGRABMINHEIGHT;
+	traceTo[2] += LEDGEGRABMINHEIGHT;
+
+	pm->trace( trace, traceFrom, NULL, NULL, traceTo, pm->ps->clientNum, MASK_DEADSOLID );
+	if ( trace->fraction < 1.0f )
+	{
+		VectorMA( trace->endpos, 0.5f, dir, traceTo );
+		VectorCopy( traceTo, traceFrom );
+		traceFrom[2] += LEDGEGRABMAXHEIGHT - LEDGEGRABMINHEIGHT;
+		pm->trace( trace, traceFrom, NULL, NULL, traceTo, pm->ps->clientNum, MASK_DEADSOLID );
+		if ( trace->fraction == 1.0f || trace->startsolid )
+		{
+			return qfalse;
+		}
+	}
+	else
+	{
+		VectorCopy( traceTo, traceFrom );
+		traceFrom[2] += LEDGEGRABMAXHEIGHT - LEDGEGRABMINHEIGHT;
+		pm->trace( trace, traceFrom, NULL, NULL, traceTo, pm->ps->clientNum, MASK_DEADSOLID );
+		if ( trace->fraction == 1.0f || trace->startsolid )
+		{
+			return qfalse;
+		}
+
+		VectorCopy( trace->endpos, traceFrom );
+		traceFrom[2]++;
+		pm->trace( trace, traceFrom, NULL, NULL, traceTo, pm->ps->clientNum, MASK_DEADSOLID );
+	}
+
+	vectoangles( trace->plane.normal, wallAngles );
+	if ( wallAngles[PITCH] > -45 )
+	{
+		return qfalse;
+	}
+
+	VectorCopy( trace->endpos, traceTo );
+	*lerpUp = trace->endpos[2] - pm->ps->origin[2] - LEDGEVERTOFFSET;
+	VectorCopy( pm->ps->origin, traceFrom );
+	traceTo[2] -= 1;
+	traceFrom[2] = traceTo[2];
+	pm->trace( trace, traceFrom, NULL, NULL, traceTo, pm->ps->clientNum, MASK_DEADSOLID );
+
+	vectoangles( trace->plane.normal, wallAngles );
+	if ( trace->fraction == 1.0f || wallAngles[PITCH] > 20 || wallAngles[PITCH] < -20 )
+	{
+		return qfalse;
+	}
+
+	*lerpForward = Distance( trace->endpos, traceFrom ) - LEDGEHOROFFSET;
+	*lerpYaw = vectoyaw( trace->plane.normal ) + 180;
+	return qtrue;
+}
+
+static qboolean PM_CheckJAPlusLedgeGrab( void )
+{
+	vec3_t checkDir, traceTo, fwdAngles;
+	trace_t trace;
+	float lerpUp = 0.0f, lerpForward = 0.0f, lerpYaw = 0.0f;
+	qboolean foundLedge = qfalse;
+
+	if ( pm->ps->groundEntityNum != ENTITYNUM_NONE || pm->ps->pm_type == PM_JETPACK ||
+		!PM_JAPlusLedgeGrabEnabled() || PM_InJAPlusLedgeMove(pm->ps->legsAnim) ||
+		pm->ps->pm_type == PM_SPECTATOR || BG_InSpecialJump(pm->ps->legsAnim) )
+	{
+		return qfalse;
+	}
+
+	VectorSet( fwdAngles, 0, pm->ps->viewangles[YAW], 0 );
+	AngleVectors( fwdAngles, checkDir, NULL, NULL );
+	if ( !VectorCompare(pm->ps->velocity, vec3_origin) &&
+		PM_JAPlusLedgeTrace(&trace, checkDir, &lerpUp, &lerpForward, &lerpYaw) )
+	{
+		foundLedge = qtrue;
+	}
+
+	if ( !foundLedge )
+	{
+		if ( !pm->cmd.rightmove && !pm->cmd.forwardmove )
+		{
+			return qfalse;
+		}
+
+		if ( pm->cmd.rightmove > 0 )
+		{
+			AngleVectors( fwdAngles, NULL, checkDir, NULL );
+			VectorNormalize( checkDir );
+		}
+		else if ( pm->cmd.rightmove < 0 )
+		{
+			AngleVectors( fwdAngles, NULL, checkDir, NULL );
+			VectorScale( checkDir, -1, checkDir );
+			VectorNormalize( checkDir );
+		}
+		else if ( pm->cmd.forwardmove > 0 )
+		{
+			return qfalse;
+		}
+		else
+		{
+			AngleVectors( fwdAngles, checkDir, NULL, NULL );
+			VectorScale( checkDir, -1, checkDir );
+			VectorNormalize( checkDir );
+		}
+
+		if ( !PM_JAPlusLedgeTrace(&trace, checkDir, &lerpUp, &lerpForward, &lerpYaw) )
+		{
+			return qfalse;
+		}
+	}
+
+	VectorMA( pm->ps->origin, lerpForward, checkDir, traceTo );
+	traceTo[2] += lerpUp;
+	pm->trace( &trace, pm->ps->origin, pm->mins, pm->maxs, traceTo,
+		pm->ps->clientNum, MASK_PLAYERSOLID );
+	if ( trace.fraction != 1.0f || trace.startsolid )
+	{
+		return qfalse;
+	}
+
+	pm->ps->viewangles[YAW] = lerpYaw;
+	PM_SetPMViewAngle( pm->ps, pm->ps->viewangles, &pm->cmd );
+	pm->cmd.angles[YAW] = ANGLE2SHORT( pm->ps->viewangles[YAW] ) - pm->ps->delta_angles[YAW];
+	pm->ps->saberHolstered = 2;
+	VectorCopy( trace.endpos, pm->ps->origin );
+	VectorClear( pm->ps->velocity );
+	PM_GrabWallForJump( BOTH_LEDGE_GRAB );
+	pm->ps->weaponTime = pm->ps->legsTimer;
+	return qtrue;
+}
+
+#endif
 
 /*
 =============
@@ -3128,6 +3492,9 @@ static qboolean PM_CheckJump( void )
 					//&& WP_ForcePowerAvailable( pm->gent, FP_LEVITATION, 10 )//have enough force power to do another one
 					&& BG_CanUseFPNow(pm->gametype, pm->ps, pm->cmd.serverTime, FP_LEVITATION)
 					&& (pm->ps->origin[2]-pm->ps->fd.forceJumpZStart) < (forceJumpHeightMax[FORCE_LEVEL_3]-(BG_ForceWallJumpStrength()/2.0f)) //can fit at least one more wall jump in (yes, using "magic numbers"... for now)
+				#ifdef _CGAME
+					&& !PM_CheckJAPlusLedgeGrab()
+				#endif
 					//&& (pm->ps->legsAnim == BOTH_JUMP1 || pm->ps->legsAnim == BOTH_INAIR1 ) )//not in a flip or spin or anything
 					)
 			{//see if we're pushing at a wall and jump off it if so
@@ -10769,7 +11136,7 @@ void BG_UpdateLookAngles( int lookingDebounceTime, vec3_t lastHeadAngles, int ti
 }
 
 //for setting visual look (headturn) angles
-static void BG_G2ClientNeckAngles( void *ghoul2, int time, const vec3_t lookAngles, vec3_t headAngles, vec3_t neckAngles, vec3_t thoracicAngles, vec3_t headClampMinAngles, vec3_t headClampMaxAngles )
+static void BG_G2ClientNeckAngles( void *ghoul2, int time, const vec3_t lookAngles, vec3_t headAngles, vec3_t neckAngles, vec3_t thoracicAngles, vec3_t headClampMinAngles, vec3_t headClampMaxAngles, entityState_t *cent )
 {
 	vec3_t	lA;
 	VectorCopy( lookAngles, lA );
@@ -10802,6 +11169,13 @@ static void BG_G2ClientNeckAngles( void *ghoul2, int time, const vec3_t lookAngl
 	}
 
 	//split it up between the neck and cranium
+#ifdef _CGAME
+	if ( PM_InJAPlusLedgeMove(cent->legsAnim) )
+	{//Keep the arm's parent bone driven by the ledge animation, as JA++ does.
+		thoracicAngles[PITCH] = 0;
+	}
+	else
+#endif
 	if ( thoracicAngles[PITCH] )
 	{//already been set above, blend them
 		thoracicAngles[PITCH] = (thoracicAngles[PITCH] + (lA[PITCH] * 0.4)) * 0.5f;
@@ -10827,13 +11201,23 @@ static void BG_G2ClientNeckAngles( void *ghoul2, int time, const vec3_t lookAngl
 		thoracicAngles[ROLL] = lA[ROLL] * 0.1;
 	}
 
-	neckAngles[PITCH] = lA[PITCH] * 0.2f;
-	neckAngles[YAW] = lA[YAW] * 0.3f;
-	neckAngles[ROLL] = lA[ROLL] * 0.3f;
+#ifdef _CGAME
+	if ( PM_InJAPlusLedgeMove(cent->legsAnim) )
+	{
+		VectorClear( neckAngles );
+		VectorClear( headAngles );
+	}
+	else
+#endif
+	{
+		neckAngles[PITCH] = lA[PITCH] * 0.2f;
+		neckAngles[YAW] = lA[YAW] * 0.3f;
+		neckAngles[ROLL] = lA[ROLL] * 0.3f;
 
-	headAngles[PITCH] = lA[PITCH] * 0.4;
-	headAngles[YAW] = lA[YAW] * 0.6;
-	headAngles[ROLL] = lA[ROLL] * 0.6;
+		headAngles[PITCH] = lA[PITCH] * 0.4;
+		headAngles[YAW] = lA[YAW] * 0.6;
+		headAngles[ROLL] = lA[ROLL] * 0.6;
+	}
 
 	/* //non-applicable SP code
 	if ( G_RidingVehicle( cent->gent ) )// && type == VH_SPEEDER ?
@@ -10847,20 +11231,6 @@ static void BG_G2ClientNeckAngles( void *ghoul2, int time, const vec3_t lookAngl
 	trap->G2API_SetBoneAngles(ghoul2, 0, "thoracic", thoracicAngles, BONE_ANGLES_POSTMULT, POSITIVE_X, NEGATIVE_Y, NEGATIVE_Z, 0, 0, time);
 }
 
-#ifdef _CGAME
-//JA+ servers hang us off ledges with these anims; the whole skeleton has to stay
-//anim-driven or the hands drift off the edge.
-static qboolean BG_InLedgeMove( int anim )
-{
-	if ( cgs.serverMod == SVMOD_JAPLUS
-		&& anim >= BOTH_LEDGE_GRAB && anim <= BOTH_LEDGE_MERCPULL )
-	{
-		return qtrue;
-	}
-	return qfalse;
-}
-#endif
-
 //rww - Finally decided to convert all this stuff to BG form.
 static void BG_G2ClientSpineAngles( void *ghoul2, int motionBolt, vec3_t cent_lerpOrigin, vec3_t cent_lerpAngles, entityState_t *cent,
 							int time, vec3_t viewAngles, int ciLegs, int ciTorso, const vec3_t angles, vec3_t thoracicAngles,
@@ -10871,17 +11241,6 @@ static void BG_G2ClientSpineAngles( void *ghoul2, int motionBolt, vec3_t cent_le
 	//*tPitchAngle = viewAngles[PITCH];
 	viewAngles[YAW] = AngleDelta( cent_lerpAngles[YAW], angles[YAW] );
 	//*tYawAngle = viewAngles[YAW];
-
-#ifdef _CGAME
-	if ( BG_InLedgeMove( cent->legsAnim ) || BG_InLedgeMove( cent->torsoAnim )
-		|| BG_InLedgeMove( ciLegs ) || BG_InLedgeMove( ciTorso ) )
-	{ //don't distribute view pitch/yaw up the spine while hanging from a ledge
-		VectorClear( thoracicAngles );
-		VectorClear( ulAngles );
-		VectorClear( llAngles );
-		return;
-	}
-#endif
 
 #if 1
 	if ( !BG_FlippingAnim( cent->legsAnim ) &&
@@ -10983,9 +11342,20 @@ static void BG_G2ClientSpineAngles( void *ghoul2, int motionBolt, vec3_t cent_le
 
 	//distribute the angles differently up the spine
 	//NOTE: each of these distributions must add up to 1.0f
-	thoracicAngles[PITCH] = viewAngles[PITCH]*0.20f;
-	llAngles[PITCH] = viewAngles[PITCH]*0.40f;
-	ulAngles[PITCH] = viewAngles[PITCH]*0.40f;
+#ifdef _CGAME
+	if ( PM_InJAPlusLedgeMove(cent->legsAnim) )
+	{
+		thoracicAngles[PITCH] = 0;
+		llAngles[PITCH] = 0;
+		ulAngles[PITCH] = 0;
+	}
+	else
+#endif
+	{
+		thoracicAngles[PITCH] = viewAngles[PITCH]*0.20f;
+		llAngles[PITCH] = viewAngles[PITCH]*0.40f;
+		ulAngles[PITCH] = viewAngles[PITCH]*0.40f;
+	}
 
 	thoracicAngles[YAW] = viewAngles[YAW]*0.20f;
 	ulAngles[YAW] = viewAngles[YAW]*0.35f;
@@ -11435,16 +11805,9 @@ void BG_G2PlayerAngles(void *ghoul2, int motionBolt, entityState_t *cent, int ti
 	}
 	AnglesSubtract( lookAngles, eyeAngles, lookAngles );
 
-#ifdef _CGAME
-	if ( BG_InLedgeMove( cent->legsAnim ) || BG_InLedgeMove( cent->torsoAnim ) )
-	{ //keep the head anim-driven too so it can't pivot into the wall
-		VectorClear( lookAngles );
-	}
-#endif
-
 	BG_UpdateLookAngles(lookTime, lastHeadAngles, time, lookAngles, lookSpeed, -50.0f, 50.0f, -70.0f, 70.0f, -30.0f, 30.0f);
 
-	BG_G2ClientNeckAngles(ghoul2, time, lookAngles, headAngles, neckAngles, thoracicAngles, headClampMinAngles, headClampMaxAngles);
+	BG_G2ClientNeckAngles(ghoul2, time, lookAngles, headAngles, neckAngles, thoracicAngles, headClampMinAngles, headClampMaxAngles, cent);
 
 #ifdef BONE_BASED_LEG_ANGLES
 	{
@@ -12539,33 +12902,10 @@ void PmoveSingle (pmove_t *pmove) {
 	if (cgs.serverMod == SVMOD_JAPLUS) { //some JA+ animation support...
 		if (pm->ps->legsAnim == BOTH_JUMP_BACKFLIP_ATCKEE || pm->ps->torsoAnim == BOTH_JUMP_BACKFLIP_ATCKEE
 			|| pm->ps->torsoAnim == BOTH_GETUP1 || pm->ps->torsoAnim == BOTH_NEW_STABEE
-			|| (pm->ps->legsAnim >= BOTH_KISSEE && pm->ps->legsAnim <= BOTH_LEDGE_MERCPULL))
+			|| (pm->ps->legsAnim >= BOTH_KISSEE && pm->ps->legsAnim <= BOTH_KISSER1STOP))
 		{
 			PM_SetPMViewAngle(pm->ps, pm->ps->viewangles, &pm->cmd);
 			stiffenedUp = qtrue;
-
-			if (pm->ps->legsAnim >= BOTH_LEDGE_GRAB && pm->ps->legsAnim <= BOTH_LEDGE_MERCPULL)
-			{ //the server owns our position on the ledge; predicting gravity just makes us
-			  //fall a little every frame and get snapped back each snapshot (camera shake).
-			  //1 and not 0: gravity <= 0 flips PM_CheckJump into its zero-G push-off mode
-			  //(and divides by zero in PM_CrashLand), which sends the camera flying
-				pm->ps->gravity = 1;
-
-				//the ledge anims are server-driven with finite timers, and prediction
-				//runs ~a ping ahead: the moment the predicted torsoTimer hits zero,
-				//PM_Weapon stomps the torso with a weapon-ready pose until the next
-				//snapshot restores it, restarting the shimmy anim from frame 0 over
-				//and over. Keep the timers alive so prediction never ends the anim
-				//(same trick the BOTH_MEDITATE handling uses above).
-				if (pm->ps->legsTimer < 100)
-				{
-					pm->ps->legsTimer = 100;
-				}
-				if (pm->ps->torsoTimer < 100)
-				{
-					pm->ps->torsoTimer = 100;
-				}
-			}
 		}
 		else
 		{
@@ -12800,6 +13140,9 @@ void PmoveSingle (pmove_t *pmove) {
 	PM_AdjustAngleForWallJump( pm->ps, &pm->cmd, qtrue );
 	PM_AdjustAngleForWallRunUp( pm->ps, &pm->cmd, qtrue );
 	PM_AdjustAngleForWallRun( pm->ps, &pm->cmd, qtrue );
+#ifdef _CGAME
+	PM_AdjustAngleForJAPlusLedgeGrab( pm->ps, &pm->cmd );
+#endif
 
 //[JAPRO - Serverside + Clientside - Saber - Spin Red DFA , Spin Backslash - Start]
 #ifdef _GAME

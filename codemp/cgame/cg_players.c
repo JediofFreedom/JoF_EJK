@@ -3524,14 +3524,6 @@ static void CG_SetLerpFrameAnimation( centity_t *cent, clientInfo_t *ci, lerpFra
 		{
 			flags = BONE_ANIM_OVERRIDE_LOOP;
 		}
-		else if (cgs.serverMod == SVMOD_JAPLUS &&
-			(newAnimation == BOTH_LEDGE_LEFT || newAnimation == BOTH_LEDGE_RIGHT))
-		{ //JA+ ledge shimmy: authored as a half-second one-shot that freezes on its
-		  //last frame, so the hands stop moving unless the server's retrigger reaches
-		  //us at exactly the right time. Loop it client-side instead - the server
-		  //switches the anim number the moment we stop or change direction anyway.
-			flags = BONE_ANIM_OVERRIDE_LOOP;
-		}
 
 		if (animSpeed < 0)
 		{
@@ -3917,8 +3909,6 @@ static void CG_RunLerpFrame( centity_t *cent, clientInfo_t *ci, lerpFrame_t *lf,
 	}
 	else
 	{
-		qboolean flipRestart;
-
 		if ( lf->lastForcedFrame != -1 )
 		{//we were force-frozen last frame and just came out of it - the freeze
 		 //above unconditionally overrode these 3 bones regardless of whether
@@ -3932,17 +3922,7 @@ static void CG_RunLerpFrame( centity_t *cent, clientInfo_t *ci, lerpFrame_t *lf,
 
 		lf->lastForcedFrame = -1;
 
-		flipRestart = (qboolean)(lf->lastFlip != flipState);
-		if (flipRestart && newAnimation == lf->animationNumber &&
-			cgs.serverMod == SVMOD_JAPLUS &&
-			(newAnimation == BOTH_LEDGE_LEFT || newAnimation == BOTH_LEDGE_RIGHT))
-		{ //JA+ retriggers the ledge shimmy anims to keep them going; we loop them
-		  //instead (see CG_SetLerpFrameAnimation), so don't yank the loop back to
-		  //frame 0 on every retrigger.
-			flipRestart = qfalse;
-		}
-
-		if ( (newAnimation != lf->animationNumber || cent->currentState.brokenLimbs != ci->brokenLimbs || flipRestart || !lf->animation) || (CG_FirstAnimFrame(lf, torsoOnly, speedScale)) )
+		if ( (newAnimation != lf->animationNumber || cent->currentState.brokenLimbs != ci->brokenLimbs || lf->lastFlip != flipState || !lf->animation) || (CG_FirstAnimFrame(lf, torsoOnly, speedScale)) )
 		{
 			CG_SetLerpFrameAnimation( cent, ci, lf, newAnimation, speedScale, torsoOnly, flipState);
 		}

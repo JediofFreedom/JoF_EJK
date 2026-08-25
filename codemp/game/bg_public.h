@@ -667,6 +667,7 @@ extern	pmove_t		*pm;
 #define SETANIM_FLAG_HOLD		2//Set the new timer
 #define SETANIM_FLAG_RESTART	4//Allow restarting the anim if playing the same one (weapon fires)
 #define SETANIM_FLAG_HOLDLESS	8//Set the new timer
+#define SETANIM_FLAG_PACE		16//Restart only after the current animation has finished
 
 
 // if a full pmove isn't done on the client, you can just update the angles

@@ -1648,7 +1648,6 @@ void CG_PluginDisable_f( void ) {
 			Com_Printf("%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(index2)
 				? "^1Disabled" : "^2Enabled") );
 		}
-
 		else {
 			Com_Printf( "%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(index2)
 				? "^2Enabled" : "^1Disabled") );

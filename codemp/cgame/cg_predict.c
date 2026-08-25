@@ -1090,9 +1090,9 @@ static qboolean CG_InKnockDownState( playerState_t *ps )
 }
 
 // JA+ locks the local view server-side (it rewrites delta_angles every server
-// frame) while we're being kicked down, getting up, kissing or hanging from a
-// ledge. Mirrors the anim list bg_pmove's JA+ animation support locks for,
-// plus the kick knockdown window above.
+// frame) while we're being kicked down, getting up or kissing. Mirrors the anim
+// list bg_pmove's JA+ animation support locks for, plus the kick knockdown
+// window above.
 static qboolean CG_JAPlusViewLockedState( playerState_t *ps )
 {
 	if ( ps->legsAnim == BOTH_JUMP_BACKFLIP_ATCKEE || ps->torsoAnim == BOTH_JUMP_BACKFLIP_ATCKEE
@@ -1100,7 +1100,7 @@ static qboolean CG_JAPlusViewLockedState( playerState_t *ps )
 	{
 		return qtrue;
 	}
-	if ( ps->legsAnim >= BOTH_KISSEE && ps->legsAnim <= BOTH_LEDGE_MERCPULL )
+	if ( ps->legsAnim >= BOTH_KISSEE && ps->legsAnim <= BOTH_KISSER1STOP )
 	{
 		return qtrue;
 	}
