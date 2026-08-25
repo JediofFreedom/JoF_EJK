@@ -45,6 +45,7 @@
 			hide			joycontrols ;
 			hide			othercontrols ;
 			hide			japrocontrols ;
+			hide			radialmenucontrols ;
 			setitemcolor		movementcontrolbutton 		forecolor 1 1 1 1 ;
 			setitemcolor		attackcontrolbutton 		forecolor 1 .682 0 1
 			setitemcolor		weaponscontrolbutton 		forecolor 1 .682 0 1 ;
@@ -53,6 +54,7 @@
 			setitemcolor		mousejoystickcontrolbutton 	forecolor 1 .682 0 1 ;
 			setitemcolor		othercontrolbutton 		forecolor 1 .682 0 1 ;
 			setitemcolor		japrocontrolbutton 			forecolor 1 .682 0 1 ;
+			setitemcolor		radialmenubutton 			forecolor 1 .682 0 1 ;
 		}
 
 		// Overall window backdrop
@@ -139,6 +141,7 @@
 				hide			joycontrols ;
 				hide			othercontrols ;
 				hide			japrocontrols ;
+				hide			radialmenucontrols ;
 				setitemcolor		movementcontrolbutton 		forecolor 1 1 1 1 ;
 				setitemcolor		attackcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		weaponscontrolbutton 		forecolor 1 .682 0 1 ;
@@ -147,6 +150,7 @@
 				setitemcolor		mousejoystickcontrolbutton 	forecolor 1 .682 0 1 ;
 				setitemcolor		othercontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		japrocontrolbutton 			forecolor 1 .682 0 1 ;
+				setitemcolor		radialmenubutton 			forecolor 1 .682 0 1 ;
 			}
 		}
 
@@ -201,6 +205,7 @@
 				hide			joycontrols ;
 				hide			othercontrols ;
 				hide			japrocontrols ;
+				hide			radialmenucontrols ;
 				setitemcolor		movementcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		attackcontrolbutton 		forecolor 1 1 1 1 ;
 				setitemcolor		weaponscontrolbutton 		forecolor 1 .682 0 1 ;
@@ -209,6 +214,7 @@
 				setitemcolor		mousejoystickcontrolbutton 	forecolor 1 .682 0 1 ;
 				setitemcolor		othercontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		japrocontrolbutton 			forecolor 1 .682 0 1 ;
+				setitemcolor		radialmenubutton 			forecolor 1 .682 0 1 ;
 			}
 		}
 
@@ -263,6 +269,7 @@
 				hide			joycontrols ;
 				hide			othercontrols ;
 				hide			japrocontrols ;
+				hide			radialmenucontrols ;
 				setitemcolor		movementcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		attackcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		weaponscontrolbutton 		forecolor 1 1 1 1 ;
@@ -271,6 +278,7 @@
 				setitemcolor		mousejoystickcontrolbutton 	forecolor 1 .682 0 1 ;
 				setitemcolor		othercontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		japrocontrolbutton 			forecolor 1 .682 0 1 ;
+				setitemcolor		radialmenubutton 			forecolor 1 .682 0 1 ;
 			}
 		}
 
@@ -325,6 +333,7 @@
 				hide			joycontrols ;
 				hide			othercontrols ;
 				hide			japrocontrols ;
+				hide			radialmenucontrols ;
 				setitemcolor		movementcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		attackcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		weaponscontrolbutton 		forecolor 1 .682 0 1 ;
@@ -333,6 +342,7 @@
 				setitemcolor		mousejoystickcontrolbutton 	forecolor 1 .682 0 1 ;
 				setitemcolor		othercontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		japrocontrolbutton 			forecolor 1 .682 0 1 ;
+				setitemcolor		radialmenubutton 			forecolor 1 .682 0 1 ;
 			}
 		}
 
@@ -386,6 +396,7 @@
 				hide			joycontrols ;
 				hide			othercontrols ;
 				hide			japrocontrols ;
+				hide			radialmenucontrols ;
 				setitemcolor		movementcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		attackcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		weaponscontrolbutton 		forecolor 1 .682 0 1 ;
@@ -394,6 +405,7 @@
 				setitemcolor		mousejoystickcontrolbutton 	forecolor 1 .682 0 1 ;
 				setitemcolor		othercontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		japrocontrolbutton 			forecolor 1 .682 0 1 ;
+				setitemcolor		radialmenubutton 			forecolor 1 .682 0 1 ;
 			}
 		}
 
@@ -448,6 +460,7 @@
 				show			joycontrols ;
 				hide			othercontrols ;
 				hide			japrocontrols ;
+				hide			radialmenucontrols ;
 				setitemcolor		movementcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		attackcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		weaponscontrolbutton 		forecolor 1 .682 0 1 ;
@@ -456,6 +469,7 @@
 				setitemcolor		mousejoystickcontrolbutton 	forecolor 1 1 1 1 ;
 				setitemcolor		othercontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		japrocontrolbutton 			forecolor 1 .682 0 1 ;
+				setitemcolor		radialmenubutton 			forecolor 1 .682 0 1 ;
 			}
 		}
 
@@ -510,6 +524,7 @@
 				hide			joycontrols ;
 				show			othercontrols ;
 				hide			japrocontrols ;
+				hide			radialmenucontrols ;
 				setitemcolor		movementcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		attackcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		weaponscontrolbutton 		forecolor 1 .682 0 1 ;
@@ -518,6 +533,7 @@
 				setitemcolor		mousejoystickcontrolbutton 	forecolor 1 .682 0 1 ;
 				setitemcolor		othercontrolbutton 		forecolor 1 1 1 1 ;
 				setitemcolor		japrocontrolbutton 			forecolor 1 .682 0 1 ;
+				setitemcolor		radialmenubutton 			forecolor 1 .682 0 1 ;
 			}
 		}
 		
@@ -572,6 +588,7 @@
 				hide			joycontrols ;
 				hide			othercontrols ;
 				show			japrocontrols ;
+				hide			radialmenucontrols ;
 				setitemcolor		movementcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		attackcontrolbutton 		forecolor 1 .682 0 1 ;
 				setitemcolor		weaponscontrolbutton 		forecolor 1 .682 0 1 ;
@@ -580,9 +597,73 @@
 				setitemcolor		mousejoystickcontrolbutton 	forecolor 1 .682 0 1 ;
 				setitemcolor		othercontrolbutton 			forecolor 1 .682 0 1 ;
 				setitemcolor		japrocontrolbutton 			forecolor 1 1 1 1 ;
+				setitemcolor		radialmenubutton 			forecolor 1 .682 0 1 ;
 			}
 		}
 		
+		// radialmenu button
+		itemDef 
+		{
+			name				radialmenubutton_glow
+			group				mods
+			style				WINDOW_STYLE_SHADER
+			rect				20 283 185 30
+			background			"gfx/menus/menu_blendbox2"			// Frame around button
+			forecolor			1 1 1 1
+			visible				0
+			decoration
+		}
+
+		itemDef 
+		{
+			name				radialmenubutton
+			group				none
+			text				"radial menu"
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				20 283 170 30
+			font				3
+			textscale			0.8
+			textalignx			170
+			textaligny			5
+			textalign			ITEM_ALIGN_RIGHT
+			textstyle			3
+			forecolor			0.65 0.65 1 1
+			visible				1
+			descText			"Configure the Radial Menu binds."
+
+			mouseEnter 
+			{ 
+				show			radialmenubutton_glow
+			}
+			mouseExit 
+			{ 
+				hide			radialmenubutton_glow
+			}	  	  
+			action 
+			{ 
+				play			"sound/interface/button1.wav" ;
+				show			setup_background ;
+				hide			movecontrols ;
+				hide 			attackcontrols ;
+				hide 			weaponcontrols ;	
+				hide			forcecontrols ;
+				hide			forcecontrols2 ;
+				hide			joycontrols ;
+				hide			othercontrols ;
+				hide			japrocontrols ;
+				show			radialmenucontrols ;
+				setitemcolor		movementcontrolbutton 		forecolor 1 .682 0 1 ;
+				setitemcolor		attackcontrolbutton 		forecolor 1 .682 0 1 ;
+				setitemcolor		weaponscontrolbutton 		forecolor 1 .682 0 1 ;
+				setitemcolor		forcecontrolbutton 			forecolor 1 .682 0 1 ;
+				setitemcolor		forcecontrolbutton2 		forecolor 1 .682 0 1 ;
+				setitemcolor		mousejoystickcontrolbutton 	forecolor 1 .682 0 1 ;
+				setitemcolor		othercontrolbutton 			forecolor 1 .682 0 1 ;
+				setitemcolor		japrocontrolbutton 			forecolor 1 .682 0 1 ;
+				setitemcolor		radialmenubutton 			forecolor 1 1 1 1 ;
+			}
+		}
 		itemDef 
 		{
 			name				setup_background
@@ -2496,6 +2577,316 @@
 			}
 		}
 
+		//----------------------------------------------------------------------------------------------
+		//
+		//	RADIAL MENU BINDING
+		//
+		//----------------------------------------------------------------------------------------------
+
+		itemDef 
+		{
+			group				radialmenucontrols
+			type				ITEM_TYPE_BIND
+			text				"Radial Menu:"
+			cvar				"+radialmenu"
+			rect				220 61 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			151
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"Hold button to show the radial quick-command menu."
+			action
+			{
+				play			"sound/interface/button1.wav" ; 
+			}
+
+			mouseenter 
+			{
+				show			highlight2
+				show			keybindstatus
+			}
+			mouseexit 
+			{ 
+				hide			highlight2
+				hide			keybindstatus
+			}
+		}
+
+		itemDef 
+		{
+			group				radialmenucontrols
+			type				ITEM_TYPE_EDITFIELD
+			text				"Radial Slot 1:"
+			cvar				"cg_radialbind1"
+			rect				220 81 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			151
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"The command will be executed on slot 1."
+			maxChars        	64
+    		maxPaintChars   	32
+			action
+			{
+				play			"sound/interface/button1.wav" ; 
+			}
+
+			mouseenter 
+			{
+				show			highlight3
+				show			keybindstatus
+			}
+			mouseexit 
+			{ 
+				hide			highlight3
+				hide			keybindstatus
+			}
+		}
+		
+		itemDef 
+		{
+			group				radialmenucontrols
+			type				ITEM_TYPE_EDITFIELD
+			text				"Radial Slot 2:"
+			cvar				"cg_radialbind2"
+			rect				220 101 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			151
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"The command will be executed on slot 2."
+			maxChars        	64
+    		maxPaintChars   	32
+			action
+			{
+				play			"sound/interface/button1.wav" ; 
+			}
+
+			mouseenter 
+			{
+				show			highlight4
+				show			keybindstatus
+			}
+			mouseexit 
+			{ 
+				hide			highlight4
+				hide			keybindstatus
+			}
+		}
+
+		itemDef 
+		{
+			group				radialmenucontrols
+			type				ITEM_TYPE_EDITFIELD
+			text				"Radial Slot 3:"
+			cvar				"cg_radialbind3"
+			rect				220 121 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			151
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"The command will be executed on slot 3."
+			maxChars        	64
+    		maxPaintChars   	32
+			action
+			{
+				play			"sound/interface/button1.wav" ; 
+			}
+
+			mouseenter 
+			{
+				show			highlight5
+				show			keybindstatus
+			}
+			mouseexit 
+			{ 
+				hide			highlight5
+				hide			keybindstatus
+			}
+		}
+		
+		itemDef 
+		{
+			group				radialmenucontrols
+			type				ITEM_TYPE_EDITFIELD
+			text				"Radial Slot 4:"
+			cvar				"cg_radialbind4"
+			rect				220 141 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			151
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"The command will be executed on slot 4."
+			maxChars        	64
+    		maxPaintChars   	32
+			action
+			{
+				play			"sound/interface/button1.wav" ; 
+			}
+
+			mouseenter 
+			{
+				show			highlight6
+				show			keybindstatus
+			}
+			mouseexit 
+			{ 
+				hide			highlight6
+				hide			keybindstatus
+			}
+		}
+		
+		itemDef 
+		{
+			group				radialmenucontrols
+			type				ITEM_TYPE_EDITFIELD
+			text				"Radial Slot 5:"
+			cvar				"cg_radialbind5"
+			rect				220 161 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			151
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"The command will be executed on slot 5."
+			maxChars        	64
+    		maxPaintChars   	32
+			action
+			{
+				play			"sound/interface/button1.wav" ; 
+			}
+
+			mouseenter 
+			{
+				show			highlight7
+				show			keybindstatus
+			}
+			mouseexit 
+			{ 
+				hide			highlight7
+				hide			keybindstatus
+			}
+		}
+		
+		itemDef 
+		{
+			group				radialmenucontrols
+			type				ITEM_TYPE_EDITFIELD
+			text				"Radial Slot 6:"
+			cvar				"cg_radialbind6"
+			rect				220 181 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			151
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"The command will be executed on slot 6."
+			maxChars        	64
+    		maxPaintChars   	32
+			action
+			{
+				play			"sound/interface/button1.wav" ; 
+			}
+
+			mouseenter 
+			{
+				show			highlight8
+				show			keybindstatus
+			}
+			mouseexit 
+			{ 
+				hide			highlight8
+				hide			keybindstatus
+			}
+		}
+		
+		itemDef 
+		{
+			group				radialmenucontrols
+			type				ITEM_TYPE_EDITFIELD
+			text				"Radial Slot 7:"
+			cvar				"cg_radialbind7"
+			rect				220 201 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			151
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"The command will be executed on slot 7."
+			maxChars        	64
+    		maxPaintChars   	32
+			action
+			{
+				play			"sound/interface/button1.wav" ; 
+			}
+
+			mouseenter 
+			{
+				show			highlight9
+				show			keybindstatus
+			}
+			mouseexit 
+			{ 
+				hide			highlight9
+				hide			keybindstatus
+			}
+		}
+		
+		itemDef 
+		{
+			group				radialmenucontrols
+			type				ITEM_TYPE_EDITFIELD
+			text				"Radial Slot 8:"
+			cvar				"cg_radialbind8"
+			rect				220 221 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			151
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"The command will be executed on slot 8."
+			maxChars        	64
+    		maxPaintChars   	32
+			action
+			{
+				play			"sound/interface/button1.wav" ; 
+			}
+
+			mouseenter 
+			{
+				show			highlight10
+				show			keybindstatus
+			}
+			mouseexit 
+			{ 
+				hide			highlight10
+				hide			keybindstatus
+			}
+		}
+
 //----------------------------------------------------------------------------------------------
 //
 //	MOUSE/JOYSTICK KEY BINDING
@@ -3759,39 +4150,6 @@
 				hide			keybindstatus
 			}
 		}
-		
-		itemDef 
-		{
-			group				japrocontrols
-			type				ITEM_TYPE_BIND
-			text				"Radial Menu:"
-			cvar				"+radialmenu"
-			rect				220 301 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			151 
-			textaligny			0
-			font				4
-			textscale			1
-			forecolor			.615 .615 .956 1
-			visible				0 
-			descText			"Open the radial quick-command menu."
-			action
-			{
-				play			"sound/interface/button1.wav" ; 
-			}
-
-			mouseenter 
-			{
-				show			highlight14
-				show			keybindstatus
-			}
-			mouseexit 
-			{ 
-				hide			highlight14
-				hide			keybindstatus
-			}
-		}
-		
 		//----------------------------------------------------------------------------------------------
 		//
 		//	Text

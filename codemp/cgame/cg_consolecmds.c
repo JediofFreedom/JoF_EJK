@@ -767,7 +767,6 @@ static void CG_ModVersion_f(void)
 	trap->SendConsoleCommand("ui_modversion\n");
 	if (cgs.serverMod == SVMOD_JAPRO) {
 		trap->SendClientCommand( "modversion" );
-		trap->Cvar_Set("cjp_client", "1.4JAPRO"); //Do this manually here i guess, just incase it does not do it when game is created due to ja+ or something
 	}
 }
 
@@ -1280,6 +1279,7 @@ static void CG_Flipkick_f(void)
 static void CG_Lowjump_f(void)
 {
 	int index;
+	char val[4];
 
 	if ((cgs.serverMod == SVMOD_JAPRO && cg.predictedPlayerState.stats[STAT_RACEMODE]) || (cgs.restricts & RESTRICT_DO)) {
 		trap->SendConsoleCommand("+moveup;wait 2;-moveup\n");
@@ -1289,7 +1289,12 @@ static void CG_Lowjump_f(void)
 	index = CG_Do_GetIndex();
 	trap->SendConsoleCommand("+moveup\n");
 	Q_strncpyz(cg.doVstr[index], "-moveup\n", sizeof(cg.doVstr));
-	cg.doVstrTime[index] = trap->Milliseconds();
+
+	trap->Cvar_VariableStringBuffer("cl_cmdratecap", val, sizeof(val));
+	if (atoi(val))
+		cg.doVstrTime[index] = trap->Milliseconds() + 16;
+	else
+		cg.doVstrTime[index] = trap->Milliseconds();
 }
 
 static void CG_NorollDown_f(void)
@@ -1470,12 +1475,12 @@ static qboolean japroPluginDisables[] = {
 	qfalse,//{"End duel rotation"},//3
 	qtrue,//{"Black saber disable"},//4
 	qfalse,//{"Auto reply disable"},//5
-	qfalse,//{"New force effect"},//6
+	qfalse,//{"Disable new force effect"},//6
 	qfalse,//{"New deathmsg disable"},//7
 	qfalse,//{"New sight effect"},//8
 	qfalse,//{"No alt dim effect"},//9
 	qfalse,//{"Holstered saber"},//10
-	qfalse,//{"Ledge grab"},//11
+	qfalse,//{"Disable Ledge grab"},//11
 	qfalse,//{"Disable New DFA Primary"},//12
 	qfalse,//{"Disable New DFA Alt"},//13
 	qfalse,//{"No SP Cartwheel"},//14
@@ -1505,12 +1510,12 @@ static qboolean japlusPluginDisables[] = {
 	qtrue,//{"End duel rotation"},//3
 	qtrue,//{"Black saber disable"},//4
 	qtrue,//{"Auto reply disable"},//5
-	qtrue,//{"New force effect"},//6
+	qtrue,//{"Disable new force effect"},//6
 	qtrue,//{"New deathmsg disable"},//7
 	qtrue,//{"New sight effect"},//8
 	qtrue,//{"No alt dim effect"},//9
 	qtrue,//{"Holstered saber"},//10
-	qtrue,//{"Ledge grab"},//11
+	qtrue,//{"Disable Ledge grab"},//11
 	qtrue,//{"Disable New DFA Primary"},//12
 	qtrue,//{"Disable New DFA Alt"},//13
 	qtrue,//{"No SP Cartwheel"},//14
@@ -1540,12 +1545,12 @@ static bitInfo_T pluginDisables[] = { // MAX_WEAPON_TWEAKS tweaks (24)
 	{"End duel rotation"},//3
 	{"No black sabers"},//4
 	{"No auto replier"},//5
-	{"New force effect"},//6
+	{"Disable new force effects"},//6
 	{"No new deathmsg"},//7
 	{"New sight effect"},//8
 	{"No alt dim effect"},//9
 	{"Holster staff on back"},//10
-	{"Ledge grab"},//11
+	{"Disable Ledge grab"},//11
 	{"Disable New DFA Primary"},//12
 	{"Disable New DFA Alt"},//13
 	{"No SP Cartwheel"},//14
@@ -1572,12 +1577,12 @@ static const int MAX_PLUGINDISABLES = ARRAY_LEN( pluginDisables );
 
 static qboolean CG_PluginOptionEnabled(int index)
 {
-	if (index == 9 || index == 10)
-	{ // Holstered sabers and ledge grab use disable bits.
-		return !(cp_pluginDisable.integer & (1 << index));
+	if (index == 9)
+	{ // Plugin 9 is inverted: bit set means option disabled
+		return (cp_pluginDisable.integer & (1 << index));
 	}
 
-	return (cp_pluginDisable.integer & (1 << index)) != 0;
+	return !(cp_pluginDisable.integer & (1 << index)) != 0;
 }
 
 void CG_PluginDisable_f( void ) {
@@ -1597,10 +1602,10 @@ void CG_PluginDisable_f( void ) {
 				continue;
 
 			if ( CG_PluginOptionEnabled(i) ) {
-				Com_Printf( "%2d [X] %s\n", display, pluginDisables[i].string );
+				Com_Printf( "%2d [ ] %s\n", display, pluginDisables[i].string );
 			}
 			else {
-				Com_Printf( "%2d [ ] %s\n", display, pluginDisables[i].string );
+				Com_Printf( "%2d [X] %s\n", display, pluginDisables[i].string );
 			}
 			display++;
 		}
@@ -1639,8 +1644,15 @@ void CG_PluginDisable_f( void ) {
 		trap->Cvar_Set( "cp_pluginDisable", va( "%i", (1 << index2) ^ (cp_pluginDisable.integer & mask ) ) );
 		trap->Cvar_Update( &cp_pluginDisable );
 
-		Com_Printf( "%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(index2)
-			? "^2Enabled" : "^1Disabled") );
+		if (index2 == 10 || index2 == 5) {
+			Com_Printf("%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(index2)
+				? "^1Disabled" : "^2Enabled") );
+		}
+
+		else {
+			Com_Printf( "%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(index2)
+				? "^2Enabled" : "^1Disabled") );
+		}
 	}
 }
 

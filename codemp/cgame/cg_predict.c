@@ -1041,6 +1041,54 @@ static QINLINE int FindGrappleHook( int clientNum ) {
 }
 #endif
 
+extern qboolean PM_InKnockDown( playerState_t *ps ); //bg_panimate.c
+extern qboolean BG_InKnockDown( int anim ); //bg_pmove.c
+
+// True from the moment we're knocked down until the get-up animation has fully
+// played out. PM_InKnockDown alone isn't enough: JA+ can play the get-up on the
+// torso channel while the legs are already free, so check both channels.
+static qboolean CG_InKnockDownState( playerState_t *ps )
+{
+	if ( ps->forceHandExtend == HANDEXTEND_KNOCKDOWN )
+	{
+		return qtrue;
+	}
+	if ( PM_InKnockDown( ps ) )
+	{
+		return qtrue;
+	}
+	if ( BG_InKnockDown( ps->legsAnim ) && ps->legsTimer > 0 )
+	{
+		return qtrue;
+	}
+	if ( BG_InKnockDown( ps->torsoAnim ) && ps->torsoTimer > 0 )
+	{
+		return qtrue;
+	}
+	// JA+ kicks use these custom falling/get-up anims (seen with fhe already
+	// cleared); BG_InKnockDown only counts them on JA Pro servers, so handle
+	// them here explicitly.
+	switch ( ps->legsAnim )
+	{
+	case BOTH_BACK_FALLING:
+	case BOTH_BACK_FALLING_GETUP:
+	case BOTH_BACK_FALLING_GETUP_SLOW:
+		return qtrue;
+	default:
+		break;
+	}
+	switch ( ps->torsoAnim )
+	{
+	case BOTH_BACK_FALLING:
+	case BOTH_BACK_FALLING_GETUP:
+	case BOTH_BACK_FALLING_GETUP_SLOW:
+		return qtrue;
+	default:
+		break;
+	}
+	return qfalse;
+}
+
 void CG_PredictPlayerState( void ) {
 	int			cmdNum, current, i;
 	playerState_t	oldPlayerState;
@@ -1078,6 +1126,21 @@ void CG_PredictPlayerState( void ) {
 
 	// non-predicting local movement will grab the latest angles
 	if ( cg_noPredict.integer || g_synchronousClients.integer || CG_UsingEWeb() ) {
+		CG_InterpolatePlayerState( qtrue );
+		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
+		{
+			CG_InterpolateVehiclePlayerState(qtrue);
+		}
+		return;
+	}
+
+	// JA+ kick knockdowns: the server runs its own knockdown/get-up rules that our
+	// bg_pmove doesn't replicate, so while we're down every movement input mispredicts
+	// and the constant error corrections make the camera stutter. We can't actually
+	// move during the knockdown anyway, so prediction buys nothing there: fall back to
+	// snapshot interpolation (cg_noPredict behavior) until we're back on our feet.
+	if ( cgs.serverMod == SVMOD_JAPLUS && CG_InKnockDownState( &cg.snap->ps ) )
+	{
 		CG_InterpolatePlayerState( qtrue );
 		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 		{
@@ -1353,7 +1416,12 @@ void CG_PredictPlayerState( void ) {
 				len = VectorLength( delta );
 				if ( len > 0.1 ) {
 					if ( cg_showMiss.integer ) {
-						trap->Print("Prediction miss: %f\n", len);
+						// dump the snapshot anim state too, to identify states (e.g. JA+
+						// knockdown get-ups) that slip past the knockdown prediction gate
+						trap->Print("Prediction miss: %f (legsAnim %d legsTimer %d torsoAnim %d torsoTimer %d fhe %d pm_type %d)\n",
+							len, cg.snap->ps.legsAnim, cg.snap->ps.legsTimer,
+							cg.snap->ps.torsoAnim, cg.snap->ps.torsoTimer,
+							cg.snap->ps.forceHandExtend, cg.snap->ps.pm_type);
 					}
 					if ( cg_errorDecay.integer ) {
 						int		t;

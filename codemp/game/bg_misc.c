@@ -2847,6 +2847,232 @@ qboolean BG_IsValidCharacterModel(const char *modelName, const char *skinName)
 	return qtrue;
 }
 
+//Two ways to keep a model off players (NPCs are unaffected either way - they never
+//go through the player clientinfo path):
+//
+//	1. models/players/<model>/settings.txt containing "notInMP 1", so a model can
+//	   declare itself NPC-only.
+//	2. any number of ext_data/modelblacklist/*.txt files listing model names, one per
+//	   line. The filesystem merges this directory across every loaded pk3, so a model
+//	   pack can ship models plus its own blacklist file in the same pk3. Give the file
+//	   a name unique to your pk3: same-named files in different pk3s shadow each other,
+//	   only the highest priority one is read.
+#define MAX_MODEL_SETTINGS_CACHE	256
+#define MODEL_SETTINGS_FILE_SIZE	4096
+#define MAX_BLACKLISTED_MODELS		512
+#define MODEL_BLACKLIST_FILE_SIZE	16384
+
+typedef struct modelSettings_s {
+	char		modelName[MAX_QPATH];
+	qboolean	notInMP;
+} modelSettings_t;
+
+static modelSettings_t	bg_modelSettings[MAX_MODEL_SETTINGS_CACHE];
+static int				bg_numModelSettings = 0;
+
+static qboolean BG_ParseModelSettings( const char *modelName )
+{
+	fileHandle_t	f = NULL_FILE;
+	int				len;
+	char			buffer[MODEL_SETTINGS_FILE_SIZE];
+	const char		*p;
+	char			*token;
+	qboolean		notInMP = qfalse;
+
+	len = trap->FS_Open( va( "models/players/%s/settings.txt", modelName ), &f, FS_READ );
+	if ( !f )
+	{
+		return qfalse;
+	}
+
+	if ( len <= 0 || len >= (int)sizeof( buffer ) )
+	{
+		trap->FS_Close( f );
+		return qfalse;
+	}
+
+	trap->FS_Read( buffer, len, f );
+	trap->FS_Close( f );
+	buffer[len] = '\0';
+
+	p = buffer;
+	COM_BeginParseSession( "model settings" );
+
+	while ( 1 )
+	{
+		token = COM_ParseExt( &p, qtrue );
+		if ( !token[0] )
+		{
+			break;
+		}
+
+		if ( !Q_stricmp( token, "notInMP" ) )
+		{
+			token = COM_ParseExt( &p, qfalse );
+			notInMP = (qboolean)(atoi( token ) != 0);
+		}
+	}
+
+	return notInMP;
+}
+
+static char		bg_blacklistedModels[MAX_BLACKLISTED_MODELS][MAX_QPATH];
+static int		bg_numBlacklistedModels = 0;
+static qboolean	bg_modelBlacklistLoaded = qfalse;
+
+static void BG_ParseModelBlacklistFile( const char *fileName )
+{
+	fileHandle_t	f = NULL_FILE;
+	int				len;
+	char			buffer[MODEL_BLACKLIST_FILE_SIZE];
+	const char		*p;
+	char			*token;
+
+	len = trap->FS_Open( va( "ext_data/modelblacklist/%s", fileName ), &f, FS_READ );
+	if ( !f )
+	{
+		return;
+	}
+
+	if ( len <= 0 || len >= (int)sizeof( buffer ) )
+	{
+		Com_Printf( "BG_ParseModelBlacklistFile: skipping %s (empty, or larger than %d bytes)\n", fileName, MODEL_BLACKLIST_FILE_SIZE );
+		trap->FS_Close( f );
+		return;
+	}
+
+	trap->FS_Read( buffer, len, f );
+	trap->FS_Close( f );
+	buffer[len] = '\0';
+
+	p = buffer;
+	COM_BeginParseSession( fileName );
+
+	while ( 1 )
+	{
+		token = COM_ParseExt( &p, qtrue );
+		if ( !token[0] )
+		{
+			break;
+		}
+
+		if ( bg_numBlacklistedModels >= MAX_BLACKLISTED_MODELS )
+		{
+			Com_Printf( "BG_ParseModelBlacklistFile: too many blacklisted models (max %d), ignoring the rest of %s\n", MAX_BLACKLISTED_MODELS, fileName );
+			return;
+		}
+
+		Q_strncpyz( bg_blacklistedModels[bg_numBlacklistedModels], token, MAX_QPATH );
+		bg_numBlacklistedModels++;
+	}
+}
+
+//merge every ext_data/modelblacklist/*.txt across all loaded pk3s
+void BG_LoadModelBlacklist( void )
+{
+	char	fileList[4096];
+	char	*fileName;
+	int		fileCount, fileNameLen, i;
+
+	bg_numBlacklistedModels = 0;
+	bg_numModelSettings = 0;
+	bg_modelBlacklistLoaded = qtrue;
+
+	fileCount = trap->FS_GetFileList( "ext_data/modelblacklist", ".txt", fileList, sizeof( fileList ) );
+	fileName = fileList;
+
+	for ( i = 0; i < fileCount; i++, fileName += fileNameLen + 1 )
+	{
+		fileNameLen = strlen( fileName );
+		BG_ParseModelBlacklistFile( fileName );
+	}
+
+	if ( bg_numBlacklistedModels )
+	{
+		Com_Printf( "Loaded %d blacklisted playermodel(s) from %d file(s)\n", bg_numBlacklistedModels, fileCount );
+	}
+}
+
+//qtrue if this model is off limits to players, by its own settings.txt or a blacklist file
+qboolean BG_ModelIsNPCOnly( const char *modelName )
+{
+	int			i;
+	qboolean	notInMP;
+
+	if ( !modelName || !modelName[0] )
+	{
+		return qfalse;
+	}
+
+	if ( !bg_modelBlacklistLoaded )
+	{
+		BG_LoadModelBlacklist();
+	}
+
+	for ( i = 0; i < bg_numBlacklistedModels; i++ )
+	{
+		if ( !Q_stricmp( bg_blacklistedModels[i], modelName ) )
+		{
+			return qtrue;
+		}
+	}
+
+	for ( i = 0; i < bg_numModelSettings; i++ )
+	{
+		if ( !Q_stricmp( bg_modelSettings[i].modelName, modelName ) )
+		{
+			return bg_modelSettings[i].notInMP;
+		}
+	}
+
+	notInMP = BG_ParseModelSettings( modelName );
+
+	if ( bg_numModelSettings < MAX_MODEL_SETTINGS_CACHE )
+	{
+		Q_strncpyz( bg_modelSettings[bg_numModelSettings].modelName, modelName, MAX_QPATH );
+		bg_modelSettings[bg_numModelSettings].notInMP = notInMP;
+		bg_numModelSettings++;
+	}
+
+	return notInMP;
+}
+
+//qtrue if modelName appears in a whitespace/comma separated list, e.g. a user blacklist cvar
+qboolean BG_ModelInList( const char *modelName, const char *list )
+{
+	const char	*p;
+	int			len;
+
+	if ( !modelName || !modelName[0] || !list || !list[0] )
+	{
+		return qfalse;
+	}
+
+	len = strlen( modelName );
+	p = list;
+
+	while ( *p )
+	{
+		while ( *p == ' ' || *p == '\t' || *p == ',' || *p == ';' )
+		{
+			p++;
+		}
+
+		if ( !Q_stricmpn( p, modelName, len )
+			&& (p[len] == '\0' || p[len] == ' ' || p[len] == '\t' || p[len] == ',' || p[len] == ';' || p[len] == '/') )
+		{
+			return qtrue;
+		}
+
+		while ( *p && *p != ' ' && *p != '\t' && *p != ',' && *p != ';' )
+		{
+			p++;
+		}
+	}
+
+	return qfalse;
+}
+
 qboolean BG_ValidateSkinForTeam( const char *modelName, char *skinName, int team, float *colors )
 {
 	if (strlen (modelName) > 5 && !Q_stricmpn (modelName, "jedi_", 5))

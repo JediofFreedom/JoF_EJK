@@ -360,6 +360,25 @@ jobs:
             JoF-macos-x86_64.tar.gz
             JoF-macos-arm64.tar.gz
 
+      - name: Notify Discord
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          DISPLAY: ${{ env.DISPLAY_VERSION }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK secret is not set; skipping notification."
+            exit 0
+          fi
+          payload=$(jq -n \
+            --arg title "New beta release: ${DISPLAY}" \
+            --arg url "https://github.com/${REPO}/releases/tag/${TAG}" \
+            --arg desc "A new beta build is available for download." \
+            '{username:"JoF Releases", embeds:[{title:$title, url:$url, description:$desc, color:15844367}]}')
+          curl -sf -H "Content-Type: application/json" -X POST -d "$payload" "$DISCORD_WEBHOOK"
+
   # =========================
   # MASTER (nightly/manual, only if changes)
   # =========================
@@ -737,3 +756,21 @@ jobs:
             JoF-linux-x86_64.tar.gz
             JoF-macos-x86_64.tar.gz
             JoF-macos-arm64.tar.gz
+
+      - name: Notify Discord
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK secret is not set; skipping notification."
+            exit 0
+          fi
+          payload=$(jq -n \
+            --arg title "New release: ${TAG}" \
+            --arg url "https://github.com/${REPO}/releases/tag/${TAG}" \
+            --arg desc "A new stable build is available for download." \
+            '{username:"JoF Releases", embeds:[{title:$title, url:$url, description:$desc, color:5763719}]}')
+          curl -sf -H "Content-Type: application/json" -X POST -d "$payload" "$DISCORD_WEBHOOK"

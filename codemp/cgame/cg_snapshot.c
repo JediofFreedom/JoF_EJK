@@ -244,6 +244,13 @@ static void CG_TransitionSnapshot( void ) {
 			|| cg_noPredict.integer || g_synchronousClients.integer || CG_UsingEWeb() ) {
 			CG_TransitionPlayerState( ps, ops );
 		}
+		else {
+			// under prediction, server-injected events (ps.externalEvent) can
+			// be missed by the predicted-pair transition in
+			// CG_PredictPlayerState; dispatch them off the authoritative
+			// snapshot pair (deduped via cg.lastExternalEvent)
+			CG_CheckExternalEvent( ps, ops );
+		}
 	}
 
 }
