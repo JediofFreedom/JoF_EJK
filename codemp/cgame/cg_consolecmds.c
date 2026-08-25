@@ -1572,8 +1572,8 @@ static const int MAX_PLUGINDISABLES = ARRAY_LEN( pluginDisables );
 
 static qboolean CG_PluginOptionEnabled(int index)
 {
-	if (index == 9)
-	{ // Plugin 9 is inverted: bit set means option disabled
+	if (index == 9 || index == 10)
+	{ // Holstered sabers and ledge grab use disable bits.
 		return !(cp_pluginDisable.integer & (1 << index));
 	}
 
@@ -1639,7 +1639,7 @@ void CG_PluginDisable_f( void ) {
 		trap->Cvar_Set( "cp_pluginDisable", va( "%i", (1 << index2) ^ (cp_pluginDisable.integer & mask ) ) );
 		trap->Cvar_Update( &cp_pluginDisable );
 
-		Com_Printf( "%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(i)
+		Com_Printf( "%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(index2)
 			? "^2Enabled" : "^1Disabled") );
 	}
 }
