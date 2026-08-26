@@ -637,6 +637,9 @@ typedef struct centity_s {
 	unsigned int	flameThrowerHitTime;
 	qboolean		  flameThrowerSndActive;
 	qboolean	hasPlayedJetpackSounds;
+
+	int				saberSoundOnDebounceTime;
+	int				saberSoundOffDebounceTime;
 } centity_t;
 
 
