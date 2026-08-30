@@ -1832,6 +1832,188 @@ CG_NewClientInfo
 void WP_SetSaber( int entNum, saberInfo_t *sabers, int saberNum, const char *saberName );
 static QINLINE void ParseRGBSaber(char *str, vec3_t c);//rgb
 
+/*
+======================
+CG_ResolveCosmetic
+
+Turns a cosmetic name off the wire into an entry in our local registry. Anything we don't
+have on disk resolves to NULL, which is simply "no hat" - a player wearing something we
+never downloaded is drawn bare-headed rather than dropping us.
+======================
+*/
+static cosmeticItem_t *CG_ResolveCosmetic( const char *cosName, cosmeticItem_t *cosmetics, int totalCosmetics )
+{
+	cosmeticItem_t *item;
+
+	if ( !cosName || !cosName[0] || !Q_stricmp( cosName, "none" ) )
+		return NULL;
+
+	if ( strlen( cosName ) >= MAX_COSMETIC_LENGTH )
+		return NULL;
+
+	item = CG_CosmeticForName( cosName, cosmetics, totalCosmetics );
+
+	//a model that failed to load registers as handle 0 - treat it as absent
+	if ( !item || !item->handle )
+		return NULL;
+
+	return item;
+}
+
+/*
+======================
+CG_CosmeticJSONMatch
+
+Looks a model or skin name up in a .cosmetic object. An exact key wins; failing that we
+take the wildcard key ("kyle*", "de*") with the longest matching prefix, so the most
+specific rule wins. Returns NULL when nothing matches.
+======================
+*/
+static cJSON *CG_CosmeticJSONMatch( cJSON *obj, const char *name )
+{
+	cJSON *match = NULL;
+	int i, bestLen = -1;
+	size_t nameLen = strlen( name );
+
+	match = cJSON_GetObjectItemCaseSensitive( obj, name );
+	if ( match )
+		return match;
+
+	for ( i = 0; i < cJSON_GetArraySize( obj ); i++ )
+	{
+		cJSON *entry = cJSON_GetArrayItem( obj, i );
+		const char *star;
+		int prefixLen;
+
+		if ( !cJSON_IsObject( entry ) || !entry->string )
+			continue;
+
+		star = strchr( entry->string, '*' );
+		if ( !star )
+			continue;
+
+		prefixLen = (int)(star - entry->string);
+		if ( (size_t)prefixLen > nameLen || Q_stricmpn( entry->string, name, prefixLen ) )
+			continue;
+
+		if ( prefixLen > bestLen )
+		{
+			bestLen = prefixLen;
+			match = entry;
+		}
+	}
+
+	return match;
+}
+
+//pulls xOffset/yOffset/zOffset out of a .cosmetic node. All three must be present and
+//numeric, otherwise the node carries no usable offsets and we say so.
+static qboolean CG_CosmeticJSONOffsets( cJSON *node, vec3_t out )
+{
+	cJSON *x = cJSON_GetObjectItemCaseSensitive( node, "xOffset" );
+	cJSON *y = cJSON_GetObjectItemCaseSensitive( node, "yOffset" );
+	cJSON *z = cJSON_GetObjectItemCaseSensitive( node, "zOffset" );
+
+	if ( !cJSON_IsNumber( x ) || !cJSON_IsNumber( y ) || !cJSON_IsNumber( z ) )
+		return qfalse;
+
+	VectorSet( out, (float)x->valuedouble, (float)y->valuedouble, (float)z->valuedouble );
+	return qtrue;
+}
+
+/*
+======================
+CG_LoadCosmeticOffsets
+
+A hat bolted to *head_top sits differently on Kyle than it does on Yoda, so each cosmetic
+may ship a settings/cosmetics/<kind>/<name>.cosmetic file nudging it into place per model
+and per skin:
+
+	{ "kyle": { "modelFallback": true, "xOffset": 0, "yOffset": 0, "zOffset": 2,
+	            "red": { "xOffset": 0, "yOffset": 0, "zOffset": 3 } } }
+
+The skin entry wins; with no skin match, "modelFallback" decides whether the model-level
+offsets apply. No file, no match, or a malformed file all mean "no nudge". Same format as
+TaystJK, so cosmetic packs are interchangeable with theirs.
+======================
+*/
+static void CG_LoadCosmeticOffsets( const char *settingsPath, const cosmeticItem_t *cosmetic,
+	const char *model, const char *skin, vec3_t offsetOut )
+{
+	char			fullPath[MAX_QPATH];
+	fileHandle_t	file = NULL_FILE;
+	int				fileSize;
+	char			*buff;
+	cJSON			*json, *jsonModel, *jsonSkin;
+	qboolean		modelFallback = qfalse;
+
+	VectorClear( offsetOut );
+
+	if ( !cosmetic )
+		return;
+
+	Com_sprintf( fullPath, sizeof( fullPath ), "%s%s.cosmetic", settingsPath, cosmetic->name );
+
+	fileSize = trap->FS_Open( fullPath, &file, FS_READ );
+	if ( fileSize <= 0 )
+	{
+		if ( file )
+			trap->FS_Close( file );
+		return;
+	}
+
+	buff = (char *)malloc( fileSize + 1 );
+	if ( !buff )
+	{
+		trap->FS_Close( file );
+		trap->Error( ERR_DROP, S_COLOR_RED "ERROR: Failed to allocate memory for cosmetic offsets.\n" );
+		return;
+	}
+
+	trap->FS_Read( buff, fileSize, file );
+	buff[fileSize] = '\0';
+	trap->FS_Close( file );
+
+	json = cJSON_Parse( buff );
+	free( buff );
+
+	if ( !json )
+	{
+		Com_Printf( S_COLOR_YELLOW "WARNING: Ignoring offsets for cosmetic (%s), %s is not valid JSON.\n",
+			cosmetic->name, fullPath );
+		return;
+	}
+
+	jsonModel = CG_CosmeticJSONMatch( json, model );
+	if ( !jsonModel )
+	{
+		cJSON_Delete( json );
+		return;
+	}
+
+	modelFallback = cJSON_IsTrue( cJSON_GetObjectItemCaseSensitive( jsonModel, "modelFallback" ) );
+
+	jsonSkin = CG_CosmeticJSONMatch( jsonModel, skin );
+	if ( jsonSkin )
+	{
+		if ( !CG_CosmeticJSONOffsets( jsonSkin, offsetOut ) )
+		{
+			Com_Printf( S_COLOR_YELLOW "WARNING: Ignoring offsets for cosmetic (%s), skin (%s) has no valid xOffset/yOffset/zOffset.\n",
+				cosmetic->name, jsonSkin->string );
+		}
+	}
+	else if ( modelFallback )
+	{
+		if ( !CG_CosmeticJSONOffsets( jsonModel, offsetOut ) )
+		{
+			Com_Printf( S_COLOR_YELLOW "WARNING: Ignoring offsets for cosmetic (%s), model (%s) has no valid xOffset/yOffset/zOffset.\n",
+				cosmetic->name, jsonModel->string );
+		}
+	}
+
+	cJSON_Delete( json );
+}
+
 //A model is off limits to players if it declares "notInMP 1" in its settings.txt,
 //or if the user has listed it in cg_modelBlacklist. NPCs are never affected.
 qboolean CG_ModelIsBlacklisted( const char *modelName ) {

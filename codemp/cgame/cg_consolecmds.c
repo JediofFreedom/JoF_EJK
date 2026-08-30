@@ -2057,7 +2057,7 @@ static void CG_Cosmetics_Wear_f(const char *category)
 		item = &items[i];
 	}
 	if ( !item->handle ) {
-		Com_Printf( "Cosmetic '%s' is not installed. Get %s from JoF Launcher or Cloud.\\n",
+		Com_Printf( "Cosmetic '%s' is not installed. Get %s from JoF Launcher or Cloud.\n",
 			item->name, !Q_stricmp(category, "hats") ? "hats" : "capes" );
 		return;
 	}

@@ -1107,6 +1107,38 @@ static qboolean CG_JAPlusViewLockedState( playerState_t *ps )
 	return CG_InKnockDownState( ps );
 }
 
+// JA+ marks victims of its added side/back kicks with forceDodgeAnim 4/5 and
+// then plays this custom falling/get-up sequence. Ordinary knockdowns do not
+// use these markers, so only the added kick mechanic takes the special path.
+static qboolean CG_InJAPlusSpecialKickState( playerState_t *ps )
+{
+	int anims[2] = { ps->legsAnim, ps->torsoAnim };
+	int i;
+
+	if ( ps->forceDodgeAnim == 4 || ps->forceDodgeAnim == 5 )
+	{
+		return qtrue;
+	}
+
+	for ( i = 0; i < 2; i++ )
+	{
+		switch ( anims[i] )
+		{
+		case BOTH_BACK_FALLING:
+		case BOTH_BACK_FALLING_GETUP:
+		case BOTH_BACK_FALLING_GETUP_SLOW:
+		case BOTH_JUMP_BACKFLIP_ATCKEE:
+		case BOTH_JUMP_BACKFLIP_ATCKEE_FALL:
+			return qtrue;
+		default:
+			break;
+		}
+	}
+
+	return qfalse;
+}
+}
+
 void CG_PredictPlayerState( void ) {
 	int			cmdNum, current, i;
 	playerState_t	oldPlayerState;
@@ -1165,16 +1197,18 @@ void CG_PredictPlayerState( void ) {
 		return;
 	}
 
-	// JA+ kick knockdowns: the server runs its own knockdown/get-up rules that our
+	// JA+ added side/back-kick knockdowns: the server runs its own knockdown/get-up rules that our
 	// bg_pmove doesn't replicate, so while we're down every movement input mispredicts
 	// and the constant error corrections make the camera stutter. We can't actually
 	// move during the knockdown anyway, so prediction buys nothing there: fall back to
 	// snapshot interpolation (cg_noPredict behavior) until we're back on our feet.
 	// With cg_noPredict set there is nothing to fall back from (the branch above
 	// already returned) - the !cg_noPredict here is belt and braces for reordering.
-	if ( !cg_noPredict.integer && cgs.serverMod == SVMOD_JAPLUS && CG_InKnockDownState( &cg.snap->ps ) )
+	if ( !cg_noPredict.integer && cgs.serverMod == SVMOD_JAPLUS &&
+		( CG_InKnockDownState( &cg.snap->ps ) || CG_JAPlusViewLockedState( &cg.snap->ps ) ||
+		CG_InJAPlusSpecialKickState( &cg.snap->ps ) ) )
 	{
-		CG_InterpolatePlayerState( qtrue );
+		CG_InterpolatePlayerState( qfalse );
 		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 		{
 			CG_InterpolateVehiclePlayerState(qtrue);
