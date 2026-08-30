@@ -1137,7 +1137,6 @@ static qboolean CG_InJAPlusSpecialKickState( playerState_t *ps )
 
 	return qfalse;
 }
-}
 
 void CG_PredictPlayerState( void ) {
 	int			cmdNum, current, i;
@@ -1205,8 +1204,7 @@ void CG_PredictPlayerState( void ) {
 	// With cg_noPredict set there is nothing to fall back from (the branch above
 	// already returned) - the !cg_noPredict here is belt and braces for reordering.
 	if ( !cg_noPredict.integer && cgs.serverMod == SVMOD_JAPLUS &&
-		( CG_InKnockDownState( &cg.snap->ps ) || CG_JAPlusViewLockedState( &cg.snap->ps ) ||
-		CG_InJAPlusSpecialKickState( &cg.snap->ps ) ) )
+		CG_InJAPlusSpecialKickState( &cg.snap->ps ) )
 	{
 		CG_InterpolatePlayerState( qfalse );
 		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
