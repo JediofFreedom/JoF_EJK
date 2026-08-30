@@ -166,6 +166,35 @@
 			}
 		}
 
+// Visibility
+		itemDef
+		{
+			name				showcosmetics
+			group				none
+			type				ITEM_TYPE_MULTI
+			text				"Show Cosmetics:"
+			cvar				"cg_cosmetics"
+			cvarFloatList
+			{
+				@MENUS_OFF 0
+				@MENUS_ON 1
+				"Only Me" 2
+			}
+			rect				70 322 290 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			150
+			textaligny			0
+			font				2
+			textscale			.8
+			forecolor			1 .682 0 1
+			visible			1
+			descText			"Show cosmetics on everyone, only yourself, or nobody"
+			action
+			{
+				play			"sound/interface/button1"
+			}
+		}
+
 // Clear
 		itemDef
 		{

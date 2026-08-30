@@ -2089,14 +2089,46 @@ static void CG_Cosmetics_Clear_f(void)
 	Com_Printf("Hat and cape removed.\n");
 }
 
+static void CG_Cosmetics_Visibility_f(void)
+{
+	static const char *visibilityNames[] = { "Off", "On", "Only Me" };
+	char arg[16] = { 0 };
+	int value = cg_cosmetics.integer;
+
+	if (trap->Cmd_Argc() == 2) {
+		if (value < JAPRO_COSMETICS_OFF || value > JAPRO_COSMETICS_ONLY_ME)
+			value = JAPRO_COSMETICS_ON;
+		Com_Printf("Cosmetics visibility: ^3%s^7\n", visibilityNames[value]);
+		Com_Printf("Set it with ^3cosmetics visibility <off|on|onlyme>^7.\n");
+		return;
+	}
+
+	trap->Cmd_Argv(2, arg, sizeof(arg));
+	if (!Q_stricmp(arg, "off") || !Q_stricmp(arg, "0"))
+		value = JAPRO_COSMETICS_OFF;
+	else if (!Q_stricmp(arg, "on") || !Q_stricmp(arg, "1"))
+		value = JAPRO_COSMETICS_ON;
+	else if (!Q_stricmp(arg, "onlyme") || !Q_stricmp(arg, "only-me") || !Q_stricmp(arg, "2"))
+		value = JAPRO_COSMETICS_ONLY_ME;
+	else {
+		Com_Printf("Unknown visibility '%s'. Use ^3off^7, ^3on^7, or ^3onlyme^7.\n", arg);
+		return;
+	}
+
+	trap->Cvar_Set("cg_cosmetics", va("%i", value));
+	trap->Cvar_Update(&cg_cosmetics);
+	Com_Printf("Cosmetics visibility: ^3%s^7\n", visibilityNames[value]);
+}
+
 static void CG_Cosmetics_f(void)
 {
 	char arg[16] = { 0 };
 
 	if (trap->Cmd_Argc() == 1) {
-		Com_Printf("Usage: ^3cosmetics <hats|capes|clear|unlocks> [num]^7\n");
+		Com_Printf("Usage: ^3cosmetics <hats|capes|clear|visibility|unlocks> [value]^7\n");
 		Com_Printf("  ^3hats^7 / ^3capes^7  list what you have, or wear one by number\n");
 		Com_Printf("  ^3clear^7         take off both\n");
+		Com_Printf("  ^3visibility^7    show cosmetics: off, on, or onlyme\n");
 		Com_Printf("  ^3unlocks^7       jaPRO server-granted cosmetics\n");
 		Com_Printf("Hats and capes are visible to anyone else running this client, on any server.\n");
 		return;
@@ -2108,6 +2140,8 @@ static void CG_Cosmetics_f(void)
 		CG_Cosmetics_Wear_f(arg);
 	else if (!Q_stricmp(arg, "clear"))
 		CG_Cosmetics_Clear_f();
+	else if (!Q_stricmp(arg, "visibility"))
+		CG_Cosmetics_Visibility_f();
 	else if (!Q_stricmp(arg, "unlocks"))
 		CG_Cosmetics_Unlocks_f();
 	else
