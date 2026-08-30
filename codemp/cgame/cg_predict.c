@@ -1041,6 +1041,85 @@ static QINLINE int FindGrappleHook( int clientNum ) {
 }
 #endif
 
+extern qboolean PM_InKnockDown( playerState_t *ps ); //bg_panimate.c
+extern qboolean BG_InKnockDown( int anim ); //bg_pmove.c
+
+// True from the moment we're knocked down until the get-up animation has fully
+// played out. PM_InKnockDown alone isn't enough: JA+ can play the get-up on the
+// torso channel while the legs are already free, so check both channels.
+static qboolean CG_InKnockDownState( playerState_t *ps )
+{
+	if ( ps->forceHandExtend == HANDEXTEND_KNOCKDOWN )
+	{
+		return qtrue;
+	}
+	if ( PM_InKnockDown( ps ) )
+	{
+		return qtrue;
+	}
+	if ( BG_InKnockDown( ps->legsAnim ) && ps->legsTimer > 0 )
+	{
+		return qtrue;
+	}
+	if ( BG_InKnockDown( ps->torsoAnim ) && ps->torsoTimer > 0 )
+	{
+		return qtrue;
+	}
+	// JA+ kicks use these custom falling/get-up anims (seen with fhe already
+	// cleared); BG_InKnockDown only counts them on JA Pro servers, so handle
+	// them here explicitly.
+	switch ( ps->legsAnim )
+	{
+	case BOTH_BACK_FALLING:
+	case BOTH_BACK_FALLING_GETUP:
+	case BOTH_BACK_FALLING_GETUP_SLOW:
+		return qtrue;
+	default:
+		break;
+	}
+	switch ( ps->torsoAnim )
+	{
+	case BOTH_BACK_FALLING:
+	case BOTH_BACK_FALLING_GETUP:
+	case BOTH_BACK_FALLING_GETUP_SLOW:
+		return qtrue;
+	default:
+		break;
+	}
+	return qfalse;
+}
+
+// JA+ marks victims of its added side/back kicks with forceDodgeAnim 4/5 and
+// then plays this custom falling/get-up sequence. Ordinary knockdowns do not
+// use these markers, so only the added kick mechanic takes the special path.
+static qboolean CG_InJAPlusSpecialKickState( playerState_t *ps )
+{
+	int anims[2] = { ps->legsAnim, ps->torsoAnim };
+	int i;
+
+	if ( ps->forceDodgeAnim == 4 || ps->forceDodgeAnim == 5 )
+	{
+		return qtrue;
+	}
+
+	for ( i = 0; i < 2; i++ )
+	{
+		switch ( anims[i] )
+		{
+		case BOTH_BACK_FALLING:
+		case BOTH_BACK_FALLING_GETUP:
+		case BOTH_BACK_FALLING_GETUP_SLOW:
+		case BOTH_JUMP_BACKFLIP_ATCKEE:
+		case BOTH_JUMP_BACKFLIP_ATCKEE_FALL:
+			return qtrue;
+		default:
+			break;
+		}
+	}
+
+	return qfalse;
+}
+
 void CG_PredictPlayerState( void ) {
 	int			cmdNum, current, i;
 	playerState_t	oldPlayerState;
@@ -1079,6 +1158,22 @@ void CG_PredictPlayerState( void ) {
 	// non-predicting local movement will grab the latest angles
 	if ( cg_noPredict.integer || g_synchronousClients.integer || CG_UsingEWeb() ) {
 		CG_InterpolatePlayerState( qtrue );
+		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
+		{
+			CG_InterpolateVehiclePlayerState(qtrue);
+		}
+		return;
+	}
+
+	// JA+ added side/back-kick knockdowns: the server runs its own knockdown/get-up rules that our
+	// bg_pmove doesn't replicate, so while we're down every movement input mispredicts
+	// and the constant error corrections make the camera stutter. We can't actually
+	// move during the knockdown anyway, so prediction buys nothing there: fall back to
+	// authoritative snapshot interpolation until we're back on our feet. Keep the
+	// server angles as well because JA+ controls the victim's view during this state.
+	if ( cgs.serverMod == SVMOD_JAPLUS && CG_InJAPlusSpecialKickState( &cg.snap->ps ) )
+	{
+		CG_InterpolatePlayerState( qfalse );
 		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 		{
 			CG_InterpolateVehiclePlayerState(qtrue);
