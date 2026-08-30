@@ -2861,6 +2861,42 @@ void CG_LoadAllCosmetics(void)
 {
 	CG_LoadCosmetics(COSMETIC_HATS_PATH, COSMETIC_HATS_PATH_LENGTH, &localCosmetics.totalHats, &localCosmetics.hats);
 	CG_LoadCosmetics(COSMETIC_CAPES_PATH, COSMETIC_CAPES_PATH_LENGTH, &localCosmetics.totalCapes, &localCosmetics.capes);
+	if ( !localCosmetics.totalHats )
+		CG_LoadCosmetics(COSMETIC_HATS_LEGACY_PATH, strlen(COSMETIC_HATS_LEGACY_PATH), &localCosmetics.totalHats, &localCosmetics.hats);
+	if ( !localCosmetics.totalCapes )
+		CG_LoadCosmetics(COSMETIC_CAPES_LEGACY_PATH, strlen(COSMETIC_CAPES_LEGACY_PATH), &localCosmetics.totalCapes, &localCosmetics.capes);
+	{
+		static const char *knownHats[] = { "afro", "beard", "bucket", "cap", "cringe", "crown", "fedora", "fedora2", "fedora3", "fedora4", "glasses", "gradcap", "headcrab", "horns", "mario", "mask", "metalhelm", "plaguemask", "predatorhelm", "pumpkin", "santahat", "sombrero", "supersaiyan", "tophat" };
+		static const char *knownCapes[] = { "ak47", "crowbar", "goose", "grogucape", "royalcape", "rpg", "vadercape", "yodacape" };
+		int i, j;
+		cosmeticItem_t *items;
+		items = (cosmeticItem_t *)realloc( localCosmetics.hats, ( localCosmetics.totalHats + ARRAY_LEN( knownHats ) ) * sizeof( *items ) );
+		if ( items ) {
+			localCosmetics.hats = items;
+			for ( i = 0; i < ARRAY_LEN( knownHats ); i++ ) {
+				qboolean found = qfalse;
+				for ( j = 0; j < localCosmetics.totalHats; j++ ) if ( !Q_stricmp( items[j].name, knownHats[i] ) ) { found = qtrue; break; }
+				if ( found ) continue;
+				Q_strncpyz( items[localCosmetics.totalHats].name, knownHats[i], sizeof( items[localCosmetics.totalHats].name ) );
+				items[localCosmetics.totalHats].handle = trap->R_RegisterModel( va( "%s%s.md3", COSMETIC_HATS_PATH, knownHats[i] ) );
+				if ( !items[localCosmetics.totalHats].handle ) items[localCosmetics.totalHats].handle = trap->R_RegisterModel( va( "%s%s.md3", COSMETIC_HATS_LEGACY_PATH, knownHats[i] ) );
+				localCosmetics.totalHats++;
+			}
+		}
+		items = (cosmeticItem_t *)realloc( localCosmetics.capes, ( localCosmetics.totalCapes + ARRAY_LEN( knownCapes ) ) * sizeof( *items ) );
+		if ( items ) {
+			localCosmetics.capes = items;
+			for ( i = 0; i < ARRAY_LEN( knownCapes ); i++ ) {
+				qboolean found = qfalse;
+				for ( j = 0; j < localCosmetics.totalCapes; j++ ) if ( !Q_stricmp( items[j].name, knownCapes[i] ) ) { found = qtrue; break; }
+				if ( found ) continue;
+				Q_strncpyz( items[localCosmetics.totalCapes].name, knownCapes[i], sizeof( items[localCosmetics.totalCapes].name ) );
+				items[localCosmetics.totalCapes].handle = trap->R_RegisterModel( va( "%s%s.md3", COSMETIC_CAPES_PATH, knownCapes[i] ) );
+				if ( !items[localCosmetics.totalCapes].handle ) items[localCosmetics.totalCapes].handle = trap->R_RegisterModel( va( "%s%s.md3", COSMETIC_CAPES_LEGACY_PATH, knownCapes[i] ) );
+				localCosmetics.totalCapes++;
+			}
+		}
+	}
 }
 
 void CG_FreeCosmetics(void)

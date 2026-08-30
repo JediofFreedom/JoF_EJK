@@ -10566,10 +10566,45 @@ static void UI_LoadCosmeticsIn( const char *path, int *totalOut, uiCosmeticItem_
 	*totalOut = j;
 }
 
+// The launcher/cloud catalog is larger than the assets shipped in the base pk3.
+// Keep those names visible so an uninstalled item explains where to obtain it.
+static const char *uiKnownHats[] = { "afro", "beard", "bucket", "cap", "cringe", "crown", "fedora", "fedora2", "fedora3", "fedora4", "glasses", "gradcap", "headcrab", "horns", "mario", "mask", "metalhelm", "plaguemask", "predatorhelm", "pumpkin", "santahat", "sombrero", "supersaiyan", "tophat" };
+static const char *uiKnownCapes[] = { "ak47", "crowbar", "goose", "grogucape", "royalcape", "rpg", "vadercape", "yodacape" };
+
+static void UI_AddKnownCosmetics( const char *path, const char *legacyPath, const char **names, int nameCount, int *totalOut, uiCosmeticItem_t **storeOut )
+{
+	int i, j;
+	uiCosmeticItem_t *items;
+
+	items = (uiCosmeticItem_t *)realloc( *storeOut, ( *totalOut + nameCount ) * sizeof( *items ) );
+	if ( !items )
+		return;
+	*storeOut = items;
+	for ( i = 0; i < nameCount; i++ )
+	{
+		qboolean found = qfalse;
+		for ( j = 0; j < *totalOut; j++ )
+			if ( !Q_stricmp( items[j].name, names[i] ) ) { found = qtrue; break; }
+		if ( found ) continue;
+		Q_strncpyz( items[*totalOut].name, names[i], sizeof( items[*totalOut].name ) );
+		items[*totalOut].handle = trap->R_RegisterModel( va( "%s%s.md3", path, names[i] ) );
+		if ( !items[*totalOut].handle && legacyPath )
+			items[*totalOut].handle = trap->R_RegisterModel( va( "%s%s.md3", legacyPath, names[i] ) );
+		(*totalOut)++;
+	}
+}
+
 void UI_LoadCosmetics( void )
 {
 	UI_LoadCosmeticsIn( UI_COSMETIC_HATS_PATH, &uiInfo.totalHats, &uiInfo.hats );
 	UI_LoadCosmeticsIn( UI_COSMETIC_CAPES_PATH, &uiInfo.totalCapes, &uiInfo.capes );
+	//Older bundled packs used models/players/{hats,capes}; keep those cosmetics visible.
+	if ( !uiInfo.totalHats )
+		UI_LoadCosmeticsIn( UI_COSMETIC_HATS_LEGACY_PATH, &uiInfo.totalHats, &uiInfo.hats );
+	if ( !uiInfo.totalCapes )
+		UI_LoadCosmeticsIn( UI_COSMETIC_CAPES_LEGACY_PATH, &uiInfo.totalCapes, &uiInfo.capes );
+	UI_AddKnownCosmetics( UI_COSMETIC_HATS_PATH, UI_COSMETIC_HATS_LEGACY_PATH, uiKnownHats, ARRAY_LEN( uiKnownHats ), &uiInfo.totalHats, &uiInfo.hats );
+	UI_AddKnownCosmetics( UI_COSMETIC_CAPES_PATH, UI_COSMETIC_CAPES_LEGACY_PATH, uiKnownCapes, ARRAY_LEN( uiKnownCapes ), &uiInfo.totalCapes, &uiInfo.capes );
 }
 
 //Equipping is just a cvar edit - the name is appended to the saber colour in color1/color2,
@@ -11158,14 +11193,22 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 	if (feederID == FEEDER_COSMETIC_HATS)
 	{
 		if (index >= 0 && index < uiInfo.totalHats)
-			return uiInfo.hats[index].name;
+		{
+			if ( uiInfo.hats[index].handle )
+				return uiInfo.hats[index].name;
+			return va( "%s ^3(Get hats from JoF Launcher or Cloud)^7", uiInfo.hats[index].name );
+		}
 		return "";
 	}
 
 	if (feederID == FEEDER_COSMETIC_CAPES)
 	{
 		if (index >= 0 && index < uiInfo.totalCapes)
-			return uiInfo.capes[index].name;
+		{
+			if ( uiInfo.capes[index].handle )
+				return uiInfo.capes[index].name;
+			return va( "%s ^3(Get capes from JoF Launcher or Cloud)^7", uiInfo.capes[index].name );
+		}
 		return "";
 	}
 
@@ -11940,6 +11983,12 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 
 		if (index < 0 || index >= total)
 			return qfalse;
+		if ( !items[index].handle )
+		{
+			Com_Printf( S_COLOR_YELLOW "Cosmetic '%s' is not installed. Get %s from JoF Launcher or Cloud.\\n",
+				items[index].name, isHat ? "hats" : "capes" );
+			return qfalse;
+		}
 
 		if (!Q_stricmp(worn, items[index].name))	//clicking what you already wear takes it off
 		{

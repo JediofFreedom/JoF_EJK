@@ -2449,6 +2449,33 @@
 
 		itemDef
 		{
+			name				showcosmetics
+			group				visuals
+			type				ITEM_TYPE_MULTI
+			text				"Show Cosmetics:"
+			cvar				"cg_cosmetics"
+			cvarFloatList
+			{
+				@MENUS_OFF 0
+				@MENUS_ON 1
+				"Only Me" 2
+			}
+			rect				220 143 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			165
+			textaligny			0
+			font 				4
+			textscale 			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"Choose whether to show cosmetics on everyone, only yourself, or nobody."
+			action				{ play "sound/interface/button1" }
+			mouseenter			{ show highlight6 }
+			mouseexit			{ hide highlight6 }
+		}
+
+		itemDef
+		{
 			name				flagalpha
 			group				visuals
 	  		type				ITEM_TYPE_SLIDER

@@ -155,6 +155,8 @@ typedef struct playerInfo_s {
 //a hat or cape the UI found on disk. Same folders and naming rules as cgame uses.
 #define UI_COSMETIC_HATS_PATH	"models/cosmetics/hats/"
 #define UI_COSMETIC_CAPES_PATH	"models/cosmetics/capes/"
+#define UI_COSMETIC_HATS_LEGACY_PATH	"models/players/hats/"
+#define UI_COSMETIC_CAPES_LEGACY_PATH	"models/players/capes/"
 
 typedef struct uiCosmeticItem_s {
 	char		name[MAX_COSMETIC_LENGTH];

@@ -124,6 +124,7 @@ XCVAR_DEF( cg_cameraFPS,						"125",	CG_ClearThirdPersonDamp,			CVAR_ARCHIVE ) /
 XCVAR_DEF( cg_blood,							"0",	NULL,								CVAR_ARCHIVE ) //JAPRO - Clientside - re add cg_blood
 XCVAR_DEF( cg_thirdPersonFlagAlpha,				"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_stylePlayer,						"0",	NULL,								CVAR_ARCHIVE )
+XCVAR_DEF( cg_cosmetics,						"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_jetpackOnSound,					"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_jetpackHoverSound,				"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_headTurn,							"1",	NULL,								CVAR_NONE )

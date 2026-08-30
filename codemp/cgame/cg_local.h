@@ -140,6 +140,9 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define JAPRO_STYLE_NOFADESFX				(1<<14)
 #define JAPRO_STYLE_COLOREDSPAWNBUBBLE		(1<<15)
 #define JAPRO_STYLE_HIDECOSMETICS			(1<<16)
+#define JAPRO_COSMETICS_OFF				0
+#define JAPRO_COSMETICS_ON				1
+#define JAPRO_COSMETICS_ONLY_ME			2
 #define JAPRO_STYLE_DISABLEBREATHING		(1<<17)
 #define JAPRO_STYLE_OLDGRAPPLELINE			(1<<18)
 #define JAPRO_STYLE_ENABLE_ALTERNATEPOSE	(1<<19)
@@ -182,6 +185,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #define COSMETIC_CAPES_PATH "models/cosmetics/capes/"
 #define COSMETIC_CAPES_PATH_LENGTH strlen(COSMETIC_CAPES_PATH)
+#define COSMETIC_HATS_LEGACY_PATH "models/players/hats/"
+#define COSMETIC_CAPES_LEGACY_PATH "models/players/capes/"
 #define COSMETIC_CAPES_SETTINGS_PATH "settings/cosmetics/capes/"
 #define COSMETIC_CAPES_SETTINGS_PATH_LENGTH strlen(COSMETIC_CAPES_SETTINGS_PATH)
 
