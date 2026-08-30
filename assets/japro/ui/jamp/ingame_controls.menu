@@ -3911,7 +3911,7 @@
 			group				japluscontrols
 			type				ITEM_TYPE_BIND
 			text				"Jetpack:"
-			cvar				"+button14"
+			cvar				"jetpack"
 			rect				220 81 300 20
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			151

@@ -5027,6 +5027,7 @@ static const char *g_bindCommands[] = {
 	"+button12", //grapple on ja+/japro
 	"+button13", //dash on japro
 	"+button14", //jetpack on japro
+	"jetpack", //jetpack on ja+
 	"+grapple",
 	"+force_stasis",
 	"throwflag",
