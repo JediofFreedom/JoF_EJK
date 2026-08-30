@@ -18,6 +18,7 @@
 			uiScript		update  "ui_GetName"
 			uiScript		"updateplayerpreview"
 			uiScript		clearModelSearch
+
 		}
 									
 		onESC 
