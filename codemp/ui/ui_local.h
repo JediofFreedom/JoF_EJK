@@ -150,6 +150,7 @@ typedef struct playerInfo_s {
 // new ui stuff
 #define MAX_ALIASES				64
 #define MAX_TEAMS				64
+#define MAX_COSMETIC_LENGTH		14	// must match cg_local.h
 #define MAX_GAMETYPES			16
 #define MAX_MAPS				512 // 128
 #define PLAYERS_PER_TEAM		8 //5
@@ -270,7 +271,7 @@ typedef struct serverStatusInfo_s {
 	char address[MAX_ADDRESSLENGTH];
 	char *lines[MAX_SERVERSTATUS_LINES][4];
 	char text[MAX_SERVERSTATUS_TEXT];
-	char pings[MAX_CLIENTS * 3];
+	char pings[MAX_SERVERSTATUS_LINES * 3];
 	int numLines;
 } serverStatusInfo_t;
 
@@ -417,6 +418,12 @@ typedef struct uiInfo_s {
 	qboolean				newUIAPI;
 
 	ui_vidmodeExt_t			*resolutions;
+
+	//The hat/cape names ride along on the end of the color1/color2 saber colour cvars (see
+	//cg_local.h). The UI has to remember them across a trip through the setup menu, or
+	//applying a saber colour would silently strip whatever the player is wearing.
+	char					hat[MAX_COSMETIC_LENGTH];
+	char					cape[MAX_COSMETIC_LENGTH];
 
 } uiInfo_t;
 extern uiInfo_t uiInfo;

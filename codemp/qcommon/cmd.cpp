@@ -41,6 +41,9 @@ typedef struct cmd_s {
 int			cmd_wait;
 cmd_t		cmd_text;
 byte		cmd_text_buf[MAX_CMD_BUFFER];
+#ifndef DEDICATED
+extern		cvar_t* cl_cmdratecap;
+#endif
 
 //=============================================================================
 
@@ -187,9 +190,15 @@ void Cbuf_Execute (void)
 
 	while (cmd_text.cursize)
 	{
-		if ( cmd_wait > 0 ) {
-			// skip out while text still remains in buffer, leaving it
-			// for next frame
+		if (cmd_wait > 0) {
+#ifndef DEDICATED
+			if (cl_cmdratecap && cl_cmdratecap->integer) {
+				extern int cmdratecap_commandGenerated;
+				if (!cmdratecap_commandGenerated) {
+					break;
+				}
+			}
+#endif
 			cmd_wait--;
 			break;
 		}

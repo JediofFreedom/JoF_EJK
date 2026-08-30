@@ -28,10 +28,15 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/resource.h>
 #include <pwd.h>
 #include <libgen.h>
 #include <sched.h>
 #include <signal.h>
+
+#ifdef MACOS_X
+#include <sys/sysctl.h>
+#endif
 
 #include "qcommon/qcommon.h"
 #include "qcommon/q_shared.h"
@@ -42,9 +47,68 @@ qboolean stdinIsATTY = qfalse;
 // Used to determine where to store user-specific files
 static char homePath[ MAX_OSPATH ] = { 0 };
 
+// how many descriptors we would like to have available; every pk3 in the search
+// path holds one open for the lifetime of the process, on top of the handles
+// handed out by the filesystem, sockets and loaded libraries
+#define SYS_WANTED_OPEN_FILES	8192
+
+/*
+==================
+Sys_RaiseOpenFileLimit
+
+macOS ships a soft RLIMIT_NOFILE of 256, which an asset heavy install runs out
+of while it is still opening pk3s. The hard limit is far higher, so raise the
+soft limit towards it at startup.
+==================
+*/
+static void Sys_RaiseOpenFileLimit( void )
+{
+	struct rlimit limit;
+
+	if ( getrlimit( RLIMIT_NOFILE, &limit ) == -1 )
+		return;
+
+	const rlim_t original = limit.rlim_cur;
+	rlim_t wanted = SYS_WANTED_OPEN_FILES;
+
+	if ( limit.rlim_max != RLIM_INFINITY && wanted > limit.rlim_max )
+		wanted = limit.rlim_max;
+
+#ifdef MACOS_X
+	// Darwin reports an unlimited hard limit but refuses any soft limit above
+	// kern.maxfilesperproc
+	int maxFilesPerProc = 0;
+	size_t maxFilesPerProcSize = sizeof( maxFilesPerProc );
+
+	if ( sysctlbyname( "kern.maxfilesperproc", &maxFilesPerProc, &maxFilesPerProcSize, NULL, 0 ) == 0
+		&& maxFilesPerProc > 0 && wanted > (rlim_t)maxFilesPerProc )
+	{
+		wanted = (rlim_t)maxFilesPerProc;
+	}
+#endif
+
+	if ( wanted <= original )
+		return;
+
+	// if the kernel turns down the full amount, keep halving what we ask for so
+	// we still end up with as many descriptors as it is willing to give us
+	for ( rlim_t attempt = wanted; attempt > original; attempt = original + ( attempt - original ) / 2 )
+	{
+		limit.rlim_cur = attempt;
+
+		if ( setrlimit( RLIMIT_NOFILE, &limit ) == 0 )
+			return;
+	}
+
+	fprintf( stderr, "Warning: unable to raise the open file limit above %llu (%s)\n",
+		(unsigned long long)original, strerror( errno ) );
+}
+
 void Sys_PlatformInit( void )
 {
 	const char* term = getenv( "TERM" );
+
+	Sys_RaiseOpenFileLimit();
 
 	signal( SIGHUP, Sys_SigHandler );
 	signal( SIGQUIT, Sys_SigHandler );

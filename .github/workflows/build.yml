@@ -245,9 +245,27 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Install dependencies
+      - name: Build SDL2 from source
+        shell: bash
         run: |
-          brew install sdl2
+          # Homebrew's `sdl2` formula is now an alias for `sdl2-compat`, which is
+          # an SDL2 shim over SDL3. It dlopen()s "libSDL3.dylib" at runtime, so
+          # fixup_bundle cannot see that dependency and never copies it into the
+          # .app -- users without Homebrew's sdl3 then get "Failed loading SDL3
+          # library." Build genuine SDL2 ourselves so the bundle stays complete.
+          SDL2_VERSION=2.32.10
+          curl -L -o SDL2.tar.gz \
+            https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz
+          tar xzf SDL2.tar.gz
+          cmake -S SDL2-${SDL2_VERSION} -B sdl2-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/sdl2-prefix \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9 \
+            -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST=OFF
+          cmake --build sdl2-build -j $(sysctl -n hw.ncpu)
+          cmake --install sdl2-build
+          echo "SDL2DIR=${{ github.workspace }}/sdl2-prefix" >> $GITHUB_ENV
           cmake -E make_directory build
 
       - name: Configure CMake
@@ -359,6 +377,25 @@ jobs:
             JoF-linux-x86_64.tar.gz
             JoF-macos-x86_64.tar.gz
             JoF-macos-arm64.tar.gz
+
+      - name: Notify Discord
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          DISPLAY: ${{ env.DISPLAY_VERSION }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK secret is not set; skipping notification."
+            exit 0
+          fi
+          payload=$(jq -n \
+            --arg title "New beta release: ${DISPLAY}" \
+            --arg url "https://github.com/${REPO}/releases/tag/${TAG}" \
+            --arg desc "A new beta build is available for download." \
+            '{username:"JoF Releases", embeds:[{title:$title, url:$url, description:$desc, color:15844367}]}')
+          curl -sf -H "Content-Type: application/json" -X POST -d "$payload" "$DISCORD_WEBHOOK"
 
   # =========================
   # MASTER (nightly/manual, only if changes)
@@ -630,9 +667,27 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Install dependencies
+      - name: Build SDL2 from source
+        shell: bash
         run: |
-          brew install sdl2
+          # Homebrew's `sdl2` formula is now an alias for `sdl2-compat`, which is
+          # an SDL2 shim over SDL3. It dlopen()s "libSDL3.dylib" at runtime, so
+          # fixup_bundle cannot see that dependency and never copies it into the
+          # .app -- users without Homebrew's sdl3 then get "Failed loading SDL3
+          # library." Build genuine SDL2 ourselves so the bundle stays complete.
+          SDL2_VERSION=2.32.10
+          curl -L -o SDL2.tar.gz \
+            https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz
+          tar xzf SDL2.tar.gz
+          cmake -S SDL2-${SDL2_VERSION} -B sdl2-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/sdl2-prefix \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9 \
+            -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST=OFF
+          cmake --build sdl2-build -j $(sysctl -n hw.ncpu)
+          cmake --install sdl2-build
+          echo "SDL2DIR=${{ github.workspace }}/sdl2-prefix" >> $GITHUB_ENV
           cmake -E make_directory build
 
       - name: Configure CMake
@@ -737,3 +792,21 @@ jobs:
             JoF-linux-x86_64.tar.gz
             JoF-macos-x86_64.tar.gz
             JoF-macos-arm64.tar.gz
+
+      - name: Notify Discord
+        if: success()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK secret is not set; skipping notification."
+            exit 0
+          fi
+          payload=$(jq -n \
+            --arg title "New release: ${TAG}" \
+            --arg url "https://github.com/${REPO}/releases/tag/${TAG}" \
+            --arg desc "A new stable build is available for download." \
+            '{username:"JoF Releases", embeds:[{title:$title, url:$url, description:$desc, color:5763719}]}')
+          curl -sf -H "Content-Type: application/json" -X POST -d "$payload" "$DISCORD_WEBHOOK"
