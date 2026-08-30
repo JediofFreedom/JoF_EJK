@@ -4146,7 +4146,7 @@
 			group				japluscontrols
 			type				ITEM_TYPE_BIND
 			text				"Jetpack:"
-			cvar				"+button14"
+			cvar				"jetpack"
 			rect				260 216 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174
@@ -4343,7 +4343,7 @@
 			group				japrocontrols
 			type				ITEM_TYPE_BIND
 			text				"Jetpack:"
-			cvar				"+button12"
+			cvar				"+button14"
 			rect				260 188 340 14
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			174 
