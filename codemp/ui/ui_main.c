@@ -10639,9 +10639,20 @@ void UI_UpdateCosmeticsCharacter( void )
 
 	parts = strchr( model, '|' );
 	if ( parts )
-	{	//multipart custom jedi: "jedi_hm|head_a1|torso_a1|lower_a1"
-		*parts = '\0';
-		parts++;
+	{	//multipart custom jedi: "jedi_hm/head_a1|torso_a1|lower_a1"
+		//Split at the slash, not the first pipe: the latter would leave the head skin
+		//attached to the model directory and make the GLM lookup fail.
+		skin = strrchr( model, '/' );
+		if ( skin && skin < parts )
+		{
+			*skin = '\0';
+			parts = skin + 1;
+		}
+		else
+		{	//also tolerate the older "model|head|torso|lower" spelling
+			*parts = '\0';
+			parts++;
+		}
 		Com_sprintf( skinPath, sizeof( skinPath ), "models/players/%s/|%s", model, parts );
 	}
 	else
@@ -10664,11 +10675,19 @@ void UI_UpdateCosmeticsCharacter( void )
 	ItemParse_asset_model_go( item, modelPath, &animRunLength );
 	ItemParse_model_g2skin_go( item, skinPath );
 
-	//asset_model_go swallows a failed load (its Com_Error is commented out), which would leave
-	//us staring at an empty box with no idea why
-	if ( !item->ghoul2 )
+	//asset_model_go swallows a failed load (its Com_Error is commented out). Rendering an
+	//invalid model handle produces the RGB axis placeholder, so retry with the default male.
+	if ( !(item->flags & ITF_G2VALID) )
 	{
 		Com_Printf( S_COLOR_YELLOW "WARNING: cosmetics preview: could not load %s\n", modelPath );
+
+		Com_sprintf( modelPath, sizeof( modelPath ), "models/players/%s/model.glm", DEFAULT_MODEL );
+		Com_sprintf( skinPath, sizeof( skinPath ), "models/players/%s/model_default.skin", DEFAULT_MODEL );
+		ItemParse_asset_model_go( item, modelPath, &animRunLength );
+		ItemParse_model_g2skin_go( item, skinPath );
+
+		if ( !(item->flags & ITF_G2VALID) )
+			Com_Printf( S_COLOR_YELLOW "WARNING: cosmetics preview: could not load fallback %s\n", modelPath );
 	}
 }
 
