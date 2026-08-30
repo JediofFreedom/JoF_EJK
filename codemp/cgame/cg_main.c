@@ -1896,14 +1896,6 @@ void CG_StartMusic( qboolean bForceStart ) {
 	Q_strncpyz( parm1, COM_Parse( (const char **)&s ), sizeof( parm1 ) );
 	Q_strncpyz( parm2, COM_Parse( (const char **)&s ), sizeof( parm2 ) );
 
-	// An empty CS_MUSIC means the map has no music. Stop any track left over
-	// from the main menu (or another cgame-triggered track) instead of passing
-	// an empty name through to the sound system, where it is ignored.
-	if ( !parm1[0] ) {
-		trap->S_StopBackgroundTrack();
-		return;
-	}
-
 	trap->S_StartBackgroundTrack( parm1, parm2, !bForceStart );
 }
 
