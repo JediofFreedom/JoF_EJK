@@ -780,17 +780,6 @@ typedef struct clientPersistant_s {
 
 	usercmd_t	lastCmd;			//eh
 
-	struct {
-		unsigned int lastInputMask;
-		int lastServerTime;
-		int pulseStartTime;
-		int firstMatchTime;
-		int matchCount;
-		qboolean haveLastInput;
-		qboolean pulseCandidate;
-		qboolean detected;
-	} asAttackMacro;
-
 	qboolean	localClient;		// true if "ip" info key is "localhost"
 	qboolean	initialSpawn;		// the first spawn should be at a cool location
 	qboolean	predictItemPickup;	// based on cg_predictItems userinfo

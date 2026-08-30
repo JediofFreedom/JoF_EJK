@@ -626,7 +626,7 @@
 			name				character
 			group				models
 			type 				ITEM_TYPE_MODEL
-			rect				334 209 140 218
+			rect				304 186 200 245
 			model_g2anim 		"BOTH_WALK1"
 			asset_model			"ui_char_model"
 			model_angle			180

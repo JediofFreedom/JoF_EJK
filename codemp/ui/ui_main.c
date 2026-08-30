@@ -7580,41 +7580,20 @@ extern qboolean ItemParse_asset_model_go( itemDef_t *item, const char *name,int 
 extern qboolean ItemParse_model_g2skin_go( itemDef_t *item, const char *skinName );
 extern qboolean ItemParse_model_g2anim_go( itemDef_t *item, const char *animName );
 
-/*
- * Keep the profile preview on the regular ITEM_TYPE_MODEL path used by the
- * custom-character menu. Adapted from github.com/Razish/japp's player
- * selection preview; JAPP attributes the original approach to JA+.
- */
-static qboolean UI_UpdateNormalMenuCharacter( void )
+static qboolean UI_LoadNormalMenuCharacter( itemDef_t *item, const char *modelSpec )
 {
-	menuDef_t *menu;
-	itemDef_t *item;
 	char modelName[MAX_QPATH];
 	char modelPath[MAX_QPATH];
 	char skinPath[MAX_QPATH];
 	char *skin;
 	int animRunLength;
 
-	menu = Menu_GetFocused();
-	if ( !menu )
+	if ( !modelSpec || !modelSpec[0] )
 	{
-		return qtrue;
+		return qfalse;
 	}
 
-	item = (itemDef_t *)Menu_FindItemByName( menu, "character" );
-	if ( !item )
-	{
-		return qtrue;
-	}
-
-	ItemParse_model_g2anim_go( item, ui_char_anim.string );
-
-	trap->Cvar_VariableStringBuffer( "model", modelName, sizeof(modelName) );
-	if ( !modelName[0] )
-	{
-		Q_strncpyz( modelName, "kyle/default", sizeof(modelName) );
-	}
-
+	Q_strncpyz( modelName, modelSpec, sizeof(modelName) );
 	skin = strchr( modelName, '/' );
 	if ( skin )
 	{
@@ -7636,13 +7615,65 @@ static qboolean UI_UpdateNormalMenuCharacter( void )
 	}
 	Com_sprintf( modelPath, sizeof(modelPath), "models/players/%s/model.glm", modelName );
 
-	if ( !ItemParse_asset_model_go( item, modelPath, &animRunLength ) )
+	ItemParse_asset_model_go( item, modelPath, &animRunLength );
+	if ( !(item->flags & ITF_G2VALID) )
 	{
 		return qfalse;
 	}
 
 	ItemParse_model_g2skin_go( item, skinPath );
 	return qtrue;
+}
+
+/*
+ * Keep the profile preview on the regular ITEM_TYPE_MODEL path used by the
+ * custom-character menu. Adapted from github.com/Razish/japp's player
+ * selection preview; JAPP attributes the original approach to JA+.
+ */
+static qboolean UI_UpdateNormalMenuCharacter( void )
+{
+	menuDef_t *menu;
+	itemDef_t *item;
+	char modelName[MAX_QPATH];
+	char defaultModel[MAX_QPATH];
+
+	menu = Menu_GetFocused();
+	if ( !menu )
+	{
+		return qtrue;
+	}
+
+	item = (itemDef_t *)Menu_FindItemByName( menu, "character" );
+	if ( !item )
+	{
+		return qtrue;
+	}
+
+	ItemParse_model_g2anim_go( item, ui_char_anim.string );
+
+	trap->Cvar_VariableStringBuffer( "model", modelName, sizeof(modelName) );
+	if ( UI_LoadNormalMenuCharacter( item, modelName ) )
+	{
+		return qtrue;
+	}
+
+	trap->Cvar_VariableStringBuffer( "cg_defaultModel", defaultModel, sizeof(defaultModel) );
+	if ( !defaultModel[0] )
+	{
+		Q_strncpyz( defaultModel, DEFAULT_MODEL, sizeof(defaultModel) );
+	}
+
+	if ( Q_stricmp( modelName, defaultModel ) && UI_LoadNormalMenuCharacter( item, defaultModel ) )
+	{
+		return qtrue;
+	}
+
+	if ( Q_stricmp( defaultModel, DEFAULT_MODEL ) )
+	{
+		return UI_LoadNormalMenuCharacter( item, DEFAULT_MODEL );
+	}
+
+	return qfalse;
 }
 
 static void UI_UpdateSaberType( void )

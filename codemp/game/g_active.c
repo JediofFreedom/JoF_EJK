@@ -5788,116 +5788,6 @@ ClientThink
 A new command has arrived from the client
 ==================
 */
-#define AS_ATTACK_INPUT_LEFT		(1u << 0)
-#define AS_ATTACK_INPUT_BACK		(1u << 1)
-#define AS_ATTACK_INPUT_ATTACK	(1u << 2)
-#define AS_ATTACK_INPUT_ALL		(AS_ATTACK_INPUT_LEFT | AS_ATTACK_INPUT_BACK | AS_ATTACK_INPUT_ATTACK)
-#define AS_ATTACK_MACRO_MATCHES	12
-#define AS_ATTACK_MACRO_TIMEOUT	30000
-
-static void G_CheckASAttackMacro( gentity_t *ent, usercmd_t *ucmd ) {
-	clientPersistant_t *pers;
-	unsigned int inputMask = 0;
-	unsigned int previousMask;
-	qboolean matchedPulse = qfalse;
-	int pulseMsec = 0;
-
-	if ( !ent || !ent->client || !ucmd || ent->s.number >= MAX_CLIENTS ) {
-		return;
-	}
-
-	pers = &ent->client->pers;
-
-	if ( !g_antiASAttackMacro.integer ) {
-		memset( &pers->asAttackMacro, 0, sizeof( pers->asAttackMacro ) );
-		return;
-	}
-
-	if ( ent->r.svFlags & SVF_BOT || ent->client->sess.sessionTeam == TEAM_SPECTATOR ||
-		ent->client->ps.pm_type == PM_DEAD || ent->client->ps.weapon != WP_SABER ||
-		(ucmd->buttons & BUTTON_TALK) ) {
-		pers->asAttackMacro.haveLastInput = qfalse;
-		pers->asAttackMacro.pulseCandidate = qfalse;
-		return;
-	}
-
-	// Ignore duplicate/old commands. The engine normally filters these, but this
-	// also keeps synchronous and forced updates from becoming extra samples.
-	if ( pers->asAttackMacro.lastServerTime && ucmd->serverTime <= pers->asAttackMacro.lastServerTime ) {
-		return;
-	}
-
-	if ( ucmd->rightmove < 0 ) {
-		inputMask |= AS_ATTACK_INPUT_LEFT;
-	}
-	if ( ucmd->forwardmove < 0 ) {
-		inputMask |= AS_ATTACK_INPUT_BACK;
-	}
-	if ( ucmd->buttons & BUTTON_ATTACK ) {
-		inputMask |= AS_ATTACK_INPUT_ATTACK;
-	}
-
-	previousMask = pers->asAttackMacro.lastInputMask;
-
-	if ( pers->asAttackMacro.firstMatchTime &&
-		ucmd->serverTime - pers->asAttackMacro.firstMatchTime > AS_ATTACK_MACRO_TIMEOUT ) {
-		pers->asAttackMacro.matchCount = 0;
-		pers->asAttackMacro.firstMatchTime = 0;
-	}
-
-	if ( pers->asAttackMacro.haveLastInput ) {
-		if ( pers->asAttackMacro.pulseCandidate ) {
-			// wait 2 is consumed by the client's two command-buffer executions per
-			// frame, making the three inputs disappear on the very next usercmd.
-			if ( previousMask == AS_ATTACK_INPUT_ALL && inputMask == 0 ) {
-				matchedPulse = qtrue;
-				pulseMsec = ucmd->serverTime - pers->asAttackMacro.pulseStartTime;
-			}
-			else {
-				// A held or partially released chord is not the target macro and
-				// breaks the run of identical one-command pulses.
-				pers->asAttackMacro.matchCount = 0;
-				pers->asAttackMacro.firstMatchTime = 0;
-			}
-			pers->asAttackMacro.pulseCandidate = qfalse;
-		}
-
-		if ( inputMask == AS_ATTACK_INPUT_ALL && previousMask == 0 ) {
-			pers->asAttackMacro.pulseCandidate = qtrue;
-			pers->asAttackMacro.pulseStartTime = ucmd->serverTime;
-		}
-	}
-
-	if ( matchedPulse ) {
-		if ( !pers->asAttackMacro.matchCount ) {
-			pers->asAttackMacro.firstMatchTime = ucmd->serverTime;
-		}
-		pers->asAttackMacro.matchCount++;
-
-		if ( pers->asAttackMacro.matchCount >= AS_ATTACK_MACRO_MATCHES &&
-			!pers->asAttackMacro.detected ) {
-			pers->asAttackMacro.detected = qtrue;
-			G_SecurityLogPrintf(
-				"A+S attack macro detected: client %d (%s^7), GUID %s, IP %s; "
-				"%d consecutive one-usercmd pulses in %d ms (last pulse %d ms)\n",
-				ent->s.number, pers->netname, pers->guid, ent->client->sess.IP,
-				pers->asAttackMacro.matchCount,
-				ucmd->serverTime - pers->asAttackMacro.firstMatchTime, pulseMsec );
-		}
-	}
-
-	pers->asAttackMacro.lastInputMask = inputMask;
-	pers->asAttackMacro.lastServerTime = ucmd->serverTime;
-	pers->asAttackMacro.haveLastInput = qtrue;
-
-	// Mode 1 only reports. Mode 2 also suppresses attack while a previously
-	// detected player sends the scripted A+S+attack chord.
-	if ( g_antiASAttackMacro.integer >= 2 && pers->asAttackMacro.detected &&
-		inputMask == AS_ATTACK_INPUT_ALL ) {
-		ucmd->buttons &= ~BUTTON_ATTACK;
-	}
-}
-
 void ClientThink( int clientNum, usercmd_t *ucmd ) {
 	gentity_t *ent;
 	ent = g_entities + clientNum;
@@ -5914,8 +5804,6 @@ void ClientThink( int clientNum, usercmd_t *ucmd ) {
 	{
 		ent->client->pers.cmd = *ucmd; //Somehow this crashes the server if you try to board a vehicle without it having spawned yet...? somtimes?
 	}
-
-	G_CheckASAttackMacro( ent, &ent->client->pers.cmd );
 
 /* 	This was moved to clientthink_real, but since its sort of a risky change i left it here for
     now as a more concrete reference - BSD
