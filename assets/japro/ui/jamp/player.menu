@@ -17,6 +17,7 @@
 		{ 
 			uiScript		update  "ui_GetName" 
 			uiScript		clearModelSearch
+			uiScript		"updateplayerpreview"
 		}
 									
 		onESC 
@@ -588,12 +589,12 @@
 		itemDef 
 		{
 			name 				headlist
-			rect 				30 224 404 194
+			rect 				30 224 304 194
 //			rect 				126 215 80 200
 			type 				ITEM_TYPE_LISTBOX
 			style 				WINDOW_STYLE_FILLED
-			elementwidth 			64
-			elementheight 			64
+			elementwidth 			32
+			elementheight 			32
 			elementtype 			LISTBOX_IMAGE
 			feeder 				FEEDER_Q3HEADS
 //			horizontalscroll
@@ -616,6 +617,26 @@
 			{ 
 				setitemcolor headlist bordercolor .5 .5 .5 1 
 			}
+		}
+
+		// Transparent walking preview; uses the same model widget as custom character creation.
+		itemDef
+		{
+			name				character
+			group				models
+			type 				ITEM_TYPE_MODEL
+			rect				304 186 200 245
+			model_g2anim 		"BOTH_WALK1"
+			asset_model			"ui_char_model"
+			model_angle			180
+			model_g2mins		-30 -15 -14
+			model_g2maxs		20 15 30
+			model_rotation		50
+			model_fovx			50
+			model_fovy			50
+			isCharacter			1
+			visible				1
+			decoration
 		}
 
 // Custom skin
