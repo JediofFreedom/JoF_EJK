@@ -150,6 +150,17 @@ typedef struct playerInfo_s {
 #define MAX_ALIASES				64
 #define MAX_TEAMS				64
 #define MAX_COSMETIC_LENGTH		14	// must match cg_local.h
+
+//a hat or cape the UI found on disk. Same folders and naming rules as cgame uses.
+#define UI_COSMETIC_HATS_PATH	"models/cosmetics/hats/"
+#define UI_COSMETIC_CAPES_PATH	"models/cosmetics/capes/"
+#define UI_COSMETIC_HATS_LEGACY_PATH	"models/players/hats/"
+#define UI_COSMETIC_CAPES_LEGACY_PATH	"models/players/capes/"
+
+typedef struct uiCosmeticItem_s {
+	char		name[MAX_COSMETIC_LENGTH];
+	qhandle_t	handle;
+} uiCosmeticItem_t;
 #define MAX_GAMETYPES			16
 #define MAX_MAPS				512 // 128
 #define PLAYERS_PER_TEAM		8 //5
@@ -424,8 +435,21 @@ typedef struct uiInfo_s {
 	char					hat[MAX_COSMETIC_LENGTH];
 	char					cape[MAX_COSMETIC_LENGTH];
 
+	//The UI is a separate module from cgame and cannot see its registry, so it scans the
+	//cosmetics folders itself to fill the menu lists and to draw them on the preview.
+	uiCosmeticItem_t		*hats;
+	uiCosmeticItem_t		*capes;
+	int						totalHats;
+	int						totalCapes;
+
 } uiInfo_t;
 extern uiInfo_t uiInfo;
+
+//cosmetics (ui_main.c)
+void UI_LoadCosmetics( void );
+void UI_ClearCosmetics( void );
+void UI_GetCosmeticCvars( void );
+void UI_UpdateCosmeticsCharacter( void );
 
 qboolean	UI_ConsoleCommand( int realTime );
 void		UI_DrawHandlePic( float x, float y, float w, float h, qhandle_t hShader );

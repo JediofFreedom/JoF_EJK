@@ -132,6 +132,11 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define FEEDER_SABER_SINGLE_INFO			0x2b			// saber single
 #define FEEDER_SABER_STAFF_INFO				0x2c			// saber staff
 
+// Cosmetics - wearable hats and capes found in models/cosmetics/
+// NOTE: keep in sync with codemp/ui/menudef.h
+#define FEEDER_COSMETIC_HATS				0x2E
+#define FEEDER_COSMETIC_CAPES				0x2F
+
 
 // Xbox specific, hope no one minds
 #define FEEDER_XBL_ACCOUNTS					0xA0			// list of available XBL accounts
