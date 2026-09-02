@@ -3952,9 +3952,10 @@
 			textscale			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			cvarTest			ui_isJoFJAPlus
+cvarTest				ui_isJoFJAPlus
 			showCvar			{ 1 }
-			descText			"Challenge an enemy to a private full force duel, or accept another's challenge. JoF JA+ servers only."
+				descText			"Challenge an enemy to a private full force duel, or accept another's challenge. JoF JA+ servers only."
+
 			action
 			{
 				play			"sound/interface/button1.wav" ;

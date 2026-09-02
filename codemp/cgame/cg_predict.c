@@ -1137,7 +1137,6 @@ static qboolean CG_InJAPlusSpecialKickState( playerState_t *ps )
 
 	return qfalse;
 }
-
 void CG_PredictPlayerState( void ) {
 	int			cmdNum, current, i;
 	playerState_t	oldPlayerState;
@@ -1200,11 +1199,10 @@ void CG_PredictPlayerState( void ) {
 	// bg_pmove doesn't replicate, so while we're down every movement input mispredicts
 	// and the constant error corrections make the camera stutter. We can't actually
 	// move during the knockdown anyway, so prediction buys nothing there: fall back to
-	// snapshot interpolation (cg_noPredict behavior) until we're back on our feet.
-	// With cg_noPredict set there is nothing to fall back from (the branch above
-	// already returned) - the !cg_noPredict here is belt and braces for reordering.
-	if ( !cg_noPredict.integer && cgs.serverMod == SVMOD_JAPLUS &&
-		CG_InJAPlusSpecialKickState( &cg.snap->ps ) )
+// authoritative snapshot interpolation until we're back on our feet. Keep the
+// server angles as well because JA+ controls the victim's view during this state.
+if ( cgs.serverMod == SVMOD_JAPLUS && CG_InJAPlusSpecialKickState( &cg.snap->ps ) )
+
 	{
 		CG_InterpolatePlayerState( qfalse );
 		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
