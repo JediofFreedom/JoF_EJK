@@ -110,6 +110,13 @@ int openMenuCount = 0;
 
 static qboolean debugMode = qfalse;
 
+// Description text uses a single, menu-defined screen position.  Defer it
+// while menus are painted so overlapping items (or stacked menus) cannot draw
+// more than one description into that slot.
+static itemDef_t *descriptionItem = NULL;
+static qboolean deferDescriptionPaint = qfalse;
+static qboolean focusedMenuDescriptionsOnly = qfalse;
+
 #define DOUBLE_CLICK_DELAY 300
 static int lastListBoxClickTime = 0;
 
@@ -1361,7 +1368,8 @@ void Menu_ShowGroup (menuDef_t *menu, const char *groupName, qboolean showFlag)
 			}
 			else
 			{
-				item->window.flags &= ~(WINDOW_VISIBLE | WINDOW_HASFOCUS);
+				item->window.flags &= ~(WINDOW_VISIBLE | WINDOW_HASFOCUS |
+					WINDOW_MOUSEOVER | WINDOW_MOUSEOVERTEXT);
 			}
 		}
 	}
@@ -1377,7 +1385,8 @@ void Menu_ShowItemByName(menuDef_t *menu, const char *p, qboolean bShow) {
 			if (bShow) {
 				item->window.flags |= WINDOW_VISIBLE;
 			} else {
-				item->window.flags &= ~WINDOW_VISIBLE;
+				item->window.flags &= ~(WINDOW_VISIBLE | WINDOW_HASFOCUS |
+					WINDOW_MOUSEOVER | WINDOW_MOUSEOVERTEXT);
 				// stop cinematics playing in the window
 				if (item->window.cinematic >= 0) {
 					DC->stopCinematic(item->window.cinematic);
@@ -1438,6 +1447,7 @@ static void Menu_RunCloseScript(menuDef_t *menu) {
 void Menus_CloseByName ( const char *p )
 {
 	menuDef_t *menu = Menus_FindByName(p);
+	int i;
 
 	// If the menu wasnt found just exit
 	if (menu == NULL)
@@ -1469,6 +1479,10 @@ void Menus_CloseByName ( const char *p )
 
 	// Window is now invisible and doenst have focus
 	menu->window.flags &= ~(WINDOW_VISIBLE | WINDOW_HASFOCUS);
+	for (i = 0; i < menu->itemCount; i++)
+	{
+		menu->items[i]->window.flags &= ~(WINDOW_MOUSEOVER | WINDOW_MOUSEOVERTEXT);
+	}
 }
 
 int FPMessageTime = 0;
@@ -1481,8 +1495,13 @@ void Menus_CloseAll()
 
 	for (i = 0; i < menuCount; i++)
 	{
+		int j;
 		Menu_RunCloseScript ( &Menus[i] );
 		Menus[i].window.flags &= ~(WINDOW_HASFOCUS | WINDOW_VISIBLE);
+		for (j = 0; j < Menus[i].itemCount; j++)
+		{
+			Menus[i].items[j]->window.flags &= ~(WINDOW_MOUSEOVER | WINDOW_MOUSEOVERTEXT);
+		}
 	}
 
 	// Clear the menu stack
@@ -1751,7 +1770,7 @@ void Menu_ItemDisable(menuDef_t *menu, const char *name, qboolean disableFlag)
 		{
 			itemFound->disabled = disableFlag;
 			// Just in case it had focus
-			itemFound->window.flags &= ~WINDOW_MOUSEOVER;
+			itemFound->window.flags &= ~(WINDOW_MOUSEOVER | WINDOW_MOUSEOVERTEXT);
 		}
 	}
 }
@@ -2981,7 +3000,7 @@ void Item_MouseLeave(itemDef_t *item) {
 			item->window.flags &= ~WINDOW_MOUSEOVERTEXT;
 		}
 		Item_RunScript(item, item->mouseExit);
-		item->window.flags &= ~(WINDOW_LB_RIGHTARROW | WINDOW_LB_LEFTARROW);
+		item->window.flags &= ~(WINDOW_MOUSEOVER | WINDOW_LB_RIGHTARROW | WINDOW_LB_LEFTARROW);
 	}
 }
 
@@ -6180,11 +6199,68 @@ void Item_OwnerDraw_Paint(itemDef_t *item) {
 }
 
 
+static void Item_Description_Paint(itemDef_t *item)
+{
+	menuDef_t *parent;
+	const char *textPtr;
+	char temp[MAX_STRING_CHARS] = {0};
+	float fDescScale, fDescScaleCopy;
+	int xPos, textWidth, iYadj = 0;
+
+	if (!item || !item->descText || Display_KeyBindPending())
+	{
+		return;
+	}
+
+	parent = (menuDef_t *)item->parent;
+	textPtr = item->descText;
+	if (*textPtr == '@')
+	{
+		trap->SE_GetStringTextString(&textPtr[1], temp, sizeof(temp));
+		textPtr = temp;
+	}
+
+	fDescScale = parent->descScale ? parent->descScale : 1;
+	fDescScaleCopy = fDescScale;
+	while (1)
+	{
+		textWidth = DC->textWidth(textPtr, fDescScale, FONT_SMALL2);
+
+		if (parent->descAlignment == ITEM_ALIGN_RIGHT)
+		{
+			xPos = parent->descX - textWidth;
+		}
+		else if (parent->descAlignment == ITEM_ALIGN_CENTER)
+		{
+			xPos = parent->descX - (textWidth / 2);
+		}
+		else
+		{
+			xPos = parent->descX;
+		}
+
+		if (parent->descAlignment == ITEM_ALIGN_CENTER && xPos + textWidth > SCREEN_WIDTH - 4)
+		{
+			fDescScale -= 0.001f;
+			continue;
+		}
+
+		if (fDescScale != fDescScaleCopy)
+		{
+			int originalTextHeight = DC->textHeight(textPtr, fDescScaleCopy, FONT_MEDIUM);
+			iYadj = originalTextHeight - DC->textHeight(textPtr, fDescScale, FONT_MEDIUM);
+		}
+
+		DC->drawText(xPos, parent->descY + iYadj, fDescScale, parent->descColor,
+			textPtr, 0, 0, item->textStyle, FONT_SMALL2);
+		break;
+	}
+}
+
 void Item_Paint(itemDef_t *item)
 {
 	vec4_t		red;
 	menuDef_t *parent;
-	int			xPos,textWidth;
 	vec4_t		color = {1, 1, 1, 1};
 
 	red[0] = red[3] = 1;
@@ -6622,74 +6698,22 @@ void Item_Paint(itemDef_t *item)
 	}
 
 
-	if (item->window.flags & WINDOW_MOUSEOVER)
+	if ((item->window.flags & WINDOW_MOUSEOVER) && item->descText &&
+		!item->disabled && !Display_KeyBindPending() &&
+		(!(item->cvarFlags & (CVAR_ENABLE | CVAR_DISABLE)) ||
+			Item_EnableShowViaCvar(item, CVAR_ENABLE)) &&
+		(!focusedMenuDescriptionsOnly || (parent->window.flags & WINDOW_HASFOCUS)))
 	{
-		if (item->descText && !Display_KeyBindPending())
+		// Keep the focused item when rectangles overlap.  If neither candidate
+		// has focus, later paint order wins because that item is visually on top.
+		if (!descriptionItem || (item->window.flags & WINDOW_HASFOCUS) ||
+			!(descriptionItem->window.flags & WINDOW_HASFOCUS))
 		{
-			// Make DOUBLY sure that this item should have desctext.
-			// NOTE : we can't just check the mouse position on this, what if we TABBED
-			// to the current menu item -- in that case our mouse isn't over the item.
-			// Removing the WINDOW_MOUSEOVER flag just prevents the item's OnExit script from running
-	//	    if (!Rect_ContainsPoint(&item->window.rect, DC->cursorx, DC->cursory))
-	//		{	// It isn't something that should, because it isn't live anymore.
-	//			item->window.flags &= ~WINDOW_MOUSEOVER;
-	//		}
-	//		else
-			{	// Draw the desctext
-				const char *textPtr = item->descText;
-				char temp[MAX_STRING_CHARS] = {0};
-				if (*textPtr == '@')	// string reference
-				{
-					trap->SE_GetStringTextString( &textPtr[1], temp, sizeof(temp));
-					textPtr = temp;
-				}
-
-				Item_TextColor(item, &color);
-
-				{// stupid C language
-					float fDescScale = parent->descScale ? parent->descScale : 1;
-					float fDescScaleCopy = fDescScale;
-					int iYadj = 0;
-					while (1)
-					{
-						textWidth = DC->textWidth(textPtr,fDescScale, FONT_SMALL2);
-
-						if (parent->descAlignment == ITEM_ALIGN_RIGHT)
-						{
-							xPos = parent->descX - textWidth;	// Right justify
-						}
-						else if (parent->descAlignment == ITEM_ALIGN_CENTER)
-						{
-							xPos = parent->descX - (textWidth/2);	// Center justify
-						}
-						else										// Left justify
-						{
-							xPos = parent->descX;
-						}
-
-						if (parent->descAlignment == ITEM_ALIGN_CENTER)
-						{
-							// only this one will auto-shrink the scale until we eventually fit...
-							//
-							if (xPos + textWidth > (SCREEN_WIDTH-4)) {
-								fDescScale -= 0.001f;
-								continue;
-							}
-						}
-
-						// Try to adjust it's y placement if the scale has changed...
-						//
-						if (fDescScale != fDescScaleCopy)
-						{
-							int iOriginalTextHeight = DC->textHeight(textPtr, fDescScaleCopy, FONT_MEDIUM);
-							iYadj = iOriginalTextHeight - DC->textHeight(textPtr, fDescScale, FONT_MEDIUM);
-						}
-
-						DC->drawText(xPos, parent->descY + iYadj, fDescScale, parent->descColor, textPtr, 0, 0, item->textStyle, FONT_SMALL2);
-						break;
-					}
-				}
-			}
+			descriptionItem = item;
+		}
+		if (!deferDescriptionPaint)
+		{
+			Item_Description_Paint(descriptionItem);
 		}
 	}
 
@@ -6956,6 +6980,7 @@ void Menu_HandleMouseMove(menuDef_t *menu, float x, float y) {
 
 void Menu_Paint(menuDef_t *menu, qboolean forcePaint) {
 	int i;
+	qboolean ownsDescriptionPass = qfalse;
 
 	if (menu == NULL) {
 		return;
@@ -6971,6 +6996,13 @@ void Menu_Paint(menuDef_t *menu, qboolean forcePaint) {
 
 	if (forcePaint) {
 		menu->window.flags |= WINDOW_FORCED;
+	}
+
+	if (!deferDescriptionPaint)
+	{
+		descriptionItem = NULL;
+		deferDescriptionPaint = qtrue;
+		ownsDescriptionPass = qtrue;
 	}
 
 	// draw the background if necessary
@@ -7013,6 +7045,13 @@ void Menu_Paint(menuDef_t *menu, qboolean forcePaint) {
 		color[0] = color[2] = color[3] = 1;
 		color[1] = 0;
 		DC->drawRect(menu->window.rect.x, menu->window.rect.y, menu->window.rect.w, menu->window.rect.h, 1, color);
+	}
+
+	if (ownsDescriptionPass)
+	{
+		deferDescriptionPaint = qfalse;
+		Item_Description_Paint(descriptionItem);
+		descriptionItem = NULL;
 	}
 }
 
@@ -9675,9 +9714,16 @@ void Menu_PaintAll() {
 		captureFunc(captureData);
 	}
 
+	descriptionItem = NULL;
+	deferDescriptionPaint = qtrue;
+	focusedMenuDescriptionsOnly = qtrue;
 	for (i = 0; i < Menu_Count(); i++) {
 		Menu_Paint(&Menus[i], qfalse);
 	}
+	focusedMenuDescriptionsOnly = qfalse;
+	deferDescriptionPaint = qfalse;
+	Item_Description_Paint(descriptionItem);
+	descriptionItem = NULL;
 
 	if (debugMode) {
 		vec4_t v = {1, 1, 1, 1};
