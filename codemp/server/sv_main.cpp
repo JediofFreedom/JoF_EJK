@@ -777,6 +777,15 @@ void SV_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 		// if a client starts up a local server, we may see some spurious
 		// server disconnect messages when their new server sees our final
 		// sequenced messages to the old client
+	} else if (!Q_stricmp(c, "infoResponse") ||
+			   !Q_stricmp(c, "statusResponse") ||
+			   !Q_strncmp(c, "getserversResponse", 18) ||
+			   !Q_strncmp(c, "startmatchmakingResponse", 24)) {
+#ifndef DEDICATED
+		// Listen servers share their UDP socket with the client. Forward
+		// server-browser replies that would otherwise be discarded here.
+		CL_ConnectionlessPacket(from, msg);
+#endif
 	} else {
 		if ( com_developer->integer ) {
 			Com_Printf( "bad connectionless packet from %s:\n%s\n",
