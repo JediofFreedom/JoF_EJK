@@ -10755,24 +10755,12 @@ void UI_UpdateCosmeticsCharacter( void )
 	}
 }
 
-static qboolean UI_CosmeticMatchesSearch( const uiCosmeticItem_t *item )
-{
-	char search[MAX_CVAR_VALUE_STRING], displayName[MAX_COSMETIC_LENGTH];
-
-	trap->Cvar_VariableStringBuffer( "ui_cosmeticSearch", search, sizeof( search ) );
-	if ( !search[0] )
-		return qtrue;
-
-	UI_CosmeticDisplayName( item->name, displayName, sizeof( displayName ) );
-	return (qboolean)( Q_stristr( item->name, search ) || Q_stristr( displayName, search ) );
-}
-
 static int UI_InstalledCosmeticCount( const uiCosmeticItem_t *items, int total )
 {
 	int count = 0, i;
 
 	for ( i = 0; i < total; i++ )
-		if ( items[i].handle && UI_CosmeticMatchesSearch( &items[i] ) )
+		if ( items[i].handle )
 			count++;
 
 	return count;
@@ -10784,7 +10772,7 @@ static int UI_InstalledCosmeticIndex( const uiCosmeticItem_t *items, int total, 
 
 	for ( i = 0; i < total; i++ )
 	{
-		if ( !items[i].handle || !UI_CosmeticMatchesSearch( &items[i] ) )
+		if ( !items[i].handle )
 			continue;
 		if ( visibleIndex-- == 0 )
 			return i;
@@ -10817,7 +10805,7 @@ static void UI_HighlightWornCosmetic( const char *itemName, const uiCosmeticItem
 
 	for ( i = 0; i < total; i++ )
 	{
-		if ( !items[i].handle || !UI_CosmeticMatchesSearch( &items[i] ) )
+		if ( !items[i].handle )
 			continue;
 		if ( !Q_stricmp( items[i].name, worn ) )
 		{
@@ -10834,31 +10822,6 @@ static void UI_HighlightWornCosmetics( void )
 	UI_HighlightWornCosmetic( "capelist", uiInfo.capes, uiInfo.totalCapes, uiInfo.cape );
 }
 
-void UI_UpdateCosmeticFilter( void )
-{
-	static char hatsTitle[32], capesTitle[32];
-	menuDef_t *menu = Menus_FindByName( "ingame_cosmetics" );
-	itemDef_t *item;
-	int count;
-
-	if ( !menu )
-		return;
-
-	UI_HighlightWornCosmetics();
-
-	count = UI_InstalledCosmeticCount( uiInfo.hats, uiInfo.totalHats );
-	Com_sprintf( hatsTitle, sizeof( hatsTitle ), count ? "Hats (%d)" : "Hats (0) - No matches", count );
-	item = (itemDef_t *)Menu_FindItemByName( menu, "hatstitle" );
-	if ( item )
-		item->text = hatsTitle;
-
-	count = UI_InstalledCosmeticCount( uiInfo.capes, uiInfo.totalCapes );
-	Com_sprintf( capesTitle, sizeof( capesTitle ), count ? "Capes (%d)" : "Capes (0) - No matches", count );
-	item = (itemDef_t *)Menu_FindItemByName( menu, "capestitle" );
-	if ( item )
-		item->text = capesTitle;
-}
-
 //color1/color2 are the source of truth - the console command writes them too, so read them
 //back whenever the menu opens rather than trusting whatever the UI last remembered
 void UI_GetCosmeticCvars( void )
@@ -10872,7 +10835,6 @@ void UI_GetCosmeticCvars( void )
 	Q_StripDigits( value, uiInfo.cape, sizeof( uiInfo.cape ), REMOVE_DIGITS_INITIAL );
 
 	UI_HighlightWornCosmetics();
-	UI_UpdateCosmeticFilter();
 }
 
 /*
@@ -10947,11 +10909,11 @@ static int UI_FeederCount(float feederID)
 	{
 		case FEEDER_COSMETIC_HATS:
 			count = UI_InstalledCosmeticCount( uiInfo.hats, uiInfo.totalHats );
-			return count + ( !ui_cosmeticSearch.string[0] && count < uiInfo.totalHats );
+			return count + ( count < uiInfo.totalHats );
 
 		case FEEDER_COSMETIC_CAPES:
 			count = UI_InstalledCosmeticCount( uiInfo.capes, uiInfo.totalCapes );
-			return count + ( !ui_cosmeticSearch.string[0] && count < uiInfo.totalCapes );
+			return count + ( count < uiInfo.totalCapes );
 
 		case FEEDER_SABER_SINGLE_INFO:
 
@@ -11298,7 +11260,7 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 			UI_CosmeticDisplayName( uiInfo.hats[UI_InstalledCosmeticIndex( uiInfo.hats, uiInfo.totalHats, index )].name, displayName, sizeof( displayName ) );
 			return displayName;
 		}
-		if ( index == installed && !ui_cosmeticSearch.string[0] && installed < uiInfo.totalHats )
+		if ( index == installed && installed < uiInfo.totalHats )
 			return "^3Get Hats from JoF Launcher or Cloud^7";
 		return "";
 	}
@@ -11313,7 +11275,7 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 			UI_CosmeticDisplayName( uiInfo.capes[UI_InstalledCosmeticIndex( uiInfo.capes, uiInfo.totalCapes, index )].name, displayName, sizeof( displayName ) );
 			return displayName;
 		}
-		if ( index == installed && !ui_cosmeticSearch.string[0] && installed < uiInfo.totalCapes )
+		if ( index == installed && installed < uiInfo.totalCapes )
 			return "^3Get Capes from JoF Launcher or Cloud^7";
 		return "";
 	}
