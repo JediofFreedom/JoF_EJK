@@ -439,8 +439,8 @@ typedef struct uiInfo_s {
 	//cosmetics folders itself to fill the menu lists and to draw them on the preview.
 	uiCosmeticItem_t		*hats;
 	uiCosmeticItem_t		*capes;
-	int					totalHats;
-	int					totalCapes;
+	int				totalHats;
+	int				totalCapes;
 } uiInfo_t;
 extern uiInfo_t uiInfo;
 

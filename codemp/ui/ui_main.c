@@ -8273,7 +8273,6 @@ static void UI_RunMenuScript(char **args)
 		else if (Q_stricmp(name, "cosmeticsmodel") == 0)
 		{
 			UI_UpdateCosmeticsCharacter();
-		}
 		else if (Q_stricmp(name, "updateplayerpreview") == 0)
 		{
 			UI_UpdateNormalMenuCharacter();
@@ -10757,6 +10756,32 @@ void UI_UpdateCosmeticsCharacter( void )
 	}
 }
 
+static int UI_InstalledCosmeticCount( const uiCosmeticItem_t *items, int total )
+{
+	int count = 0, i;
+
+	for ( i = 0; i < total; i++ )
+		if ( items[i].handle )
+			count++;
+
+	return count;
+}
+
+static int UI_InstalledCosmeticIndex( const uiCosmeticItem_t *items, int total, int visibleIndex )
+{
+	int i;
+
+	for ( i = 0; i < total; i++ )
+	{
+		if ( !items[i].handle )
+			continue;
+		if ( visibleIndex-- == 0 )
+			return i;
+	}
+
+	return -1;
+}
+
 //The listbox draws a filled bar behind the row in item->cursorPos (see Item_ListBox_Paint),
 //so parking the cursor on what the player is already wearing is what makes the menu show it.
 //-1 means nothing worn, and so nothing highlighted.
@@ -10764,7 +10789,7 @@ static void UI_HighlightWornCosmetic( const char *itemName, const uiCosmeticItem
 {
 	menuDef_t	*menu;
 	itemDef_t	*item;
-	int			i;
+	int			i, visibleIndex = 0;
 
 	menu = Menus_FindByName( "ingame_cosmetics" );
 	if ( !menu )
@@ -10781,11 +10806,14 @@ static void UI_HighlightWornCosmetic( const char *itemName, const uiCosmeticItem
 
 	for ( i = 0; i < total; i++ )
 	{
+		if ( !items[i].handle )
+			continue;
 		if ( !Q_stricmp( items[i].name, worn ) )
 		{
-			item->cursorPos = i;
+			item->cursorPos = visibleIndex;
 			return;
 		}
+		visibleIndex++;
 	}
 }
 
@@ -10881,10 +10909,12 @@ static int UI_FeederCount(float feederID)
 	switch ( (int)feederID )
 	{
 		case FEEDER_COSMETIC_HATS:
-			return uiInfo.totalHats;
+			count = UI_InstalledCosmeticCount( uiInfo.hats, uiInfo.totalHats );
+			return count + ( count < uiInfo.totalHats );
 
 		case FEEDER_COSMETIC_CAPES:
-			return uiInfo.totalCapes;
+			count = UI_InstalledCosmeticCount( uiInfo.capes, uiInfo.totalCapes );
+			return count + ( count < uiInfo.totalCapes );
 
 		case FEEDER_SABER_SINGLE_INFO:
 
@@ -11223,23 +11253,23 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 
 	if (feederID == FEEDER_COSMETIC_HATS)
 	{
-		if (index >= 0 && index < uiInfo.totalHats)
-		{
-			if ( uiInfo.hats[index].handle )
-				return uiInfo.hats[index].name;
-			return va( "%s ^3(Get hats from JoF Launcher or Cloud)^7", uiInfo.hats[index].name );
-		}
+		const int installed = UI_InstalledCosmeticCount( uiInfo.hats, uiInfo.totalHats );
+
+		if ( index >= 0 && index < installed )
+			return uiInfo.hats[UI_InstalledCosmeticIndex( uiInfo.hats, uiInfo.totalHats, index )].name;
+		if ( index == installed && installed < uiInfo.totalHats )
+			return "^3Get Hats from JoF Launcher or Cloud^7";
 		return "";
 	}
 
 	if (feederID == FEEDER_COSMETIC_CAPES)
 	{
-		if (index >= 0 && index < uiInfo.totalCapes)
-		{
-			if ( uiInfo.capes[index].handle )
-				return uiInfo.capes[index].name;
-			return va( "%s ^3(Get capes from JoF Launcher or Cloud)^7", uiInfo.capes[index].name );
-		}
+		const int installed = UI_InstalledCosmeticCount( uiInfo.capes, uiInfo.totalCapes );
+
+		if ( index >= 0 && index < installed )
+			return uiInfo.capes[UI_InstalledCosmeticIndex( uiInfo.capes, uiInfo.totalCapes, index )].name;
+		if ( index == installed && installed < uiInfo.totalCapes )
+			return "^3Get Capes from JoF Launcher or Cloud^7";
 		return "";
 	}
 
@@ -12012,14 +12042,12 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 		char			*worn = isHat ? uiInfo.hat : uiInfo.cape;
 		const char		*cvarName = isHat ? "color1" : "color2";
 
+		//Expose installed rows, followed by one hint in place of any uninstalled
+		//catalog entries. Mapping the visible row skips those hidden entries.
+		index = UI_InstalledCosmeticIndex( items, total, index );
+
 		if (index < 0 || index >= total)
 			return qfalse;
-		if ( !items[index].handle )
-		{
-			Com_Printf( S_COLOR_YELLOW "Cosmetic '%s' is not installed. Get %s from JoF Launcher or Cloud.\\n",
-				items[index].name, isHat ? "hats" : "capes" );
-			return qfalse;
-		}
 
 		if (!Q_stricmp(worn, items[index].name))	//clicking what you already wear takes it off
 		{

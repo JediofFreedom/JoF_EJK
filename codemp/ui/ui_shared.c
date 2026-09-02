@@ -6115,8 +6115,13 @@ void Item_ListBox_Paint(itemDef_t *item) {
 					}
 					else if (text)
 					{
+						float textScale = item->textscale;
+
+						if ( ((int)item->special == FEEDER_COSMETIC_HATS || (int)item->special == FEEDER_COSMETIC_CAPES)
+							&& !Q_stricmpn( text, "^3Get ", 6 ) )
+							textScale *= 0.78f;
 //						DC->drawText(x + 4, y + listPtr->elementHeight, item->textscale, item->window.foreColor, text, 0, 0, item->textStyle);
-						DC->drawText(x + 4, y + item->textaligny, item->textscale, item->window.foreColor, text, 0, 0, item->textStyle, item->iMenuFont);
+						DC->drawText(x + 4, y + item->textaligny, textScale, item->window.foreColor, text, 0, 0, item->textStyle, item->iMenuFont);
 					}
 				}
 
