@@ -36,6 +36,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #undef XCVAR_PROTO
 void UI_RegisterCvars( void );
 void UI_UpdateCvars( void );
+void UI_UpdateCosmeticFilter( void );
 
 #define MAX_FORCE_CONFIGS		128
 #define MAX_SABER_HILTS			256 //64
