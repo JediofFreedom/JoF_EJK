@@ -737,12 +737,18 @@ void CL_InitCGame( void ) {
 	// load the dll
 	CL_BindCGame();
 
+	// Stop it at the map/cgame handoff; CG_StartMusic will start the map track
+	// afterward when CS_MUSIC provides one.
+	S_StopBackgroundTrack();
+
 	cls.state = CA_LOADING;
 
 	// init for this gamestate
 	// use the lastExecutedServerCommand instead of the serverCommandSequence
 	// otherwise server commands sent just before a gamestate are dropped
 	CGVM_Init( clc.serverMessageSequence, clc.lastExecutedServerCommand, clc.clientNum );
+	re->EndRegistration();
+	Com_TouchMemory();
 
 	int clRate = Cvar_VariableIntegerValue( "rate" );
 	if ( clRate == 4000 ) {
@@ -760,16 +766,6 @@ void CL_InitCGame( void ) {
 	t2 = Sys_Milliseconds();
 
 	Com_Printf( "CL_InitCGame: %5.2f seconds\n", (t2-t1)/1000.0 );
-
-	// have the renderer touch all its images, so they are present
-	// on the card even if the driver does deferred loading
-	re->EndRegistration();
-
-	// make sure everything is paged in
-//	if (!Sys_LowPhysicalMemory())
-	{
-		Com_TouchMemory();
-	}
 
 	// clear anything that got printed
 	Con_ClearNotify ();

@@ -1212,7 +1212,7 @@ void R_ScreenShotPNG_f (void) {
 	R_TakeScreenshotPNG( 0, 0, glConfig.vidWidth, glConfig.vidHeight, checkname );
 
 	if ( !silent )
-		ri.Printf( PRINT_ALL, "[skipnotify]Wrote %s\n", checkname );
+		ri.Printf( PRINT_ALL, "Wrote %s\n", checkname );
 }
 
 void R_ScreenShot_f (void) {
@@ -1247,7 +1247,7 @@ void R_ScreenShot_f (void) {
 	R_TakeScreenshotJPEG( 0, 0, glConfig.vidWidth, glConfig.vidHeight, checkname );
 
 	if ( !silent )
-		ri.Printf( PRINT_ALL, "[skipnotify]Wrote %s\n", checkname );
+		ri.Printf( PRINT_ALL, "Wrote %s\n", checkname );
 }
 
 /*

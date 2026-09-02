@@ -73,6 +73,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define SB_SCORE_X			(SB_SCORELINE_X + .55 * SB_SCORELINE_WIDTH)
 #define SB_PING_X			(SB_SCORELINE_X + .70 * SB_SCORELINE_WIDTH)
 #define SB_TIME_X			(SB_SCORELINE_X + .85 * SB_SCORELINE_WIDTH)
+#define SB_ID_X				(SB_SCORELINE_X + .97 * SB_SCORELINE_WIDTH)
 
 // The new and improved score board
 //
@@ -254,6 +255,9 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 		CG_Text_Paint(SB_PING_X, y, 1.0f * scale, colorWhite, "-",0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_SMALL);
 		CG_Text_Paint(SB_TIME_X, y, 1.0f * scale, colorWhite, "-",0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_SMALL);
 	}
+
+	if (cg_showClientIDs.integer)
+		CG_Text_Paint(SB_ID_X, y, 1.0f * scale, colorWhite, va("%i", score->client), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_SMALL);
 
 	// add the "ready" marker for intermission exiting
 	if ( cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << score->client ) )
@@ -526,6 +530,9 @@ static void CG_DrawClientScore2( int y, score_t *score, float *color, float fade
 		CG_Text_Paint(SB_TIME_X, y, 1.0f * scale, colorWhite, "-", 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_SMALL);
 	}
 
+	if (cg_showClientIDs.integer)
+		CG_Text_Paint(SB_ID_X, y, 1.25f * scale, colorWhite, va("%i", score->client), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_SMALL2);
+
 	// add the "ready" marker for intermission exiting
 	if ( cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << score->client ) )
 	{
@@ -763,7 +770,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 	qboolean compactHasRows = qfalse;
 	int lineHeight;
 	int topBorderSize, bottomBorderSize;
-	qboolean maxClientsScoreboard = cgs.numClients > 20;
+	qboolean maxClientsScoreboard = cgs.numClients >= 20;
 	qboolean intermissionOrDead =
 	cg.predictedPlayerState.pm_type == PM_DEAD ||
 	cg.predictedPlayerState.pm_type == PM_INTERMISSION ||
@@ -1040,6 +1047,9 @@ qboolean CG_DrawOldScoreboard( void ) {
 		CG_Text_Paint ( SB_PING_X, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "PING"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
 		CG_Text_Paint ( SB_TIME_X, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "TIME"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
 	}
+
+	if (cg_showClientIDs.integer)
+		CG_Text_Paint(SB_ID_X, y, menuHeadersScale, colorWhite, "Id", 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM);
 
 	y = maxClientsScoreboard ? SB_TOP - 62 : SB_TOP;
 

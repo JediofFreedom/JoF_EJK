@@ -25,6 +25,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "cg_local.h"
 #include "ghoul2/G2.h"
 #include "game/bg_saga.h"
+#include "cJSON.h"
 
 extern int			cgSiegeTeam1PlShader;
 extern int			cgSiegeTeam2PlShader;
@@ -1831,6 +1832,197 @@ CG_NewClientInfo
 void WP_SetSaber( int entNum, saberInfo_t *sabers, int saberNum, const char *saberName );
 static QINLINE void ParseRGBSaber(char *str, vec3_t c);//rgb
 
+/*
+======================
+CG_ResolveCosmetic
+
+Turns a cosmetic name off the wire into an entry in our local registry. Anything we don't
+have on disk resolves to NULL, which is simply "no hat" - a player wearing something we
+never downloaded is drawn bare-headed rather than dropping us.
+======================
+*/
+static cosmeticItem_t *CG_ResolveCosmetic( const char *cosName, cosmeticItem_t *cosmetics, int totalCosmetics )
+{
+	cosmeticItem_t *item;
+
+	if ( !cosName || !cosName[0] || !Q_stricmp( cosName, "none" ) )
+		return NULL;
+
+	if ( strlen( cosName ) >= MAX_COSMETIC_LENGTH )
+		return NULL;
+
+	item = CG_CosmeticForName( cosName, cosmetics, totalCosmetics );
+
+	//a model that failed to load registers as handle 0 - treat it as absent
+	if ( !item || !item->handle )
+		return NULL;
+
+	return item;
+}
+
+/*
+======================
+CG_CosmeticJSONMatch
+
+Looks a model or skin name up in a .cosmetic object. An exact key wins; failing that we
+take the wildcard key ("kyle*", "de*") with the longest matching prefix, so the most
+specific rule wins. Returns NULL when nothing matches.
+======================
+*/
+static cJSON *CG_CosmeticJSONMatch( cJSON *obj, const char *name )
+{
+	cJSON *match = NULL;
+	int i, bestLen = -1;
+	size_t nameLen = strlen( name );
+
+	match = cJSON_GetObjectItemCaseSensitive( obj, name );
+	if ( match )
+		return match;
+
+	for ( i = 0; i < cJSON_GetArraySize( obj ); i++ )
+	{
+		cJSON *entry = cJSON_GetArrayItem( obj, i );
+		const char *star;
+		int prefixLen;
+
+		if ( !cJSON_IsObject( entry ) || !entry->string )
+			continue;
+
+		star = strchr( entry->string, '*' );
+		if ( !star )
+			continue;
+
+		prefixLen = (int)(star - entry->string);
+		if ( (size_t)prefixLen > nameLen || Q_stricmpn( entry->string, name, prefixLen ) )
+			continue;
+
+		if ( prefixLen > bestLen )
+		{
+			bestLen = prefixLen;
+			match = entry;
+		}
+	}
+
+	return match;
+}
+
+//pulls xOffset/yOffset/zOffset out of a .cosmetic node. All three must be present and
+//numeric, otherwise the node carries no usable offsets and we say so.
+static qboolean CG_CosmeticJSONOffsets( cJSON *node, vec3_t out )
+{
+	cJSON *x = cJSON_GetObjectItemCaseSensitive( node, "xOffset" );
+	cJSON *y = cJSON_GetObjectItemCaseSensitive( node, "yOffset" );
+	cJSON *z = cJSON_GetObjectItemCaseSensitive( node, "zOffset" );
+
+	if ( !cJSON_IsNumber( x ) || !cJSON_IsNumber( y ) || !cJSON_IsNumber( z ) )
+		return qfalse;
+
+	VectorSet( out, (float)x->valuedouble, (float)y->valuedouble, (float)z->valuedouble );
+	return qtrue;
+}
+
+/*
+======================
+CG_LoadCosmeticOffsets
+
+A hat bolted to *head_top sits differently on Kyle than it does on Yoda, so each cosmetic
+may ship a settings/cosmetics/<kind>/<name>.cosmetic file nudging it into place per model
+and per skin:
+
+	{ "kyle": { "modelFallback": true, "xOffset": 0, "yOffset": 0, "zOffset": 2,
+	            "red": { "xOffset": 0, "yOffset": 0, "zOffset": 3 } } }
+
+The skin entry wins; with no skin match, "modelFallback" decides whether the model-level
+offsets apply. No file, no match, or a malformed file all mean "no nudge". Same format as
+TaystJK, so cosmetic packs are interchangeable with theirs.
+======================
+*/
+static void CG_LoadCosmeticOffsets( const char *settingsPath, const cosmeticItem_t *cosmetic,
+	const char *model, const char *skin, vec3_t offsetOut )
+{
+	char			fullPath[MAX_QPATH];
+	fileHandle_t	file = NULL_FILE;
+	int				fileSize;
+	char			*buff;
+	cJSON			*json, *jsonModel, *jsonSkin;
+	qboolean		modelFallback = qfalse;
+
+	VectorClear( offsetOut );
+
+	if ( !cosmetic )
+		return;
+
+	Com_sprintf( fullPath, sizeof( fullPath ), "%s%s.cosmetic", settingsPath, cosmetic->name );
+
+	fileSize = trap->FS_Open( fullPath, &file, FS_READ );
+	if ( fileSize <= 0 )
+	{
+		if ( file )
+			trap->FS_Close( file );
+		return;
+	}
+
+	buff = (char *)malloc( fileSize + 1 );
+	if ( !buff )
+	{
+		trap->FS_Close( file );
+		trap->Error( ERR_DROP, S_COLOR_RED "ERROR: Failed to allocate memory for cosmetic offsets.\n" );
+		return;
+	}
+
+	trap->FS_Read( buff, fileSize, file );
+	buff[fileSize] = '\0';
+	trap->FS_Close( file );
+
+	json = cJSON_Parse( buff );
+	free( buff );
+
+	if ( !json )
+	{
+		Com_Printf( S_COLOR_YELLOW "WARNING: Ignoring offsets for cosmetic (%s), %s is not valid JSON.\n",
+			cosmetic->name, fullPath );
+		return;
+	}
+
+	jsonModel = CG_CosmeticJSONMatch( json, model );
+	if ( !jsonModel )
+	{
+		cJSON_Delete( json );
+		return;
+	}
+
+	modelFallback = cJSON_IsTrue( cJSON_GetObjectItemCaseSensitive( jsonModel, "modelFallback" ) );
+
+	jsonSkin = CG_CosmeticJSONMatch( jsonModel, skin );
+	if ( jsonSkin )
+	{
+		if ( !CG_CosmeticJSONOffsets( jsonSkin, offsetOut ) )
+		{
+			Com_Printf( S_COLOR_YELLOW "WARNING: Ignoring offsets for cosmetic (%s), skin (%s) has no valid xOffset/yOffset/zOffset.\n",
+				cosmetic->name, jsonSkin->string );
+		}
+	}
+	else if ( modelFallback )
+	{
+		if ( !CG_CosmeticJSONOffsets( jsonModel, offsetOut ) )
+		{
+			Com_Printf( S_COLOR_YELLOW "WARNING: Ignoring offsets for cosmetic (%s), model (%s) has no valid xOffset/yOffset/zOffset.\n",
+				cosmetic->name, jsonModel->string );
+		}
+	}
+
+	cJSON_Delete( json );
+}
+
+//A model is off limits to players if it declares "notInMP 1" in its settings.txt,
+//or if the user has listed it in cg_modelBlacklist. NPCs are never affected.
+qboolean CG_ModelIsBlacklisted( const char *modelName ) {
+	if ( BG_ModelIsNPCOnly( modelName ) )
+		return qtrue;
+
+	return BG_ModelInList( modelName, cg_modelBlacklist.string );
+}
+
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	clientInfo_t *ci;
 	clientInfo_t newInfo;
@@ -1839,6 +2031,7 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	const char	*yo;//rgb
 	char		*slash = NULL;
 	char		saber1[MAX_QPATH] = {0}, saber2[MAX_QPATH] = {0};
+	char		cosmeticStr[MAX_COSMETIC_LENGTH] = {0};
 	int			parsed = 0;
 	void *oldGhoul2;
 	void *oldG2Weapons[MAX_SABERS];
@@ -1891,15 +2084,24 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	Q_StripColor( newInfo.cleanname );
 
 	// colors
+	// The saber colour keys double as the carrier for the player's chosen hat and cape:
+	// "8santahat" is saber colour 8 wearing "santahat". atoi() stops at the first letter,
+	// so the colour reads out of the same string untouched.
 	v = Info_ValueForKey( configstring, "c1" );
 	CG_ColorFromString( v, newInfo.color1 );
 
 	newInfo.icolor1 = atoi(v);
 
+	Q_StripDigits( v, cosmeticStr, sizeof( cosmeticStr ), REMOVE_DIGITS_INITIAL );
+	newInfo.hat = CG_ResolveCosmetic( cosmeticStr, localCosmetics.hats, localCosmetics.totalHats );
+
 	v = Info_ValueForKey( configstring, "c2" );
 	CG_ColorFromString( v, newInfo.color2 );
 
 	newInfo.icolor2 = atoi(v);
+
+	Q_StripDigits( v, cosmeticStr, sizeof( cosmeticStr ), REMOVE_DIGITS_INITIAL );
+	newInfo.cape = CG_ResolveCosmetic( cosmeticStr, localCosmetics.capes, localCosmetics.totalCapes );
 
 	// bot skill
 	v = Info_ValueForKey( configstring, "skill" );
@@ -1955,7 +2157,8 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	g = (full >> 8) & 255;
 	b = full >> 16;
 	if ( cg.clientNum == clientNum && newInfo.icolor1 == SABER_RGB ) {
-		trap->Cvar_Set( "color1", va( "%i", SABER_RGB ) );
+		//rewriting color1 here would drop the hat riding on the end of it, so put it back
+		trap->Cvar_Set( "color1", newInfo.hat ? va( "%i%s", SABER_RGB, newInfo.hat->name ) : va( "%i", SABER_RGB ) );
 		trap->Cvar_Set( "cp_sbRGB1", yo );
 	}
 
@@ -1969,7 +2172,8 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	g = (full >> 8) & 255;
 	b = full >> 16;
 	if ( cg.clientNum == clientNum && newInfo.icolor2 == SABER_RGB ) {
-		trap->Cvar_Set( "color2", va( "%i", SABER_RGB ) );
+		//same for the cape on color2
+		trap->Cvar_Set( "color2", newInfo.cape ? va( "%i%s", SABER_RGB, newInfo.cape->name ) : va( "%i", SABER_RGB ) );
 		trap->Cvar_Set( "cp_sbRGB2", yo );
 	}
 
@@ -2076,6 +2280,14 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 		}
 	}
 
+	//blacklisted models are not usable by players, no matter how they got here
+	//(own model, forceModel, forceAlly/EnemyModel) - fall back to the default model
+	if ( CG_ModelIsBlacklisted( newInfo.modelName ) ) {
+		Q_strncpyz( newInfo.modelName, DEFAULT_MODEL, sizeof( newInfo.modelName ) );
+		Q_strncpyz( newInfo.skinName, "default", sizeof( newInfo.skinName ) );
+		v = newInfo.modelName;
+	}
+
 	ci->useAlternateStandAnim = qfalse;
 	newInfo.useAlternateStandAnim = qfalse;
 #ifdef JK2_SUPPORT
@@ -2145,6 +2357,13 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 			}
 		}
 	}
+
+	//the model and skin are final now (siege can still have overridden them above), so the
+	//cosmetics can be fitted to what this player is actually wearing
+	CG_LoadCosmeticOffsets( COSMETIC_HATS_SETTINGS_PATH, newInfo.hat,
+		newInfo.modelName, newInfo.skinName, newInfo.hatOffset );
+	CG_LoadCosmeticOffsets( COSMETIC_CAPES_SETTINGS_PATH, newInfo.cape,
+		newInfo.modelName, newInfo.skinName, newInfo.capeOffset );
 
 	saberUpdate[0] = qfalse;
 	saberUpdate[1] = qfalse;
@@ -3690,6 +3909,17 @@ static void CG_RunLerpFrame( centity_t *cent, clientInfo_t *ci, lerpFrame_t *lf,
 	}
 	else
 	{
+		if ( lf->lastForcedFrame != -1 )
+		{//we were force-frozen last frame and just came out of it - the freeze
+		 //above unconditionally overrode these 3 bones regardless of whether
+		 //this entity actually has them (noLumbar/localAnimIndex), but the
+		 //normal animation path below respects those gates, so it can't be
+		 //relied on to always release the override. Explicitly release it.
+			trap->G2API_RemoveBone(cent->ghoul2, "lower_lumbar", 0);
+			trap->G2API_RemoveBone(cent->ghoul2, "model_root", 0);
+			trap->G2API_RemoveBone(cent->ghoul2, "Motion", 0);
+		}
+
 		lf->lastForcedFrame = -1;
 
 		if ( (newAnimation != lf->animationNumber || cent->currentState.brokenLimbs != ci->brokenLimbs || lf->lastFlip != flipState || !lf->animation) || (CG_FirstAnimFrame(lf, torsoOnly, speedScale)) )
@@ -3733,6 +3963,38 @@ static void CG_ClearLerpFrame( centity_t *cent, clientInfo_t *ci, lerpFrame_t *l
 	else
 	{
 		lf->oldFrame = lf->frame = lf->animation->firstFrame;
+	}
+}
+
+static void CG_UpdateNPCBoneAvailability( centity_t *cent ) {
+	if ( cent->currentState.eType != ET_NPC )
+	{
+		return;
+	}
+
+	if ( cent->currentState.NPC_class == CLASS_VEHICLE )
+	{
+		cent->noLumbar = qtrue;
+		cent->noFace = qtrue;
+		return;
+	}
+
+	cent->noLumbar = qfalse;
+	cent->noFace = qfalse;
+
+	if ( !cent->ghoul2 )
+	{
+		return;
+	}
+
+	if ( trap->G2API_AddBolt( cent->ghoul2, 0, "lower_lumbar" ) == -1 )
+	{
+		cent->noLumbar = qtrue;
+	}
+
+	if ( trap->G2API_AddBolt( cent->ghoul2, 0, "face" ) == -1 )
+	{
+		cent->noFace = qtrue;
 	}
 }
 
@@ -5526,6 +5788,24 @@ static const char *cg_pushBoneNames[] =
 	NULL
 };
 
+// JoF - jp_empowerEffect 1: arms only (two per arm)
+static const char *cg_empowerArmBoneNames[] =
+{
+	"rhand",
+	"lhand",
+	"lradius",
+	"rradius",
+	NULL
+};
+
+// JoF - jp_empowerEffect 2: only the bolt nearest each hand
+static const char *cg_empowerHandBoneNames[] =
+{
+	"rhand",
+	"lhand",
+	NULL
+};
+
 void CG_ForceGripped( const vec3_t org, qboolean darkSide )
 {
 	localEntity_t	*ex;
@@ -5582,12 +5862,17 @@ void CG_ForceGripped( const vec3_t org, qboolean darkSide )
 	ex->refEntity.customShader = trap->R_RegisterShader( "gfx/effects/forcePush" );
 }
 
-static void CG_ForcePushBodyBlur( centity_t *cent )
+static void CG_ForcePushBodyBlurBones( centity_t *cent, const char **boneNames )
 {
 	vec3_t fxOrg;
 	mdxaBone_t	boltMatrix;
 	int bolt;
 	int i;
+
+	if (!boneNames || !boneNames[0])
+	{ //nothing to draw
+		return;
+	}
 
 	if (cent->localAnimIndex > 1)
 	{ //Sorry, the humanoid IS IN ANOTHER CASTLE.
@@ -5606,13 +5891,13 @@ static void CG_ForcePushBodyBlur( centity_t *cent )
 
 	assert(cent->ghoul2);
 
-	for (i = 0; cg_pushBoneNames[i]; i++)
+	for (i = 0; boneNames[i]; i++)
 	{ //go through all the bones we want to put a blur effect on
-		bolt = trap->G2API_AddBolt(cent->ghoul2, 0, cg_pushBoneNames[i]);
+		bolt = trap->G2API_AddBolt(cent->ghoul2, 0, boneNames[i]);
 
 		if (bolt == -1)
 		{
-			assert(!"You've got an invalid bone/bolt name in cg_pushBoneNames");
+			assert(!"You've got an invalid bone/bolt name in the blur bone list");
 			continue;
 		}
 
@@ -5622,6 +5907,33 @@ static void CG_ForcePushBodyBlur( centity_t *cent )
 		//standard effect, don't be refractive (for now)
 		CG_ForcePushBlur(fxOrg, NULL);
 	}
+}
+
+static void CG_ForcePushBodyBlur( centity_t *cent )
+{ //being force-pushed: always the full bone set, unaffected by jp_empowerEffect
+	CG_ForcePushBodyBlurBones(cent, cg_pushBoneNames);
+}
+
+// JoF - empower glow. Bone set selected by the server's jp_empowerEffect.
+static void CG_EmpowerBodyBlur( centity_t *cent )
+{
+	const char **boneNames;
+
+	switch (cgs.empowerEffect)
+	{
+	case 1:
+		boneNames = cg_empowerArmBoneNames;
+		break;
+	case 2:
+		boneNames = cg_empowerHandBoneNames;
+		break;
+	case 0:
+	default:
+		boneNames = cg_pushBoneNames;
+		break;
+	}
+
+	CG_ForcePushBodyBlurBones(cent, boneNames);
 }
 
 static int cg_forceAnimFxNextTime[MAX_GENTITIES];
@@ -5649,15 +5961,18 @@ static void CG_RunTimedForceAnimFX( centity_t *cent, clientInfo_t *ci )
 		return;
 	}
 
-	if (cent->currentState.torsoAnim == BOTH_FORCE_RAGE)
+	if (cent->currentState.torsoAnim == BOTH_FORCE_RAGE &&
+		cent->currentState.legsAnim == BOTH_FORCE_RAGE)
 	{
 		fxType = 1;
 	}
-	else if (cent->currentState.torsoAnim == BOTH_FORCEHEAL_START)
+	else if (cent->currentState.torsoAnim == BOTH_FORCEHEAL_START &&
+		cent->currentState.legsAnim == BOTH_FORCEHEAL_START)
 	{
 		fxType = 2;
 	}
-	else if (cent->currentState.torsoAnim == BOTH_FORCEHEAL_QUICK)
+	else if (cent->currentState.torsoAnim == BOTH_FORCEHEAL_QUICK &&
+		cent->currentState.legsAnim == BOTH_FORCEHEAL_QUICK)
 	{
 		fxType = 3;
 	}
@@ -5672,7 +5987,7 @@ static void CG_RunTimedForceAnimFX( centity_t *cent, clientInfo_t *ci )
 		return;
 	}
 
-	if (fxType == 3)
+	if (fxType == 3 && !(cp_pluginDisable.integer & JAPRO_PLUGIN_NEWFORCEEFFECT))
 	{
 		mdxaBone_t lHandMatrix;
 		int lHandBolt = -1;
@@ -5739,11 +6054,11 @@ static void CG_RunTimedForceAnimFX( centity_t *cent, clientInfo_t *ci )
 		}
 	}
 
-	if (fxType == 1)
+	if (fxType == 1 && !(cp_pluginDisable.integer & JAPRO_PLUGIN_NEWFORCEEFFECT))
 	{
 		trap->FX_PlayEffectID(cgs.effects.rageFX, pos, dir, -1, -1, qfalse);
 	}
-	else
+	else if(!(cp_pluginDisable.integer & JAPRO_PLUGIN_NEWFORCEEFFECT))
 	{
 		trap->FX_PlayEffectID(cgs.effects.heal2FX, pos, dir, -1, -1, qfalse);
 	}
@@ -6059,7 +6374,22 @@ static void CG_RGBForSaberColor(saber_colors_t color, vec3_t rgb, int cnum, int 
 	}
 }
 
-static void CG_DoSaberLight( saberInfo_t *saber, int cnum, int bnum )//rgb
+static float CG_SaberModelScale( const centity_t *cent )
+{
+	if ( !cent || cent->currentState.eType == ET_NPC )
+	{
+		return 1.0f;
+	}
+
+	if ( cent->modelScale[0] > 0.0f )
+	{
+		return cent->modelScale[0];
+	}
+
+	return 1.0f;
+}
+
+static void CG_DoSaberLight( saberInfo_t *saber, int cnum, int bnum, float scale )//rgb
 {
 	vec3_t		positions[MAX_BLADES*2], mid={0}, rgbs[MAX_BLADES*2], rgb={0};
 	float		lengths[MAX_BLADES*2]={0}, totallength = 0, numpositions = 0, dist, diameter = 0;
@@ -6084,16 +6414,16 @@ static void CG_DoSaberLight( saberInfo_t *saber, int cnum, int bnum )//rgb
 		{
 			//FIXME: make RGB sabers
 			CG_RGBForSaberColor( saber->blade[i].color, rgbs[i], cnum, bnum );//rgb
-			lengths[i] = saber->blade[i].length;
-			if ( saber->blade[i].length*2.0f > diameter )
+			lengths[i] = saber->blade[i].length * scale;
+			if ( lengths[i]*2.0f > diameter )
 			{
-				diameter = saber->blade[i].length*2.0f;
+				diameter = lengths[i]*2.0f;
 			}
-			totallength += saber->blade[i].length;
-			VectorMA( saber->blade[i].muzzlePoint, saber->blade[i].length, saber->blade[i].muzzleDir, positions[i] );
+			totallength += lengths[i];
+			VectorMA( saber->blade[i].muzzlePoint, lengths[i], saber->blade[i].muzzleDir, positions[i] );
 			if ( !numpositions )
 			{//first blade, store middle of that as midpoint
-				VectorMA( saber->blade[i].muzzlePoint, saber->blade[i].length*0.5, saber->blade[i].muzzleDir, mid );
+				VectorMA( saber->blade[i].muzzlePoint, lengths[i]*0.5f, saber->blade[i].muzzleDir, mid );
 				VectorCopy( rgbs[i], rgb );
 			}
 			numpositions++;
@@ -7358,6 +7688,9 @@ void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, in
 	int i = 0;
 	float trailDur;
 	float saberLen;
+	float saberLengthMax;
+	float saberRadius;
+	float saberScale;
 	float diff;
 	clientInfo_t *client;
 	centity_t *saberEnt;
@@ -7380,7 +7713,10 @@ void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, in
 	}
 
 	saberEnt = &cg_entities[cent->currentState.saberEntityNum];
-	saberLen = client->saber[saberNum].blade[bladeNum].length;
+	saberScale = CG_SaberModelScale( cent );
+	saberLen = client->saber[saberNum].blade[bladeNum].length * saberScale;
+	saberLengthMax = client->saber[saberNum].blade[bladeNum].lengthMax * saberScale;
+	saberRadius = client->saber[saberNum].blade[bladeNum].radius * saberScale;
 
 	if (saberLen <= 0 && !dontDraw)
 	{ //don't bother then.
@@ -7432,7 +7768,7 @@ void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, in
 
 	VectorMA( org_, saberLen, axis_[0], end );
 
-	VectorAdd( end, axis_[0], end );
+	VectorMA( end, saberScale, axis_[0], end );
 
 	if (cent->currentState.eType == ET_NPC)
 	{
@@ -8075,7 +8411,7 @@ JustDoIt:
 		if ( client->saber[saberNum].numBlades < 3
 			&& !(client->saber[saberNum].saberFlags2&SFL2_NO_DLIGHT) )
 		{//hmm, but still add the dlight
-			CG_DoSaberLight( &client->saber[saberNum], cent->currentState.clientNum, saberNum );//rgb
+			CG_DoSaberLight( &client->saber[saberNum], cent->currentState.clientNum, saberNum, saberScale );//rgb
 		}
 		return;
 	}
@@ -8086,13 +8422,13 @@ JustDoIt:
 	//	scolor, renderfx, (qboolean)(saberNum==0&&bladeNum==0) );
 	if (!sfxSabers)
 	{
-		CG_DoSaber( org_, axis_[0], saberLen, client->saber[saberNum].blade[bladeNum].lengthMax, client->saber[saberNum].blade[bladeNum].radius,
+		CG_DoSaber( org_, axis_[0], saberLen, saberLengthMax, saberRadius,
 			scolor, renderfx, (qboolean)(client->saber[saberNum].numBlades < 3 && !(client->saber[saberNum].saberFlags2 & SFL2_NO_DLIGHT)), cent->currentState.clientNum, saberNum );//rgb -- fix casting?
 	}
 	else
 	{
 		CG_DoSFXSaber( fx.mVerts[0].origin, fx.mVerts[1].origin, fx.mVerts[2].origin, fx.mVerts[3].origin,
-			(client->saber[saberNum].blade[bladeNum].lengthMax), (client->saber[saberNum].blade[bladeNum].radius),
+			saberLengthMax, saberRadius,
 			scolor, renderfx, (qboolean)(client->saber[saberNum].numBlades < 3 && !(client->saber[saberNum].saberFlags2 & SFL2_NO_DLIGHT)), cent->currentState.clientNum, saberNum );
 
 		if (cg.time > saberTrail->inAction)
@@ -8892,6 +9228,11 @@ void CG_G2AnimEntModelLoad(centity_t *cent)
 
 					cent->localAnimIndex = BG_ParseAnimationFile(GLAName, NULL, qfalse);
 				}
+				//custom skeleton - register hand bolts if they exist so
+				//weapons can attach to the correct position (e.g. hazardtrooper)
+				trap->G2API_AddBolt(cent->ghoul2, 0, "*r_hand");
+				trap->G2API_AddBolt(cent->ghoul2, 0, "*l_hand");
+				trap->G2API_AddBolt(cent->ghoul2, 0, "*chestg");
 			}
 			else
 			{ //humanoid index.
@@ -8922,24 +9263,7 @@ void CG_G2AnimEntModelLoad(centity_t *cent)
 				trap->G2API_AddBolt(cent->ghoul2, 0, "Motion");
 			}
 
-			// If this is a not vehicle...
-			if ( cent->currentState.NPC_class != CLASS_VEHICLE )
-			{
-				if (trap->G2API_AddBolt(cent->ghoul2, 0, "lower_lumbar") == -1)
-				{ //check now to see if we have this bone for setting anims and such
-					cent->noLumbar = qtrue;
-				}
-
-				if (trap->G2API_AddBolt(cent->ghoul2, 0, "face") == -1)
-				{ //check now to see if we have this bone for setting anims and such
-					cent->noFace = qtrue;
-				}
-			}
-			else
-			{
-				cent->noLumbar = qtrue;
-				cent->noFace = qtrue;
-			}
+			CG_UpdateNPCBoneAvailability( cent );
 
 			if (cent->localAnimIndex != -1)
 			{
@@ -10179,6 +10503,13 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
     if ( cent->currentState.eFlags & EF_DEAD )
         return;
 
+    if ( cent->currentState.powerups & ( 1 << PW_CLOAKED ) )
+    {
+        if ( !( cg.snap->ps.fd.forcePowersActive & ( 1 << FP_SEE ) )
+            || cg.snap->ps.clientNum == cent->currentState.number )
+            return;
+    }
+
     if (!cg.renderingThirdPerson && cent->currentState.clientNum == cg.clientNum)
         return;
 
@@ -10323,12 +10654,21 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 }
 
 //[Kameleon] - Nerevar's Santa Hat feature. call somewhere in cg_players@void CG_Player
-void CG_DrawHatOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, qhandle_t hatModel, refEntity_t parent )
+//
+//Bolts a cosmetic model to the player: hats to *head_top, capes to *back. offset nudges it
+//into place for the model being worn (see CG_LoadCosmeticOffsets) and may be NULL for none.
+void CG_DrawCosmeticOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, qhandle_t model,
+	const vec3_t offset, cosmeticSlot_t slot, refEntity_t parent )
 {
     int newBolt;
     mdxaBone_t matrix;
     vec3_t boltOrg, bAngles;
     refEntity_t re;
+
+    if ( !model )
+    {
+        return;
+    }
 
     if ( !cent->ghoul2 )
     {
@@ -10355,7 +10695,7 @@ void CG_DrawHatOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, qhand
         return;
     }
 
-    newBolt = trap->G2API_AddBolt( cent->ghoul2, 0, "*head_top" );
+    newBolt = trap->G2API_AddBolt( cent->ghoul2, 0, (slot == COSMETIC_SLOT_CAPE) ? "*back" : "*head_top" );
 
     if ( newBolt != -1 )
     {
@@ -10375,6 +10715,11 @@ void CG_DrawHatOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, qhand
         VectorMA( boltOrg, 0, re.axis[1], boltOrg );
         VectorMA( boltOrg, -2, re.axis[2], boltOrg );
 
+        if ( offset )
+        {
+            VectorAdd( boltOrg, offset, boltOrg );
+        }
+
 		//rotational transitions
 		//configure the initial rotational axis
 		/*VectorCopy(axis[1], ent.axis[0]);
@@ -10389,7 +10734,7 @@ void CG_DrawHatOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, qhand
 
 		VectorCopy(boltOrg, ent.origin);*/
 
-        re.hModel = hatModel;
+        re.hModel = model;
         VectorCopy( boltOrg, re.lightingOrigin );
         VectorCopy( boltOrg, re.origin );
 
@@ -10398,6 +10743,12 @@ void CG_DrawHatOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, qhand
 
         trap->R_AddRefEntityToScene( &re );
     }
+}
+
+//the server-granted jaPRO cosmetics are all hats and carry no fitting offsets
+static void CG_DrawHatOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, qhandle_t hatModel, refEntity_t parent )
+{
+	CG_DrawCosmeticOnPlayer( cent, time, gameModels, hatModel, NULL, COSMETIC_SLOT_HAT, parent );
 }
 //[/Kameleon]
 
@@ -10720,7 +11071,13 @@ void CG_Player( centity_t *cent ) {
 
 	if ((cent->currentState.eFlags & EF_JETPACK) && !(cent->currentState.eFlags & EF_DEAD) &&
 		cg_g2JetpackInstance)
-	{ //should have a jetpack attached
+	{
+		qboolean jetpackVisible = !CG_IsMindTricked(cent->currentState.trickedentindex,
+			cent->currentState.trickedentindex2,
+			cent->currentState.trickedentindex3,
+			cent->currentState.trickedentindex4,
+			cg.snap->ps.clientNum);
+
 		//1 is rhand weap, 2 is lhand weap (akimbo sabs), 3 is jetpack
 		if (!trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 3))
 		{
@@ -10754,46 +11111,53 @@ void CG_Player( centity_t *cent ) {
 					VectorMA(flamePos, -13.5f, flameDir, flamePos);
 				}
 
-				if (cent->currentState.eFlags & EF_JETPACK_FLAMING)
-				{ //create effects
-					//FIXME: Just one big effect
-					//Play the effect
-					trap->FX_PlayEffectID(cgs.effects.mBobaJet, flamePos, flameDir, -1, -1, qfalse);
-					trap->FX_PlayEffectID(cgs.effects.mBobaJet, flamePos, flameDir, -1, -1, qfalse);
+				if (jetpackVisible)
+				{
+					if (cent->currentState.eFlags & EF_JETPACK_FLAMING)
+					{ //create effects
+						//FIXME: Just one big effect
+						//Play the effect
+						trap->FX_PlayEffectID(cgs.effects.mBobaJet, flamePos, flameDir, -1, -1, qfalse);
+						trap->FX_PlayEffectID(cgs.effects.mBobaJet, flamePos, flameDir, -1, -1, qfalse);
 
-					//Keep the jet fire sound looping
-					trap->S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin,
-						trap->S_RegisterSound( "sound/effects/fire_lp" ) );
-				}
-				else
-				{ //just idling
-					//FIXME: Different smaller effect for idle
-					//Play the effect
-					trap->FX_PlayEffectID(cgs.effects.mBobaJet, flamePos, flameDir, -1, -1, qfalse);
+						//Keep the jet fire sound looping
+						trap->S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin,
+							trap->S_RegisterSound( "sound/effects/fire_lp" ) );
+					}
+					else
+					{ //just idling
+						//FIXME: Different smaller effect for idle
+						//Play the effect
+						trap->FX_PlayEffectID(cgs.effects.mBobaJet, flamePos, flameDir, -1, -1, qfalse);
+					}
 				}
 
 				n++;
 			}
 
-			if (!cent->hasPlayedJetpackSounds)
+			if (jetpackVisible)
 			{
-				trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cg_jetpackOnSound.integer <= 1 ? cgs.media.jetpackOnSound : cgs.media.jetpackOn2Sound );
-				cent->hasPlayedJetpackSounds = qtrue;
-			}
+				if (!cent->hasPlayedJetpackSounds)
+				{
+					trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cg_jetpackOnSound.integer <= 1 ? cgs.media.jetpackOnSound : cgs.media.jetpackOn2Sound );
+					cent->hasPlayedJetpackSounds = qtrue;
+				}
 
-			trap->S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin,
-				cg_jetpackHoverSound.integer <= 1 ? cgs.media.jetpackHoverSound : cgs.media.jetpackHover2Sound );
+				trap->S_AddLoopingSound( cent->currentState.number, cent->lerpOrigin, vec3_origin,
+					cg_jetpackHoverSound.integer <= 1 ? cgs.media.jetpackHoverSound : cgs.media.jetpackHover2Sound );
+			}
 		}
 		else if (cent->hasPlayedJetpackSounds && !(cent->currentState.eFlags & EF_JETPACK_ACTIVE))
 		{
-			trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cgs.media.jetpackOffSound );
+			if (jetpackVisible)
+				trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cgs.media.jetpackOffSound );
 			cent->hasPlayedJetpackSounds = qfalse;
 		}
 	}
 	else if (cent->currentState.eFlags & EF_JETPACK && cent->currentState.eFlags & EF_DEAD && cg_g2JetpackInstance && !(cent->currentState.eFlags & EF_JETPACK_ACTIVE)
 		&& cent->hasPlayedJetpackSounds)
 	{
-		trap->S_StartSound (cent->lerpOrigin, 0, CHAN_LOCAL, cgs.media.jetpackOffSound );
+		trap->S_StartSound (cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, cgs.media.jetpackOffSound );
 		cent->hasPlayedJetpackSounds = qfalse;
 	}
 	else if (trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 3))
@@ -11138,7 +11502,16 @@ void CG_Player( centity_t *cent ) {
 	}
 
 	if (cent->ghoul2 &&
-		(cent->currentState.eType != ET_NPC || (cent->currentState.NPC_class != CLASS_VEHICLE&&cent->currentState.NPC_class != CLASS_REMOTE&&cent->currentState.NPC_class != CLASS_SEEKER)) && //don't add weapon models to NPCs that have no bolt for them!
+		(cent->currentState.eType != ET_NPC || (cent->currentState.NPC_class != CLASS_VEHICLE && 
+			cent->currentState.NPC_class != CLASS_REMOTE && 
+			cent->currentState.NPC_class != CLASS_SEEKER &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "assassin_droid") &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "atst") &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "atdp") &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "atpt") &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "atxt") &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "droideka") &&
+			!strstr(CG_ConfigString(CS_MODELS + cent->currentState.modelindex), "galak_mech"))) && //don't add weapon models to NPCs that have no bolt for them!		
 		cent->ghoul2weapon != CG_G2WeaponInstance(cent, cent->currentState.weapon) &&
 		!(cent->currentState.eFlags & EF_DEAD) && !cent->torsoBolt &&
 		cg.snap && (cent->currentState.number != cg.snap->ps.clientNum || (cg.snap->ps.pm_flags & PMF_FOLLOW)))
@@ -11870,14 +12243,22 @@ skipTrail:
 	{ //keep track of death anim frame for when we copy off the bodyqueue
 		ci->frame = cent->pe.torso.frame;
 	}
-
-	CG_RunTimedForceAnimFX(cent, ci);
-
 				
+	qboolean forceFXVisible = !CG_IsMindTricked(cent->currentState.trickedentindex,
+		cent->currentState.trickedentindex2,
+		cent->currentState.trickedentindex3,
+		cent->currentState.trickedentindex4,
+		cg.snap->ps.clientNum);
+
+	if (forceFXVisible)
+		CG_RunTimedForceAnimFX(cent, ci);
+
+
 	qboolean stopFlameThrowerSnd = qtrue;
 				
 	if (cent->currentState.activeForcePass > FORCE_LEVEL_3
-		&& cent->currentState.NPC_class != CLASS_VEHICLE)
+		&& cent->currentState.NPC_class != CLASS_VEHICLE
+		&& forceFXVisible)
 	{
 		matrix3_t axis;
 		vec3_t tAng, fAng, fxDir;
@@ -11919,9 +12300,9 @@ skipTrail:
 		{//arc
 			//trap->FX_PlayEffectID( cgs.effects.forceLightningWide, efOrg, fxDir );
 			//trap->FX_PlayEntityEffectID(cgs.effects.forceDrainWide, efOrg, axis, cent->boltInfo, cent->currentState.number, -1, -1);
-			if (cg_drainFX.integer == 2)
+			if (cp_pluginDisable.integer & JAPRO_PLUGIN_NEWDRAINEFX) // No matter the cg_drainfx value, we use the japro fx if plugin is enabled
 				trap->FX_PlayEntityEffectID(cgs.effects.forceDrainWideJaPRO, efOrg, axis, -1, -1, -1, -1);
-			else if (cg_drainFX.integer == 1)
+			else if (cg_drainFX.integer == 1 && !(cp_pluginDisable.integer & JAPRO_PLUGIN_NEWDRAINEFX))
 				trap->FX_PlayEntityEffectID(cgs.effects.forceDrainWide, efOrg, axis, -1, -1, -1, -1);
 		}
 		else
@@ -11940,7 +12321,8 @@ skipTrail:
 		*/
 	}
 	else if ( cent->currentState.activeForcePass
-		&& cent->currentState.NPC_class != CLASS_VEHICLE)
+		&& cent->currentState.NPC_class != CLASS_VEHICLE
+		&& forceFXVisible)
 	{//doing the electrocuting
 		matrix3_t axis;
 		vec3_t tAng, fAng, fxDir;
@@ -12021,14 +12403,30 @@ skipTrail:
 					cent->flameThrowerSndActive = qfalse;
 					trap->S_MuteSound(cent->currentState.number, CHAN_WEAPON);
 				}
-	//fullbody push effect
-	if (cent->currentState.eFlags & EF_BODYPUSH)
+
+	//fullbody push effect - don't render it for anyone while the local player is zoomed (keeps the scope view clean)
+	//JoF - empower sets EF_BODYPUSH *and* EF_EMPOWERED (so old clients still see a
+	//glow). Check EF_EMPOWERED first and draw the jp_empowerEffect bone set; otherwise
+	//an empowered player would draw both the trimmed set and the full push set.
+	if ((cent->currentState.eFlags & EF_BODYPUSH) &&
+		forceFXVisible &&
+		!((cg.predictedPlayerState.zoomMode || !cg.renderingThirdPerson) && cent->currentState.number == cg.predictedPlayerState.clientNum))
 	{
-		CG_ForcePushBodyBlur(cent);
+		if (cent->currentState.eFlags & EF_EMPOWERED)
+		{
+			CG_EmpowerBodyBlur(cent);
+		}
+		else
+		{
+			CG_ForcePushBodyBlur(cent);
+		}
 	}
 
 
-	if (cent->currentState.legsAnim == BOTH_CHOKE3)
+	if (cent->currentState.legsAnim == BOTH_CHOKE3 &&
+		!(cp_pluginDisable.integer & JAPRO_PLUGIN_NEWFORCEEFFECT) &&
+		!((cg.predictedPlayerState.zoomMode || !cg.renderingThirdPerson) && cent->currentState.number == cg.
+			predictedPlayerState.clientNum))
 	{
 		vec3_t efOrg;
 		vec3_t chokeFwd;
@@ -12109,7 +12507,8 @@ skipTrail:
 		efOrg[2] = lHandMatrix.matrix[2][3];
 
 		if ( (cent->currentState.forcePowersActive & (1 << FP_GRIP)) &&
-			(cg.renderingThirdPerson || cent->currentState.number != cg.snap->ps.clientNum) )
+			(cg.renderingThirdPerson || cent->currentState.number != cg.snap->ps.clientNum) &&
+			forceFXVisible )
 		{
 			vec3_t boltDir;
 			vec3_t origBolt;
@@ -12203,7 +12602,7 @@ skipTrail:
 			}
 			*/
 		}
-		else if (!(cent->currentState.forcePowersActive & (1 << FP_GRIP)))
+		else if (!(cent->currentState.forcePowersActive & (1 << FP_GRIP)) && forceFXVisible)
 		{
 			//use refractive effect
 			CG_ForcePushBlur( efOrg, cent );
@@ -12824,6 +13223,9 @@ stillDoSaber:
 				}
 
 				saberEnt->currentState.modelGhoul2 = 1;
+				saberEnt->currentState.iModelScale = cent->currentState.eType == ET_NPC
+					? 0
+					: cent->currentState.iModelScale;
 				CG_ManualEntityRender(saberEnt);
 				saberEnt->bolt3 = 0;
 				saberEnt->currentState.modelGhoul2 = 127;
@@ -12880,7 +13282,7 @@ stillDoSaber:
 					}
 					if ( ci->saber[l].numBlades > 2 )
 					{//add a single glow for the saber based on all the blade colors combined
-						CG_DoSaberLight( &ci->saber[l], cent->currentState.clientNum, l );//rgb
+						CG_DoSaberLight( &ci->saber[l], cent->currentState.clientNum, l, CG_SaberModelScale( cent ) );//rgb
 					}
 
 					l++;
@@ -13084,7 +13486,7 @@ stillDoSaber:
 			}
 			if ( ci->saber[l].numBlades > 2 )
 			{//add a single glow for the saber based on all the blade colors combined
-				CG_DoSaberLight( &ci->saber[l], cent->currentState.clientNum, l );//rgb
+				CG_DoSaberLight( &ci->saber[l], cent->currentState.clientNum, l, CG_SaberModelScale( cent ) );//rgb
 			}
 
 			l++;
@@ -13436,7 +13838,15 @@ stillDoSaber:
 				CG_DrawHolsteredSaber(cent, cg.time, cgs.gameModels, ci, legs);
 
 	//[Kameleon] - Nerevar's Santa Hat.
-	if (!(cg_stylePlayer.integer & JAPRO_STYLE_HIDECOSMETICS) && ((cg_stylePlayer.integer & JAPRO_STYLE_SEASONALCOSMETICS) || (cgs.serverMod != SVMOD_JAPLUS && cgs.serverMod != SVMOD_BASEJKA)))
+	if (!(cg_stylePlayer.integer & JAPRO_STYLE_HIDECOSMETICS))
+	{
+	//A hat the player picked for themselves wins the head slot. The server-granted jaPRO
+	//cosmetics below only get a look in when that slot is empty, so a race unlock still
+	//shows up for anyone who hasn't chosen anything.
+	if (ci->hat) {
+		CG_DrawCosmeticOnPlayer(cent, cg.time, cgs.gameModels, ci->hat->handle, ci->hatOffset, COSMETIC_SLOT_HAT, legs);
+	}
+	else if ((cg_stylePlayer.integer & JAPRO_STYLE_SEASONALCOSMETICS) || (cgs.serverMod != SVMOD_JAPLUS && cgs.serverMod != SVMOD_BASEJKA))
 	{
 		if (ci->cosmetics & JAPRO_COSMETIC_SANTAHAT) {
 			CG_DrawHatOnPlayer(cent, cg.time, cgs.gameModels, cgs.media.cosmetics.santaHat, legs);
@@ -13459,6 +13869,12 @@ stillDoSaber:
 		else if (ci->cosmetics & JAPRO_COSMETIC_TOPHAT) {
 			CG_DrawHatOnPlayer(cent, cg.time, cgs.gameModels, cgs.media.cosmetics.tophat, legs);
 		}
+	}
+
+	//capes have no jaPRO equivalent, so there is nothing to fall back to
+	if (ci->cape) {
+		CG_DrawCosmeticOnPlayer(cent, cg.time, cgs.gameModels, ci->cape->handle, ci->capeOffset, COSMETIC_SLOT_CAPE, legs);
+	}
 	}
 	//[/Kameleon]
 
@@ -13686,7 +14102,8 @@ stillDoSaber:
 		((((cgs.serverMod != SVMOD_BASEENHANCED) &&
 			(cent->currentState.forcePowersActive & (1 << FP_ABSORB))) ||
 			(cent->teamPowerEffectTime > cg.time && cent->teamPowerType == 3)) &&
-			(cent->currentState.forcePowersActive & (1 << FP_PROTECT))))
+			(cent->currentState.forcePowersActive & (1 << FP_PROTECT))) && 
+			!(cp_pluginDisable.integer & JAPRO_PLUGIN_NEWFORCEEFFECT))
 
 	{ //absorb + protect is represented by cyan..
 
@@ -13955,6 +14372,7 @@ void CG_ResetPlayerEntity( centity_t *cent )
 		//already set.
 		cent->npcLocalSurfOff = 0;
 		cent->npcLocalSurfOn = 0;
+		CG_UpdateNPCBoneAvailability( cent );
 	}
 	else
 	{
@@ -14026,6 +14444,7 @@ void CG_ResetPlayerEntity( centity_t *cent )
 
 			cent->localAnimIndex = CG_G2SkelForModel(cent->ghoul2);
 			cent->eventAnimIndex = CG_G2EvIndexForModel(cent->ghoul2, cent->localAnimIndex);
+			CG_UpdateNPCBoneAvailability( cent );
 
 			//CG_CopyG2WeaponInstance(cent->currentState.weapon, ci->ghoul2Model);
 			//cent->weapon = cent->currentState.weapon;

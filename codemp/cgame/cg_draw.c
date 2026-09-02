@@ -2224,6 +2224,9 @@ void CG_DrawHUD(centity_t	*cent)
 		scoreStr = "";
 	}
 
+	if (cg_showClientIDs.integer && scoreStr[0])
+		scoreStr = va("%s [%i]", scoreStr, cg.snap->ps.clientNum);
+
 	if (cg.predictedPlayerState.pm_type != PM_SPECTATOR)
 	{
 		if (cgs.newHud && cg_hudFiles.integer == 1)
@@ -2433,6 +2436,13 @@ void CG_DrawHUD(centity_t	*cent)
 
 qboolean ForcePower_Valid(int i)
 {
+	if (i == STASIS_WHEEL_SLOT)		// display-only pseudo-slot (18)
+		return CG_HasStasis();
+	if (i == REPULSE_WHEEL_SLOT)	// display-only pseudo-slot (19)
+		return CG_HasRepulse();
+	if (i == DASH_WHEEL_SLOT)		// display-only pseudo-slot (20)
+		return CG_HasDash();
+
 	if (i == FP_LEVITATION ||
 		i == FP_SABER_OFFENSE ||
 		i == FP_SABER_DEFENSE ||
@@ -2461,8 +2471,10 @@ void CG_DrawForceSelect( void )
 	int		smallIconSize,bigIconSize;
 	int		holdX, x, y, pad;
 	int		sideLeftIconCnt,sideRightIconCnt;
-	int		sideMax,holdCount,iconCnt;
+	int		sideMax,holdCount;
 	int		yOffset = 0;
+	int		wheel[NUM_FORCE_POWERS + 3];
+	int		wheelCount, cur = -1, idx, drawn, power, icon;
 
 	// don't display if dead
 	if ( cg.snap->ps.stats[STAT_HEALTH] <= 0 )
@@ -2472,7 +2484,12 @@ void CG_DrawForceSelect( void )
 
 	if ((cg.forceSelectTime+WEAPON_SELECT_TIME)<cg.time)	// Time is up for the HUD to display
 	{
-		cg.forceSelect = cg.snap->ps.fd.forcePowerSelected;
+		// Real powers persist via forcePowerSelected. Pseudo-slots (stasis/repulse) have no
+		// networked home, so keep them selected after the wheel fades unless revoked.
+		if ( !((cg.forceSelect == STASIS_WHEEL_SLOT && CG_HasStasis()) ||
+		        (cg.forceSelect == REPULSE_WHEEL_SLOT && CG_HasRepulse()) ||
+		        (cg.forceSelect == DASH_WHEEL_SLOT && CG_HasDash())) )
+			cg.forceSelect = cg.snap->ps.fd.forcePowerSelected;
 		return;
 	}
 
@@ -2481,21 +2498,30 @@ void CG_DrawForceSelect( void )
 		return;
 	}
 
-	// count the number of powers owned
-	count = 0;
-
-	for (i=0;i < NUM_FORCE_POWERS;++i)
-	{
-		if (ForcePower_Valid(i))
-		{
-			count++;
-		}
-	}
-
-	if (count == 0)	// If no force powers, don't display
+	// Build the wheel order (valid real powers + the stasis pseudo-slot in its place) and
+	// locate the current selection. Driving the whole wheel from this one list keeps stasis
+	// a first-class entry: it shows up as a side icon too and the side counts line up,
+	// instead of only appearing when it happens to be the centered icon.
+	wheelCount = CG_BuildForceWheel( wheel );
+	if (wheelCount == 0)	// If no selectable powers, don't display
 	{
 		return;
 	}
+
+	for (i = 0; i < wheelCount; i++)
+	{
+		if (wheel[i] == cg.forceSelect)
+		{
+			cur = i;
+			break;
+		}
+	}
+	if (cur < 0)	// current selection isn't a selectable wheel entry
+	{
+		return;
+	}
+
+	count = wheelCount;
 
 	sideMax = 3;	// Max number of icons on the side
 
@@ -2524,75 +2550,98 @@ void CG_DrawForceSelect( void )
 	x = SCREEN_WIDTH / 2;
 	y = 425;
 
-	i = BG_ProperForceIndex(cg.forceSelect) - 1;
-	if (i < 0)
-	{
-		i = MAX_SHOWPOWERS - 1;
-	}
-
 	trap->R_SetColor(NULL);
-	// Work backwards from current icon
+
+	// Work backwards (left) from the centered icon, walking the wheel list
 	holdX = x - ((bigIconSize/2) + pad + smallIconSize) * cgs.widthRatioCoef;
-	for (iconCnt=1;iconCnt<(sideLeftIconCnt+1);i--)
+	idx = cur;
+	for (drawn = 0; drawn < sideLeftIconCnt; drawn++)
 	{
-		if (i < 0)
+		idx--;
+		if (idx < 0)
 		{
-			i = MAX_SHOWPOWERS - 1;
+			idx = wheelCount - 1;
 		}
 
-		if (!ForcePower_Valid(forcePowerSorted[i]))	// Does he have this power?
-		{
-			continue;
-		}
-
-		++iconCnt;					// Good icon
-
-		if (cgs.media.forcePowerIcons[forcePowerSorted[i]])
-		{
-			CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.forcePowerIcons[forcePowerSorted[i]] );
-			holdX -= (smallIconSize+pad) * cgs.widthRatioCoef;
+		power = wheel[idx];
+		if ( power == REPULSE_WHEEL_SLOT ) {
+			if (cgs.media.repulseIcon) {
+				CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.repulseIcon );
+				holdX -= (smallIconSize+pad) * cgs.widthRatioCoef;
+			}
+		} else if ( power == DASH_WHEEL_SLOT ) {
+			if (cgs.media.dashIcon) {
+				CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.dashIcon );
+				holdX -= (smallIconSize+pad) * cgs.widthRatioCoef;
+			}
+		} else {
+			// stasis (18) has no icon of its own; borrow the jump (FP_LEVITATION) icon
+			icon = (power == STASIS_WHEEL_SLOT) ? FP_LEVITATION : power;
+			if (cgs.media.forcePowerIcons[icon]) {
+				CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.forcePowerIcons[icon] );
+				holdX -= (smallIconSize+pad) * cgs.widthRatioCoef;
+			}
 		}
 	}
 
-	if (ForcePower_Valid(cg.forceSelect))
-	{
-		// Current Center Icon
-		if (cgs.media.forcePowerIcons[cg.forceSelect])
-		{
-			CG_DrawPic( x-(bigIconSize/2) * cgs.widthRatioCoef, (y-((bigIconSize-smallIconSize)/2)) + yOffset, bigIconSize*cgs.widthRatioCoef, bigIconSize, cgs.media.forcePowerIcons[cg.forceSelect] ); //only cache the icon for display
-		}
+	// Current center icon
+	power = wheel[cur];
+	if ( power == REPULSE_WHEEL_SLOT ) {
+		if (cgs.media.repulseIcon)
+			CG_DrawPic( x-(bigIconSize/2) * cgs.widthRatioCoef, (y-((bigIconSize-smallIconSize)/2)) + yOffset, bigIconSize*cgs.widthRatioCoef, bigIconSize, cgs.media.repulseIcon );
+	} else if ( power == DASH_WHEEL_SLOT ) {
+		if (cgs.media.dashIcon)
+			CG_DrawPic( x-(bigIconSize/2) * cgs.widthRatioCoef, (y-((bigIconSize-smallIconSize)/2)) + yOffset, bigIconSize*cgs.widthRatioCoef, bigIconSize, cgs.media.dashIcon );
+	} else {
+		icon = (power == STASIS_WHEEL_SLOT) ? FP_LEVITATION : power;
+		if (cgs.media.forcePowerIcons[icon])
+			CG_DrawPic( x-(bigIconSize/2) * cgs.widthRatioCoef, (y-((bigIconSize-smallIconSize)/2)) + yOffset, bigIconSize*cgs.widthRatioCoef, bigIconSize, cgs.media.forcePowerIcons[icon] ); //only cache the icon for display
 	}
 
-	i = BG_ProperForceIndex(cg.forceSelect) + 1;
-	if (i>=MAX_SHOWPOWERS)
-	{
-		i = 0;
-	}
-
-	// Work forwards from current icon
+	// Work forwards (right) from the centered icon, walking the wheel list
 	holdX = x + ((bigIconSize/2) + pad) * cgs.widthRatioCoef;
-	for (iconCnt=1;iconCnt<(sideRightIconCnt+1);i++)
+	idx = cur;
+	for (drawn = 0; drawn < sideRightIconCnt; drawn++)
 	{
-		if (i>=MAX_SHOWPOWERS)
+		idx++;
+		if (idx >= wheelCount)
 		{
-			i = 0;
+			idx = 0;
 		}
 
-		if (!ForcePower_Valid(forcePowerSorted[i]))	// Does he have this power?
-		{
-			continue;
-		}
-
-		++iconCnt;					// Good icon
-
-		if (cgs.media.forcePowerIcons[forcePowerSorted[i]])
-		{
-			CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.forcePowerIcons[forcePowerSorted[i]] ); //only cache the icon for display
-			holdX += (smallIconSize+pad) * cgs.widthRatioCoef;
+		power = wheel[idx];
+		if ( power == REPULSE_WHEEL_SLOT ) {
+			if (cgs.media.repulseIcon) {
+				CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.repulseIcon );
+				holdX += (smallIconSize+pad) * cgs.widthRatioCoef;
+			}
+		} else if ( power == DASH_WHEEL_SLOT ) {
+			if (cgs.media.dashIcon) {
+				CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.dashIcon );
+				holdX += (smallIconSize+pad) * cgs.widthRatioCoef;
+			}
+		} else {
+			icon = (power == STASIS_WHEEL_SLOT) ? FP_LEVITATION : power;
+			if (cgs.media.forcePowerIcons[icon]) {
+				CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.forcePowerIcons[icon] ); //only cache the icon for display
+				holdX += (smallIconSize+pad) * cgs.widthRatioCoef;
+			}
 		}
 	}
 
-	if ( showPowersName[cg.forceSelect] )
+	if ( cg.forceSelect == STASIS_WHEEL_SLOT )
+	{
+		CG_DrawProportionalString(SCREEN_WIDTH / 2, y + 30 + yOffset, "Stasis", UI_CENTER | UI_SMALLFONT, colorTable[CT_ICON_BLUE]);
+	}
+	else if ( cg.forceSelect == REPULSE_WHEEL_SLOT )
+	{
+		CG_DrawProportionalString(SCREEN_WIDTH / 2, y + 30 + yOffset, "Repulse", UI_CENTER | UI_SMALLFONT, colorTable[CT_ICON_BLUE]);
+	}
+	else if ( cg.forceSelect == DASH_WHEEL_SLOT )
+	{
+		CG_DrawProportionalString(SCREEN_WIDTH / 2, y + 30 + yOffset, "Dash", UI_CENTER | UI_SMALLFONT, colorTable[CT_ICON_BLUE]);
+	}
+	else if ( showPowersName[cg.forceSelect] )
 	{
 		CG_DrawProportionalString(SCREEN_WIDTH / 2, y + 30 + yOffset, CG_GetStringEdString("SP_INGAME", showPowersName[cg.forceSelect]), UI_CENTER | UI_SMALLFONT, colorTable[CT_ICON_BLUE]);
 	}
@@ -7446,8 +7495,13 @@ static void CG_DrawCrosshair( vec3_t worldPoint, int chEntValid ) {
 				hisVeh->currentState.maxhealth &&
 				hisVeh->m_pVehicle)
 			{ //draw the health for this vehicle
-				CG_DrawHealthBar(hisVeh, chX, chY, w, h);
-				chY += HEALTH_HEIGHT*2;
+				if (hisVeh->currentState.shouldtarget
+					|| (cg.predictedPlayerState.fd.forcePowersActive & (1 << FP_SEE)
+						&& cg.predictedPlayerState.fd.forcePowerLevel[FP_SEE] >= 3))
+				{
+					CG_DrawHealthBar(hisVeh, chX, chY, w, h);
+					chY += HEALTH_HEIGHT*2;
+				}
 			}
 		}
 	}
@@ -11999,6 +12053,9 @@ static void CG_PlayerLabels(void)
 			cent->currentState.trickedentindex3,
 			cent->currentState.trickedentindex4,
 			cg.snap->ps.clientNum))
+			continue;
+			
+		if (cent->cloaked)
 			continue;
 
 		VectorSubtract(cent->lerpOrigin, cg.predictedPlayerState.origin, diff);

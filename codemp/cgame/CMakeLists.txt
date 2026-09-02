@@ -30,6 +30,8 @@ set(MPCGameIncludeDirectories
 if(WIN32)
 	set(MPCGameLibraries "odbc32" "odbccp32") # what are these even?
 endif(WIN32)
+list(APPEND MPCGameIncludeDirectories ${CJSON_INCLUDE_DIRS})
+list(APPEND MPCGameLibraries          ${CJSON_LIBRARIES})
 set(MPCGameDefines ${MPSharedDefines} "_CGAME" )
 set(MPCGameGameFiles
 	"${MPDir}/game/AnimalNPC.c"
