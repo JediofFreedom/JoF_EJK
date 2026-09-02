@@ -2051,6 +2051,15 @@ Ghoul2 Insert Start
 
 	item = &bg_itemlist[ es->modelindex ];
 
+	// The server only bakes the CS_ITEMS list (and thus the client's registered
+	// visuals) at map load. An item dropped at runtime whose type wasn't placed
+	// in the map (e.g. via /give all + drop) was never registered, so its model
+	// handle is 0 and it draws as nothing until something else registers it (such
+	// as the pickup icon). Register on demand here so it always renders.
+	if ( !cg_items[ es->modelindex ].registered ) {
+		CG_RegisterItemVisuals( es->modelindex );
+	}
+
 	if ((item->giType == IT_WEAPON || item->giType == IT_POWERUP) &&
 		!(cent->currentState.eFlags & EF_DROPPEDWEAPON) &&
 		!cg_simpleItems.integer)

@@ -92,6 +92,10 @@ qboolean CG_NoUseableForce(void)
 		i++;
 	}
 
+	// Also count JoF pseudo-powers (stasis/repulse/dash live in bits beyond NUM_FORCE_POWERS).
+	if ( CG_HasStasis() || CG_HasRepulse() || CG_HasDash() )
+		return qfalse;
+
 	//no useable force powers, I guess.
 	return qtrue;
 }
@@ -645,6 +649,9 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.jetpackOn2Sound = trap->S_RegisterSound( "sound/chars/boba/jeton.wav" );
 	cgs.media.jetpackHoverSound = trap->S_RegisterSound( "sound/chars/boba/jethover.wav" );
 	cgs.media.jetpackHover2Sound = trap->S_RegisterSound( "sound/chars/boba/bf_jetpack_lp.wav" );
+
+	cgs.media.stasisSound   = trap->S_RegisterSound( "sound/jof/stasis.wav" );   // Force Stasis "it fired" feedback (shipped in jofclient-assets.pk3)
+	cgs.media.repulseSound  = trap->S_RegisterSound( "sound/jof/repulse.wav" );  // Force Repulse "it fired" feedback (shipped in jofclient-assets.pk3)
 
 	cgs.media.hackerIconShader			= trap->R_RegisterShaderNoMip("gfx/mp/c_icon_tech");
 
@@ -2757,6 +2764,104 @@ forceTicPos_t ammoTicPos[] =
 	69,  34, -10,  10, "gfx/hud/ammo_tick7", 0,
 };
 
+cosmetics_t localCosmetics;
+
+/*
+=================
+CG_LoadCosmetics
+
+Scans a cosmetics folder for .md3 files and registers each one as a wearable item.
+There is no list to maintain: dropping a model in the folder is all it takes to add a
+hat, and any pk3 a player has can extend the set. Names longer than MAX_COSMETIC_LENGTH
+can't survive the trip through the saber colour userinfo key, and names starting with a
+digit would be eaten by the atoi() on the receiving end, so both are refused here.
+=================
+*/
+static void CG_LoadCosmetics(const char *path, size_t pathLen, int *totalCosmetics, cosmeticItem_t **storePtr)
+{
+	int fileCnt, i, j;
+	size_t fileLen = 0;
+	char cosmeticFiles[MAX_QPATH * 256]; //256 cosmetics per category is plenty
+	char cosmetic[MAX_QPATH];
+	cosmeticItem_t *cosmeticsPtr;
+	char *ptr;
+
+	*storePtr = NULL;
+	*totalCosmetics = 0;
+
+	fileCnt = trap->FS_GetFileList(path, ".md3", cosmeticFiles, sizeof(cosmeticFiles));
+	if (!fileCnt)
+		return;
+
+	cosmeticsPtr = (cosmeticItem_t *)malloc(fileCnt * sizeof(*cosmeticsPtr));
+	if (!cosmeticsPtr)
+		trap->Error(ERR_DROP, S_COLOR_RED "ERROR: Failed to allocate memory for cosmetics.\n");
+
+	ptr = cosmeticFiles;
+	j = 0;
+
+	for (i = 0; i < fileCnt; i++, ptr += fileLen + 1)
+	{
+		memset(cosmetic, 0, sizeof(cosmetic));
+		fileLen = strlen(ptr);
+
+		if ((pathLen + fileLen) > (size_t)(MAX_QPATH - 1))
+		{
+			Com_Printf(S_COLOR_YELLOW "WARNING: Cosmetic [%s] path exceeded max length of %d, skipping...\n", ptr, MAX_QPATH - 1);
+			continue;
+		}
+
+		Q_strncpyz(cosmetic, ptr, sizeof(cosmetic));
+		COM_StripExtension(cosmetic, cosmetic, sizeof(cosmetic));
+
+		if (strlen(cosmetic) > (MAX_COSMETIC_LENGTH - 1))
+		{
+			Com_Printf(S_COLOR_YELLOW "WARNING: Cosmetic [%s] filename exceeded max length of %d, skipping...\n", cosmetic, MAX_COSMETIC_LENGTH - 1);
+			continue;
+		}
+
+		if (isdigit((unsigned char)cosmetic[0]))
+		{
+			Com_Printf(S_COLOR_YELLOW "WARNING: Cosmetic [%s] filename starts with a digit, skipping...\n", cosmetic);
+			continue;
+		}
+
+		Q_strncpyz(cosmeticsPtr[j].name, cosmetic, sizeof(cosmeticsPtr[j].name));
+		cosmeticsPtr[j].handle = trap->R_RegisterModel(va("%s%s.md3", path, cosmetic));
+		j++;
+	}
+
+	if (!j)
+	{
+		free(cosmeticsPtr);
+		return;
+	}
+
+	if (j < fileCnt)
+	{
+		cosmeticItem_t *temp = (cosmeticItem_t *)realloc(cosmeticsPtr, j * sizeof(*cosmeticsPtr));
+		if (!temp)
+			trap->Error(ERR_DROP, S_COLOR_RED "ERROR: Failed to reallocate memory for cosmetics.\n");
+		cosmeticsPtr = temp;
+	}
+
+	*storePtr = cosmeticsPtr;
+	*totalCosmetics = j;
+}
+
+void CG_LoadAllCosmetics(void)
+{
+	CG_LoadCosmetics(COSMETIC_HATS_PATH, COSMETIC_HATS_PATH_LENGTH, &localCosmetics.totalHats, &localCosmetics.hats);
+	CG_LoadCosmetics(COSMETIC_CAPES_PATH, COSMETIC_CAPES_PATH_LENGTH, &localCosmetics.totalCapes, &localCosmetics.capes);
+}
+
+void CG_FreeCosmetics(void)
+{
+	free(localCosmetics.hats);
+	free(localCosmetics.capes);
+	memset(&localCosmetics, 0, sizeof(localCosmetics));
+}
+
 /*
 =================
 CG_LoadEmojis
@@ -2872,6 +2977,9 @@ Ghoul2 Insert End
 	//Load emojis
 	CG_LoadEmojis();
 
+	//Scan the cosmetics folders for wearable hats and capes
+	CG_LoadAllCosmetics();
+
 	//Load sabers.cfg data
 	WP_SaberLoadParms();
 
@@ -2979,6 +3087,8 @@ Ghoul2 Insert End
 		i++;
 	}
 	cgs.media.rageRecShader = trap->R_RegisterShaderNoMip("gfx/mp/f_icon_ragerec");
+	cgs.media.repulseIcon   = trap->R_RegisterShaderNoMip("gfx/jof/force_repulse.tga");	// JoF: Force Repulse wheel icon
+	cgs.media.dashIcon      = trap->R_RegisterShaderNoMip("gfx/jof/force_dash.tga");		// JoF: Force Dash wheel icon
 
 
 	//body decal shaders -rww
@@ -3184,6 +3294,8 @@ void CG_Shutdown( void )
 {
 	BG_ClearAnimsets(); //free all dynamic allocations made through the engine
 
+	CG_FreeCosmetics();
+
     CG_DestroyAllGhoul2();
 
 //	Com_Printf("... FX System Cleanup\n");
@@ -3203,6 +3315,96 @@ void CG_Shutdown( void )
 	if (cg.log.started)
 		CG_LogPrintf( cg.log.file, "End log\n----------------------------------------------------------------\n\n" );
 	CG_CloseLog( &cg.log.file);
+}
+
+/*
+===============
+CG_HasStasis
+
+True only on a JoF JA+ server that has granted us Force Stasis (it re-asserts the
+spare forcePowersKnown bit every frame while granted). Doubles as the "is this a
+JoF JA+ server" gate for all of the stasis client UI.
+===============
+*/
+qboolean CG_HasStasis( void )
+{
+	return (cg.snap && (cg.snap->ps.fd.forcePowersKnown & (1 << STASIS_KNOWN_BIT))) ? qtrue : qfalse;
+}
+
+/*
+===============
+CG_HasRepulse
+
+True only on a JoF JA+ V71+ server that has granted us Force Repulse.
+===============
+*/
+qboolean CG_HasRepulse( void )
+{
+	return (cg.snap && (cg.snap->ps.fd.forcePowersKnown & (1 << REPULSE_KNOWN_BIT))) ? qtrue : qfalse;
+}
+
+/*
+===============
+CG_HasDash
+
+True only on a JoF JA+ V69+ server that has granted us Force Dash.
+===============
+*/
+qboolean CG_HasDash( void )
+{
+	return (cg.snap && (cg.snap->ps.fd.forcePowersKnown & (1 << DASH_KNOWN_BIT))) ? qtrue : qfalse;
+}
+
+/*
+===============
+CG_BuildForceWheel
+
+Builds the ordered list of selectable force-wheel entries: the valid real powers in
+display order, with the stasis and repulse pseudo-slots inserted right after Force
+Sense (FP_SEE) and the dash pseudo-slot inserted right before Speed (FP_SPEED), if
+granted. Any pseudo-slot whose anchor power isn't owned is appended last.
+Returns the count and fills slots[] (must hold at least NUM_FORCE_POWERS+3 entries).
+===============
+*/
+int CG_BuildForceWheel( int *slots )
+{
+	qboolean stasis = CG_HasStasis();
+	qboolean repulse = CG_HasRepulse();
+	qboolean dash = CG_HasDash();
+	qboolean placed = qfalse;		// stasis/repulse anchor (FP_SEE)
+	qboolean dashPlaced = qfalse;	// dash anchor (FP_SPEED)
+	int n = 0, i;
+
+	for ( i = 0; i < NUM_FORCE_POWERS; i++ )
+	{
+		int p = forcePowerSorted[i];
+		if ( !ForcePower_Valid( p ) )
+			continue;
+
+		if ( dash && p == FP_SPEED && !dashPlaced )	// place dash right before Speed
+		{
+			slots[n++] = DASH_WHEEL_SLOT;
+			dashPlaced = qtrue;
+		}
+		slots[n++] = p;
+		if ( (stasis || repulse) && p == FP_SEE && !placed )	// place pseudo-slots right after Force Sense
+		{
+			if ( stasis )  slots[n++] = STASIS_WHEEL_SLOT;
+			if ( repulse ) slots[n++] = REPULSE_WHEEL_SLOT;
+			placed = qtrue;
+		}
+	}
+
+	if ( dash && !dashPlaced )	// Force Speed not owned: fall back to the end
+		slots[n++] = DASH_WHEEL_SLOT;
+
+	if ( !placed )	// Force Sense not owned: fall back to the end
+	{
+		if ( stasis )  slots[n++] = STASIS_WHEEL_SLOT;
+		if ( repulse ) slots[n++] = REPULSE_WHEEL_SLOT;
+	}
+
+	return n;
 }
 
 /*
@@ -3235,19 +3437,22 @@ void CG_NextForcePower_f( void )
 		return;
 	}
 
-//	BG_CycleForce(&cg.snap->ps, 1);
-	if (cg.forceSelect != -1)
+	// Walk our own wheel order so pseudo-slots (stasis=18, repulse=19, dash=20) can be cycled
+	// onto/off of without ever putting them into the networked forcePowerSelected (kept 0-17).
 	{
-		cg.snap->ps.fd.forcePowerSelected = cg.forceSelect;
-	}
-
-	BG_CycleForce(&cg.snap->ps, 1);
-
-	if (cg.snap->ps.fd.forcePowersKnown & (1 << cg.snap->ps.fd.forcePowerSelected))
-	{
-		//Add a check for (if cgs.isjapro + g_forcepowerdisableFFA & power) -> return ? This requires forcepowerdisableFFA to be cvar_serverinfo :S
-		cg.forceSelect = cg.snap->ps.fd.forcePowerSelected;
-		cg.forceSelectTime = cg.time;
+		int slots[NUM_FORCE_POWERS + 3], n = CG_BuildForceWheel( slots ), cur = -1, i;
+		for ( i = 0; i < n; i++ )
+		{
+			if ( slots[i] == cg.forceSelect ) { cur = i; break; }
+		}
+		if ( n > 0 )
+		{
+			cur = (cur + 1) % n;
+			cg.forceSelect = slots[cur];
+			cg.forceSelectTime = cg.time;
+			if ( cg.forceSelect < NUM_FORCE_POWERS )
+				cg.snap->ps.fd.forcePowerSelected = cg.forceSelect;
+		}
 	}
 }
 
@@ -3281,18 +3486,21 @@ void CG_PrevForcePower_f( void )
 		return;
 	}
 
-//	BG_CycleForce(&cg.snap->ps, -1);
-	if (cg.forceSelect != -1)
+	// Mirror of CG_NextForcePower_f, stepping the other way. See note there.
 	{
-		cg.snap->ps.fd.forcePowerSelected = cg.forceSelect;
-	}
-
-	BG_CycleForce(&cg.snap->ps, -1);
-
-	if (cg.snap->ps.fd.forcePowersKnown & (1 << cg.snap->ps.fd.forcePowerSelected))
-	{
-		cg.forceSelect = cg.snap->ps.fd.forcePowerSelected;
-		cg.forceSelectTime = cg.time;
+		int slots[NUM_FORCE_POWERS + 3], n = CG_BuildForceWheel( slots ), cur = -1, i;
+		for ( i = 0; i < n; i++ )
+		{
+			if ( slots[i] == cg.forceSelect ) { cur = i; break; }
+		}
+		if ( n > 0 )
+		{
+			cur = (cur + n - 1) % n;
+			cg.forceSelect = slots[cur];
+			cg.forceSelectTime = cg.time;
+			if ( cg.forceSelect < NUM_FORCE_POWERS )
+				cg.snap->ps.fd.forcePowerSelected = cg.forceSelect;
+		}
 	}
 }
 

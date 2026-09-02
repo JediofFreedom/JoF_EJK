@@ -679,6 +679,8 @@ void UI_UpdateCurrentServerInfo(void) { //parses server info to contextually hid
 	char *value = NULL;
 
 	trap->Cvar_Set("ui_isJAPro", "0");
+	trap->Cvar_Set("ui_isJAPlus", "0");
+	trap->Cvar_Set("ui_isJoFJAPlus", "0");
 	trap->Cvar_Set("ui_raceMode", "0");
 	trap->Cvar_Set("ui_allowRegistration", "0");
 	trap->Cvar_Set("ui_allowSaberSwitch", "0");
@@ -696,6 +698,7 @@ void UI_UpdateCurrentServerInfo(void) { //parses server info to contextually hid
 	if (!Q_stricmpn(value, "JA+ Mod", 7) || !Q_stricmpn(value, "^4U^3A^5Galaxy", 14) || !Q_stricmpn(value, "AbyssMod", 8))
 	{
 		trap->Cvar_Set("ui_allowSaberSwitch", "1");
+		trap->Cvar_Set("ui_isJAPlus", "1");
 	}
 	else if (!Q_stricmpn(value, "japro", 5)) {
 		int jcinfo2;
@@ -710,6 +713,11 @@ void UI_UpdateCurrentServerInfo(void) { //parses server info to contextually hid
 
 		if (trap->Cvar_VariableValue("g_gametype") < GT_TEAM && jcinfo2 & (1 << 2)) //allow /saber switch cmd
 			trap->Cvar_Set("ui_allowSaberSwitch", "1");
+	}
+
+	//JoF JA+ servers advertise this exact version string in serverinfo, mirrors CL_JoFTrustedServer() in cl_main.cpp
+	if (!Q_stricmp(Info_ValueForKey(info, "V"), "2.5B0")) {
+		trap->Cvar_Set("ui_isJoFJAPlus", "1");
 	}
 
 	//parse system info
@@ -1048,6 +1056,9 @@ void UI_BuildPlayerModel_List( qboolean inGameLoad )
 		dirListSize = sizeof(stackDirList);
 	}
 
+	//re-read the blacklist files, so pk3s loaded since the last build are picked up
+	BG_LoadModelBlacklist();
+
 	uiInfo.playerSpeciesCount = 0;
 	uiInfo.playerSpeciesIndex = 0;
 	uiInfo.playerSpeciesMax = 8;
@@ -1076,6 +1087,10 @@ void UI_BuildPlayerModel_List( qboolean inGameLoad )
 		}
 
 		if (!Q_stricmp(dirptr, ".") || !Q_stricmp(dirptr, ".."))
+			continue;
+
+		//models that are off limits to players don't belong in the picker
+		if (BG_ModelIsNPCOnly(dirptr) || BG_ModelInList(dirptr, cg_modelBlacklist.string))
 			continue;
 
 		Com_sprintf(fpath, sizeof(fpath), "models/players/%s/PlayerChoice.txt", dirptr);
@@ -7447,12 +7462,20 @@ static void UI_UpdateSaberCvars ( void )
 	trap->Cvar_Set ( "saber1", UI_Cvar_VariableString ( "ui_saber" ) );
 	trap->Cvar_Set ( "saber2", UI_Cvar_VariableString ( "ui_saber2" ) );
 
+	//re-attach the hat/cape names UI_GetSaberCvars stashed, so applying a saber colour here
+	//doesn't quietly take the player's cosmetics off
 	colorI = TranslateSaberColor( UI_Cvar_VariableString ( "ui_saber_color" ) );
-	trap->Cvar_SetValue( "color1", (float)colorI);
+	if ( uiInfo.hat[0] )
+		trap->Cvar_Set( "color1", va( "%d%s", (int)colorI, uiInfo.hat ) );
+	else
+		trap->Cvar_SetValue( "color1", (float)colorI);
 	trap->Cvar_Set ( "g_saber_color", UI_Cvar_VariableString ( "ui_saber_color" ));
 
 	colorI = TranslateSaberColor( UI_Cvar_VariableString ( "ui_saber2_color" ) );
-	trap->Cvar_SetValue( "color2", (float)colorI );
+	if ( uiInfo.cape[0] )
+		trap->Cvar_Set( "color2", va( "%d%s", (int)colorI, uiInfo.cape ) );
+	else
+		trap->Cvar_SetValue( "color2", (float)colorI );
 	trap->Cvar_Set ( "g_saber2_color", UI_Cvar_VariableString ( "ui_saber2_color" ));
 
 	if (ui_allowSaberSwitch.integer) {
@@ -7540,6 +7563,103 @@ static void UI_SetSaberBoxesandHilts (void)
 extern qboolean UI_SaberSkinForSaber( const char *saberName, char *saberSkin );
 extern qboolean ItemParse_asset_model_go( itemDef_t *item, const char *name,int *runTimeLength );
 extern qboolean ItemParse_model_g2skin_go( itemDef_t *item, const char *skinName );
+extern qboolean ItemParse_model_g2anim_go( itemDef_t *item, const char *animName );
+
+static qboolean UI_LoadNormalMenuCharacter( itemDef_t *item, const char *modelSpec )
+{
+	char modelName[MAX_QPATH];
+	char modelPath[MAX_QPATH];
+	char skinPath[MAX_QPATH];
+	char *skin;
+	int animRunLength;
+
+	if ( !modelSpec || !modelSpec[0] )
+	{
+		return qfalse;
+	}
+
+	Q_strncpyz( modelName, modelSpec, sizeof(modelName) );
+	skin = strchr( modelName, '/' );
+	if ( skin )
+	{
+		*skin++ = '\0';
+	}
+
+	if ( !skin || !skin[0] )
+	{
+		skin = "default";
+	}
+
+	if ( strchr( skin, '|' ) )
+	{
+		Com_sprintf( skinPath, sizeof(skinPath), "models/players/%s/|%s", modelName, skin );
+	}
+	else
+	{
+		Com_sprintf( skinPath, sizeof(skinPath), "models/players/%s/model_%s.skin", modelName, skin );
+	}
+	Com_sprintf( modelPath, sizeof(modelPath), "models/players/%s/model.glm", modelName );
+
+	ItemParse_asset_model_go( item, modelPath, &animRunLength );
+	if ( !(item->flags & ITF_G2VALID) )
+	{
+		return qfalse;
+	}
+
+	ItemParse_model_g2skin_go( item, skinPath );
+	return qtrue;
+}
+
+/*
+ * Keep the profile preview on the regular ITEM_TYPE_MODEL path used by the
+ * custom-character menu. Adapted from github.com/Razish/japp's player
+ * selection preview; JAPP attributes the original approach to JA+.
+ */
+static qboolean UI_UpdateNormalMenuCharacter( void )
+{
+	menuDef_t *menu;
+	itemDef_t *item;
+	char modelName[MAX_QPATH];
+	char defaultModel[MAX_QPATH];
+
+	menu = Menu_GetFocused();
+	if ( !menu )
+	{
+		return qtrue;
+	}
+
+	item = (itemDef_t *)Menu_FindItemByName( menu, "character" );
+	if ( !item )
+	{
+		return qtrue;
+	}
+
+	ItemParse_model_g2anim_go( item, ui_char_anim.string );
+
+	trap->Cvar_VariableStringBuffer( "model", modelName, sizeof(modelName) );
+	if ( UI_LoadNormalMenuCharacter( item, modelName ) )
+	{
+		return qtrue;
+	}
+
+	trap->Cvar_VariableStringBuffer( "cg_defaultModel", defaultModel, sizeof(defaultModel) );
+	if ( !defaultModel[0] )
+	{
+		Q_strncpyz( defaultModel, DEFAULT_MODEL, sizeof(defaultModel) );
+	}
+
+	if ( Q_stricmp( modelName, defaultModel ) && UI_LoadNormalMenuCharacter( item, defaultModel ) )
+	{
+		return qtrue;
+	}
+
+	if ( Q_stricmp( defaultModel, DEFAULT_MODEL ) )
+	{
+		return UI_LoadNormalMenuCharacter( item, DEFAULT_MODEL );
+	}
+
+	return qfalse;
+}
 
 static void UI_UpdateSaberType( void )
 {
@@ -7626,6 +7746,8 @@ const char *SaberColorToString( saber_colors_t color );
 
 static void UI_GetSaberCvars ( void )
 {
+	char color[MAX_COSMETIC_LENGTH * 2];
+
 //	trap->Cvar_Set ( "ui_saber_type", UI_Cvar_VariableString ( "g_saber_type" ) );
 	trap->Cvar_Set ( "ui_saber", UI_Cvar_VariableString ( "saber1" ) );
 	trap->Cvar_Set ( "ui_saber2", UI_Cvar_VariableString ( "saber2" ));
@@ -7633,11 +7755,16 @@ static void UI_GetSaberCvars ( void )
 	trap->Cvar_Set("g_saber_color", SaberColorToString(trap->Cvar_VariableValue("color1")));
 	trap->Cvar_Set("g_saber2_color", SaberColorToString(trap->Cvar_VariableValue("color2")));
 
+	//remember any hat/cape hanging off the colour so UI_UpdateSaberCvars can put it back
+	trap->Cvar_VariableStringBuffer( "color1", color, sizeof( color ) );
+	Q_StripDigits( color, uiInfo.hat, sizeof( uiInfo.hat ), REMOVE_DIGITS_INITIAL );
+
+	trap->Cvar_VariableStringBuffer( "color2", color, sizeof( color ) );
+	Q_StripDigits( color, uiInfo.cape, sizeof( uiInfo.cape ), REMOVE_DIGITS_INITIAL );
+
 	trap->Cvar_Set ( "ui_saber_color", UI_Cvar_VariableString ( "g_saber_color" ) );
 	trap->Cvar_Set ( "ui_saber2_color", UI_Cvar_VariableString ( "g_saber2_color" ) );
 }
-
-extern qboolean ItemParse_model_g2anim_go( itemDef_t *item, const char *animName );
 
 void UI_UpdateCharacterSkin( void )
 {
@@ -8120,7 +8247,11 @@ static void UI_RunMenuScript(char **args)
 
 	if (String_Parse(args, &name))
 	{
-		if (Q_stricmp(name, "StartServer") == 0)
+		if (Q_stricmp(name, "updateplayerpreview") == 0)
+		{
+			UI_UpdateNormalMenuCharacter();
+		}
+		else if (Q_stricmp(name, "StartServer") == 0)
 		{
 			int i, added = 0;
 			float skill;
@@ -8242,6 +8373,23 @@ static void UI_RunMenuScript(char **args)
 			Controls_SetConfig();
 		} else if (Q_stricmp(name, "loadControls") == 0) {
 			Controls_GetConfig();
+		} else if (Q_stricmp(name, "refreshModTabs") == 0) {
+			//JAPRO - show the JAPLUS controls tab only when connected to a detected
+			//JA+ server, and JAPRO otherwise. In the disconnected main menu (controlsMenu)
+			//we don't know what we'll connect to next, so show both tabs.
+			//ui_isJAPlus/ui_isJAPro are refreshed by UI_UpdateCurrentServerInfo()
+			//on the relevant menu transitions.
+			menuDef_t *menu = Menu_GetFocused();
+			if (menu) {
+				if (menu->window.name && !Q_stricmp(menu->window.name, "controlsMenu")) {
+					Menu_ShowGroup(menu, "japlusbutton", qtrue);
+					Menu_ShowGroup(menu, "japrobutton", qtrue);
+				} else {
+					qboolean isJaPlus = ui_isJAPlus.integer ? qtrue : qfalse;
+					Menu_ShowGroup(menu, "japlusbutton", isJaPlus);
+					Menu_ShowGroup(menu, "japrobutton", isJaPlus ? qfalse : qtrue);
+				}
+			}
 		} else if (Q_stricmp(name, "clearError") == 0) {
 			trap->Cvar_Set("com_errorMessage", "");
 		} else if (Q_stricmp(name, "loadGameInfo") == 0) {
@@ -11489,6 +11637,16 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 				trap->Cvar_Set("char_color_green", "255");
 				trap->Cvar_Set("char_color_blue", "255");
 			}
+
+			trap->Cvar_Set("ui_char_color_red", UI_Cvar_VariableString("char_color_red"));
+			trap->Cvar_Set("ui_char_color_green", UI_Cvar_VariableString("char_color_green"));
+			trap->Cvar_Set("ui_char_color_blue", UI_Cvar_VariableString("char_color_blue"));
+			trap->Cvar_Update(&ui_char_color_red);
+			trap->Cvar_Update(&ui_char_color_green);
+			trap->Cvar_Update(&ui_char_color_blue);
+
+			// Razish/JAPP: update the same walking character widget used by custom character creation.
+			UI_UpdateNormalMenuCharacter();
 		}
 	}
 	else if (feederID == FEEDER_MOVES)

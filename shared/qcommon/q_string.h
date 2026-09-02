@@ -41,6 +41,12 @@ const char *Q_strchrs( const char *string, const char *search );
 
 void Q_strstrip( char *string, const char *strip, const char *repl );
 
+// modes for Q_StripDigits
+#define REMOVE_DIGITS_ALL		0	// drop every digit in the string
+#define REMOVE_DIGITS_INITIAL	1	// drop only the run of digits at the front
+
+void Q_StripDigits( const char *input, char *output, int len, int mode );
+
 #if defined (_MSC_VER)
 	// vsnprintf is ISO/IEC 9899:1999
 	// abstracting this to make it portable

@@ -406,6 +406,24 @@ typedef enum
 	NUM_FORCE_POWERS
 } forcePowers_t;
 
+// Force Stasis (JoF JA+ V58) client integration.
+// Stasis is NOT a real force power and must never be stored in / sent through the
+// playerState force arrays. These constants only describe the spare signalling bits
+// the server already uses, plus a client-only pseudo-slot for the force wheel UI.
+#define STASIS_KNOWN_BIT	NUM_FORCE_POWERS		// spare forcePowersKnown bit (18) the server sets while stasis is granted
+#define STASIS_WHEEL_SLOT	NUM_FORCE_POWERS		// client-only pseudo-slot (18) for the force wheel; display only, never networked
+#define STASIS_ENGAGE_BTN	14						// usercmd button bit the server reads (mask 0x4000) to engage stasis
+
+// Force Repulse (JoF JA+ V71) client integration.
+// Same rules as Stasis: not a real power, never resizes playerState arrays, never sent as forcesel.
+#define REPULSE_KNOWN_BIT	(NUM_FORCE_POWERS + 1)	// spare forcePowersKnown bit (19) the server sets while repulse is granted
+#define REPULSE_WHEEL_SLOT	(NUM_FORCE_POWERS + 1)	// client-only pseudo-slot (19) for the force wheel; display only, never networked
+
+// Force Dash (JoF JA+ V69) client integration.
+// Same rules as Stasis / Repulse: not a real power, never resizes playerState arrays, never sent as forcesel.
+#define DASH_KNOWN_BIT		(NUM_FORCE_POWERS + 2)	// spare forcePowersKnown bit (20) the server sets while dash is granted
+#define DASH_WHEEL_SLOT		(NUM_FORCE_POWERS + 2)	// client-only pseudo-slot (20) for the force wheel; display only, never networked
+
 typedef enum forcePowerLevels_e {
 	FORCE_LEVEL_0,
 	FORCE_LEVEL_1,

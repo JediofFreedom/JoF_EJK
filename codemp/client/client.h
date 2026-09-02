@@ -268,6 +268,11 @@ typedef struct clientConnection_s {
 	int			downloadSize;	// how many bytes we got
 	char		downloadList[MAX_INFO_STRING]; // list of paks we need to download
 	qboolean	downloadRestart;	// if true, we need to do another FS_Restart because we downloaded a pak
+	qboolean	downloadMenuActive;
+	qboolean	downloadWaitingOnUser;
+	int			downloadPromptTime;	// cls.realtime when the download confirm prompt was shown (for cl_autoDownloadJof auto-confirm)
+	qboolean	downloadFinished;
+	int			downloadTime;
 
 	// demo information
 	char		demoName[MAX_STRING_CHARS];
@@ -401,6 +406,16 @@ typedef struct clientStatic_s {
 	qhandle_t	charSetShader;
 	qhandle_t	whiteShader;
 	qhandle_t	consoleShader;
+
+	// Cursor
+	qboolean	cursorActive;
+	qhandle_t	cursorShader;
+	int			cursorX;
+	int			cursorY;
+
+	// Engine menu
+	int			menuFont;
+
 	float		widthRatioCoef;
 
 	struct { //chatlogging
@@ -456,6 +471,7 @@ extern	cvar_t	*cl_noprint;
 extern	cvar_t	*cl_timegraph;
 extern	cvar_t	*cl_maxpackets;
 extern	cvar_t	*cl_packetdup;
+extern	cvar_t  *cl_cmdratecap;
 #ifndef TOURNAMENT_CLIENT
 extern	cvar_t	*cl_timeNudge;
 #else
@@ -499,6 +515,7 @@ extern	cvar_t	*cl_forceavidemo;
 extern	cvar_t	*cl_activeAction;
 
 extern	cvar_t	*cl_allowDownload;
+extern	cvar_t	*cl_autoDownloadJof;
 extern	cvar_t	*cl_allowAltEnter;
 extern	cvar_t	*cl_allowEnterCompletion;
 extern	cvar_t	*cl_conXOffset;
@@ -521,6 +538,9 @@ extern cvar_t	*cl_chatStyleSuffix;
 extern cvar_t	*cl_afkPrefix;
 extern cvar_t	*cl_afkTime;
 extern cvar_t	*cl_afkTimeUnfocused;
+
+extern cvar_t	*cl_unfocusedChatbox;
+extern cvar_t	*cl_minimizedChatbox;
 
 extern cvar_t	*cl_logChat;
 
@@ -584,6 +604,10 @@ qboolean CL_CheckPaused(void);
 extern int		cl_nameModifiedTime;
 extern int		cl_unfocusedTime;
 extern qboolean cl_afkName;
+
+void CL_DrawEngineMenus( void );
+void CL_UpdateCursorPosition( int dx, int dy );
+void CL_CursorButton( int key );
 
 //
 // cl_input
