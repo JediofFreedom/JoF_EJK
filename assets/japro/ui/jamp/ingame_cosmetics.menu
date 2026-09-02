@@ -19,7 +19,6 @@
 		descAlignment				ITEM_ALIGN_CENTER
 		onOpen
 		{
-			setcvar				ui_cosmeticSearch ""
 			uiScript				"cosmeticsmodel"	// show the model the player actually wears
 			uiScript				"getcosmetics"		// and what they already have on
 		}
@@ -79,37 +78,13 @@
 			decoration
 		}
 
-// Shared search
-		itemDef
-		{
-			name				cosmeticsearch
-			group				none
-			type				ITEM_TYPE_EDITFIELD
-			style				WINDOW_STYLE_FILLED
-			text				"Search:"
-			cvar				"ui_cosmeticSearch"
-			rect				15 42 215 18
-			textalign			ITEM_ALIGN_LEFT
-			textalignx			55
-			textaligny			13
-			font				2
-			textscale			.75
-			forecolor			1 1 1 1
-			backcolor			.1 .1 .15 .8
-			border				1
-			bordercolor			.66 .66 1 1
-			maxChars			32
-			maxPaintChars		18
-			visible				1
-		}
-
 // Hats
 		itemDef
 		{
 			name				hatstitle
 			group				none
 			text				"Hats"
-			rect				15 65 200 20
+			rect				15 45 200 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -136,7 +111,7 @@
 			bordercolor			.66 .66 1 1
 			forecolor			1 1 1 1
 			outlinecolor		.66 .66 1 .6		// fills the row you are wearing
-			rect				15 85 215 108
+			rect				15 65 215 128
 			textscale			.9
 			textaligny			13					// the list paints a row high without this
 			descText			"Click to wear, click again to take off"
