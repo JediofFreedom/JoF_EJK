@@ -2286,6 +2286,7 @@ const char *CG_ConfigString( int index );
 const char *CG_Argv( int arg );
 
 void CG_StartMusic( qboolean bForceStart );
+void CG_StartMusicSynced( void );
 
 void CG_UpdateCvars( void );
 

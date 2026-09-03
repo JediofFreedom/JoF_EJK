@@ -1764,8 +1764,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		}
 //JAPRO - Clientside - Fullforce Duels - End
 		else
-		{ //ending the duel
-			CG_StartMusic(qtrue);
+		{ //ending the duel - pick the map music back up where everyone else is, rather than from the top
+			CG_StartMusicSynced();
 		}
 		break;
 
