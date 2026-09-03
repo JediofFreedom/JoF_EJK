@@ -288,6 +288,11 @@ XDOCS_CVAR_DEF("cg_duelMusic", "Enables special in-game music for private duels"
 	SETTING("1", "Play music track for private duels (baseJKA behavior)")
 )
 
+XDOCS_CVAR_DEF("cg_musicSync", "Keeps map music in step with the rest of the server",
+	SETTING("0", "Map music always restarts from the beginning (baseJKA behavior)") NL
+	SETTING("1", "Map music resumes at the point the server is up to, so everyone hears the same thing")
+)
+
 //Visuals
 
 XDOCS_CVAR_DEF("cg_remaps", "Show or hide serverside remaps",

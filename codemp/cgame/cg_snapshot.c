@@ -169,6 +169,11 @@ void CG_SetInitialSnapshot( snapshot_t *snap ) {
 
 		trap->SendConsoleCommand("say_team_mod admin");
 	}
+
+	// CG_Init() only preloads the map music (S_StartBackgroundTrack() stops it again when called from cgame
+	//	start), so without this a client joining a level in progress hears nothing until the next map_restart.
+	//	Start it here instead, at the point everyone else is already at.
+	CG_StartMusicSynced();
 }
 
 

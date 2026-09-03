@@ -190,6 +190,7 @@ cvar_t		*s_show;
 cvar_t		*s_mixahead;
 cvar_t		*s_mixPreStep;
 cvar_t		*s_musicVolume;
+cvar_t		*s_musicOffset;		// one-shot: ms into the track that the next background track start should begin at
 cvar_t		*s_separation;
 cvar_t		*s_lip_threshold_1;
 cvar_t		*s_lip_threshold_2;
@@ -519,6 +520,10 @@ void S_Init( void ) {
 	Cvar_CheckRange(s_volumeVoice, 0, 1, qfalse);
 	s_musicVolume = Cvar_Get ("s_musicvolume", "0.25", CVAR_ARCHIVE, "Music volume" );
 	Cvar_CheckRange(s_musicVolume, 0, 1, qfalse);
+	// Set by the cgame immediately before a S_StartBackgroundTrack() call to say "start this track N
+	//	milliseconds in" instead of from the beginning. Consumed (and reset to 0) by the first start
+	//	that follows, so it can never leak into an unrelated track.
+	s_musicOffset = Cvar_Get ("s_musicOffset", "0", CVAR_TEMP, "Milliseconds into the track that the next music start should resume from" );
 
 	s_separation = Cvar_Get ("s_separation", "0.5", CVAR_ARCHIVE);
 	s_khz = Cvar_Get ("s_khz", "44", CVAR_ARCHIVE|CVAR_LATCH);
@@ -4217,9 +4222,18 @@ void S_UnCacheDynamicMusic( void )
 	{
 		FreeMusic( &tMusic_Info[i]);
 	}
+
+	// the non-dynamic slot can hold a loaded file too now (see qbSeekable in S_StartBackgroundTrack_Actual),
+	//	so it needs releasing as well or it leaks across an snd_restart
+	//
+	FreeMusic( &tMusic_Info[eBGRNDTRACK_NONDYNAMIC] );
 }
 
-static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean qbDynamic, const char *intro, const char *loop )
+// qbSeekable: caller wants to be able to S_MusicSeekToOffset() on this track afterwards. That needs the whole
+//	file in memory (the disk-streaming decoder can only ever move forwards) plus the playing-time fields the
+//	length query relies on, which is exactly what the dynamic-music path already sets up, so just reuse it.
+//
+static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean qbDynamic, const char *intro, const char *loop, qboolean qbSeekable = qfalse )
 {
 	int		len;
 	char	dump[16];
@@ -4252,9 +4266,14 @@ static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean
 
 	if (!Q_stricmpn(name+(strlen(name)-4),".mp3",4))
 	{
+		// whether this track is played from a memory image of the whole file rather than streamed off disk...
+		//
+		qboolean qbInMemory = (qboolean)(qbDynamic || qbSeekable);
+
 		if (pMusicInfo->pLoadedData)
 		{
 			pMusicInfo->s_backgroundFile = -1;
+			qbInMemory = qtrue;		// data is already resident from a previous start, so we must use it
 		}
 		else
 		{
@@ -4274,7 +4293,7 @@ static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean
 											// scan up to halfway of it to find floating headers, so don't make it
 											// too small. 8k works fine.
 		qboolean bMusicSucceeded = qfalse;
-		if (qbDynamic)
+		if (qbInMemory)
 		{
 			if (!pMusicInfo->pLoadedData)
 			{
@@ -4316,8 +4335,9 @@ static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean
 							pMusicInfo->sfxMP3_Bgrnd.pMP3StreamHeader		= &pMusicInfo->streamMP3_Bgrnd;
 				Q_strncpyz( pMusicInfo->sfxMP3_Bgrnd.sSoundName, name, sizeof(pMusicInfo->sfxMP3_Bgrnd.sSoundName) );
 
-				if (qbDynamic)
+				if (qbInMemory)
 				{
+					// needed by MP3Stream_GetPlayingTimeInSeconds(), which the seek code uses to wrap the offset
 					MP3Stream_InitPlayingTimeFields ( &pMusicInfo->streamMP3_Bgrnd, name, pbMP3DataSegment, pMusicInfo->iLoadedDataLen, qtrue);
 				}
 
@@ -4332,7 +4352,7 @@ static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean
 						pMusicInfo->chMP3_Bgrnd.thesfx = &pMusicInfo->sfxMP3_Bgrnd;
 				memcpy(&pMusicInfo->chMP3_Bgrnd.MP3StreamHeader, pMusicInfo->sfxMP3_Bgrnd.pMP3StreamHeader, sizeof(*pMusicInfo->sfxMP3_Bgrnd.pMP3StreamHeader));
 
-				if (qbDynamic)
+				if (qbInMemory)
 				{
 					if (pMusicInfo->s_backgroundFile != -1)
 					{
@@ -4643,6 +4663,73 @@ void S_RestartMusic( void )
 	}
 }
 
+// Returns (and clears) any one-shot start offset the game module has asked for via "s_musicOffset"...
+//
+static int S_Music_TakeStartOffsetMS( void )
+{
+	int iOffsetMS = s_musicOffset ? s_musicOffset->integer : 0;
+
+	if (iOffsetMS != 0)
+	{
+		Cvar_Set( "s_musicOffset", "0" );	// one-shot, so it can never leak into some later, unrelated track
+	}
+
+	return (iOffsetMS > 0) ? iOffsetMS : 0;
+}
+
+// Move an already-started (non-dynamic) track to "iOffsetMS" milliseconds in, wrapping around if that's past the
+//	end of the track. Since the offset is a pure function of server time, every client that asks for the same
+//	offset ends up at the same point in the tune...
+//
+static void S_MusicSeekToOffset( MusicInfo_t *pMusicInfo, int iOffsetMS )
+{
+	if (iOffsetMS <= 0 || !pMusicInfo->s_backgroundFile)
+	{
+		return;
+	}
+
+	float fOffsetSeconds = (float)iOffsetMS / 1000.0f;
+
+	if (pMusicInfo->bIsMP3)
+	{
+		LP_MP3STREAM pStream = &pMusicInfo->chMP3_Bgrnd.MP3StreamHeader;
+
+		// MP3Stream_GetRemainingTimeInSeconds(), which the seek loop tests against, does an integer divide of the
+		//	track's sample rate by the mixer's, so it only gives usable answers when the track is at least as fast
+		//	as the mixer (eg 44kHz music with s_khz 22). Rather than seek blind and end up decoding to EOF, just
+		//	leave the track at the beginning if we can't trust the numbers.
+		//
+		const float fTrackLength = MP3Stream_GetPlayingTimeInSeconds( pStream );
+
+		if (fTrackLength <= 0.0f || pStream->iTimeQuery_SampleRate < dma.speed)
+		{
+			Com_DPrintf( "S_MusicSeekToOffset: can't seek '%s', playing from the beginning instead\n", pMusicInfo->sfxMP3_Bgrnd.sSoundName );
+			return;
+		}
+
+		fOffsetSeconds = fmodf( fOffsetSeconds, fTrackLength );
+
+		pMusicInfo->SeekTo( fOffsetSeconds );
+	}
+	else
+	{
+		// ...a WAV, so we're already sat at the start of the data chunk and can just skip forwards through it
+		//
+		const int iSampleSize	= pMusicInfo->s_backgroundInfo.width * pMusicInfo->s_backgroundInfo.channels;
+		const int iTotalSamples	= pMusicInfo->s_backgroundSamples;
+
+		if (iTotalSamples <= 0 || iSampleSize <= 0 || pMusicInfo->s_backgroundInfo.rate <= 0)
+		{
+			return;
+		}
+
+		const int iSeekSamples = (int)(fOffsetSeconds * (float)pMusicInfo->s_backgroundInfo.rate) % iTotalSamples;
+
+		FS_Seek( pMusicInfo->s_backgroundFile, iSeekSamples * iSampleSize, FS_SEEK_CUR );
+		pMusicInfo->s_backgroundSamples = iTotalSamples - iSeekSamples;
+	}
+}
+
 // Basic logic here is to see if the intro file specified actually exists, and if so, then it's not dynamic music,
 //	When called by the cgame start it loads up, then stops the playback (because of stutter issues), so that when the
 //	actual snapshot is received and the real play request is processed the data has already been loaded so will be quicker.
@@ -4658,6 +4745,11 @@ void S_StartBackgroundTrack( const char *intro, const char *loop, qboolean bCall
 	{	//we have no sound, so don't even bother trying
 		return;
 	}
+
+	// take this now rather than down in the non-dynamic branch, so that a request that ends up somewhere else
+	//	(dynamic music, or a track that doesn't exist) still clears it instead of leaving it for the next track
+	//
+	const int iOffsetMS = S_Music_TakeStartOffsetMS();
 
 	if ( !intro ) {
 		intro = "";
@@ -4698,8 +4790,15 @@ void S_StartBackgroundTrack( const char *intro, const char *loop, qboolean bCall
 	if ( (strstr(sNameIntro,"/") && S_FileExists( sNameIntro )) )	// strstr() check avoids extra file-exists check at runtime if reverting from streamed music to dynamic since literal files all need at least one slash in their name (eg "music/blah")
 	{
 		const char *psLoopName = S_FileExists( sNameLoop ) ? sNameLoop : sNameIntro;
+		MusicInfo_t *pMusicInfo = &tMusic_Info[eBGRNDTRACK_NONDYNAMIC];
+
 		Com_DPrintf("S_StartBackgroundTrack: Found/using non-dynamic music track '%s' (loop: '%s')\n", sNameIntro, psLoopName);
-		S_StartBackgroundTrack_Actual( &tMusic_Info[eBGRNDTRACK_NONDYNAMIC], bMusic_IsDynamic, sNameIntro, psLoopName );
+
+		if (S_StartBackgroundTrack_Actual( pMusicInfo, bMusic_IsDynamic, sNameIntro, psLoopName, (qboolean)(iOffsetMS > 0) )
+			&& iOffsetMS > 0)
+		{
+			S_MusicSeekToOffset( pMusicInfo, iOffsetMS );
+		}
 	}
 	else
 	{
