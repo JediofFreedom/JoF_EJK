@@ -4280,7 +4280,15 @@ void Menu_HandleKey(menuDef_t *menu, int key, qboolean down) {
 		{
 			g_editingField = qfalse;
 			g_editItem = NULL;
-			return;
+			if (key == A_MOUSE1 || key == A_MOUSE2 || key == A_MOUSE3)
+			{
+				// Let the click that leaves an edit field activate its target too.
+				Display_MouseMove(NULL, DC->cursorx, DC->cursory);
+			}
+			else
+			{
+				return;
+			}
 		}
 		else if (key == A_MOUSE1 || key == A_MOUSE2 || key == A_MOUSE3)
 		{

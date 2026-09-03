@@ -67,6 +67,7 @@ typedef struct uiQ3ModelBuild_s {
 } uiQ3ModelBuild_t;
 void UI_BuildQ3Model_List(char* dirptr, char* filelist, int bufsize);
 void UI_BuildQ3Model_List_ProcessDir(char* dirptr, char* filelist, int numfiles);
+void UI_BuildQ3Model_List_Async(void);
 
 void UI_GetCharacterCvars( void );
 const char *UI_GetModelWithSkin(char *model);

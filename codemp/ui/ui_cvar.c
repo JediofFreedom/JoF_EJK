@@ -92,7 +92,49 @@ static void CVU_StrafeHelper (void) {
 }
 
 
-extern uiQ3ModelBuild_t uiQ3ModelBuild;
+static void CVU_UpdateModelSearch(void) {
+	menuDef_t *menu;
+	int selectedIndex;
+	int i;
+
+	if (startup) {
+		return;
+	}
+
+	selectedIndex = UI_HeadIndexForModel(UI_GetModelWithSkin(model.string));
+	uiInfo.q3SelectedHead = selectedIndex;
+	trap->Cvar_SetValue("ui_selectedModelIndex", (float)selectedIndex);
+	trap->Cvar_Update(&ui_selectedModelIndex);
+
+	menu = Menu_GetFocused();
+	if (!menu) {
+		return;
+	}
+
+	for (i = 0; i < menu->itemCount; i++) {
+		itemDef_t *item = menu->items[i];
+
+		if ((int)item->special == FEEDER_Q3HEADS) {
+			listBoxDef_t *list = item->typeData.listbox;
+
+			item->cursorPos = selectedIndex;
+			if (list) {
+				list->startPos = 0;
+				list->cursorPos = selectedIndex >= 0 ? selectedIndex : 0;
+			}
+		}
+	}
+}
+
+
+static void CVU_UpdateQ3ModelList(void) {
+	if (startup) {
+		return;
+	}
+
+	UI_BuildQ3Model_List_Async();
+}
+
 static void CVU_UpdateModelList(void) {
 	uiClientState_t cstate = {0};
 
@@ -108,7 +150,7 @@ static void CVU_UpdateModelList(void) {
 	}
 
 	UI_UpdateSaberHiltInfo();
-	UI_BuildQ3Model_List(uiQ3ModelBuild.dirList, uiQ3ModelBuild.fileList, sizeof(uiQ3ModelBuild.fileList)); //this crashes on linux???
+	UI_BuildQ3Model_List_Async();
 	UI_BuildPlayerModel_List(qtrue);
 	UI_Load(); //refreshes the available species in the selection feeder
 }

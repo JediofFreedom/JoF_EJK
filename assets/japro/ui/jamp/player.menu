@@ -15,7 +15,8 @@
 	
 		onOpen
 		{ 
-			uiScript		update  "ui_GetName"
+			uiScript		update  "ui_GetName" 
+			uiScript		clearModelSearch
 			uiScript		"updateplayerpreview"
 		}
 									
@@ -29,6 +30,7 @@
 		onClose 
 		{ 
 			uiScript		update  "ui_SetName" 
+			uiScript		clearModelSearch
 		}
 
 
@@ -478,9 +480,9 @@
 			name				modelname
 			style				0	
 			cvar				model
-			rect				50 50 160 20
+			rect				30 50 210 20
 			textalign			ITEM_ALIGN_LEFT
-			textalignx			-20
+			textalignx			0
 			textaligny			366
 			outlinecolor		1 .5 .5 .5
 			backcolor			0 0 0 0
@@ -503,6 +505,29 @@
 			}
 		}
 
+		itemDef
+		{
+			name				modelSearch
+			type				ITEM_TYPE_EDITFIELD
+			text				"Search:"
+			cvar				ui_modelSearch
+			rect				240 408 194 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
+			textaligny			8
+			font				2
+			textscale			.6
+			forecolor			.615 .615 .956 1
+			maxChars			32
+			maxPaintChars		18
+			visible				1
+			descText			"Filter player models by model or skin name."
+			action
+			{
+				play			"sound/interface/button1.wav"
+			}
+		}
+
 // Skin/Team Color Chooser
 		itemDef 
 		{
@@ -510,7 +535,7 @@
 			style				0	
 			text				@MENUS_TEAM_COLOR
 			ownerdraw			UI_SKIN_COLOR
-			rect				50 209 160 20
+			rect				30 209 210 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			-5
@@ -530,6 +555,37 @@
 		}
 
 // Scroll box with portraits.
+		itemDef
+		{
+			name				showCustomSkins
+			type				ITEM_TYPE_MULTI
+			text				"Show Custom Skins:"
+			cvar				ui_showAllSkins
+			cvarFloatList
+			{
+				@MENUS_OFF 0
+				@MENUS_ON 1
+				"All" 2
+			}
+			rect				240 209 194 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
+			textaligny			-5
+			outlinecolor		1 .5 .5 .5
+			backcolor			0 0 0 0
+			font				2
+			textscale			.8
+			forecolor			.615 .615 .956 1
+			border				0
+			bordercolor			0 0 0 0
+			visible				1
+			descText			"Off hides custom skins; On shows custom skins with icons; All also shows skins without icons."
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+			}
+		}
+
 		itemDef 
 		{
 			name 				headlist
