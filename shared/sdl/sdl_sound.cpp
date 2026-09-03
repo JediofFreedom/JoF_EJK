@@ -43,6 +43,7 @@ extern cvar_t* s_maxSounds;
 /* The audio callback. All the magic happens here. */
 static int dmapos = 0;
 static int dmasize = 0;
+static qboolean sdl_muted = qfalse;
 
 /*
 ===============
@@ -71,12 +72,16 @@ static void SNDDMA_AudioCallback(void *userdata, Uint8 *stream, int len)
 			len1 = tobufend;
 			len2 = len - len1;
 		}
-		memcpy(stream, dma.buffer + pos, len1);
+		if (sdl_muted)
+			memset(stream, '\0', len);
+		else
+			memcpy(stream, dma.buffer + pos, len1);
 		if (len2 <= 0)
 			dmapos += (len1 / (dma.samplebits/8));
 		else  /* wraparound? */
 		{
-			memcpy(stream+len1, dma.buffer, len2);
+			if (!sdl_muted)
+				memcpy(stream+len1, dma.buffer, len2);
 			dmapos = (len2 / (dma.samplebits/8));
 		}
 	}
@@ -330,13 +335,14 @@ void SNDDMA_Activate( qboolean activate )
 	if ( s_UseOpenAL )
 	{
 		S_AL_MuteAllSounds( (qboolean)!activate );
+		return;
 	}
 #endif
 
-	if ( activate )
-	{
-		S_ClearSoundBuffer();
-	}
-
-	SDL_PauseAudioDevice( dev, !activate );
+	// Keep the callback and DMA cursor running while unfocused. Pausing the
+	// device freezes the client sound clock, so music resumes late and loses
+	// synchronization with server-triggered audio after the window is restored.
+	SDL_LockAudioDevice( dev );
+	sdl_muted = (qboolean)!activate;
+	SDL_UnlockAudioDevice( dev );
 }
