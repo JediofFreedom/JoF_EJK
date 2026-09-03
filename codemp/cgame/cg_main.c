@@ -1899,6 +1899,48 @@ void CG_StartMusic( qboolean bForceStart ) {
 	trap->S_StartBackgroundTrack( parm1, parm2, !bForceStart );
 }
 
+/*
+======================
+CG_StartMusicSynced
+
+Starts the level's music at the point it would have reached had it been playing uninterrupted since the level
+started, instead of from the beginning. The offset is derived purely from server time, so every client lands on
+the same point in the track and everyone outside of a duel hears the same thing at the same time.
+
+The offset is handed to the engine through the one-shot "s_musicOffset" cvar, which it consumes and clears on the
+next background track start. Engines that don't know about it simply ignore the cvar and we get the old
+start-from-the-beginning behaviour, so this stays safe to run against any client.
+======================
+*/
+void CG_StartMusicSynced( void ) {
+	int		msec;
+	char	offsetStr[16];
+
+	if ( !cg_musicSync.integer ) {
+		CG_StartMusic( qtrue );
+		return;
+	}
+
+	// cg.time isn't valid yet on the very first snapshot, so fall back to the snapshot's own server time
+	msec = cg.time;
+	if ( cg.snap && (msec <= 0 || msec < cgs.levelStartTime) ) {
+		msec = cg.snap->serverTime;
+	}
+
+	msec -= cgs.levelStartTime;
+	if ( msec < 0 ) {
+		msec = 0;
+	}
+
+	Com_sprintf( offsetStr, sizeof( offsetStr ), "%i", msec );
+	trap->Cvar_Set( "s_musicOffset", offsetStr );
+
+	CG_StartMusic( qtrue );
+
+	// the engine clears this itself once it has used it, but make sure of it for engines that don't support it
+	trap->Cvar_Set( "s_musicOffset", "0" );
+}
+
 char *CG_GetMenuBuffer(const char *filename) {
 	int	len;
 	fileHandle_t	f;
