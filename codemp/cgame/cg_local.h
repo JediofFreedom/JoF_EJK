@@ -2173,6 +2173,7 @@ typedef struct cgs_s {
 	char			teamVoteString[2][MAX_STRING_TOKENS];
 
 	int				levelStartTime;
+	int				musicStartTime;		// server time the current CS_MUSIC track began, for cg_musicSync
 
 	int				scores1, scores2;		// from configstrings
 	int				jediMaster;

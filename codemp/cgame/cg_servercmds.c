@@ -869,6 +869,8 @@ static void CG_ConfigStringModified( void ) {
 
 	// do something with it if necessary
 	if ( num == CS_MUSIC ) {
+		// the track is starting now, so this is the reference point cg_musicSync resumes against
+		cgs.musicStartTime = cg.time;
 		CG_StartMusic( qtrue );
 	} else if ( num == CS_SERVERINFO ) {
 		CG_ParseServerinfo();
@@ -1221,6 +1223,8 @@ static void CG_MapRestart( void ) {
 
 	cg.mapRestart = qtrue;
 
+	// the track restarts from the top for everyone here, so this is the new reference point
+	cgs.musicStartTime = cg.time;
 	CG_StartMusic(qtrue);
 
 	trap->S_ClearLoopingSounds();
