@@ -1673,10 +1673,8 @@ void S_StartSound(const vec3_t origin, int entityNum, int entchannel, sfxHandle_
 		return;
 	}
 
-	if ( (com_minimized->integer || com_unfocused->integer) && snd_mute_losefocus->integer ) { //entchannel != CHAN_MUSIC ?
-		return;
-	}
-
+	// Do not discard server-triggered sounds while unfocused. The output backend
+	// mutes them while keeping the sound timeline advancing, so restore stays in sync.
 	if ( !origin && ( entityNum < 0 || entityNum >= MAX_GENTITIES ) ) {
 		Com_Error( ERR_DROP, "S_StartSound: bad entitynum %i", entityNum );
 	}
