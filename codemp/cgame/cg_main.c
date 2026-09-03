@@ -1901,11 +1901,40 @@ void CG_StartMusic( qboolean bForceStart ) {
 
 /*
 ======================
+CG_MusicStartTime
+
+Server time at which the currently advertised track started playing.
+
+The server can state this outright by appending a third token to CS_MUSIC, which is how a client that joined
+part way through a track gets it right. CG_StartMusic only ever parses the first two tokens, so the extra one is
+invisible to every other client and mod.
+
+Failing that we use the last time we saw CS_MUSIC change, which is set to the level start at map load - correct
+for a map whose track comes from worldspawn, and correct for anyone who was connected when the track changed.
+======================
+*/
+static int CG_MusicStartTime( void ) {
+	char	*s = (char *)CG_ConfigString( CS_MUSIC );
+	char	token[MAX_QPATH];
+
+	COM_Parse( (const char **)&s );		// intro
+	COM_Parse( (const char **)&s );		// loop
+	Q_strncpyz( token, COM_Parse( (const char **)&s ), sizeof( token ) );
+
+	if ( token[0] >= '0' && token[0] <= '9' ) {
+		return atoi( token );
+	}
+
+	return cgs.musicStartTime;
+}
+
+/*
+======================
 CG_StartMusicSynced
 
-Starts the level's music at the point it would have reached had it been playing uninterrupted since the level
-started, instead of from the beginning. The offset is derived purely from server time, so every client lands on
-the same point in the track and everyone outside of a duel hears the same thing at the same time.
+Starts the level's music at the point it would have reached had it been playing uninterrupted since the current
+track started, instead of from the beginning. The offset is derived purely from server time, so every client
+lands on the same point in the track and everyone outside of a duel hears the same thing at the same time.
 
 The offset is handed to the engine through the one-shot "s_musicOffset" cvar, which it consumes and clears on the
 next background track start. Engines that don't know about it simply ignore the cvar and we get the old
@@ -1927,7 +1956,7 @@ void CG_StartMusicSynced( void ) {
 		msec = cg.snap->serverTime;
 	}
 
-	msec -= cgs.levelStartTime;
+	msec -= CG_MusicStartTime();
 	if ( msec < 0 ) {
 		msec = 0;
 	}
@@ -3205,6 +3234,9 @@ Ghoul2 Insert End
 
 	s = CG_ConfigString( CS_LEVEL_START_TIME );
 	cgs.levelStartTime = atoi( s );
+
+	// a map's own worldspawn track is set before anyone connects, so it started when the level did
+	cgs.musicStartTime = cgs.levelStartTime;
 
 	CG_ParseServerinfo();
 
