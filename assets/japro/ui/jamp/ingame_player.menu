@@ -278,7 +278,7 @@
 			name				modelname
 			style				0	
 			cvar				model
-			rect				22 50 200 20
+			rect				22 78 200 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			205
@@ -309,7 +309,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Search:"
 			cvar				ui_modelSearch
-			rect				222 247 202 20
+			rect				222 275 202 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			8
