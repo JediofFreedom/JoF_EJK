@@ -1132,6 +1132,24 @@ static void CG_Autologin_f(void)
 
 }
 
+static void CG_SetSaberColorCvar(int bladeNum, int color)
+{
+	char cvarName[16];
+	char currentValue[MAX_COSMETIC_LENGTH * 2] = { 0 };
+	char cosmetic[MAX_COSMETIC_LENGTH] = { 0 };
+
+	Com_sprintf(cvarName, sizeof(cvarName), "color%i", bladeNum);
+
+	// color1/color2 also carry the selected hat/cape after the numeric color.
+	if (bladeNum == 1 || bladeNum == 2)
+	{
+		trap->Cvar_VariableStringBuffer(cvarName, currentValue, sizeof(currentValue));
+		Q_StripDigits(currentValue, cosmetic, sizeof(cosmetic), REMOVE_DIGITS_INITIAL);
+	}
+
+	trap->Cvar_Set(cvarName, va("%i%s", color, cosmetic));
+}
+
 static void CG_Sabercolor_f(void)
 {
 	int red, blue, green;
@@ -1152,10 +1170,10 @@ static void CG_Sabercolor_f(void)
 		green = atoi(CG_Argv(2));
 		blue = atoi(CG_Argv(3));
 
-		trap->Cvar_Set("color1", va("%i", SABER_RGB));
+		CG_SetSaberColorCvar(1, SABER_RGB);
 		trap->Cvar_Set("cp_sbRGB1", va("%i", red | ((green | (blue << 8)) << 8)));
 
-		trap->Cvar_Set("color2", va("%i", SABER_RGB));
+		CG_SetSaberColorCvar(2, SABER_RGB);
 		trap->Cvar_Set("cp_sbRGB2", va("%i", red | ((green | (blue << 8)) << 8)));
 		return;
 	}
@@ -1168,7 +1186,7 @@ static void CG_Sabercolor_f(void)
 		green = atoi(CG_Argv(3));
 		blue = atoi(CG_Argv(4));
 
-		trap->Cvar_Set(va("color%i", bladeNum), va("%i", SABER_RGB));
+		CG_SetSaberColorCvar(bladeNum, SABER_RGB);
 		trap->Cvar_Set(va("cp_sbRGB%i", bladeNum), va("%i", red | ((green | (blue << 8)) << 8)));
 		return;
 	}
@@ -1179,14 +1197,14 @@ static void CG_Sabercolor_f(void)
 		green = atoi(CG_Argv(2));
 		blue = atoi(CG_Argv(3));
 
-		trap->Cvar_Set("color1", va("%i", SABER_RGB));
+		CG_SetSaberColorCvar(1, SABER_RGB);
 		trap->Cvar_Set("cp_sbRGB1", va("%i", red | ((green | (blue << 8)) << 8)));
 
 		red = atoi(CG_Argv(4));
 		green = atoi(CG_Argv(5));
 		blue = atoi(CG_Argv(6));
 
-		trap->Cvar_Set("color2", va("%i", SABER_RGB));
+		CG_SetSaberColorCvar(2, SABER_RGB);
 		trap->Cvar_Set("cp_sbRGB2", va("%i", red | ((green | (blue << 8)) << 8)));
 	}
 }
