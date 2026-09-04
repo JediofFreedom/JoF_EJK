@@ -10735,10 +10735,16 @@ void CG_DrawCosmeticOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, 
 		VectorCopy(boltOrg, ent.origin);*/
 
         re.hModel = model;
-        VectorCopy( boltOrg, re.lightingOrigin );
+        VectorCopy( parent.lightingOrigin, re.lightingOrigin );
         VectorCopy( boltOrg, re.origin );
 
+		re.shadowPlane = parent.shadowPlane;
 		re.renderfx = parent.renderfx;
+		if ( !(parent.renderfx & RF_SHADOW_PLANE) )
+		{
+			// Static models cast stencil shadows without checking RF_SHADOW_PLANE.
+			re.renderfx |= RF_NOSHADOW;
+		}
 		re.customShader = parent.customShader;
 
         trap->R_AddRefEntityToScene( &re );
