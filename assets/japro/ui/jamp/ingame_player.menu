@@ -200,10 +200,57 @@
 			decoration
 		}
 		
+// COSMETICS - sits in the empty right-hand end of the title bar (the title itself is centred)
+		itemDef
+		{
+			name				cosmeticsbutton_glow
+			group				none
+			style				WINDOW_STYLE_SHADER
+			rect				430 29 155 20
+			background			"gfx/menus/menu_buttonback"
+			forecolor			1 1 1 1
+			decoration
+			visible			0
+		}
+
+		itemDef
+		{
+			name				cosmeticsbutton
+			group				none
+			text				"COSMETICS"
+			descText			"Wear a hat or a cape"
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				430 29 155 20
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			77
+			textaligny			-2
+			font				2
+			textscale			.9
+			backcolor			0 0 0 0
+			forecolor			1 .682 0 1
+			visible			1
+
+			mouseEnter
+			{
+				show			cosmeticsbutton_glow
+			}
+			mouseExit
+			{
+				hide			cosmeticsbutton_glow
+			}
+			action
+			{
+				play			"sound/interface/button1.wav"
+				close			ingame_player
+				open			ingame_cosmetics
+			}
+		}
+
 		itemDef
 		{
 			name				modeltitle
-			style				0	
+			style				0
 			text				@MENUS_CHARACTER_MODEL
 			rect				3 52 570 0
 			textalign			ITEM_ALIGN_CENTER

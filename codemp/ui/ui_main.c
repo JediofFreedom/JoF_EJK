@@ -8262,7 +8262,19 @@ static void UI_RunMenuScript(char **args)
 
 	if (String_Parse(args, &name))
 	{
-		if (Q_stricmp(name, "updateplayerpreview") == 0)
+		if (Q_stricmp(name, "clearcosmetics") == 0)
+		{
+			UI_ClearCosmetics();
+		}
+		else if (Q_stricmp(name, "getcosmetics") == 0)
+		{
+			UI_GetCosmeticCvars();
+		}
+		else if (Q_stricmp(name, "cosmeticsmodel") == 0)
+		{
+			UI_UpdateCosmeticsCharacter();
+		}
+		else if (Q_stricmp(name, "updateplayerpreview") == 0)
 		{
 			UI_UpdateNormalMenuCharacter();
 		}
@@ -10529,6 +10541,389 @@ static void UI_BuildServerStatus(qboolean force) {
 UI_FeederCount
 ==================
 */
+/*
+=================
+UI_LoadCosmetics
+
+The UI is its own module and cannot reach cgame's cosmetic registry, so it scans the same
+folders itself. Rules match CG_LoadCosmetics: the name has to survive a trip through the
+saber colour userinfo key, so it must fit MAX_COSMETIC_LENGTH and must not start with a
+digit (the receiving atoi() would swallow it).
+=================
+*/
+static void UI_LoadCosmeticsIn( const char *path, int *totalOut, uiCosmeticItem_t **storeOut )
+{
+	char			fileList[MAX_QPATH * 256];
+	char			name[MAX_QPATH];
+	uiCosmeticItem_t *items;
+	char			*ptr;
+	int				fileCnt, i, j = 0;
+	size_t			fileLen = 0;
+
+	*storeOut = NULL;
+	*totalOut = 0;
+
+	fileCnt = trap->FS_GetFileList( path, ".md3", fileList, sizeof( fileList ) );
+	if ( !fileCnt )
+		return;
+
+	items = (uiCosmeticItem_t *)malloc( fileCnt * sizeof( *items ) );
+	if ( !items )
+		return;
+
+	ptr = fileList;
+	for ( i = 0; i < fileCnt; i++, ptr += fileLen + 1 )
+	{
+		fileLen = strlen( ptr );
+
+		Q_strncpyz( name, ptr, sizeof( name ) );
+		COM_StripExtension( name, name, sizeof( name ) );
+
+		if ( strlen( name ) >= MAX_COSMETIC_LENGTH || isdigit( (unsigned char)name[0] ) )
+			continue;
+
+		Q_strncpyz( items[j].name, name, sizeof( items[j].name ) );
+		items[j].handle = trap->R_RegisterModel( va( "%s%s.md3", path, name ) );
+		j++;
+	}
+
+	if ( !j )
+	{
+		free( items );
+		return;
+	}
+
+	*storeOut = items;
+	*totalOut = j;
+}
+
+// The launcher/cloud catalog is larger than the assets shipped in the base pk3.
+// Keep those names visible so an uninstalled item explains where to obtain it.
+static const char *uiKnownHats[] = { "afro", "beard", "bucket", "cap", "cringe", "crown", "fedora", "fedora2", "fedora3", "fedora4", "glasses", "gradcap", "headcrab", "horns", "mario", "mask", "metalhelm", "plaguemask", "predatorhelm", "pumpkin", "santahat", "sombrero", "supersaiyan", "tophat" };
+static const char *uiKnownCapes[] = { "ak47", "crowbar", "goose", "grogucape", "royalcape", "rpg", "vadercape", "yodacape" };
+
+static void UI_CosmeticDisplayName( const char *name, char *displayName, int displayNameSize )
+{
+	int i;
+
+	Q_strncpyz( displayName, name, displayNameSize );
+	for ( i = 0; displayName[i]; i++ )
+	{
+		if ( displayName[i] == '_' || displayName[i] == '-' )
+			displayName[i] = ' ';
+	}
+	if ( displayName[0] )
+		displayName[0] = (char)toupper( (unsigned char)displayName[0] );
+}
+
+static int QDECL UI_CosmeticCompare( const void *left, const void *right )
+{
+	char leftName[MAX_COSMETIC_LENGTH], rightName[MAX_COSMETIC_LENGTH];
+	const uiCosmeticItem_t *leftItem = (const uiCosmeticItem_t *)left;
+	const uiCosmeticItem_t *rightItem = (const uiCosmeticItem_t *)right;
+
+	UI_CosmeticDisplayName( leftItem->name, leftName, sizeof( leftName ) );
+	UI_CosmeticDisplayName( rightItem->name, rightName, sizeof( rightName ) );
+	return Q_stricmp( leftName, rightName );
+}
+
+static void UI_AddKnownCosmetics( const char *path, const char *legacyPath, const char **names, int nameCount, int *totalOut, uiCosmeticItem_t **storeOut )
+{
+	int i, j;
+	uiCosmeticItem_t *items;
+
+	items = (uiCosmeticItem_t *)realloc( *storeOut, ( *totalOut + nameCount ) * sizeof( *items ) );
+	if ( !items )
+		return;
+	*storeOut = items;
+	for ( i = 0; i < nameCount; i++ )
+	{
+		qboolean found = qfalse;
+		for ( j = 0; j < *totalOut; j++ )
+			if ( !Q_stricmp( items[j].name, names[i] ) ) { found = qtrue; break; }
+		if ( found ) continue;
+		Q_strncpyz( items[*totalOut].name, names[i], sizeof( items[*totalOut].name ) );
+		items[*totalOut].handle = trap->R_RegisterModel( va( "%s%s.md3", path, names[i] ) );
+		if ( !items[*totalOut].handle && legacyPath )
+			items[*totalOut].handle = trap->R_RegisterModel( va( "%s%s.md3", legacyPath, names[i] ) );
+		(*totalOut)++;
+	}
+}
+
+void UI_LoadCosmetics( void )
+{
+	UI_LoadCosmeticsIn( UI_COSMETIC_HATS_PATH, &uiInfo.totalHats, &uiInfo.hats );
+	UI_LoadCosmeticsIn( UI_COSMETIC_CAPES_PATH, &uiInfo.totalCapes, &uiInfo.capes );
+	//Older bundled packs used models/players/{hats,capes}; keep those cosmetics visible.
+	if ( !uiInfo.totalHats )
+		UI_LoadCosmeticsIn( UI_COSMETIC_HATS_LEGACY_PATH, &uiInfo.totalHats, &uiInfo.hats );
+	if ( !uiInfo.totalCapes )
+		UI_LoadCosmeticsIn( UI_COSMETIC_CAPES_LEGACY_PATH, &uiInfo.totalCapes, &uiInfo.capes );
+	UI_AddKnownCosmetics( UI_COSMETIC_HATS_PATH, UI_COSMETIC_HATS_LEGACY_PATH, uiKnownHats, ARRAY_LEN( uiKnownHats ), &uiInfo.totalHats, &uiInfo.hats );
+	UI_AddKnownCosmetics( UI_COSMETIC_CAPES_PATH, UI_COSMETIC_CAPES_LEGACY_PATH, uiKnownCapes, ARRAY_LEN( uiKnownCapes ), &uiInfo.totalCapes, &uiInfo.capes );
+	if ( uiInfo.totalHats > 1 )
+		qsort( uiInfo.hats, uiInfo.totalHats, sizeof( *uiInfo.hats ), UI_CosmeticCompare );
+	if ( uiInfo.totalCapes > 1 )
+		qsort( uiInfo.capes, uiInfo.totalCapes, sizeof( *uiInfo.capes ), UI_CosmeticCompare );
+}
+
+//Equipping is just a cvar edit - the name is appended to the saber colour in color1/color2,
+//which is what carries it to every other player. Clearing truncates back to the bare number.
+static void UI_SetCosmetic( const char *cvarName, const char *cosmeticName )
+{
+	char value[MAX_COSMETIC_LENGTH * 2];
+
+	trap->Cvar_VariableStringBuffer( cvarName, value, sizeof( value ) );
+
+	if ( cosmeticName && cosmeticName[0] )
+		trap->Cvar_Set( cvarName, va( "%d%s", atoi( value ), cosmeticName ) );
+	else
+		trap->Cvar_Set( cvarName, va( "%d", atoi( value ) ) );
+}
+
+static void UI_HighlightWornCosmetics( void );
+
+void UI_ClearCosmetics( void )
+{
+	UI_SetCosmetic( "color1", NULL );
+	UI_SetCosmetic( "color2", NULL );
+	uiInfo.hat[0] = uiInfo.cape[0] = '\0';
+
+	UI_HighlightWornCosmetics();	//nothing worn now, so drop both highlights
+}
+
+/*
+=================
+UI_UpdateCosmeticsCharacter
+
+Point the cosmetics preview at the model the player is actually wearing.
+
+The customise screen's ui_char_model is no good for this: getcharcvars only keeps it when the
+model is a multipart custom jedi or a known species, and silently resets it to the default
+jedi for an ordinary model like "kyle/default". So read the "model" cvar - the real one, the
+same string that goes out in userinfo - and drive the preview item from that.
+=================
+*/
+void UI_UpdateCosmeticsCharacter( void )
+{
+	menuDef_t	*menu;
+	itemDef_t	*item;
+	char		model[MAX_QPATH], modelPath[MAX_QPATH], skinPath[MAX_QPATH];
+	char		*parts, *skin;
+	int			animRunLength;
+
+	//look the menu up by name rather than by focus - a silent miss here just leaves the
+	//preview empty, which is maddening to diagnose from the outside
+	menu = Menus_FindByName( "ingame_cosmetics" );
+	if ( !menu )
+	{
+		return;
+	}
+
+	item = (itemDef_t *)Menu_FindItemByName( menu, "character" );
+	if ( !item )
+	{
+		return;
+	}
+
+	trap->Cvar_VariableStringBuffer( "model", model, sizeof( model ) );
+	if ( !model[0] )
+		Q_strncpyz( model, "kyle/default", sizeof( model ) );
+
+	parts = strchr( model, '|' );
+	if ( parts )
+	{	//multipart custom jedi: "jedi_hm/head_a1|torso_a1|lower_a1"
+		//Split at the slash, not the first pipe: the latter would leave the head skin
+		//attached to the model directory and make the GLM lookup fail.
+		skin = strrchr( model, '/' );
+		if ( skin && skin < parts )
+		{
+			*skin = '\0';
+			parts = skin + 1;
+		}
+		else
+		{	//also tolerate the older "model|head|torso|lower" spelling
+			*parts = '\0';
+			parts++;
+		}
+		Com_sprintf( skinPath, sizeof( skinPath ), "models/players/%s/|%s", model, parts );
+	}
+	else
+	{	//ordinary "model/skin", or a bare model name meaning the default skin
+		skin = strrchr( model, '/' );
+		if ( skin )
+		{
+			*skin = '\0';
+			skin++;
+		}
+		if ( !skin || !skin[0] )
+			skin = "default";
+
+		Com_sprintf( skinPath, sizeof( skinPath ), "models/players/%s/model_%s.skin", model, skin );
+	}
+
+	Com_sprintf( modelPath, sizeof( modelPath ), "models/players/%s/model.glm", model );
+
+	//asset_model_go re-applies the anim the .menu asked for, so no need to set it again here
+	ItemParse_asset_model_go( item, modelPath, &animRunLength );
+	ItemParse_model_g2skin_go( item, skinPath );
+
+	//asset_model_go swallows a failed load (its Com_Error is commented out). Rendering an
+	//invalid model handle produces the RGB axis placeholder, so retry with the default male.
+	if ( !(item->flags & ITF_G2VALID) )
+	{
+		Com_sprintf( modelPath, sizeof( modelPath ), "models/players/%s/model.glm", DEFAULT_MODEL );
+		Com_sprintf( skinPath, sizeof( skinPath ), "models/players/%s/model_default.skin", DEFAULT_MODEL );
+		ItemParse_asset_model_go( item, modelPath, &animRunLength );
+		ItemParse_model_g2skin_go( item, skinPath );
+	}
+}
+
+static int UI_InstalledCosmeticCount( const uiCosmeticItem_t *items, int total )
+{
+	int count = 0, i;
+
+	for ( i = 0; i < total; i++ )
+		if ( items[i].handle )
+			count++;
+
+	return count;
+}
+
+static int UI_InstalledCosmeticIndex( const uiCosmeticItem_t *items, int total, int visibleIndex )
+{
+	int i;
+
+	for ( i = 0; i < total; i++ )
+	{
+		if ( !items[i].handle )
+			continue;
+		if ( visibleIndex-- == 0 )
+			return i;
+	}
+
+	return -1;
+}
+
+//The listbox draws a filled bar behind the row in item->cursorPos (see Item_ListBox_Paint),
+//so parking the cursor on what the player is already wearing is what makes the menu show it.
+//-1 means nothing worn, and so nothing highlighted.
+static void UI_HighlightWornCosmetic( const char *itemName, const uiCosmeticItem_t *items, int total, const char *worn )
+{
+	menuDef_t	*menu;
+	itemDef_t	*item;
+	int			i, visibleIndex = 0;
+
+	menu = Menus_FindByName( "ingame_cosmetics" );
+	if ( !menu )
+		return;
+
+	item = (itemDef_t *)Menu_FindItemByName( menu, itemName );
+	if ( !item )
+		return;
+
+	item->cursorPos = -1;
+
+	if ( !worn[0] )
+		return;
+
+	for ( i = 0; i < total; i++ )
+	{
+		if ( !items[i].handle )
+			continue;
+		if ( !Q_stricmp( items[i].name, worn ) )
+		{
+			item->cursorPos = visibleIndex;
+			return;
+		}
+		visibleIndex++;
+	}
+}
+
+static void UI_HighlightWornCosmetics( void )
+{
+	UI_HighlightWornCosmetic( "hatlist", uiInfo.hats, uiInfo.totalHats, uiInfo.hat );
+	UI_HighlightWornCosmetic( "capelist", uiInfo.capes, uiInfo.totalCapes, uiInfo.cape );
+}
+
+//color1/color2 are the source of truth - the console command writes them too, so read them
+//back whenever the menu opens rather than trusting whatever the UI last remembered
+void UI_GetCosmeticCvars( void )
+{
+	char value[MAX_COSMETIC_LENGTH * 2];
+
+	trap->Cvar_VariableStringBuffer( "color1", value, sizeof( value ) );
+	Q_StripDigits( value, uiInfo.hat, sizeof( uiInfo.hat ), REMOVE_DIGITS_INITIAL );
+
+	trap->Cvar_VariableStringBuffer( "color2", value, sizeof( value ) );
+	Q_StripDigits( value, uiInfo.cape, sizeof( uiInfo.cape ), REMOVE_DIGITS_INITIAL );
+
+	UI_HighlightWornCosmetics();
+}
+
+/*
+=================
+UI_DrawCosmeticsOnCharacter
+
+Bolts the hat and cape onto the character preview so the menu shows what you'll actually
+look like. Mirrors what cgame does on the live player, using the same bolts.
+=================
+*/
+void UI_DrawCosmeticsOnCharacter( itemDef_t *item, vec3_t origin, vec3_t angles )
+{
+	int i;
+
+	for ( i = 0; i < 2; i++ )
+	{
+		const qboolean	isHat = (qboolean)(i == 0);
+		const char		*wanted = isHat ? uiInfo.hat : uiInfo.cape;
+		uiCosmeticItem_t *items = isHat ? uiInfo.hats : uiInfo.capes;
+		int				total = isHat ? uiInfo.totalHats : uiInfo.totalCapes;
+		qhandle_t		model = 0;
+		mdxaBone_t		boltMatrix;
+		refEntity_t		ent;
+		vec3_t			boltOrg;
+		int				bolt, c;
+
+		if ( !wanted[0] )
+			continue;
+
+		for ( c = 0; c < total; c++ )
+		{
+			if ( !Q_stricmp( items[c].name, wanted ) )
+			{
+				model = items[c].handle;
+				break;
+			}
+		}
+
+		if ( !model )
+			continue;
+
+		bolt = trap->G2API_AddBolt( item->ghoul2, 0, isHat ? "*head_top" : "*back" );
+		if ( bolt == -1 )
+			continue;
+
+		trap->G2API_GetBoltMatrix( item->ghoul2, 0, bolt, &boltMatrix, angles, origin,
+			uiInfo.uiDC.realTime, NULL, vec3_origin );
+
+		memset( &ent, 0, sizeof( ent ) );
+		BG_GiveMeVectorFromMatrix( &boltMatrix, ORIGIN, boltOrg );
+		BG_GiveMeVectorFromMatrix( &boltMatrix, POSITIVE_X, ent.axis[0] );
+		BG_GiveMeVectorFromMatrix( &boltMatrix, POSITIVE_Y, ent.axis[1] );
+		BG_GiveMeVectorFromMatrix( &boltMatrix, POSITIVE_Z, ent.axis[2] );
+
+		VectorMA( boltOrg, -2, ent.axis[2], boltOrg );
+
+		ent.hModel = model;
+		VectorCopy( boltOrg, ent.origin );
+		VectorCopy( boltOrg, ent.lightingOrigin );
+		ent.renderfx = RF_LIGHTING_ORIGIN | RF_NOSHADOW | RF_NOLOD;
+
+		trap->R_AddRefEntityToScene( &ent );
+	}
+}
+
 static int UI_FeederCount(float feederID)
 {
 	int team,baseClass,count=0,i;
@@ -10536,6 +10931,14 @@ static int UI_FeederCount(float feederID)
 
 	switch ( (int)feederID )
 	{
+		case FEEDER_COSMETIC_HATS:
+			count = UI_InstalledCosmeticCount( uiInfo.hats, uiInfo.totalHats );
+			return count + ( count < uiInfo.totalHats );
+
+		case FEEDER_COSMETIC_CAPES:
+			count = UI_InstalledCosmeticCount( uiInfo.capes, uiInfo.totalCapes );
+			return count + ( count < uiInfo.totalCapes );
+
 		case FEEDER_SABER_SINGLE_INFO:
 
 			for (i=0;i<MAX_SABER_HILTS;i++)
@@ -10870,6 +11273,36 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 	static int lastColumn = -1;
 	static int lastTime = 0;
 	*handle1 = *handle2 = *handle3 = -1;
+
+	if (feederID == FEEDER_COSMETIC_HATS)
+	{
+		const int installed = UI_InstalledCosmeticCount( uiInfo.hats, uiInfo.totalHats );
+		static char displayName[MAX_COSMETIC_LENGTH];
+
+		if ( index >= 0 && index < installed )
+		{
+			UI_CosmeticDisplayName( uiInfo.hats[UI_InstalledCosmeticIndex( uiInfo.hats, uiInfo.totalHats, index )].name, displayName, sizeof( displayName ) );
+			return displayName;
+		}
+		if ( index == installed && installed < uiInfo.totalHats )
+			return "^3Get Hats from JoF Launcher or Cloud^7";
+		return "";
+	}
+
+	if (feederID == FEEDER_COSMETIC_CAPES)
+	{
+		const int installed = UI_InstalledCosmeticCount( uiInfo.capes, uiInfo.totalCapes );
+		static char displayName[MAX_COSMETIC_LENGTH];
+
+		if ( index >= 0 && index < installed )
+		{
+			UI_CosmeticDisplayName( uiInfo.capes[UI_InstalledCosmeticIndex( uiInfo.capes, uiInfo.totalCapes, index )].name, displayName, sizeof( displayName ) );
+			return displayName;
+		}
+		if ( index == installed && installed < uiInfo.totalCapes )
+			return "^3Get Capes from JoF Launcher or Cloud^7";
+		return "";
+	}
 
 	if (feederID == FEEDER_SABER_SINGLE_INFO)
 	{
@@ -11629,6 +12062,43 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 {
 	static char info[MAX_STRING_CHARS];
 	const int feederID = feederFloat;
+
+	//clicking a cosmetic puts it on straight away - the preview and the live player both
+	//follow color1/color2, so there is no separate state to keep in step
+	if (feederID == FEEDER_COSMETIC_HATS || feederID == FEEDER_COSMETIC_CAPES)
+	{
+		const qboolean	isHat = (qboolean)(feederID == FEEDER_COSMETIC_HATS);
+		uiCosmeticItem_t *items = isHat ? uiInfo.hats : uiInfo.capes;
+		const int		total = isHat ? uiInfo.totalHats : uiInfo.totalCapes;
+		char			*worn = isHat ? uiInfo.hat : uiInfo.cape;
+		const char		*cvarName = isHat ? "color1" : "color2";
+
+		//Expose installed rows, followed by one hint in place of any uninstalled
+		//catalog entries. Mapping the visible row skips those hidden entries.
+		index = UI_InstalledCosmeticIndex( items, total, index );
+
+		if (index < 0 || index >= total)
+			return qfalse;
+
+		if (!Q_stricmp(worn, items[index].name))	//clicking what you already wear takes it off
+		{
+			worn[0] = '\0';
+			UI_SetCosmetic(cvarName, NULL);
+
+			//the listbox has already parked its cursor on the row we just clicked; move it off
+			//so nothing shows as selected. Returning qfalse would instead restore the previous
+			//row, which is not what "took it off" should look like.
+			if (item)
+				item->cursorPos = -1;
+		}
+		else
+		{
+			Q_strncpyz(worn, items[index].name, MAX_COSMETIC_LENGTH);
+			UI_SetCosmetic(cvarName, items[index].name);
+		}
+
+		return qtrue;
+	}
 
 	if (feederID == FEEDER_Q3HEADS)
 	{
@@ -12878,6 +13348,9 @@ void UI_Init( qboolean inGameLoad ) {
 		uiQ3ModelBuild.fileList,
 		sizeof(uiQ3ModelBuild.fileList)) : UI_BuildQ3Model_List_Async();
 	UI_BuildPlayerModel_List(inGameLoad);
+
+	//scan models/cosmetics/ so the cosmetics menu has something to list
+	UI_LoadCosmetics();
 
 	uiInfo.uiDC.cursor	= trap->R_RegisterShaderNoMip( "menu/art/3_cursor2" );
 	uiInfo.uiDC.whiteShader = trap->R_RegisterShaderNoMip( "white" );

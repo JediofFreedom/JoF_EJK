@@ -79,6 +79,7 @@ typedef struct scrollInfo_s {
 	// Some extern functions hoisted from the middle of this file to get all the non-cgame,
 	// non-namespace stuff together
 extern void UI_SaberDrawBlades( itemDef_t *item, vec3_t origin, vec3_t angles );
+extern void UI_DrawCosmeticsOnCharacter( itemDef_t *item, vec3_t origin, vec3_t angles );
 
 extern void UI_SaberLoadParms( void );
 extern qboolean ui_saber_parms_parsed;
@@ -5576,6 +5577,7 @@ void Item_Model_Paint(itemDef_t *item)
 			ent.shaderRGBA[2] = ui_char_color_blue.integer;
 			ent.shaderRGBA[3] = 255;
 //			UI_TalkingHead(item);
+			UI_DrawCosmeticsOnCharacter( item, origin, angles );
 		}
 		if ( item->flags&ITF_ISANYSABER )
 		{//UGH, draw the saber blade!
@@ -6094,8 +6096,13 @@ void Item_ListBox_Paint(itemDef_t *item) {
 					}
 					else if (text)
 					{
+						float textScale = item->textscale;
+
+						if ( ((int)item->special == FEEDER_COSMETIC_HATS || (int)item->special == FEEDER_COSMETIC_CAPES)
+							&& !Q_stricmpn( text, "^3Get ", 6 ) )
+							textScale *= 0.78f;
 //						DC->drawText(x + 4, y + listPtr->elementHeight, item->textscale, item->window.foreColor, text, 0, 0, item->textStyle);
-						DC->drawText(x + 4, y + item->textaligny, item->textscale, item->window.foreColor, text, 0, 0, item->textStyle, item->iMenuFont);
+						DC->drawText(x + 4, y + item->textaligny, textScale, item->window.foreColor, text, 0, 0, item->textStyle, item->iMenuFont);
 					}
 				}
 

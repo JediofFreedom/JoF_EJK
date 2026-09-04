@@ -1,0 +1,288 @@
+//-----------------------------------
+// Cosmetics - hats and capes
+//-----------------------------------
+{
+	menuDef
+	{
+		name						"ingame_cosmetics"
+		visible					0
+		fullscreen					0
+		outOfBoundsClick										// this closes the window if it gets a click out of the rectangle
+		rect						105 40 430 400
+		focusColor					1 1 1 1					// Focus color for text and items
+		style						1
+		border					1
+		descX						320
+		descY						415
+		descScale					1
+		descColor				1 .682 0 .8
+		descAlignment				ITEM_ALIGN_CENTER
+		onOpen
+		{
+			uiScript				"cosmeticsmodel"	// show the model the player actually wears
+			uiScript				"getcosmetics"		// and what they already have on
+		}
+
+// Overall window backdrop
+		itemDef
+		{
+			name				background_pic
+			group				none
+			style				WINDOW_STYLE_SHADER
+			rect				0 0 430 400
+			background			"gfx/menus/menu_box_ingame"
+			forecolor			1 1 1 1
+			visible			1
+			decoration
+		}
+
+// Title
+		itemDef
+		{
+			name				cosmeticstitle
+			style				WINDOW_STYLE_SHADER
+			background			"gfx/menus/menu_blendbox"
+			text				"COSMETICS"
+			rect				35 5 360 28
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			180
+			textaligny			2
+			outlinecolor		1 .5 .5 .5
+			backcolor			0 0 0 0
+			font				3
+			textscale			0.9
+			forecolor			.549 .854 1 1
+			border			0
+			bordercolor			0 0 0 0
+			visible			1
+		}
+
+// Character model - shows what you'll actually look like, hat and cape included
+		itemDef
+		{
+			name				character
+			group				models
+			type 				ITEM_TYPE_MODEL
+			rect				250 60 170 260
+			model_g2anim 		"BOTH_STAND1"
+			asset_model			"ui_char_model"
+			model_angle			180
+			//mins maxs format is apparently z x y (hmmm... y x z?)
+			model_g2mins		-30 -15 -14
+			model_g2maxs		20 15 30
+			model_rotation		50
+			model_fovx			50
+			model_fovy			50
+			isCharacter			1
+			visible			1
+			decoration
+		}
+
+// Hats
+		itemDef
+		{
+			name				hatstitle
+			group				none
+			text				"Hats"
+			rect				15 45 200 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
+			textaligny			0
+			font				2
+			textscale			.9
+			forecolor			1 .682 0 1
+			visible			1
+			decoration
+		}
+
+		itemDef
+		{
+			name				hatlist
+			group				none
+			type				ITEM_TYPE_LISTBOX
+			style				WINDOW_STYLE_FILLED
+			elementwidth		215
+			elementheight		16
+			elementtype			LISTBOX_TEXT
+			feeder				46			//FEEDER_COSMETIC_HATS
+			border			1
+			bordersize			1
+			backcolor			.66 .66 1 .25
+			bordercolor			.66 .66 1 1
+			forecolor			1 1 1 1
+			outlinecolor		.66 .66 1 .6		// fills the row you are wearing
+			rect				15 65 215 128
+			textscale			.9
+			textaligny			13					// the list paints a row high without this
+			descText			"Click to wear, click again to take off"
+			visible			1
+			action
+			{
+				play			"sound/interface/button1.wav"
+			}
+		}
+
+// Capes
+		itemDef
+		{
+			name				capestitle
+			group				none
+			text				"Capes"
+			rect				15 195 200 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
+			textaligny			0
+			font				2
+			textscale			.9
+			forecolor			1 .682 0 1
+			visible			1
+			decoration
+		}
+
+		itemDef
+		{
+			name				capelist
+			group				none
+			type				ITEM_TYPE_LISTBOX
+			style				WINDOW_STYLE_FILLED
+			elementwidth		215
+			elementheight		16
+			elementtype			LISTBOX_TEXT
+			feeder				47			//FEEDER_COSMETIC_CAPES
+			border			1
+			bordersize			1
+			backcolor			.66 .66 1 .25
+			bordercolor			.66 .66 1 1
+			forecolor			1 1 1 1
+			outlinecolor		.66 .66 1 .6		// fills the row you are wearing
+			rect				15 215 215 112
+			textscale			.9
+			textaligny			13					// the list paints a row high without this
+			descText			"Click to wear, click again to take off"
+			visible			1
+			action
+			{
+				play			"sound/interface/button1.wav"
+			}
+		}
+
+// Visibility
+		itemDef
+		{
+			name				showcosmetics
+			group				none
+			type				ITEM_TYPE_MULTI
+			text				"Show Cosmetics:"
+			cvar				"cg_cosmetics"
+			cvarFloatList
+			{
+				@MENUS_OFF 0
+				@MENUS_ON 1
+				"Only Me" 2
+			}
+			rect				70 330 290 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			150
+			textaligny			0
+			font				2
+			textscale			.8
+			forecolor			1 .682 0 1
+			visible			1
+			descText			"Show cosmetics on everyone, only yourself, or nobody"
+			action
+			{
+				play			"sound/interface/button1"
+			}
+		}
+
+// Clear
+		itemDef
+		{
+			name				clearbutton_glow
+			group				buttonglows
+			style				WINDOW_STYLE_SHADER
+			rect				20 345 110 32
+			background			"gfx/menus/menu_buttonback"
+			forecolor			1 1 1 1
+			decoration
+			visible			0
+		}
+
+		itemDef
+		{
+			name				clearcosmetics
+			group				none
+			text				"REMOVE ALL"
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				20 345 110 32
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			55
+			textaligny			2
+			font				2
+			textscale			.9
+			forecolor			1 .682 0 1
+			descText			"Take off the hat and the cape"
+			visible			1
+			action
+			{
+				play			"sound/interface/button1"
+				uiScript		"clearcosmetics"
+			}
+			mouseEnter
+			{
+				show			clearbutton_glow
+			}
+			mouseExit
+			{
+				hide			clearbutton_glow
+			}
+		}
+
+// Back
+		itemDef
+		{
+			name				backbutton_glow
+			group				buttonglows
+			style				WINDOW_STYLE_SHADER
+			rect				290 345 110 32
+			background			"gfx/menus/menu_buttonback"
+			forecolor			1 1 1 1
+			decoration
+			visible			0
+		}
+
+		itemDef
+		{
+			name				backcosmetics
+			group				none
+			text				@MENUS_APPLY
+			descText			"Return to the player menu"
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				290 345 110 32
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			55
+			textaligny			2
+			font				2
+			textscale			.9
+			forecolor			1 .682 0 1
+			visible			1
+			action
+			{
+				play			"sound/interface/button1"
+				close			ingame_cosmetics
+				open			ingame_player
+			}
+			mouseEnter
+			{
+				show			backbutton_glow
+			}
+			mouseExit
+			{
+				hide			backbutton_glow
+			}
+		}
+
+	}
+}
