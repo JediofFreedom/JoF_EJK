@@ -8276,6 +8276,7 @@ static void UI_RunMenuScript(char **args)
 		}
 		else if (Q_stricmp(name, "updateplayerpreview") == 0)
 		{
+			UI_GetCosmeticCvars();
 			UI_UpdateNormalMenuCharacter();
 		}
 		else if (Q_stricmp(name, "StartServer") == 0)
