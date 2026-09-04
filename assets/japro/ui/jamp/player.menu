@@ -559,7 +559,7 @@
 		{
 			name				showCustomSkins
 			type				ITEM_TYPE_MULTI
-			text				"Show Custom Skins:"
+			text				"Show Hidden Skins:"
 			cvar				ui_showAllSkins
 			cvarFloatList
 			{
@@ -567,7 +567,7 @@
 				@MENUS_ON 1
 				"All" 2
 			}
-			rect				240 209 194 20
+			rect				200 209 210 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			-5
@@ -579,7 +579,7 @@
 			border				0
 			bordercolor			0 0 0 0
 			visible				1
-			descText			"Off hides custom skins; On shows custom skins with icons; All also shows skins without icons."
+			descText			"Shows or hides the icons of models that aren't default, team or RGB, as well as missing icons."
 			action
 			{
 				play			"sound/interface/button1.wav" ;
