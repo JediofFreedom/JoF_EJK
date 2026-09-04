@@ -206,7 +206,7 @@
 			name				cosmeticsbutton_glow
 			group				none
 			style				WINDOW_STYLE_SHADER
-			rect				430 29 155 20
+			rect				430 57 155 20
 			background			"gfx/menus/menu_buttonback"
 			forecolor			1 1 1 1
 			decoration
@@ -221,7 +221,7 @@
 			descText			"Wear a hat or a cape"
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_EMPTY
-			rect				430 29 155 20
+			rect				430 57 155 20
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			77
 			textaligny			-2
@@ -335,7 +335,7 @@
 			style				0	
 			text				@MENUS_TEAM_COLOR
 			ownerdraw			UI_SKIN_COLOR
-			rect				22 50 200 20
+			rect				22 78 200 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			-5
@@ -369,7 +369,7 @@
 			style				0	
 			text				@MENUS_TEAM_COLOR
 			ownerdraw			UI_SKIN_COLOR
-			rect				22 50 200 20
+			rect				22 78 200 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			-5
@@ -401,7 +401,7 @@
 		{
 			name				showCustomSkins
 			type				ITEM_TYPE_MULTI
-			text				"Show Custom Skins:"
+			text				"Show Hidden Skins:"
 			cvar				ui_showAllSkins
 			cvarFloatList
 			{
@@ -409,7 +409,7 @@
 				@MENUS_ON 1
 				"All" 2
 			}
-			rect				222 50 202 20
+			rect				200 78 160 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			-5
@@ -421,7 +421,7 @@
 			border				0
 			bordercolor			0 0 0 0
 			visible				1
-			descText			"Off hides custom skins; On shows custom skins with icons; All also shows skins without icons."
+			descText			"Shows or hides the icons of models that aren't default, team or RGB, as well as missing icons."
 			action
 			{
 				play			"sound/interface/button1.wav" ;
@@ -546,7 +546,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Default Male Model:"
 			cvar				cg_defaultModel
-			rect				455 150 140 20
+			rect				455 178 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -569,7 +569,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Default Female:"
 			cvar				cg_defaultFemaleModel
-			rect				455 170 140 20
+			rect				455 198 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -597,7 +597,7 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				455 190 140 20
+			rect				455 218 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -625,7 +625,7 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				455 210 140 20
+			rect				455 238 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -648,7 +648,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Ally Model:"
 			cvar				cg_forceAllyModel
-			rect				455 230 140 20
+			rect				455 258 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -671,7 +671,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Enemy Model:"
 			cvar				cg_forceEnemyModel
-			rect				455 250 140 20
+			rect				455 278 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -699,7 +699,7 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				455 170 140 20
+			rect				455 198 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -727,7 +727,7 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				455 190 140 20
+			rect				455 218 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -750,7 +750,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Ally Model:"
 			cvar				cg_forceAllyModel
-			rect				455 210 140 20
+			rect				455 238 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -773,7 +773,7 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Enemy Model:"
 			cvar				cg_forceEnemyModel
-			rect				455 230 140 20
+			rect				455 258 140 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
