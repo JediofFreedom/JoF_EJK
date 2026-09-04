@@ -1089,6 +1089,36 @@ static qboolean CG_InKnockDownState( playerState_t *ps )
 	return qfalse;
 }
 
+// JA+ marks victims of its added side/back kicks with forceDodgeAnim 4/5 and
+// then plays this custom falling/get-up sequence. Ordinary knockdowns do not
+// use these markers, so only the added kick mechanic takes the special path.
+static qboolean CG_InJAPlusSpecialKickState( playerState_t *ps )
+{
+	int anims[2] = { ps->legsAnim, ps->torsoAnim };
+	int i;
+
+	if ( ps->forceDodgeAnim == 4 || ps->forceDodgeAnim == 5 )
+	{
+		return qtrue;
+	}
+
+	for ( i = 0; i < 2; i++ )
+	{
+		switch ( anims[i] )
+		{
+		case BOTH_BACK_FALLING:
+		case BOTH_BACK_FALLING_GETUP:
+		case BOTH_BACK_FALLING_GETUP_SLOW:
+		case BOTH_JUMP_BACKFLIP_ATCKEE:
+		case BOTH_JUMP_BACKFLIP_ATCKEE_FALL:
+			return qtrue;
+		default:
+			break;
+		}
+	}
+
+	return qfalse;
+}
 void CG_PredictPlayerState( void ) {
 	int			cmdNum, current, i;
 	playerState_t	oldPlayerState;
@@ -1134,14 +1164,15 @@ void CG_PredictPlayerState( void ) {
 		return;
 	}
 
-	// JA+ kick knockdowns: the server runs its own knockdown/get-up rules that our
+	// JA+ added side/back-kick knockdowns: the server runs its own knockdown/get-up rules that our
 	// bg_pmove doesn't replicate, so while we're down every movement input mispredicts
 	// and the constant error corrections make the camera stutter. We can't actually
 	// move during the knockdown anyway, so prediction buys nothing there: fall back to
-	// snapshot interpolation (cg_noPredict behavior) until we're back on our feet.
-	if ( cgs.serverMod == SVMOD_JAPLUS && CG_InKnockDownState( &cg.snap->ps ) )
+	// authoritative snapshot interpolation until we're back on our feet. Keep the
+	// server angles as well because JA+ controls the victim's view during this state.
+	if ( cgs.serverMod == SVMOD_JAPLUS && CG_InJAPlusSpecialKickState( &cg.snap->ps ) )
 	{
-		CG_InterpolatePlayerState( qtrue );
+		CG_InterpolatePlayerState( qfalse );
 		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 		{
 			CG_InterpolateVehiclePlayerState(qtrue);
