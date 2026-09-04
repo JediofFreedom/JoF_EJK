@@ -754,6 +754,34 @@ cvar_t *Cvar_SetSafe( const char *var_name, const char *value) {
 	return Cvar_Set2 (var_name, value, 0, qfalse);
 }
 
+static const char *Cvar_PreserveSaberCosmeticSuffix( const char *var_name, const char *value, char *buffer, int bufferSize )
+{
+	cvar_t *var;
+	const char *scan, *suffix;
+
+	if ( (Q_stricmp( var_name, "color1" ) && Q_stricmp( var_name, "color2" )) || !value || !value[0] )
+		return value;
+
+	// A value with its own suffix may be restoring an archived cosmetic selection.
+	for ( scan = value; *scan; scan++ )
+		if ( *scan < '0' || *scan > '9' )
+			return value;
+
+	var = Cvar_FindVar( var_name );
+	if ( !var || !var->string )
+		return value;
+
+	suffix = var->string;
+	while ( *suffix >= '0' && *suffix <= '9' )
+		suffix++;
+
+	if ( suffix == var->string || !suffix[0] )
+		return value;
+
+	Com_sprintf( buffer, bufferSize, "%s%s", value, suffix );
+	return buffer;
+}
+
 /*
 ============
 Cvar_User_Set
@@ -762,6 +790,9 @@ Same as Cvar_SetSafe, but have new cvars have user created flag.
 ============
 */
 cvar_t *Cvar_User_Set( const char *var_name, const char *value) {
+	char preservedValue[MAX_CVAR_VALUE_STRING];
+
+	value = Cvar_PreserveSaberCosmeticSuffix( var_name, value, preservedValue, sizeof( preservedValue ) );
 	return Cvar_Set2 (var_name, value, CVAR_USER_CREATED, qfalse);
 }
 
