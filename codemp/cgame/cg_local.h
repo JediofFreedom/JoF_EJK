@@ -150,7 +150,9 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define RS_TIMER_START					(1<<0) //Ignore sound for start trigger
 #define BODY_FADE_TIME					(60000)
 
-//Cosmetics
+//Cosmetics - the original jaPRO set. These are granted by the server (userinfo "c5")
+//and gated behind race unlocks, so they only ever appear on a jaPRO-family server.
+//The free-choice hat/cape system below is separate and works anywhere.
 #define	JAPRO_COSMETIC_SANTAHAT	(1<<0)
 #define	JAPRO_COSMETIC_PUMKIN	(1<<1)
 #define	JAPRO_COSMETIC_CAP		(1<<2)
@@ -159,6 +161,52 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define	JAPRO_COSMETIC_SOMBRERO	(1<<5)
 #define	JAPRO_COSMETIC_TOPHAT	(1<<6)
 //#define JAPRO_COSMETIC_FIRE		(1<<7)
+
+//Free-choice cosmetics.
+//
+//A hat/cape is any .md3 sitting in COSMETIC_HATS_PATH / COSMETIC_CAPES_PATH; the client
+//scans those folders at startup. The choice travels to other players hidden in the saber
+//colour userinfo keys: "color1" becomes "<saberColour><hatName>" (e.g. "8santahat") and
+//"color2" the same for the cape. Servers copy those through verbatim and atoi() only
+//reads the leading digits, so this needs no server support and works on any mod. Clients
+//that don't know about cosmetics just see a normal saber colour.
+//
+//14 bytes because OpenJK and JA++ gamecode both hold color1 in a 16 byte buffer, leaving
+//2 for the colour itself.
+#define MAX_COSMETIC_LENGTH 14
+
+#define COSMETIC_HATS_PATH "models/cosmetics/hats/"
+#define COSMETIC_HATS_PATH_LENGTH strlen(COSMETIC_HATS_PATH)
+#define COSMETIC_HATS_SETTINGS_PATH "settings/cosmetics/hats/"
+#define COSMETIC_HATS_SETTINGS_PATH_LENGTH strlen(COSMETIC_HATS_SETTINGS_PATH)
+
+#define COSMETIC_CAPES_PATH "models/cosmetics/capes/"
+#define COSMETIC_CAPES_PATH_LENGTH strlen(COSMETIC_CAPES_PATH)
+#define COSMETIC_CAPES_SETTINGS_PATH "settings/cosmetics/capes/"
+#define COSMETIC_CAPES_SETTINGS_PATH_LENGTH strlen(COSMETIC_CAPES_SETTINGS_PATH)
+
+//where a cosmetic bolts onto the player
+typedef enum {
+	COSMETIC_SLOT_HAT,		// *head_top
+	COSMETIC_SLOT_CAPE		// *back
+} cosmeticSlot_t;
+
+//One entry in the registry of cosmetics this client found on disk. Shared by every player
+//wearing it, so nothing player-specific belongs in here - the fitting offsets depend on the
+//model underneath and live on clientInfo_t.
+typedef struct cosmeticItem_s {
+	char		name[MAX_COSMETIC_LENGTH];
+	qhandle_t	handle;
+} cosmeticItem_t;
+
+typedef struct cosmetics_s {
+	cosmeticItem_t	*hats;
+	cosmeticItem_t	*capes;
+	int				totalHats;
+	int				totalCapes;
+} cosmetics_t;
+
+extern cosmetics_t localCosmetics;
 
 //#define JAPRO_CINFO_UNLAGGEDPUSHPULL (1<<19)	//push pull unlagged
 
@@ -406,7 +454,11 @@ typedef struct clientInfo_s {
 	int			superSmoothTime; //do crazy amount of smoothing
 	vec3_t		rgb1, rgb2;//rgb sabers, use different ones for strafetrails. oh no.
 
-	unsigned int	cosmetics;
+	unsigned int	cosmetics;		//server-granted jaPRO cosmetic bits
+	cosmeticItem_t	*hat;			//player's own pick, parsed out of "c1" - NULL for none
+	cosmeticItem_t	*cape;			//ditto, out of "c2"
+	vec3_t			hatOffset;		//fitting nudge for this player's model/skin, from the .cosmetic file
+	vec3_t			capeOffset;
 
 #define _STRAFETRAILS 0
 #if _STRAFETRAILS
@@ -2572,6 +2624,9 @@ void CG_DrawOldTourneyScoreboard( void );
 //
 qboolean CG_ConsoleCommand( void );
 void CG_InitConsoleCommands( void );
+cosmeticItem_t *CG_CosmeticForName( const char *name, cosmeticItem_t *cosmetics, int amount );
+void CG_LoadAllCosmetics( void );
+void CG_FreeCosmetics( void );
 
 //
 // cg_servercmds.c

@@ -28,12 +28,12 @@
 		visible						0
 		fullscreen					0
 		outOfBoundsClick										// this closes the window if it gets a click out of the rectangle
-		rect						20 33 600 412
+		rect						20 25 600 440
 		focusColor					1 1 1 1					// Focus color for text and items
 		style						1
 		border						1
 		descX						320
-		descY						408
+		descY						428
 		descScale					1
 		descColor				1 .682 0 .8
 		descAlignment					ITEM_ALIGN_CENTER		
@@ -42,12 +42,15 @@
 			uiScript				update "ui_GetName"
 			uiScript				updateForceStatus
 			uiScript				getcharcvars
+			uiScript				clearModelSearch
+			uiScript				"updateplayerpreview"
 			hide					highlights
 		}
 		onClose 
 		{ 
 			uiScript				update "ui_SetName"
 			uiScript				updateForceStatus
+			uiScript				clearModelSearch
 			hide					highlights
 		}
 
@@ -59,7 +62,7 @@
 			name				background_pic
 			group				none
 			style				WINDOW_STYLE_SHADER
-			rect				0 0 600 412
+			rect				0 0 600 440
 			background			"gfx/menus/menu_box_ingame"
 			forecolor			1 1 1 1
 			visible				1
@@ -73,11 +76,47 @@
 			name				background
 			group				none
 			style				WINDOW_STYLE_FILLED
-			rect				0 392 600 20
+			rect				0 420 600 20
 			backcolor			.298 .305 .690 1
 			forecolor			.549 .854 1 1
 			visible				1
 			decoration
+		}
+
+
+//------------------------------------------------------------------------------------------------
+// Player Configuration
+//------------------------------------------------------------------------------------------------
+// Player Configuration title
+		itemDef
+		{
+			name				playerconfigtitle_glow
+			group				none
+			style				WINDOW_STYLE_SHADER
+			background			"gfx/menus/menu_buttonback"			// Frame around button
+			rect				20 3 560 30
+			forecolor			1 1 1 1
+			visible				1
+			decoration
+		}
+
+		itemDef
+		{
+			name				playerconfigtitle
+			style				WINDOW_STYLE_EMPTY
+			text				@MENUS_PLAYER_CONFIGURATION
+			rect				20 5 560 28
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			280
+			textaligny			2
+			outlinecolor			1 .5 .5 .5
+			backcolor			0 0 0 0
+			font				3
+			textscale			1
+			forecolor			.549 .854 1 1
+			border				0
+			bordercolor			0 0 0 0
+			visible				1
 		}
 
 //------------------------------------------------------------------------------------------------
@@ -88,7 +127,7 @@
 			name				nameglow
 			group				mods
 			style				WINDOW_STYLE_SHADER
-			rect				25 3 300 24
+			rect				25 31 300 24
 			background			"gfx/menus/menu_buttonback"			// Frame around button
 			forecolor			1 1 1 1
 			visible			0
@@ -103,7 +142,7 @@
 			text 				@MENUS_NAME1
 			cvar 				"ui_Name"
 			maxchars 			26
-			rect 				20 5 300 20
+			rect 				20 33 300 20
 			textalign			ITEM_ALIGN_LEFT		
 			textalignx 			0
 			textaligny 			-5
@@ -139,7 +178,7 @@
 			name				background
 			group				none
 			style				WINDOW_STYLE_EMPTY
-			rect				15 37 570 230
+			rect				15 65 570 230
 			border				1
 			bordercolor			.298 .305 .690 1
 			bordersize			2
@@ -154,19 +193,19 @@
 			name				background
 			group				none
 			style				WINDOW_STYLE_FILLED
-			rect				17 29 570 20
+			rect				17 57 570 20
 			backcolor			.298 .305 .690 1
 			forecolor			.549 .854 1 1
 			visible				1
 			decoration
 		}
 		
-		itemDef 
+		itemDef
 		{
 			name				modeltitle
 			style				0	
 			text				@MENUS_CHARACTER_MODEL
-			rect				3 24 570 0
+			rect				3 52 570 0
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			285
 //			textaligny			12
@@ -192,9 +231,9 @@
 			name				modelname
 			style				0	
 			cvar				model
-			rect				50 50 160 20
+			rect				22 50 200 20
 			textalign			ITEM_ALIGN_LEFT
-			textalignx			-28
+			textalignx			0
 			textaligny			205
 			outlinecolor		1 .5 .5 .5
 			backcolor			0 0 0 0
@@ -217,6 +256,29 @@
 			}
 		}
 
+		itemDef
+		{
+			name				modelSearch
+			type				ITEM_TYPE_EDITFIELD
+			text				"Search:"
+			cvar				ui_modelSearch
+			rect				222 247 202 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
+			textaligny			8
+			font				2
+			textscale			.5
+			forecolor			1 .682 0 1
+			maxChars			32
+			maxPaintChars		18
+			visible				1
+			descText			"Filter player models by model or skin name."
+			action
+			{
+				play			"sound/interface/button1"
+			}
+		}
+
 //------------------------------------------------------------------------------------------------
 // Skin/Team Color Chooser
 //------------------------------------------------------------------------------------------------
@@ -226,7 +288,7 @@
 			style				0	
 			text				@MENUS_TEAM_COLOR
 			ownerdraw			UI_SKIN_COLOR
-			rect				50 50 160 20
+			rect				22 50 200 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			-5
@@ -260,7 +322,7 @@
 			style				0	
 			text				@MENUS_TEAM_COLOR
 			ownerdraw			UI_SKIN_COLOR
-			rect				50 50 160 20
+			rect				22 50 200 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			-5
@@ -292,7 +354,7 @@
 		{
 			name				showCustomSkins
 			type				ITEM_TYPE_MULTI
-			text				"Show Hidden Skins:"
+			text				"Show Custom Skins:"
 			cvar				ui_showAllSkins
 			cvarFloatList
 			{
@@ -300,7 +362,7 @@
 				@MENUS_ON 1
 				"All" 2
 			}
-			rect				200 50 160 20
+			rect				222 50 202 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			-5
@@ -312,7 +374,7 @@
 			border				0
 			bordercolor			0 0 0 0
 			visible				1
-			descText			"Shows or hides the icons of models that aren't default, team or RGB, as well as missing icons."
+			descText			"Off hides custom skins; On shows custom skins with icons; All also shows skins without icons."
 			action
 			{
 				play			"sound/interface/button1.wav" ;
@@ -324,12 +386,12 @@
 		itemDef 
 		{
 			name 				headlist
-//			rect 				20 62 388 82
-			rect 				20 62 404 194			
+//			rect 				20 90 388 82
+			rect 				20 90 304 194
 			type 				ITEM_TYPE_LISTBOX
 			style 			WINDOW_STYLE_FILLED
-			elementwidth 		48
-			elementheight 		48
+			elementwidth 		32
+			elementheight 		32
 			elementtype 		LISTBOX_IMAGE
 			feeder 			FEEDER_Q3HEADS
 //			horizontalscroll
@@ -354,6 +416,26 @@
 			}
 		}
 
+		// Transparent walking preview; uses the same model widget as custom character creation.
+		itemDef
+		{
+			name				character
+			group				models
+			type 				ITEM_TYPE_MODEL
+			rect				285 65 200 230
+			model_g2anim 		"BOTH_WALK1"
+			asset_model			"ui_char_model"
+			model_angle			180
+			model_g2mins		-30 -15 -14
+			model_g2maxs		20 15 30
+			model_rotation		50
+			model_fovx			50
+			model_fovy			50
+			isCharacter			1
+			visible				1
+			decoration
+		}
+
 //------------------------------------------------------------------------------------------------
 // Custom skin
 //------------------------------------------------------------------------------------------------
@@ -362,7 +444,7 @@
 			name				customtitle
 			style				0	
 			text				@MENUS_CUSTOM
-			rect				425 50 160 26
+			rect				425 78 160 26
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			80
 			textaligny			-3
@@ -383,7 +465,7 @@
 			descText			@MENUS_CUSTOMPLAYER_DESC
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_SHADER
-			rect				470 76 75 75
+			rect				470 104 75 75
 			font				3
 			textscale			1
 			textaligny			-1
@@ -417,9 +499,9 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Default Male Model:"
 			cvar				cg_defaultModel
-			rect				415 150 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				455 150 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -440,9 +522,9 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Default Female:"
 			cvar				cg_defaultFemaleModel
-			rect				415 170 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				455 170 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -468,9 +550,9 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				425 190 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				455 190 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -496,9 +578,9 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				425 210 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				455 210 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -519,9 +601,9 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Ally Model:"
 			cvar				cg_forceAllyModel
-			rect				425 230 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				455 230 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -542,9 +624,9 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Enemy Model:"
 			cvar				cg_forceEnemyModel
-			rect				425 250 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				455 250 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -570,9 +652,9 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				425 170 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				455 170 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -598,9 +680,9 @@
 				@MENUS_OFF 0
 				@MENUS_ON 1
 			}
-			rect				425 190 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				455 190 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -621,9 +703,9 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Ally Model:"
 			cvar				cg_forceAllyModel
-			rect				425 210 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				455 210 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -644,9 +726,9 @@
 			type				ITEM_TYPE_EDITFIELD
 			text				"Force Enemy Model:"
 			cvar				cg_forceEnemyModel
-			rect				425 230 160 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			118
+			rect				455 230 140 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
 			textaligny			0
 			font				4
 			textscale			1
@@ -667,7 +749,7 @@
 			type				ITEM_TYPE_INTSLIDER
 			text				"R:"
 			cvarint				"ui_char_color_red" 50 0 255
-			rect				450 154 100 20
+			rect				450 182 100 20
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			0
 			textaligny			-2
@@ -692,7 +774,7 @@
 			type				ITEM_TYPE_INTSLIDER
 			text				"G:"
 			cvarint				"ui_char_color_green" 50 0 255
-			rect				450 174 100 20
+			rect				450 202 100 20
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			0
 			textaligny			-2
@@ -717,7 +799,7 @@
 			type				ITEM_TYPE_INTSLIDER
 			text				"B:"
 			cvarint				"ui_char_color_blue" 50 0 255
-			rect				450 194 100 20
+			rect				450 222 100 20
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			0
 			textaligny			-2
@@ -743,7 +825,7 @@
 			cvar 				"ui_char_color_red"
 			maxchars			3
 			maxPaintChars 		3
-			rect 				563 154 20 20
+			rect 				563 182 20 20
 			textalign			ITEM_ALIGN_RIGHT		
 			textalignx 			0
 			textaligny 			-2
@@ -774,7 +856,7 @@
 			cvar 				"ui_char_color_green"
 			maxchars 			3
 			maxPaintChars 		3
-			rect 				563 174 20 20
+			rect 				563 202 20 20
 			textalign			ITEM_ALIGN_RIGHT		
 			textalignx 			0
 			textaligny 			-2
@@ -805,7 +887,7 @@
 			cvar 				"ui_char_color_blue"
 			maxchars 			3
 			maxPaintChars 		3 
-			rect 				563 194 20 20
+			rect 				563 222 20 20
 			textalign			ITEM_ALIGN_RIGHT		
 			textalignx 			0
 			textaligny 			-2
@@ -836,7 +918,7 @@
 			name				background
 			group				none
 			style				WINDOW_STYLE_EMPTY
-			rect				15 271 410 100
+			rect				15 299 410 100
 			border				1
 			bordercolor			.298 .305 .690 1
 			bordersize			2
@@ -850,7 +932,7 @@
 			name				background
 			group				none
 			style				WINDOW_STYLE_FILLED
-			rect				17 272 410 18
+			rect				17 300 410 18
 			backcolor			.298 .305 .690 1
 			forecolor			1 1 1 1
 			visible				1
@@ -863,7 +945,7 @@
 			name				background
 			group				none
 			style				WINDOW_STYLE_EMPTY
-			rect				430 271 155 100
+			rect				430 299 155 100
 			border				1
 			bordercolor			.298 .305 .690 1
 			bordersize			2
@@ -878,7 +960,7 @@
 			name				background
 			group				none
 			style				WINDOW_STYLE_FILLED
-			rect				432 272 155 18
+			rect				432 300 155 18
 			backcolor			.298 .305 .690 1
 			forecolor			1 1 1 1
 			visible				1
@@ -890,7 +972,7 @@
 			name				sabertitle
 			style				0	
 			text				@MENUS_SABER_TITLE
-			rect				430 269 150 26
+			rect				430 297 150 26
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			75
 			textaligny			-3
@@ -911,7 +993,7 @@
 			descText			@MENUS_SABER_TITLE_DESC
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_SHADER
-			rect				465 294 75 75
+			rect				465 322 75 75
 			font				3
 			textscale			1
 			textalignx			65
@@ -947,7 +1029,7 @@
 			group				yesforce
 			style				0	
 			text				@MENUS_THE_FORCE
-			rect				220 270 0 0
+			rect				220 298 0 0
 			textalign			ITEM_ALIGN_CENTER		
 			textalignx			0
 			textaligny			-4
@@ -975,7 +1057,7 @@
 			style				0	
 			text				@MENUS_FORCE_MASTERY
 			ownerdraw			UI_FORCE_RANK
-			rect				20 292 175 16
+			rect				20 320 175 16
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			0
@@ -1002,7 +1084,7 @@
 			style				0	
 			text				@MENUS_FORCE_SIDE
 			ownerdraw			UI_FORCE_SIDE
-			rect				20 312 175 16
+			rect				20 340 175 16
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			outlinecolor			1 .5 .5 .5
@@ -1034,7 +1116,7 @@
 			style				0	
 			text				@MENUS_POINTS_REMAINING
 			ownerdraw			UI_FORCE_POINTS
-			rect				20 332 175 16
+			rect				20 360 175 16
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			outlinecolor			1 .5 .5 .5
@@ -1061,7 +1143,7 @@
 			style				0	
 			text				@MENUS_JEDI_NONJEDI
 			ownerdraw			UI_JEDI_NONJEDI
-			rect				183 342 105 32
+			rect				183 370 105 32
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			outlinecolor			1 .5 .5 .5
@@ -1090,7 +1172,7 @@
 			type				1
 			style				WINDOW_STYLE_SHADER
 			background			"gfx/menus/configforce"
-			rect				275 292 75 75
+			rect				275 320 75 75
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			97
 			textaligny			2
@@ -1133,7 +1215,7 @@
 			group				noforce
 			style				0	
 			text				@MENUS_NOFORCE_DISABLED_0
-			rect				220 270 0 0
+			rect				220 298 0 0
 			textalign			ITEM_ALIGN_CENTER		
 			textalignx			0
 			outlinecolor			1 .5 .5 .5
@@ -1159,7 +1241,7 @@
 			group				"noforce"
 			style				0	
 			text				@MENUS_NOFORCE_DISABLED_1
-			rect				20 292 400 20
+			rect				20 320 400 20
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			200
 			textaligny			0
@@ -1188,7 +1270,7 @@
 			group				none
 			style				0	
 			text				@MENUS_NOFORCE_HOLO_0
-			rect				220 270 0 0
+			rect				220 298 0 0
 			textalign			ITEM_ALIGN_CENTER		
 			textalignx			0
 			backcolor			0 0 0 0
@@ -1211,7 +1293,7 @@
 			group				none
 			style				0	
 			text				@MENUS_NOFORCE_HOLO_1
-			rect				20 302 400 20
+			rect				20 330 400 20
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			200
 			textaligny			0
@@ -1234,7 +1316,7 @@
 			group				none
 			style				0	
 			text				@MENUS_NOFORCE_HOLO_2
-			rect				20 322 400 20
+			rect				20 350 400 20
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			200
 			textaligny			0
@@ -1258,7 +1340,7 @@
 			group				none
 			style				0	
 			text				@MENUS_NOFORCE_HOLO_3
-			rect				20 342 400 20
+			rect				20 370 400 20
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			200
 			textaligny			0
@@ -1286,7 +1368,7 @@
 			group				none
 			style				0	
 			text				@MENUS_NOFORCE_JEDI_0
-			rect				220 270 0 0
+			rect				220 298 0 0
 			textalign			ITEM_ALIGN_CENTER		
 			textalignx			0
 			outlinecolor			1 .5 .5 .5
@@ -1310,7 +1392,7 @@
 			group				none
 			style				0	
 			text				@MENUS_NOFORCE_JEDI_1
-			rect				20 302 400 20
+			rect				20 330 400 20
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			200
 			textaligny			0
@@ -1333,7 +1415,7 @@
 			group				none
 			style				0	
 			text				@MENUS_NOFORCE_JEDI_2
-			rect				20 322 400 20
+			rect				20 350 400 20
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			200
 			textaligny			0
@@ -1357,7 +1439,7 @@
 			group				none
 			style				0	
 			text				@MENUS_NOFORCE_JEDI_3
-			rect				20 342 400 20
+			rect				20 370 400 20
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			200
 			textaligny			0
@@ -1384,7 +1466,7 @@
 			name				applyjoinButton
 			group				highlights 
 			style				WINDOW_STYLE_SHADER
-			rect				5 384 105 32
+			rect				5 412 105 32
 			background			"gfx/menus/menu_buttonback"			// Frame around button
 			forecolor			1 1 1 1
 			decoration
@@ -1399,7 +1481,7 @@
 			text				@MENUS_APPLY
 			type				1
 			style				WINDOW_STYLE_EMPTY
-			rect				5 384 105 32
+			rect				5 412 105 32
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			52
 			textaligny			2
@@ -1433,7 +1515,7 @@
 			text				@MENUS_JOIN_GAME
 			type				1
 			style				WINDOW_STYLE_EMPTY
-			rect				5 384 105 32
+			rect				5 412 105 32
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			52
 			textaligny			2
@@ -1465,7 +1547,7 @@
 			name				applyredButton
 			group				highlights 
 			style				WINDOW_STYLE_SHADER
-			rect				110 384 105 32
+			rect				110 412 105 32
 			background			"gfx/menus/menu_buttonback"			// Frame around button
 			forecolor			1 1 1 1
 			decoration
@@ -1479,7 +1561,7 @@
 			text				@MENUS_JOIN_RED
 			type				1
 			style				WINDOW_STYLE_EMPTY
-			rect				110 384 105 32
+			rect				110 412 105 32
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			52
 			textaligny			2
@@ -1520,7 +1602,7 @@
 			name				applyblueButton
 			group				highlights 
 			style				WINDOW_STYLE_SHADER
-			rect				215 384 105 32
+			rect				215 412 105 32
 			background			"gfx/menus/menu_buttonback"			// Frame around button
 			forecolor			1 1 1 1
 			decoration
@@ -1534,7 +1616,7 @@
 			text				@MENUS_JOIN_BLUE
 			type				1
 			style				WINDOW_STYLE_EMPTY
-			rect				215 384 105 32
+			rect				215 412 105 32
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			52
 			textaligny			2
@@ -1575,7 +1657,7 @@
 			name				applyspectateButton
 			group				highlights 
 			style				WINDOW_STYLE_SHADER
-			rect				320 384 105 32
+			rect				320 412 105 32
 			background			"gfx/menus/menu_buttonback"			// Frame around button
 			forecolor			1 1 1 1
 			decoration
@@ -1589,7 +1671,7 @@
 			text				@MENUS_SPECTATE
 			type				1
 			style				WINDOW_STYLE_EMPTY
-			rect				320 384 105 32
+			rect				320 412 105 32
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			52
 			textaligny			2

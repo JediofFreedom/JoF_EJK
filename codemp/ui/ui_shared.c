@@ -4280,7 +4280,15 @@ void Menu_HandleKey(menuDef_t *menu, int key, qboolean down) {
 		{
 			g_editingField = qfalse;
 			g_editItem = NULL;
-			return;
+			if (key == A_MOUSE1 || key == A_MOUSE2 || key == A_MOUSE3)
+			{
+				// Let the click that leaves an edit field activate its target too.
+				Display_MouseMove(NULL, DC->cursorx, DC->cursory);
+			}
+			else
+			{
+				return;
+			}
 		}
 		else if (key == A_MOUSE1 || key == A_MOUSE2 || key == A_MOUSE3)
 		{
@@ -5018,9 +5026,15 @@ static const char *g_bindCommands[] = {
 	"+button12", //grapple on ja+/japro
 	"+button13", //dash on japro
 	"+button14", //jetpack on japro
+	"jetpack", //jetpack on ja+
+	"+grapple",
+	"+force_stasis",
 	"throwflag",
 	"engage_fullforceduel",
+	"engage_balancedforceduel",
 	"engage_gunduel",
+	"force_dash",
+	"force_repulse",
 	"amTeleMark", //teleport marker
 	"amTele", //teleport to marker
 	"noclip",

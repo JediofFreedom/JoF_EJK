@@ -4561,6 +4561,16 @@ static void PM_DeadMove( void ) {
 	}
 }
 
+static int PM_ModelScaledViewheight( int viewheight )
+{
+	if ( !pm->ps->iModelScale || pm->ps->iModelScale == 100 )
+	{
+		return viewheight;
+	}
+
+	return MINS_Z + (viewheight - MINS_Z) * pm->ps->iModelScale / 100;
+}
+
 
 /*
 ===============
@@ -4576,7 +4586,7 @@ static void PM_NoclipMove( void ) {
 	float		wishspeed;
 	float		scale;
 
-	pm->ps->viewheight = DEFAULT_VIEWHEIGHT;
+	pm->ps->viewheight = PM_ModelScaledViewheight( DEFAULT_VIEWHEIGHT );
 
 	// friction
 
@@ -5681,7 +5691,7 @@ static void PM_CheckDuck (void)
 			pm->maxs[0] = 16;
 			pm->maxs[1] = 16;
 			pm->maxs[2] = pm->ps->standheight;//DEFAULT_MAXS_2;
-			pm->ps->viewheight = DEFAULT_VIEWHEIGHT;
+			pm->ps->viewheight = PM_ModelScaledViewheight( DEFAULT_VIEWHEIGHT );
 
 			pm->trace (&solidTr, pm->ps->origin, pm->mins, pm->maxs, pm->ps->origin, pm->ps->m_iVehicleNum, pm->tracemask);
 			if (solidTr.startsolid || solidTr.allsolid || solidTr.fraction != 1.0f)
@@ -5727,7 +5737,7 @@ static void PM_CheckDuck (void)
 		if (pm->ps->pm_type == PM_DEAD && pm->ps->clientNum < MAX_CLIENTS)
 		{
 			pm->maxs[2] = -8;
-			pm->ps->viewheight = DEAD_VIEWHEIGHT;
+			pm->ps->viewheight = PM_ModelScaledViewheight( DEAD_VIEWHEIGHT );
 			return;
 		}
 
@@ -5736,7 +5746,7 @@ static void PM_CheckDuck (void)
 		if (BG_InRoll(pm->ps, pm->ps->legsAnim) && !BG_KickingAnim(pm->ps->legsAnim))
 		{
 			pm->maxs[2] = pm->ps->crouchheight; //CROUCH_MAXS_2;
-			pm->ps->viewheight = DEFAULT_VIEWHEIGHT;
+			pm->ps->viewheight = PM_ModelScaledViewheight( DEFAULT_VIEWHEIGHT );
 			pm->ps->pm_flags &= ~PMF_DUCKED;
 			pm->ps->pm_flags |= PMF_ROLLING;
 			return;
@@ -5771,7 +5781,7 @@ static void PM_CheckDuck (void)
 			if (pm->ps->groundEntityNum == ENTITYNUM_NONE && ((pm->ps->stats[STAT_RESTRICTIONS] & JAPRO_RESTRICT_CROUCHJUMP) || pm->ps->stats[STAT_MOVEMENTSTYLE] == MV_SP)) {
 				trace_t sptrace;
 				pm->maxs[2] = pm->ps->crouchheight;
-				pm->ps->viewheight = pm->ps->crouchheight + STANDARD_VIEWHEIGHT_OFFSET; //CROUCH_VIEWHEIGHT
+				pm->ps->viewheight = PM_ModelScaledViewheight( CROUCH_VIEWHEIGHT );
 				pm->trace(&sptrace, pm->ps->origin, pm->mins, pm->maxs, pm->ps->origin, pm->ps->clientNum, pm->tracemask);
 				if (!(pm->ps->pm_flags & PMF_DUCKED) && !sptrace.allsolid && pm->ps->velocity[2] >= 0) {
 					pm->ps->eFlags ^= EF_TELEPORT_BIT;
@@ -5836,17 +5846,17 @@ static void PM_CheckDuck (void)
 	if (pm->ps->pm_flags & PMF_DUCKED)
 	{
 		pm->maxs[2] = pm->ps->crouchheight;//CROUCH_MAXS_2;
-		pm->ps->viewheight = CROUCH_VIEWHEIGHT;
+		pm->ps->viewheight = PM_ModelScaledViewheight( CROUCH_VIEWHEIGHT );
 	}
 	else if (pm->ps->pm_flags & PMF_ROLLING)
 	{
 		pm->maxs[2] = pm->ps->crouchheight;//CROUCH_MAXS_2;
-		pm->ps->viewheight = DEFAULT_VIEWHEIGHT;
+		pm->ps->viewheight = PM_ModelScaledViewheight( DEFAULT_VIEWHEIGHT );
 	}
 	else
 	{
 		pm->maxs[2] = pm->ps->standheight;//DEFAULT_MAXS_2;
-		pm->ps->viewheight = DEFAULT_VIEWHEIGHT;
+		pm->ps->viewheight = PM_ModelScaledViewheight( DEFAULT_VIEWHEIGHT );
 	}
 }
 
@@ -6769,7 +6779,7 @@ static void PM_Footsteps( void ) {
 			PM_SetAnim(SETANIM_BOTH,rolled,SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD);
 			PM_AddEventWithParm( EV_ROLL, 0 );
 			pm->maxs[2] = pm->ps->crouchheight;//CROUCH_MAXS_2;
-			pm->ps->viewheight = DEFAULT_VIEWHEIGHT;
+			pm->ps->viewheight = PM_ModelScaledViewheight( DEFAULT_VIEWHEIGHT );
 			pm->ps->pm_flags &= ~PMF_DUCKED;
 			pm->ps->pm_flags |= PMF_ROLLING;
 		}
@@ -12801,14 +12811,22 @@ void PmoveSingle (pmove_t *pmove) {
 		}
 	}
 
-#ifdef _GAME
-	if (pm->ps->pm_type == PM_FREEZE && (g_emotesDisable.integer == ((1 << E_ALL) - 1))) {//Sad hack loda fixme
-		return;		// no movement at all
-	}
-#else
 	if (pm->ps->pm_type == PM_FREEZE)
+	{
+		// PM_FREEZE returns before PM_CheckDuck, so keep the predicted camera
+		// height in sync if the model scale changes while movement is frozen.
+		pm->ps->viewheight = PM_ModelScaledViewheight(
+			(pm->ps->pm_flags & PMF_DUCKED) ? CROUCH_VIEWHEIGHT : DEFAULT_VIEWHEIGHT);
+
+#ifdef _GAME
+		if (g_emotesDisable.integer == ((1 << E_ALL) - 1)) //Sad hack loda fixme
+		{
+			return;		// no movement at all
+		}
+#else
 		return;		// no movement at all
 #endif
+	}
 
 	if ( pm->ps->pm_type == PM_INTERMISSION || pm->ps->pm_type == PM_SPINTERMISSION) {
 		return;		// no movement at all
