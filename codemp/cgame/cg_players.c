@@ -10735,7 +10735,7 @@ void CG_DrawCosmeticOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, 
 		VectorCopy(boltOrg, ent.origin);*/
 
         re.hModel = model;
-        VectorCopy( parent.lightingOrigin, re.lightingOrigin );
+        VectorCopy( boltOrg, re.lightingOrigin );
         VectorCopy( boltOrg, re.origin );
 
 		re.shadowPlane = parent.shadowPlane;
