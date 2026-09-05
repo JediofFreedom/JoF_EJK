@@ -2533,48 +2533,18 @@ static void UI_DrawMapCinematic(rectDef_t *rect, float scale, vec4_t color, qboo
 
 static void UI_SetForceDisabled(int force)
 {
-	int i = 0;
+	int i;
 
-	if (force)
+	for (i = 0; i < NUM_FORCE_POWERS; i++)
 	{
-		while (i < NUM_FORCE_POWERS)
-		{
-			if (force & (1 << i))
-			{
-				uiForcePowersDisabled[i] = qtrue;
-
-				if (i != FP_LEVITATION && i != FP_SABER_OFFENSE && i != FP_SABER_DEFENSE)
-				{
-					uiForcePowersRank[i] = 0;
-				}
-				else
-				{
-					if (i == FP_LEVITATION)
-					{
-						uiForcePowersRank[i] = 1;
-					}
-					else
-					{
-						uiForcePowersRank[i] = 3;
-					}
-				}
-			}
-			else
-			{
-				uiForcePowersDisabled[i] = qfalse;
-			}
-			i++;
-		}
-	}
-	else
-	{
-		i = 0;
-
-		while (i < NUM_FORCE_POWERS)
-		{
-			uiForcePowersDisabled[i] = qfalse;
-			i++;
-		}
+		/*
+		 * This mask describes what the current server permits; it is not part
+		 * of the player's saved force configuration.  The server legalizes the
+		 * submitted configuration independently, so only disable the controls
+		 * here.  Changing uiForcePowersRank would leak a restricted server's
+		 * temporary setup into the archived forcepowers cvar.
+		 */
+		uiForcePowersDisabled[i] = (force & (1 << i)) ? qtrue : qfalse;
 	}
 }
 // The game type on create server has changed - make the HUMAN/BOTS fields active
