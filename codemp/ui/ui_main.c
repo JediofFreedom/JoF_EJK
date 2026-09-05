@@ -1029,12 +1029,34 @@ static void UI_FreeSpecies( playerSpeciesInfo_t *species )
 static int uiSpeciesBrowserIndices[MAX_Q3PLAYERMODELS];
 static int uiSpeciesBrowserCount;
 
+static void UI_SpeciesBrowserDisplayName(int speciesIndex, char *displayName, int displayNameSize)
+{
+	char stringRef[MAX_QPATH + 7];
+
+	if (speciesIndex < 0 || speciesIndex >= uiInfo.playerSpeciesCount)
+	{
+		displayName[0] = '\0';
+		return;
+	}
+
+	Com_sprintf(stringRef, sizeof(stringRef), "MENUS_%s", uiInfo.playerSpecies[speciesIndex].Name);
+	Q_strupr(stringRef);
+	if (!trap->SE_GetStringTextString(stringRef, displayName, displayNameSize))
+	{
+		Q_strncpyz(displayName, uiInfo.playerSpecies[speciesIndex].Name, displayNameSize);
+	}
+}
+
 static int UI_CompareSpeciesBrowserIndices(const void *left, const void *right)
 {
 	const int leftIndex = *(const int *)left;
 	const int rightIndex = *(const int *)right;
+	char leftName[MAX_STRING_CHARS];
+	char rightName[MAX_STRING_CHARS];
 
-	return Q_stricmp(uiInfo.playerSpecies[leftIndex].Name, uiInfo.playerSpecies[rightIndex].Name);
+	UI_SpeciesBrowserDisplayName(leftIndex, leftName, sizeof(leftName));
+	UI_SpeciesBrowserDisplayName(rightIndex, rightName, sizeof(rightName));
+	return Q_stricmp(leftName, rightName);
 }
 
 static int UI_SpeciesBrowserActualIndex(int index)
@@ -1056,7 +1078,12 @@ void UI_UpdateSpeciesBrowser(void)
 	uiSpeciesBrowserCount = 0;
 	for (i = 0; i < uiInfo.playerSpeciesCount && uiSpeciesBrowserCount < MAX_Q3PLAYERMODELS; i++)
 	{
-		if (!ui_speciesSearch.string[0] || Q_stristr(uiInfo.playerSpecies[i].Name, ui_speciesSearch.string))
+		char displayName[MAX_STRING_CHARS];
+
+		UI_SpeciesBrowserDisplayName(i, displayName, sizeof(displayName));
+		if (!ui_speciesSearch.string[0]
+			|| Q_stristr(displayName, ui_speciesSearch.string)
+			|| Q_stristr(uiInfo.playerSpecies[i].Name, ui_speciesSearch.string))
 		{
 			uiSpeciesBrowserIndices[uiSpeciesBrowserCount++] = i;
 		}
@@ -11660,10 +11687,12 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 	else if (feederID == FEEDER_PLAYER_SPECIES_BROWSER)
 	{
 		const int actualIndex = UI_SpeciesBrowserActualIndex(index);
+		static char displayName[MAX_STRING_CHARS];
 
 		if (actualIndex >= 0)
 		{
-			return uiInfo.playerSpecies[actualIndex].Name;
+			UI_SpeciesBrowserDisplayName(actualIndex, displayName, sizeof(displayName));
+			return displayName;
 		}
 	}
 	else if (feederID == FEEDER_LANGUAGES)
