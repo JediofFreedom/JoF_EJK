@@ -10738,7 +10738,7 @@ void CG_DrawCosmeticOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, 
         VectorCopy( boltOrg, re.lightingOrigin );
         VectorCopy( boltOrg, re.origin );
 
-		re.renderfx = parent.renderfx;
+		re.renderfx = parent.renderfx | RF_NOSHADOW;
 		re.customShader = parent.customShader;
 
         trap->R_AddRefEntityToScene( &re );
