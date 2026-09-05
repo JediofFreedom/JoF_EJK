@@ -161,6 +161,49 @@
 			}
 		}
 
+		itemDef
+		{
+			name				speciesbrowse_glow
+			group				none
+			style				WINDOW_STYLE_SHADER
+			rect				315 48 100 24
+			background			"gfx/menus/menu_buttonback"
+			forecolor			1 1 1 1
+			visible				0
+			decoration
+		}
+
+		itemDef
+		{
+			name				speciesbrowse
+			group				none
+			text				"BROWSE..."
+			descText			"Search and select a custom character model"
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				315 48 100 24
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			50
+			textaligny			-1
+			font				2
+			textscale			.8
+			forecolor			1 .682 0 1
+			visible				1
+			mouseEnter
+			{
+				show			speciesbrowse_glow
+			}
+			mouseExit
+			{
+				hide			speciesbrowse_glow
+			}
+			action
+			{
+				play			"sound/interface/button1.wav"
+				open			ingame_species_browser
+			}
+		}
+
 ////////////////////
 // COLOR TINT AREA
 ////////////////////
