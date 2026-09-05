@@ -11,7 +11,6 @@
 		rect						105 40 430 400
 		focusColor					1 1 1 1
 		style						1
-		backcolor					0 0 0 1
 		border					1
 		descX						320
 		descY						415
@@ -105,7 +104,7 @@
 			bordercolor				.66 .66 1 1
 			forecolor				1 1 1 1
 			outlinecolor			.66 .66 1 .6
-			rect					15 78 210 249
+			rect					15 72 210 255
 			font					2
 			textscale				.8
 			textaligny				14
@@ -156,13 +155,58 @@
 			decoration
 		}
 
+// Clear search
+		itemDef
+		{
+			name					clearbutton_glow
+			group					buttonglows
+			style					WINDOW_STYLE_SHADER
+			rect					20 345 110 32
+			background				"gfx/menus/menu_buttonback"
+			forecolor				1 1 1 1
+			decoration
+			visible					0
+		}
+
+		itemDef
+		{
+			name					clearSpeciesSearch
+			group					none
+			text					"CLEAR SEARCH"
+			descText				"Show every custom character model"
+			type					ITEM_TYPE_BUTTON
+			style					WINDOW_STYLE_EMPTY
+			rect					20 345 110 32
+			textalign				ITEM_ALIGN_CENTER
+			textalignx				55
+			textaligny				2
+			font					2
+			textscale				.8
+			forecolor				1 .682 0 1
+			visible					1
+			action
+			{
+				play				"sound/interface/button1.wav"
+				setcvar				ui_speciesSearch ""
+				setfocus				speciesSearch
+			}
+			mouseEnter
+			{
+				show				clearbutton_glow
+			}
+			mouseExit
+			{
+				hide				clearbutton_glow
+			}
+		}
+
 // Done
 		itemDef
 		{
 			name					donebutton_glow
 			group					buttonglows
 			style					WINDOW_STYLE_SHADER
-			rect					160 345 110 32
+			rect					290 345 110 32
 			background				"gfx/menus/menu_buttonback"
 			forecolor				1 1 1 1
 			decoration
@@ -177,7 +221,7 @@
 			descText				"Return to custom character options"
 			type					ITEM_TYPE_BUTTON
 			style					WINDOW_STYLE_EMPTY
-			rect					160 345 110 32
+			rect					290 345 110 32
 			textalign				ITEM_ALIGN_CENTER
 			textalignx				55
 			textaligny				2
