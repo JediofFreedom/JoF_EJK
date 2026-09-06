@@ -10680,6 +10680,11 @@ void CG_DrawCosmeticOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, 
         return;
     }
 
+    if ( cent->currentState.eFlags2 & EF2_HELD_BY_MONSTER )
+    {
+        return;
+    }
+
     if ( cent->currentState.powerups & ( 1 << PW_CLOAKED ) )
     {
         if ( !( cg.snap->ps.fd.forcePowersActive & ( 1 << FP_SEE ) )
@@ -10710,18 +10715,10 @@ void CG_DrawCosmeticOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, 
     {
         memset( &re, 0, sizeof( refEntity_t ) );
 
-        // A monster-held player uses the grabber's full pitch/yaw/roll transform.
-        // Normal players retain the original pitch suppression for cosmetic bolts.
-        if ( cent->currentState.eFlags2 & EF2_HELD_BY_MONSTER )
-        {
-            VectorCopy( cent->turAngles, bAngles );
-        }
-        else
-        {
-            VectorCopy( cent->lerpAngles, bAngles );
-            bAngles[PITCH] = 0;
-            bAngles[YAW]   = cent->turAngles[YAW];
-        }
+        // My angle fix :3 - Kameleon
+        VectorCopy( cent->lerpAngles, bAngles );
+        bAngles[PITCH] = 0;
+        bAngles[YAW]   = cent->turAngles[YAW];
 
         trap->G2API_GetBoltMatrix( cent->ghoul2, 0, newBolt, &matrix, bAngles, cent->lerpOrigin, time, gameModels, cent->modelScale );
         BG_GiveMeVectorFromMatrix( &matrix, ORIGIN, boltOrg );
