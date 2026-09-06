@@ -115,7 +115,7 @@
 			name				speciesbut_glow
 			group				none
 			style				WINDOW_STYLE_SHADER
-			rect				161 52 150 16
+			rect				161 52 126 16
 			background			"gfx/menus/menu_buttonback"
 			forecolor			1 1 1 1
 			visible			0
@@ -130,7 +130,7 @@
 			descText			@MENUS_CHOOSE_SPECIES
 			type				ITEM_TYPE_MULTI
 			style				WINDOW_STYLE_EMPTY
-			rect				161 52 150 16
+			rect				161 52 126 16
 			font				2
 			textscale			.9
 			textaligny			-5
@@ -166,7 +166,7 @@
 			name				speciesbrowse_glow
 			group				none
 			style				WINDOW_STYLE_SHADER
-			rect				315 48 100 24
+			rect				287 48 24 24
 			background			"gfx/menus/menu_buttonback"
 			forecolor			1 1 1 1
 			visible				0
@@ -177,29 +177,27 @@
 		{
 			name				speciesbrowse
 			group				none
-			text				"BROWSE..."
-			descText			"Search and select a custom character model"
+			background			"gfx/menus/species_search"
+			descText			"Browse species"
 			type				ITEM_TYPE_BUTTON
-			style				WINDOW_STYLE_EMPTY
-			rect				315 48 100 24
-			textalign			ITEM_ALIGN_CENTER
-			textalignx			50
-			textaligny			-1
-			font				2
-			textscale			.8
+			style				WINDOW_STYLE_SHADER
+			rect				287 48 24 24
 			forecolor			1 .682 0 1
 			visible				1
 			mouseEnter
 			{
 				show			speciesbrowse_glow
+				setitemcolor speciesbrowse forecolor 1 1 1 1
 			}
 			mouseExit
 			{
 				hide			speciesbrowse_glow
+				setitemcolor speciesbrowse forecolor 1 .682 0 1
 			}
 			action
 			{
 				play			"sound/interface/button1.wav"
+				setcvar			ui_speciesBrowserMain "0"
 				open			ingame_species_browser
 			}
 		}
