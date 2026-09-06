@@ -33,6 +33,34 @@
 			close					ingame_species_browser
 		}
 
+// Hide the full-screen custom editor when opened from the main Profile menu.
+		itemDef
+		{
+			name					mainMenuBackgroundFill
+			group					none
+			style					WINDOW_STYLE_FILLED
+			rect					-105 -40 640 480
+			backcolor				0 0 .04 1
+			cvarTest				ui_speciesBrowserMain
+			showCvar				{ "1" }
+			visible					1
+			decoration
+		}
+
+		itemDef
+		{
+			name					mainMenuBackground
+			group					none
+			style					WINDOW_STYLE_SHADER
+			rect					-105 -40 640 480
+			background				"gfx/menus/main_background"
+			forecolor				1 1 1 1
+			cvarTest				ui_speciesBrowserMain
+			showCvar				{ "1" }
+			visible					1
+			decoration
+		}
+
 // Overall window backdrop
 		itemDef
 		{

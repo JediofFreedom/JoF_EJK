@@ -731,6 +731,7 @@
 			action
 			{
 				play			"sound/interface/button1.wav"
+				setcvar			ui_speciesBrowserMain "1"
 				close			playerMenu
 				open			playerMenu2
 				open			ingame_species_browser
