@@ -10654,7 +10654,7 @@ void CG_DrawCosmeticOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, 
 {
     int newBolt;
     mdxaBone_t matrix;
-    vec3_t boltOrg, bAngles;
+    vec3_t boltOrg, bAngles, scaledOffset;
     refEntity_t re;
 
     if ( !model )
@@ -10670,6 +10670,15 @@ void CG_DrawCosmeticOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, 
     if ( cent->currentState.eFlags & EF_DEAD )
     {
         return;
+    }
+
+    if ( cent->currentState.powerups & ( 1 << PW_CLOAKED ) )
+    {
+        if ( !( cg.snap->ps.fd.forcePowersActive & ( 1 << FP_SEE ) )
+            || cg.snap->ps.clientNum == cent->currentState.number )
+        {
+            return;
+        }
     }
 
     if (!cg.renderingThirdPerson && cent->currentState.clientNum == cg.clientNum)
@@ -10693,10 +10702,18 @@ void CG_DrawCosmeticOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, 
     {
         memset( &re, 0, sizeof( refEntity_t ) );
 
-        // My angle fix :3 - Kameleon
-        VectorCopy( cent->lerpAngles, bAngles );
-        bAngles[PITCH] = 0;
-        bAngles[YAW]   = cent->turAngles[YAW];
+        // A monster-held player uses the grabber's full pitch/yaw/roll transform.
+        // Normal players retain the original pitch suppression for cosmetic bolts.
+        if ( cent->currentState.eFlags2 & EF2_HELD_BY_MONSTER )
+        {
+            VectorCopy( cent->turAngles, bAngles );
+        }
+        else
+        {
+            VectorCopy( cent->lerpAngles, bAngles );
+            bAngles[PITCH] = 0;
+            bAngles[YAW]   = cent->turAngles[YAW];
+        }
 
         trap->G2API_GetBoltMatrix( cent->ghoul2, 0, newBolt, &matrix, bAngles, cent->lerpOrigin, time, gameModels, cent->modelScale );
         BG_GiveMeVectorFromMatrix( &matrix, ORIGIN, boltOrg );
@@ -10709,7 +10726,15 @@ void CG_DrawCosmeticOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, 
 
         if ( offset )
         {
-            VectorAdd( boltOrg, offset, boltOrg );
+            if ( cent->modelScale[0] > 0.0f )
+            {
+                VectorScale( offset, cent->modelScale[0], scaledOffset );
+                VectorAdd( boltOrg, scaledOffset, boltOrg );
+            }
+            else
+            {
+                VectorAdd( boltOrg, offset, boltOrg );
+            }
         }
 
 		//rotational transitions
@@ -10732,6 +10757,8 @@ void CG_DrawCosmeticOnPlayer( centity_t *cent, int time, qhandle_t *gameModels, 
 
 		re.renderfx = parent.renderfx | RF_NOSHADOW;
 		re.customShader = parent.customShader;
+		VectorCopy( cent->modelScale, re.modelScale );
+		ScaleModelAxis( &re );
 
         trap->R_AddRefEntityToScene( &re );
     }
