@@ -692,6 +692,50 @@
 			}  	  
 		}
 
+		itemDef
+		{
+			name				custombrowse_glow
+			group				mods
+			style				WINDOW_STYLE_SHADER
+			rect				463 385 130 24
+			background			"gfx/menus/menu_buttonback"
+			forecolor			1 1 1 1
+			visible				0
+			decoration
+		}
+
+		itemDef
+		{
+			name				custombrowse
+			group				none
+			text				"BROWSE..."
+			descText			"Search and select a custom character model"
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				463 385 130 24
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			65
+			textaligny			-1
+			font				2
+			textscale			.8
+			forecolor			1 .682 0 1
+			visible				1
+			mouseEnter
+			{
+				show			custombrowse_glow
+			}
+			mouseExit
+			{
+				hide			custombrowse_glow
+			}
+			action
+			{
+				play			"sound/interface/button1.wav"
+				close			playerMenu
+				open			playerMenu2
+				open			ingame_species_browser
+			}
+		}
 
 		itemDef 
 		{

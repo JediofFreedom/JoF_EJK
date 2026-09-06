@@ -12566,6 +12566,10 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 		{
 			menuDef_t *browserMenu = Menus_FindByName("ingame_species_browser");
 			menuDef_t *characterMenu = Menus_FindByName("ingame_player2");
+			if (!characterMenu)
+			{
+				characterMenu = Menus_FindByName("playerMenu2");
+			}
 
 			uiInfo.playerSpeciesIndex = actualIndex;
 			trap->Cvar_Set("ui_char_model", uiInfo.playerSpecies[actualIndex].Name);
