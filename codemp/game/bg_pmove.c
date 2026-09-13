@@ -10253,6 +10253,13 @@ void PM_AdjustAttackStates( pmove_t *pmove )
 			return;
 		}
 	}
+
+	if (pmove->ps->m_iVehicleNum && pmove->ps->weapon == WP_DISRUPTOR)
+	{
+		// Scoped disruptor fire is incompatible with vehicle-relative rider aiming.
+		pmove->cmd.buttons &= ~BUTTON_ALT_ATTACK;
+	}
+
 	// get ammo usage
 	if ( pmove->cmd.buttons & BUTTON_ALT_ATTACK )
 	{
