@@ -454,6 +454,26 @@ int WeaponAttackAnim[WP_NUM_WEAPONS] =
 	BOTH_ATTACK1//WP_TURRET,
 };
 
+qboolean BG_WeaponIsVehicleGun(int weapon)
+{
+	switch (weapon)
+	{
+	case WP_BRYAR_PISTOL:
+	case WP_BLASTER:
+	case WP_DISRUPTOR:
+	case WP_BOWCASTER:
+	case WP_REPEATER:
+	case WP_DEMP2:
+	case WP_FLECHETTE:
+	case WP_ROCKET_LAUNCHER:
+	case WP_CONCUSSION:
+	case WP_BRYAR_OLD:
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
 qboolean BG_FileExists( const char *fileName ) {
 	if ( fileName && fileName[0] ) {
 		fileHandle_t f = NULL_FILE;
