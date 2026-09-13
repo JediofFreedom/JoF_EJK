@@ -8512,9 +8512,18 @@ backAgain:
 				}
 				break;
 
+			case WP_BRYAR_PISTOL:
 			case WP_BLASTER:
+			case WP_DISRUPTOR:
+			case WP_BOWCASTER:
+			case WP_REPEATER:
+			case WP_DEMP2:
+			case WP_FLECHETTE:
+			case WP_ROCKET_LAUNCHER:
+			case WP_CONCUSSION:
+			case WP_BRYAR_OLD:
 				// Override the shoot anim.
-				if ( pm->ps->torsoAnim == BOTH_ATTACK3 )
+				if ( pm->ps->torsoAnim == WeaponAttackAnim[pm->ps->weapon] )
 				{
 					if ( pm->cmd.rightmove > 0 )			//right side attack
 					{
@@ -8579,7 +8588,16 @@ backAgain:
 				}
 				break;
 
+			case WP_BRYAR_PISTOL:
 			case WP_BLASTER:
+			case WP_DISRUPTOR:
+			case WP_BOWCASTER:
+			case WP_REPEATER:
+			case WP_DEMP2:
+			case WP_FLECHETTE:
+			case WP_ROCKET_LAUNCHER:
+			case WP_CONCUSSION:
+			case WP_BRYAR_OLD:
 				// In the Air.
 				//if ( pVeh->m_ulFlags & VEH_FLYING )
 				if (0)
@@ -12146,18 +12164,19 @@ void PM_VehicleViewAngles(playerState_t *ps, bgEntity_t *veh, usercmd_t *ucmd)
 //see if a weapon is ok to use on a vehicle
 qboolean PM_WeaponOkOnVehicle( int weapon )
 {
-	//FIXME: check g_vehicleInfo for our vehicle?
+	if (BG_WeaponIsVehicleGun(weapon))
+	{
+		return qtrue;
+	}
+
 	switch ( weapon )
 	{
-	//case WP_NONE:
 	case WP_MELEE:
 	case WP_SABER:
-	case WP_BLASTER:
-	//case WP_THERMAL:
 		return qtrue;
-		break;
+	default:
+		return qfalse;
 	}
-	return qfalse;
 }
 
 //do we have a weapon that's ok for using on the vehicle?

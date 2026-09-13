@@ -1924,6 +1924,7 @@ void BG_ClearRocketLock( playerState_t *ps );
 
 extern int WeaponReadyAnim[WP_NUM_WEAPONS];
 extern int WeaponAttackAnim[WP_NUM_WEAPONS];
+qboolean BG_WeaponIsVehicleGun(int weapon);
 
 extern int forcePowerDarkLight[NUM_FORCE_POWERS];
 
