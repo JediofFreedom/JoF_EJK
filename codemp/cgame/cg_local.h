@@ -613,6 +613,9 @@ typedef struct centity_s {
 
 	int				serverSaberHitIndex;
 	int				serverSaberHitTime;
+	char			saberHiltModel[MAX_QPATH]; //hilt this saber entity's ghoul2 instance was built from
+	qhandle_t		saberHiltSkin;
+	int				saberHiltOwner; //client who owns this saber entity, +1 (0 = not known)
 	qboolean		serverSaberFleshImpact; //true if flesh, false if anything else.
 
 	qboolean		ikStatus;
@@ -2435,6 +2438,8 @@ void CG_Player( centity_t *cent );
 void CG_ResetPlayerEntity( centity_t *cent );
 void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team );
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized );
+saberInfo_t *CG_SaberEntityOwnerSaber( centity_t *saberEnt );
+const char *CG_SaberEntityHiltModel( saberInfo_t *saber, centity_t *saberEnt, qhandle_t *skin );
 qboolean CG_ModelIsBlacklisted( const char *modelName );
 sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName );
 void CG_PlayerShieldHit(int entitynum, vec3_t angles, int amount);

@@ -1459,12 +1459,22 @@ Ghoul2 Insert End
 		if (!cent->ghoul2 && !cent->currentState.bolt1)
 		{
 			char skinName[MAX_QPATH];
-			const char *modelName = CG_ConfigString( CS_MODELS+cent->currentState.modelindex );
+			qhandle_t hiltSkin;
+			//a saber entity is drawn with the hilt this client resolved for its owner,
+			//everything else with the model the server handed us
+			const char *modelName = CG_SaberEntityHiltModel( CG_SaberEntityOwnerSaber( cent ), cent, &hiltSkin );
 			int l;
 			int skin = 0;
 
-			trap->G2API_InitGhoul2Model(&cent->ghoul2, modelName, 0, 0, 0, 0, 0);
-			if (cent->ghoul2 && trap->G2API_SkinlessModel(cent->ghoul2, 0))
+			Q_strncpyz(cent->saberHiltModel, modelName, sizeof(cent->saberHiltModel));
+			cent->saberHiltSkin = hiltSkin;
+
+			trap->G2API_InitGhoul2Model(&cent->ghoul2, modelName, 0, hiltSkin, 0, 0, 0);
+			if (cent->ghoul2 && hiltSkin)
+			{
+				trap->G2API_SetSkin(cent->ghoul2, 0, hiltSkin, hiltSkin);
+			}
+			else if (cent->ghoul2 && trap->G2API_SkinlessModel(cent->ghoul2, 0))
 			{ //well, you'd never want a skinless model, so try to get his skin...
 				Q_strncpyz(skinName, modelName, MAX_QPATH);
 				l = strlen(skinName);
@@ -3003,23 +3013,24 @@ static void CG_Missile( centity_t *cent ) {
 	{
 		if ((cent->currentState.modelindex != cent->serverSaberHitIndex || !cent->ghoul2) && !(s1->eFlags & EF_NODRAW))
 		{ //no g2, or server changed the model we are using
-			const char *saberModel = CG_ConfigString( CS_MODELS+cent->currentState.modelindex );
+			qhandle_t saberSkin;
+			const char *saberModel = CG_SaberEntityHiltModel( CG_SaberEntityOwnerSaber( cent ), cent, &saberSkin );
 
 			cent->serverSaberHitIndex = cent->currentState.modelindex;
+			Q_strncpyz(cent->saberHiltModel, saberModel, sizeof(cent->saberHiltModel));
+			cent->saberHiltSkin = saberSkin;
 
 			if (cent->ghoul2)
-			{ //clean if we already have one (because server changed model string index)
+			{ //clean if we already have one (because the hilt changed)
 				trap->G2API_CleanGhoul2Models(&(cent->ghoul2));
 				cent->ghoul2 = 0;
 			}
 
-			if (saberModel && saberModel[0])
+			trap->G2API_InitGhoul2Model(&cent->ghoul2, saberModel, 0, saberSkin, 0, 0, 0);
+
+			if (cent->ghoul2 && saberSkin)
 			{
-				trap->G2API_InitGhoul2Model(&cent->ghoul2, saberModel, 0, 0, 0, 0, 0);
-			}
-			else
-			{
-				trap->G2API_InitGhoul2Model(&cent->ghoul2, DEFAULT_SABER_MODEL, 0, 0, 0, 0, 0);
+				trap->G2API_SetSkin(cent->ghoul2, 0, saberSkin, saberSkin);
 			}
 			return;
 		}

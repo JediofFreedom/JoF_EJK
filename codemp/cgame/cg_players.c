@@ -1535,6 +1535,88 @@ static void CG_InitG2SaberData(int saberNum, clientInfo_t *ci)
 	}
 }
 
+/*
+======================
+CG_SaberEntityOwnerSaber
+
+Find the saber info this client parsed for whoever owns a saber entity. Returns
+NULL for sabers nobody owns, like the Jedi Master saber.
+
+The owner link only lives in his saberEntityNum, and the server clears that the
+moment the saber is knocked to the ground (saberKnockDown), so remember the owner
+the first time we see the link - otherwise a thrown saber loses track of whose it
+is exactly when it lands and needs to be rebuilt.
+======================
+*/
+saberInfo_t *CG_SaberEntityOwnerSaber( centity_t *saberEnt )
+{
+	int i;
+	int saberEntNum = saberEnt->currentState.number;
+
+	if ( !saberEntNum )
+		return NULL;
+
+	for ( i = 0; i < MAX_GENTITIES; i++ )
+	{
+		centity_t *owner = &cg_entities[i];
+
+		if ( owner->currentState.saberEntityNum != saberEntNum )
+			continue;
+
+		if ( owner->currentState.eType == ET_PLAYER
+			&& i < MAX_CLIENTS
+			&& cgs.clientinfo[i].infoValid )
+		{
+			saberEnt->saberHiltOwner = i+1;
+			return &cgs.clientinfo[i].saber[0];
+		}
+
+		if ( owner->currentState.eType == ET_NPC
+			&& owner->currentValid
+			&& owner->npcClient )
+		{
+			saberEnt->saberHiltOwner = 0; //npc client info comes and goes, don't remember it
+			return &owner->npcClient->saber[0];
+		}
+	}
+
+	//no live link - fall back on whoever it belonged to last
+	if ( saberEnt->saberHiltOwner
+		&& cgs.clientinfo[saberEnt->saberHiltOwner-1].infoValid )
+		return &cgs.clientinfo[saberEnt->saberHiltOwner-1].saber[0];
+
+	return NULL;
+}
+
+/*
+======================
+CG_SaberEntityHiltModel
+
+Pick the hilt a saber entity (thrown, dropped, or being pulled back) is drawn
+with. Use the saber info this client parsed for the owner - the same data that
+builds the model in his hand - so a hilt that resolves differently here than it
+does on the server doesn't change shape the moment it leaves the hand. The
+server's model configstring is only a fallback for ownerless sabers.
+======================
+*/
+const char *CG_SaberEntityHiltModel( saberInfo_t *saber, centity_t *saberEnt, qhandle_t *skin )
+{
+	const char *model;
+
+	if ( saber && saber->model[0] )
+	{
+		*skin = saber->skin;
+		return saber->model;
+	}
+
+	*skin = 0;
+
+	model = CG_ConfigString( CS_MODELS+saberEnt->currentState.modelindex );
+	if ( model && model[0] )
+		return model;
+
+	return DEFAULT_SABER_MODEL;
+}
 
 /*
 ======================
@@ -13121,11 +13203,20 @@ stillDoSaber:
 			&& cent->currentState.saberEntityNum)
 		{
 			centity_t *saberEnt;
+			qhandle_t hiltSkin;
+			const char *hiltModel;
 
 			saberEnt = &cg_entities[cent->currentState.saberEntityNum];
+			hiltModel = CG_SaberEntityHiltModel(&ci->saber[0], saberEnt, &hiltSkin);
+
+			if (cent->currentState.number < MAX_CLIENTS)
+			{ //remember whose this is - the server drops the link once it lands
+				saberEnt->saberHiltOwner = cent->currentState.number+1;
+			}
 
 			if (/*!cent->bolt4 &&*/ g2HasWeapon || !cent->bolt3 ||
-				saberEnt->serverSaberHitIndex != saberEnt->currentState.modelindex/*|| !cent->saberLength*/)
+				saberEnt->serverSaberHitIndex != saberEnt->currentState.modelindex ||
+				Q_stricmp(saberEnt->saberHiltModel, hiltModel)/*|| !cent->saberLength*/)
 			{ //saber is in flight, do not have it as a standard weapon model
 				qboolean addBolts = qfalse;
 				mdxaBone_t boltMat;
@@ -13159,34 +13250,29 @@ stillDoSaber:
 				saberEnt->currentState.bolt2 = 123;
 
 				if (saberEnt->ghoul2 &&
-					saberEnt->serverSaberHitIndex == saberEnt->currentState.modelindex)
+					saberEnt->serverSaberHitIndex == saberEnt->currentState.modelindex &&
+					!Q_stricmp(saberEnt->saberHiltModel, hiltModel))
 				{
 					// now set up the gun bolt on it
 					addBolts = qtrue;
 				}
 				else
 				{
-					const char *saberModel = CG_ConfigString( CS_MODELS+saberEnt->currentState.modelindex );
-
 					saberEnt->serverSaberHitIndex = saberEnt->currentState.modelindex;
+					Q_strncpyz(saberEnt->saberHiltModel, hiltModel, sizeof(saberEnt->saberHiltModel));
+					saberEnt->saberHiltSkin = hiltSkin;
 
 					if (saberEnt->ghoul2)
-					{ //clean if we already have one (because server changed model string index)
+					{ //clean if we already have one (because the hilt changed)
 						trap->G2API_CleanGhoul2Models(&(saberEnt->ghoul2));
 						saberEnt->ghoul2 = 0;
 					}
 
-					if (saberModel && saberModel[0])
+					trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, hiltModel, 0, hiltSkin, 0, 0, 0);
+
+					if (saberEnt->ghoul2 && hiltSkin)
 					{
-						trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, saberModel, 0, 0, 0, 0, 0);
-					}
-					else if (ci->saber[0].model[0])
-					{
-						trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, ci->saber[0].model, 0, 0, 0, 0, 0);
-					}
-					else
-					{
-						trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, DEFAULT_SABER_MODEL, 0, 0, 0, 0, 0);
+						trap->G2API_SetSkin(saberEnt->ghoul2, 0, hiltSkin, hiltSkin);
 					}
 					//trap->G2API_DuplicateGhoul2Instance(cent->ghoul2, &saberEnt->ghoul2);
 
@@ -13217,10 +13303,18 @@ stillDoSaber:
 						if (tagBolt == -1)
 						{
 							if (m == 0 && !reloaded)
-							{ //model lacks blade bolts, reload as default saber and retry
+							{ //guess this is an 0ldsk3wl saber - same fallback the in-hand model uses
+								tagBolt = trap->G2API_AddBolt(saberEnt->ghoul2, 0, "*flash");
+
+								if (tagBolt != -1)
+								{
+									break; //bolt 0 is the blade, that's all this model has
+								}
+
+								//no blade bolts at all, fall back to a hilt we know has them
 								trap->G2API_CleanGhoul2Models(&(saberEnt->ghoul2));
 								saberEnt->ghoul2 = 0;
-								trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, "models/weapons2/saber_reborn/saber_w.glm", 0, 0, 0, 0, 0);
+								trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, DEFAULT_SABER_MODEL, 0, 0, 0, 0, 0);
 								reloaded = qtrue;
 								if (saberEnt->ghoul2)
 								{
