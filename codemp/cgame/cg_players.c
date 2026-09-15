@@ -2588,6 +2588,15 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	  //Otherwise we will end up with extra instances all over the place, I think.
 		trap->G2API_CleanGhoul2Models(&ci->ghoul2Model);
 	}
+
+	//newInfo is about to take these over as NULL, so let go of the holstered hilt instances rather
+	//than losing the only pointers to them. They get rebuilt from whatever saber he has now.
+	if (ci->holsterGhoul2 && trap->G2_HaveWeGhoul2Models(ci->holsterGhoul2))
+		trap->G2API_CleanGhoul2Models(&ci->holsterGhoul2);
+
+	if (ci->holsterGhoul2_2 && trap->G2_HaveWeGhoul2Models(ci->holsterGhoul2_2))
+		trap->G2API_CleanGhoul2Models(&ci->holsterGhoul2_2);
+
 	*ci = newInfo;
 
 	//force a weapon change anyway, for all clients being rendered to the current client
@@ -10548,48 +10557,234 @@ void CG_CheckThirdPersonAlpha( centity_t *cent, refEntity_t *legs )
 	}
 }
 
-void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, clientInfo_t *ci, refEntity_t parent )
+typedef enum {
+	STAFFSWAP_NONE,		//not part way through a JA+ staff swap
+	STAFFSWAP_ONBACK,	//the hand has not reached the hilt yet, so it is still on his back
+	STAFFSWAP_INHAND	//he has hold of it
+} staffSwapPhase_t;
+
+//JA+ moves a staff between the hand and the back over BOTH_S1_S7_NEW when it is drawn, and over
+//BOTH_S7_S1_NEW - the same animation played backwards - when it is put away. The weapon itself
+//changes on the first frame of that, so without this the hilt sits in the hand while the arm is
+//still reaching for it. cg_holsteredStaffSwap is how far into the draw the hand closes around the
+//hilt; the put-away being the same animation reversed means that one fraction serves for both.
+//One playing of a swap animation moves the hilt once. Ghoul2 blends the outgoing animation into the
+//incoming one, which makes the frame it reports wobble either side of the swap point while that
+//settles, so without remembering that it has already changed hands the staff jumps back and forth.
+typedef struct {
+	int			anim;		//the animation this belongs to
+	int			animTime;	//and which playing of it
+	qboolean	swapped;	//whether the hilt has already changed hands during it
+} staffSwapLatch_t;
+
+static staffSwapLatch_t staffSwapLatch[MAX_CLIENTS];
+
+static staffSwapPhase_t CG_StaffSwapPhaseReal( centity_t *cent, clientInfo_t *ci, const char **why, float *fracOut )
 {
-    int newBolt, newBolt2;
-    mdxaBone_t matrix;
-    vec3_t boltOrg, boltOrg2, bAngles;
-    refEntity_t re, re2;
-    vec3_t holsterPos;
-	vec3_t holsterAng1, holsterAng2;
+	int					anim = cent->currentState.torsoAnim;
+	int					startFrame, endFrame, lowFrame, highFrame, g2Flags, cl;
+	float				frac, currentFrame, g2AnimSpeed;
+	qboolean			drawing;
+	staffSwapPhase_t	phase, afterSwap;
+	staffSwapLatch_t	*latch;
+
+	//A staff in its own stance draws and puts away on BOTH_S1_S7/BOTH_S7_S1; carried in the one blade
+	//stance it uses the ordinary BOTH_STAND1TO2/BOTH_STAND2TO1 instead. JA+ replaces either pair with
+	//its own _NEW versions, the ones that reach for his back, and the plain ones still play for a
+	//moment first while he takes the weapon.
+	if (anim == BOTH_S1_S7_NEW || anim == BOTH_STAND1TO2_NEW)
+		drawing = qtrue;
+	else if (anim == BOTH_S7_S1_NEW || anim == BOTH_STAND2TO1_NEW)
+		drawing = qfalse;
+	else if (anim != BOTH_S1_S7 && anim != BOTH_STAND1TO2)
+	{
+		*why = "not a JA+ swap anim";
+		return STAFFSWAP_NONE;
+	}
+	else
+		drawing = qtrue;
+
+	//Everything below moves the hilt out of his hand, so it has to bow out wherever the hilt would
+	//not be drawn on his back instead - otherwise the staff simply disappears for the animation.
+	if (cgs.serverMod != SVMOD_JAPLUS)
+	{
+		*why = "not a JA+ server";	//nobody is sending the reach animation, so nothing to sync with
+		return STAFFSWAP_NONE;
+	}
 
 	if (cp_pluginDisable.integer & JAPRO_PLUGIN_HOLSTEREDSABERS)
-		return;
+	{
+		*why = "holstered sabers off";
+		return STAFFSWAP_NONE;
+	}
 
-    if ( !cent->ghoul2 )
-        return;
+	if (cp_pluginDisable.integer & JAPRO_PLUGIN_HOLSTEREDSABER)
+	{
+		*why = "plugin 9 off";	//he is not holstering to his back in the first place
+		return STAFFSWAP_NONE;
+	}
+
+	if (ci->saber[1].model[0] || (ci->saber[0].type != SABER_STAFF && ci->saber[0].numBlades < 2))
+	{
+		*why = "not a staff";
+		return STAFFSWAP_NONE;
+	}
+
+	if (anim == BOTH_S1_S7 || anim == BOTH_STAND1TO2)
+	{ //the ordinary draw plays for a moment before JA+ replaces it with the reach, and he takes the
+	  //weapon in that gap. The hilt is still on his back throughout, so hold it there and keep the
+	  //blades in, otherwise it flickers into his hand before he has even reached for it.
+		*why = "waiting on the JA+ draw";
+		return STAFFSWAP_ONBACK;
+	}
+
+	afterSwap = drawing ? STAFFSWAP_INHAND : STAFFSWAP_ONBACK;
+	cl = cent->currentState.clientNum;
+	latch = (cl >= 0 && cl < MAX_CLIENTS) ? &staffSwapLatch[cl] : NULL;
+
+	if (latch)
+	{
+		if (latch->anim != anim || latch->animTime != cent->pe.torso.animationTime)
+		{ //a different animation, or this one started again
+			latch->anim = anim;
+			latch->animTime = cent->pe.torso.animationTime;
+			latch->swapped = qfalse;
+		}
+
+		if (latch->swapped)
+		{
+			*why = "swapped already";
+			return afterSwap;
+		}
+	}
+
+	//Ask ghoul2 which frame he is actually on rather than working it out from the clock - the torso
+	//animation runs on lower_lumbar. Both swap animations are the same range of frames, one forwards
+	//and one backwards, so the frame alone says where his hand is, the same way round for both.
+	if (!trap->G2API_GetBoneAnim( cent->ghoul2, "lower_lumbar", cg.time, &currentFrame,
+			&startFrame, &endFrame, &g2Flags, &g2AnimSpeed, cgs.gameModels, 0 ))
+	{
+		*why = "no torso anim";
+		return STAFFSWAP_NONE;
+	}
+
+	lowFrame = (startFrame < endFrame) ? startFrame : endFrame;
+	highFrame = (startFrame < endFrame) ? endFrame : startFrame;
+
+	if (highFrame - lowFrame < 1)
+	{
+		*why = "anim has no length here";
+		return STAFFSWAP_NONE;
+	}
+
+	frac = (currentFrame - (float)lowFrame) / (float)(highFrame - lowFrame);
+	frac = Com_Clamp( 0.0f, 1.0f, frac );
+
+	*fracOut = frac;
+	*why = "in the swap";
+
+	phase = (frac < cg_holsteredStaffSwap.value) ? STAFFSWAP_ONBACK : STAFFSWAP_INHAND;
+
+	if (latch && phase == afterSwap)
+		latch->swapped = qtrue;	//and there it stays for the rest of this animation
+
+	return phase;
+}
+
+//The blades stay in for the whole of a put-away - he is shutting the staff down as he reaches back -
+//and for the part of a draw before his hand is on the hilt. Going through the phase keeps the
+//animation numbers behind the same gating as everything else rather than matching them raw.
+static qboolean CG_StaffSwapBladesIn( centity_t *cent, clientInfo_t *ci );
+
+//cg_holsteredStaffDebug prints one line per torso animation change (1 for yourself, 2 for everyone),
+//which is the quickest way to see whether the JA+ swap animation is arriving and what it is numbered
+static staffSwapPhase_t CG_StaffSwapPhase( centity_t *cent, clientInfo_t *ci )
+{
+	const char			*why = "";
+	float				frac = 0.0f;
+	staffSwapPhase_t	phase = CG_StaffSwapPhaseReal( cent, ci, &why, &frac );
+
+	if (cg_holsteredStaffDebug.integer)
+	{
+		static int	lastAnim[MAX_CLIENTS] = { 0 };
+		int			cl = cent->currentState.clientNum;
+
+		static staffSwapPhase_t lastPhase[MAX_CLIENTS] = { STAFFSWAP_NONE };
+
+		if (cl >= 0 && cl < MAX_CLIENTS
+			&& (cg_holsteredStaffDebug.integer > 1 || cl == cg.clientNum)
+			&& (lastAnim[cl] != cent->currentState.torsoAnim || lastPhase[cl] != phase))
+		{
+			lastAnim[cl] = cent->currentState.torsoAnim;
+			lastPhase[cl] = phase;
+			trap->Print( "staffswap: cl %i anim %i '%s' -> %s (%s, frac %.2f, blade %.1f, holstered %i)\n",
+				cl, cent->currentState.torsoAnim,
+				GetStringForID( animTable, cent->currentState.torsoAnim ),
+				phase == STAFFSWAP_ONBACK ? "on back" : (phase == STAFFSWAP_INHAND ? "in hand" : "no swap"),
+				why, frac, ci->saber[0].blade[0].length, cent->currentState.saberHolstered );
+		}
+	}
+
+	return phase;
+}
+
+static qboolean CG_StaffSwapBladesIn( centity_t *cent, clientInfo_t *ci )
+{
+	staffSwapPhase_t phase = CG_StaffSwapPhase( cent, ci );
+
+	if (phase == STAFFSWAP_NONE)
+		return qfalse;
+
+	if (phase == STAFFSWAP_ONBACK)
+		return qtrue;	//he has nothing to light up with until his hand is on the hilt
+
+	return (qboolean)(cent->currentState.torsoAnim == BOTH_S7_S1_NEW
+		|| cent->currentState.torsoAnim == BOTH_STAND2TO1_NEW);
+}
+
+//Everything that decides whether a stowed hilt should be on show at all. Pulled out of the drawing
+//so that the staff, which rides the player's skeleton rather than being drawn loose, can be taken
+//off his back on the frames where this says no.
+static qboolean CG_HolsteredSaberVisible( centity_t *cent, clientInfo_t *ci, staffSwapPhase_t swapPhase )
+{
+	if (cp_pluginDisable.integer & JAPRO_PLUGIN_HOLSTEREDSABERS)
+		return qfalse;
+
+	if ( !cent->ghoul2 )
+		return qfalse;
 
 	if (cgs.serverMod != SVMOD_JAPLUS)
-		return;
+		return qfalse;
 
 	if (cent->currentState.eFlags & 0x1000)
-		return;
+		return qfalse;
 
-	if (cent->currentState.weapon == WP_SABER)
-		return;
+	//mid-swap the animation decides where the hilt is, otherwise it is on him whenever he is
+	//holding something else
+	if (swapPhase == STAFFSWAP_INHAND)
+		return qfalse;
 
-    if ( cent->currentState.eFlags & EF_DEAD )
-        return;
+	if (cent->currentState.weapon == WP_SABER && swapPhase != STAFFSWAP_ONBACK)
+		return qfalse;
 
-    if ( cent->currentState.powerups & ( 1 << PW_CLOAKED ) )
-    {
-        if ( !( cg.snap->ps.fd.forcePowersActive & ( 1 << FP_SEE ) )
-            || cg.snap->ps.clientNum == cent->currentState.number )
-            return;
-    }
+	if ( cent->currentState.eFlags & EF_DEAD )
+		return qfalse;
 
-    if (!cg.renderingThirdPerson && cent->currentState.clientNum == cg.clientNum)
-        return;
+	if ( cent->currentState.powerups & ( 1 << PW_CLOAKED ) )
+	{
+		if ( !( cg.snap->ps.fd.forcePowersActive & ( 1 << FP_SEE ) )
+			|| cg.snap->ps.clientNum == cent->currentState.number )
+			return qfalse;
+	}
 
-    if (!cg.renderingThirdPerson && cg.snap->ps.clientNum == cent->currentState.clientNum && cgs.clientinfo[cg.clientNum].team == TEAM_SPECTATOR && (cg.snap->ps.pm_flags & PMF_FOLLOW))
-        return;
+	if (!cg.renderingThirdPerson && cent->currentState.clientNum == cg.clientNum)
+		return qfalse;
 
-    if ( CG_IsMindTricked( cent->currentState.trickedentindex, cent->currentState.trickedentindex2, cent->currentState.trickedentindex3, cent->currentState.trickedentindex4, cg.snap->ps.clientNum ) )
-        return;
+	if (!cg.renderingThirdPerson && cg.snap->ps.clientNum == cent->currentState.clientNum && cgs.clientinfo[cg.clientNum].team == TEAM_SPECTATOR && (cg.snap->ps.pm_flags & PMF_FOLLOW))
+		return qfalse;
+
+	if ( CG_IsMindTricked( cent->currentState.trickedentindex, cent->currentState.trickedentindex2, cent->currentState.trickedentindex3, cent->currentState.trickedentindex4, cg.snap->ps.clientNum ) )
+		return qfalse;
 
 	if (cent->currentState.eType == ET_NPC)
 	{
@@ -10600,20 +10795,66 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 			cent->currentState.NPC_class != CLASS_REBORN &&
 			cent->currentState.NPC_class != CLASS_TAVION)
 		{
-			return;
+			return qfalse;
 		}
 	}
+
+	return qtrue;
+}
+
+void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, clientInfo_t *ci, refEntity_t parent )
+{
+    int newBolt, newBolt2;
+    mdxaBone_t matrix;
+    vec3_t boltOrg, boltOrg2, bAngles;
+    refEntity_t re, re2;
+    vec3_t holsterPos;
+	vec3_t holsterAng1, holsterAng2;
+	qboolean staffOnBack, visible;
+	staffSwapPhase_t swapPhase;
+
+	swapPhase = CG_StaffSwapPhase(cent, ci);
+	visible = CG_HolsteredSaberVisible(cent, ci, swapPhase);
+
+	if (!visible)
+		return;
 
 	//if ( cent->currentState.m_iVehicleNum )
 	//	return;
 
-	// Parse cvar values
-	sscanf(cg_holsteredSaberPos.string, "%f %f %f", &holsterPos[0], &holsterPos[1], &holsterPos[2]);
-	sscanf(cg_holsteredSaberAng1.string, "%f %f %f", &holsterAng1[0], &holsterAng1[1], &holsterAng1[2]);
-	sscanf(cg_holsteredSaberAng2.string, "%f %f %f", &holsterAng2[0], &holsterAng2[1], &holsterAng2[2]);
+	//A staff is a single hilt with a blade at each end, so it goes across the back rather than
+	//down a leg. Plugin 9 is the switch for that, and it is a JA+ disable bit: clearing it is what
+	//makes a JA+ server play the reach-over-the-shoulder animation, so the hilt belongs on the back
+	//exactly when the bit is clear. Dual sabers keep a hilt on each hip.
+	staffOnBack = (qboolean)(!(cp_pluginDisable.integer & JAPRO_PLUGIN_HOLSTEREDSABER)
+		&& !ci->saber[1].model[0]
+		&& (ci->saber[0].type == SABER_STAFF || ci->saber[0].numBlades > 1));
 
-	newBolt = trap->G2API_AddBolt( cent->ghoul2, 0, cg_holsteredSaberBolt.string );
-	newBolt2 = trap->G2API_AddBolt( cent->ghoul2, 0, cg_holsteredSaberBolt2.string );
+	// Parse cvar values
+	if (staffOnBack)
+	{
+		sscanf(cg_holsteredStaffPos.string, "%f %f %f", &holsterPos[0], &holsterPos[1], &holsterPos[2]);
+		sscanf(cg_holsteredStaffAng.string, "%f %f %f", &holsterAng1[0], &holsterAng1[1], &holsterAng1[2]);
+		VectorClear(holsterAng2);
+
+		newBolt = trap->G2API_AddBolt( cent->ghoul2, 0, cg_holsteredStaffBolt.string );
+		newBolt2 = -1;
+
+		if (newBolt == -1)
+		{ //this model has no back tag, so fall back to the hip rather than showing nothing
+			staffOnBack = qfalse;
+		}
+	}
+
+	if (!staffOnBack)
+	{
+		sscanf(cg_holsteredSaberPos.string, "%f %f %f", &holsterPos[0], &holsterPos[1], &holsterPos[2]);
+		sscanf(cg_holsteredSaberAng1.string, "%f %f %f", &holsterAng1[0], &holsterAng1[1], &holsterAng1[2]);
+		sscanf(cg_holsteredSaberAng2.string, "%f %f %f", &holsterAng2[0], &holsterAng2[1], &holsterAng2[2]);
+
+		newBolt = trap->G2API_AddBolt( cent->ghoul2, 0, cg_holsteredSaberBolt.string );
+		newBolt2 = trap->G2API_AddBolt( cent->ghoul2, 0, cg_holsteredSaberBolt2.string );
+	}
 
 	if ( newBolt != -1 )
 	{
@@ -10636,15 +10877,26 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_X, re.axis[0] );
 		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Y, re.axis[1] );
 		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Z, re.axis[2] );
-		VectorMA(boltOrg, holsterPos[0], re.axis[1], boltOrg);
-		VectorMA(boltOrg, holsterPos[1], re.axis[0], boltOrg);
-		VectorMA(boltOrg, holsterPos[2], re.axis[2], boltOrg);
 		VectorCopy(re.axis[0], boltAxis0);
 		VectorCopy(re.axis[1], boltAxis1);
 		VectorCopy(re.axis[2], boltAxis2);
-		VectorScale(boltAxis2, -1.0f, re.axis[2]); // holster1 blade axis points down relative to bolt
-		VectorCopy(boltAxis1, re.axis[1]);
-		CrossProduct(re.axis[1], re.axis[2], re.axis[0]);
+		if (staffOnBack)
+		{ //The axes are left exactly as the tag gives them, which is the pose JA+ gets by bolting the
+		  //hilt straight on. Drawing it ourselves rather than bolting it is what buys the angle: a
+		  //bolted model has no bone that can be turned, its skeleton is the engine's nameless stand-in.
+			VectorMA(boltOrg, holsterPos[0], boltAxis0, boltOrg);
+			VectorMA(boltOrg, holsterPos[1], boltAxis1, boltOrg);
+			VectorMA(boltOrg, holsterPos[2], boltAxis2, boltOrg);
+		}
+		else
+		{
+			VectorMA(boltOrg, holsterPos[0], boltAxis1, boltOrg);
+			VectorMA(boltOrg, holsterPos[1], boltAxis0, boltOrg);
+			VectorMA(boltOrg, holsterPos[2], boltAxis2, boltOrg);
+			VectorScale(boltAxis2, -1.0f, re.axis[2]); // holster1 blade axis points down relative to bolt
+			VectorCopy(boltAxis1, re.axis[1]);
+			CrossProduct(re.axis[1], re.axis[2], re.axis[0]);
+		}
 		AnglesToAxis(holsterAng1, angAxis);
 		MatrixMultiply(angAxis, re.axis, tempAxis);
 		AxisCopy(tempAxis, re.axis);
@@ -13440,6 +13692,12 @@ stillDoSaber:
 			BG_SI_SetDesiredLength(&ci->saber[0], 0, -1);
 			//BG_SI_SetDesiredLength(&ci->saber[1], 0, -1);
 		}
+
+		if (CG_StaffSwapBladesIn(cent, ci))
+		{ //so it neither ignites in mid air while the hilt is still on his back, nor stays lit in his
+		  //hand while he is reaching back to put it away
+			BG_SI_SetDesiredLength(&ci->saber[0], 0, -1);
+		}
 		/*
 		else
 		{
@@ -13605,6 +13863,17 @@ stillDoSaber:
 			trap->G2API_RemoveGhoul2Model(&(cent->ghoul2), 1);
 			g2HasWeapon = qfalse;
 		}
+	}
+
+	if (cent->currentState.weapon == WP_SABER
+		&& CG_StaffSwapPhase(cent, ci) == STAFFSWAP_ONBACK
+		&& trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 1))
+	{ //The hilt is drawn on his back for this part of the swap, so his hand has to be empty - but
+	  //only while the saber is still the weapon, since once it has changed, index 1 holds whatever
+	  //he switched to. Ask ghoul2 rather than trusting g2HasWeapon: the saber gets bolted back on
+	  //above without that local being put straight again, so it goes stale just when this fires.
+		trap->G2API_RemoveGhoul2Model(&(cent->ghoul2), 1);
+		g2HasWeapon = qfalse;
 	}
 
 	if (iwantout)

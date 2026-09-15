@@ -154,6 +154,15 @@ XCVAR_DEF( cg_holsteredSaberBolt2,				"lfemurX",	NULL,				CVAR_ROM )
 XCVAR_DEF( cg_holsteredSaberPos,				"0 3.5 0",	NULL,				CVAR_ROM )
 XCVAR_DEF( cg_holsteredSaberAng1,				"0 0 270",	NULL,				CVAR_ROM )
 XCVAR_DEF( cg_holsteredSaberAng2,				"0 0 270",	NULL,				CVAR_ROM )
+//A staff is slung across the back instead of the hip (JA+ plugin 9), off the same *back tag JA+
+//uses. The 150 roll is JA+'s own: its client rolls the hilt by that before multiplying it against
+//the bolt matrix, which is where the diagonal carry comes from. Pos nudges along the tag's axes.
+XCVAR_DEF( cg_holsteredStaffBolt,				"*back",	NULL,				0 )
+XCVAR_DEF( cg_holsteredStaffPos,				"0 0 0",	NULL,				0 )
+XCVAR_DEF( cg_holsteredStaffAng,				"0 0 150",	NULL,				0 )
+//how far into the JA+ draw animation the hand closes around the hilt, 0 to 1
+XCVAR_DEF( cg_holsteredStaffSwap,				"0.45",		NULL,				0 )
+XCVAR_DEF( cg_holsteredStaffDebug,				"0",		NULL,				0 )
 XCVAR_DEF( cg_drawPlayerNames,					"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawPlayerNamesScale,				"0.5",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_hideDuelerNames,					"0",	NULL,					CVAR_ARCHIVE )
@@ -191,7 +200,7 @@ XCVAR_DEF( cg_drawHud,							"1",		NULL,				CVAR_ARCHIVE )
 XCVAR_DEF( cg_predictKnockback,					"0",		NULL,				0 )
 
 
-XCVAR_DEF( cp_pluginDisable,					"1568",		NULL,				CVAR_ARCHIVE|CVAR_USERINFO ) //Disable all plugins except ledgegrab and new force effect
+XCVAR_DEF( cp_pluginDisable,					"1056",		NULL,				CVAR_ARCHIVE|CVAR_USERINFO ) //as before minus bit 9, so a JA+ server holsters a staff to the back
 XCVAR_DEF( com_maxFPS,							"125",		NULL,				CVAR_ARCHIVE )
 XCVAR_DEF( cg_displayCameraPosition,		"1 80 16",		NULL,				CVAR_ROM|CVAR_USERINFO )
 XCVAR_DEF( cg_displayNetSettings,			"125 0 125",	NULL,				CVAR_ROM|CVAR_USERINFO )
