@@ -9942,6 +9942,15 @@ void CG_ChatBox_AddString(char *chatStr)
 	chatBoxItem_t *chat = &cg.chatItems[cg.chatItemActive];
 	char tempChatStr[MAX_SAY_TEXT+MAX_NETNAME] = { 0 }, *r = chatStr, *w = tempChatStr;
 	float chatLen;
+	char cutoffColorChar = COLOR_WHITE; //default/fallback if the cvar isn't a single digit 0-9
+	char cutoffColorStr[3];
+
+	if (cg_chatBoxShowCutoffColor.string[0] >= '0' && cg_chatBoxShowCutoffColor.string[0] <= '9' && cg_chatBoxShowCutoffColor.string[1] == '\0') {
+		cutoffColorChar = cg_chatBoxShowCutoffColor.string[0];
+	}
+	cutoffColorStr[0] = Q_COLOR_ESCAPE;
+	cutoffColorStr[1] = cutoffColorChar;
+	cutoffColorStr[2] = '\0';
 
 	if (cg_logChat.integer & JAPRO_CHATLOG_ENABLE) {
 		CG_LogPrintf(cg.log.file, "%s\n", chatStr);
@@ -10091,11 +10100,11 @@ void CG_ChatBox_AddString(char *chatStr)
 			while (chat->string[i])
 			{
 				if (cg_chatBoxShowCutoff.integer) {
-					if (i == MAX_SAY_TEXT) { //at the max length of the original JAMP chatbox, insert white color code
-						CG_ChatBox_StrInsert(chat->string, i, S_COLOR_WHITE);
+					if (i == MAX_SAY_TEXT) { //at the max length of the original JAMP chatbox, insert cutoff color code
+						CG_ChatBox_StrInsert(chat->string, i, cutoffColorStr);
 					}
-					else if (i > MAX_SAY_TEXT && Q_IsColorString(&chat->string[i])) { //already past max length but we have a color code, skip it so it stays white
-						chat->string[i+1] = COLOR_WHITE;
+					else if (i > MAX_SAY_TEXT && Q_IsColorString(&chat->string[i])) { //already past max length but we have a color code, skip it so it stays the cutoff color
+						chat->string[i+1] = cutoffColorChar;
 					}
 				}
 
@@ -10160,9 +10169,9 @@ void CG_ChatBox_AddString(char *chatStr)
 			qboolean draw = qfalse;
 
 			if (cg_chatBoxShowCutoff.integer) { //no idea why this needs to be offset by 2 here
-				if (r == (MAX_SAY_TEXT - 2)) { //at the max length of the original JAMP chatbox, insert white color code
+				if (r == (MAX_SAY_TEXT - 2)) { //at the max length of the original JAMP chatbox, insert cutoff color code
 					emojiStr[w++] = Q_COLOR_ESCAPE;
-					emojiStr[w++] = COLOR_WHITE;
+					emojiStr[w++] = cutoffColorChar;
 					if (Q_IsColorString(&chat->string[r]))
 						r += 2;
 				}
