@@ -30,6 +30,16 @@ FORCE INTERFACE
 
 // use this to get a demo build without an explicit demo build, i.e. to get the demo ui files to build
 #include "ui_local.h"
+
+// Leave the shared table at its base costs: BG_LegalizedForcePowers applies
+// freeSaber itself. Mutating it makes validation depend on UI refresh order.
+static int UI_ForcePowerCost(int power, int rank) {
+	if (ui_freeSaber.integer && rank == FORCE_LEVEL_1 &&
+		(power == FP_SABER_OFFENSE || power == FP_SABER_DEFENSE)) {
+		return 0;
+	}
+	return bgForcePowerCost[power][rank];
+}
 #include "qcommon/qfiles.h"
 #include "ui_force.h"
 
@@ -161,7 +171,7 @@ void UI_DrawForceStars(rectDef_t *rect, float scale, vec4_t color, int textStyle
 
 		for (i=FORCE_LEVEL_1;i<=max;i++)
 		{
-			starcolor = bgForcePowerCost[forceindex][i];
+			starcolor = UI_ForcePowerCost(forceindex, i);
 
 			if (uiForcePowersDisabled[forceindex])
 			{
@@ -391,8 +401,6 @@ void UpdateForceUsed()
 	// Set the cost of the saberattack according to whether its free.
 	if (ui_freeSaber.integer)
 	{	// Make saber free
-		bgForcePowerCost[FP_SABER_OFFENSE][FORCE_LEVEL_1] = 0;
-		bgForcePowerCost[FP_SABER_DEFENSE][FORCE_LEVEL_1] = 0;
 		// Make sure that we have one freebie in saber if applicable.
 		if (uiForcePowersRank[FP_SABER_OFFENSE]<1)
 		{
@@ -413,8 +421,6 @@ void UpdateForceUsed()
 	}
 	else
 	{	// Make saber normal cost
-		bgForcePowerCost[FP_SABER_OFFENSE][FORCE_LEVEL_1] = 1;
-		bgForcePowerCost[FP_SABER_DEFENSE][FORCE_LEVEL_1] = 1;
 		// Also, check if there is no saberattack.  If there isn't, there had better not be any defense or throw!
 		if (uiForcePowersRank[FP_SABER_OFFENSE]<1)
 		{
@@ -462,7 +468,7 @@ void UpdateForceUsed()
 				}
 				else
 				{	// Check if we can accrue the cost of this power.
-					if (bgForcePowerCost[curpower][currank] > uiForceAvailable)
+					if (UI_ForcePowerCost(curpower, currank) > uiForceAvailable)
 					{	// We can't afford this power.  Break to the next one.
 						// Remove this power from the player's roster.
 						uiForcePowersRank[curpower] = currank-1;
@@ -470,8 +476,8 @@ void UpdateForceUsed()
 					}
 					else
 					{	// Sure we can afford it.
-						uiForceUsed += bgForcePowerCost[curpower][currank];
-						uiForceAvailable -= bgForcePowerCost[curpower][currank];
+						uiForceUsed += UI_ForcePowerCost(curpower, currank);
+						uiForceAvailable -= UI_ForcePowerCost(curpower, currank);
 					}
 				}
 			}
@@ -618,13 +624,13 @@ void UI_ReadLegalForce(void)
 		// Accrue cost for each assigned rank for this power.
 		for (currank=FORCE_LEVEL_1;currank<=forcePowerRank;currank++)
 		{
-			if (bgForcePowerCost[c][currank] > uiForceAvailable)
+			if (UI_ForcePowerCost(c, currank) > uiForceAvailable)
 			{	// Break out, we can't afford any more power.
 				break;
 			}
 			// Pay for this rank of this power.
-			uiForceUsed += bgForcePowerCost[c][currank];
-			uiForceAvailable -= bgForcePowerCost[c][currank];
+			uiForceUsed += UI_ForcePowerCost(c, currank);
+			uiForceAvailable -= UI_ForcePowerCost(c, currank);
 
 			uiForcePowersRank[c]++;
 		}
@@ -1120,22 +1126,22 @@ qboolean UI_ForcePowerRank_HandleKey(int flags, float *special, int key, int num
 		if (raising)
 		{	// Check if we can accrue the cost of this power.
 			rank = uiForcePowersRank[forcepower]+1;
-			if (bgForcePowerCost[forcepower][rank] > uiForceAvailable)
+			if (UI_ForcePowerCost(forcepower, rank) > uiForceAvailable)
 			{	// We can't afford this power.  Abandon ship.
 				return qtrue;
 			}
 			else
 			{	// Sure we can afford it.
-				uiForceUsed += bgForcePowerCost[forcepower][rank];
-				uiForceAvailable -= bgForcePowerCost[forcepower][rank];
+				uiForceUsed += UI_ForcePowerCost(forcepower, rank);
+				uiForceAvailable -= UI_ForcePowerCost(forcepower, rank);
 				uiForcePowersRank[forcepower]=rank;
 			}
 		}
 		else
 		{	// Lower the point.
 			rank = uiForcePowersRank[forcepower];
-			uiForceUsed -= bgForcePowerCost[forcepower][rank];
-			uiForceAvailable += bgForcePowerCost[forcepower][rank];
+			uiForceUsed -= UI_ForcePowerCost(forcepower, rank);
+			uiForceAvailable += UI_ForcePowerCost(forcepower, rank);
 			uiForcePowersRank[forcepower]--;
 		}
 
@@ -1385,13 +1391,13 @@ void UI_ForceConfigHandle( int oldindex, int newindex )
 		// Accrue cost for each assigned rank for this power.
 		for (currank=FORCE_LEVEL_1;currank<=forcePowerRank;currank++)
 		{
-			if (bgForcePowerCost[c][currank] > uiForceAvailable)
+			if (UI_ForcePowerCost(c, currank) > uiForceAvailable)
 			{	// Break out, we can't afford any more power.
 				break;
 			}
 			// Pay for this rank of this power.
-			uiForceUsed += bgForcePowerCost[c][currank];
-			uiForceAvailable -= bgForcePowerCost[c][currank];
+			uiForceUsed += UI_ForcePowerCost(c, currank);
+			uiForceAvailable -= UI_ForcePowerCost(c, currank);
 
 			uiForcePowersRank[c]++;
 		}

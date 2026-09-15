@@ -3351,6 +3351,10 @@ Called before every level change or subsystem restart
 */
 void CG_Shutdown( void )
 {
+	// Keep the last known saber costs until the next gamestate supplies its rules.
+	// A temporary paid-saber reset makes the UI trim fully spent loadouts during
+	// reconnect; restoring free costs afterwards cannot restore the lost ranks.
+	// CG_SyncFreeSaber initializes the next server's rules independently.
 	BG_ClearAnimsets(); //free all dynamic allocations made through the engine
 
 	CG_FreeCosmetics();

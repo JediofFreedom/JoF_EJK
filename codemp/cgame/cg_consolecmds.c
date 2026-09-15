@@ -2870,7 +2870,39 @@ int cmdcmp( const void *a, const void *b ) {
 	return Q_stricmp( (const char *)a, ((consoleCommand_t*)b)->cmd );
 }
 
+static void CG_ForceInfo_f(void) {
+	const char *info = CG_ConfigString(CS_SERVERINFO);
+	char requested[128];
+	char freeSaber[16];
+	int i;
+	const char *keys[] = { "mapname", "g_gametype", "g_maxForceRank",
+		"g_forcePowerDisable", "g_weaponDisable", "g_duelWeaponDisable", "g_jediVmerc" };
+
+	for (i = 0; i < ARRAY_LEN(keys); i++) {
+		const char *value = Info_ValueForKey(info, keys[i]);
+		trap->Print("%s: %s\n", keys[i], value[0] ? value : "<not advertised>");
+	}
+	trap->Cvar_VariableStringBuffer("forcepowers", requested, sizeof(requested));
+	trap->Cvar_VariableStringBuffer("ui_freeSaber", freeSaber, sizeof(freeSaber));
+	trap->Print("ui_freeSaber: %s; requested forcepowers: %s\n", freeSaber, requested);
+	if (!cg.snap) {
+		return;
+	}
+	// The network sends only selected power ranks, not the full server loadout.
+	trap->Print("Networked ranks (viewed client %d): Jump %d; Sense %d\n",
+		cg.snap->ps.clientNum, cg.snap->ps.fd.forcePowerLevel[FP_LEVITATION],
+		cg.snap->ps.fd.forcePowerLevel[FP_SEE]);
+	trap->Print("Other applied ranks, including Saber Offense/Defense, are not networked.\n");
+	trap->Print("Style %d; holstered %d; weapon %d; weaponTime %d\n",
+		cg.snap->ps.fd.saberAnimLevel,
+		cg.snap->ps.saberHolstered, cg.snap->ps.weapon, cg.snap->ps.weaponTime);
+	trap->Print("health %d; pm_type %d; handExtend %d; saberLockTime %d; serverTime %d\n",
+		cg.snap->ps.stats[STAT_HEALTH], cg.snap->ps.pm_type, cg.snap->ps.forceHandExtend,
+		cg.snap->ps.saberLockTime, cg.snap->serverTime);
+}
+
 static consoleCommand_t	commands[] = {
+	{ "forceinfo", CG_ForceInfo_f },
 	{ "+scores",					CG_ScoresDown_f },
 	{ "-scores",					CG_ScoresUp_f },
 	{ "briefing",					CG_SiegeBriefing_f },

@@ -235,9 +235,12 @@ void UI_RegisterCvars( void ) {
 	startup = qfalse;
 }
 
+extern void UpdateForceUsed(void);
+
 void UI_UpdateCvars( void ) {
 	size_t i = 0;
 	const cvarTable_t *cv = NULL;
+	int oldFreeSaber = ui_freeSaber.integer;
 
 	for ( i=0, cv=uiCvarTable; i<uiCvarTableSize; i++, cv++ ) {
 		if ( cv->vmCvar ) {
@@ -248,5 +251,9 @@ void UI_UpdateCvars( void ) {
 					cv->update();
 			}
 		}
+	}
+	if (oldFreeSaber != ui_freeSaber.integer) {
+		// Refresh the displayed budget before painting or accepting another rank.
+		UpdateForceUsed();
 	}
 }
