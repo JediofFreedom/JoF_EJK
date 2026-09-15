@@ -2466,6 +2466,35 @@ qboolean ForcePower_Valid(int i)
 CG_DrawForceSelect
 ===================
 */
+static qboolean CG_ForceSelectUsesFlamethrower( int power )
+{
+	// JA+ merc mode uses bit 12, also checked by CG_DrawHolsteredSaber.
+	// EF_BOBAFIRE only describes active firing, not owning the flamethrower.
+	// Empower overrides merc even when the server leaves the merc bit set.
+	return power == FP_LIGHTNING && cgs.serverMod == SVMOD_JAPLUS &&
+		cg.snap && (cg.snap->ps.eFlags & 0x1000) &&
+		!(cg.snap->ps.eFlags & EF_EMPOWERED) && !cg.forceSelectLightningOverride;
+}
+
+static qhandle_t CG_ForceSelectIcon( int power )
+{
+	if ( power == REPULSE_WHEEL_SLOT )
+	{
+		return cgs.media.repulseIcon;
+	}
+	if ( power == DASH_WHEEL_SLOT )
+	{
+		return cgs.media.dashIcon;
+	}
+	if ( CG_ForceSelectUsesFlamethrower( power ) )
+	{
+		return cgs.media.flamethrowerIcon;
+	}
+
+	// Stasis has no power index or icon of its own, so it borrows Force Jump.
+	return cgs.media.forcePowerIcons[(power == STASIS_WHEEL_SLOT) ? FP_LEVITATION : power];
+}
+
 void CG_DrawForceSelect( void )
 {
 	int		i;
@@ -2476,7 +2505,8 @@ void CG_DrawForceSelect( void )
 	int		sideMax,holdCount;
 	int		yOffset = 0;
 	int		wheel[NUM_FORCE_POWERS + 3];
-	int		wheelCount, cur = -1, idx, drawn, power, icon;
+	int		wheelCount, cur = -1, idx, drawn, power;
+	qhandle_t icon;
 
 	// don't display if dead
 	if ( cg.snap->ps.stats[STAT_HEALTH] <= 0 )
@@ -2566,39 +2596,18 @@ void CG_DrawForceSelect( void )
 		}
 
 		power = wheel[idx];
-		if ( power == REPULSE_WHEEL_SLOT ) {
-			if (cgs.media.repulseIcon) {
-				CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.repulseIcon );
-				holdX -= (smallIconSize+pad) * cgs.widthRatioCoef;
-			}
-		} else if ( power == DASH_WHEEL_SLOT ) {
-			if (cgs.media.dashIcon) {
-				CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.dashIcon );
-				holdX -= (smallIconSize+pad) * cgs.widthRatioCoef;
-			}
-		} else {
-			// stasis (18) has no icon of its own; borrow the jump (FP_LEVITATION) icon
-			icon = (power == STASIS_WHEEL_SLOT) ? FP_LEVITATION : power;
-			if (cgs.media.forcePowerIcons[icon]) {
-				CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.forcePowerIcons[icon] );
-				holdX -= (smallIconSize+pad) * cgs.widthRatioCoef;
-			}
+		icon = CG_ForceSelectIcon( power );
+		if ( icon ) {
+			CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, icon );
+			holdX -= (smallIconSize+pad) * cgs.widthRatioCoef;
 		}
 	}
 
 	// Current center icon
 	power = wheel[cur];
-	if ( power == REPULSE_WHEEL_SLOT ) {
-		if (cgs.media.repulseIcon)
-			CG_DrawPic( x-(bigIconSize/2) * cgs.widthRatioCoef, (y-((bigIconSize-smallIconSize)/2)) + yOffset, bigIconSize*cgs.widthRatioCoef, bigIconSize, cgs.media.repulseIcon );
-	} else if ( power == DASH_WHEEL_SLOT ) {
-		if (cgs.media.dashIcon)
-			CG_DrawPic( x-(bigIconSize/2) * cgs.widthRatioCoef, (y-((bigIconSize-smallIconSize)/2)) + yOffset, bigIconSize*cgs.widthRatioCoef, bigIconSize, cgs.media.dashIcon );
-	} else {
-		icon = (power == STASIS_WHEEL_SLOT) ? FP_LEVITATION : power;
-		if (cgs.media.forcePowerIcons[icon])
-			CG_DrawPic( x-(bigIconSize/2) * cgs.widthRatioCoef, (y-((bigIconSize-smallIconSize)/2)) + yOffset, bigIconSize*cgs.widthRatioCoef, bigIconSize, cgs.media.forcePowerIcons[icon] ); //only cache the icon for display
-	}
+	icon = CG_ForceSelectIcon( power );
+	if ( icon )
+		CG_DrawPic( x-(bigIconSize/2) * cgs.widthRatioCoef, (y-((bigIconSize-smallIconSize)/2)) + yOffset, bigIconSize*cgs.widthRatioCoef, bigIconSize, icon );
 
 	// Work forwards (right) from the centered icon, walking the wheel list
 	holdX = x + ((bigIconSize/2) + pad) * cgs.widthRatioCoef;
@@ -2612,22 +2621,10 @@ void CG_DrawForceSelect( void )
 		}
 
 		power = wheel[idx];
-		if ( power == REPULSE_WHEEL_SLOT ) {
-			if (cgs.media.repulseIcon) {
-				CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.repulseIcon );
-				holdX += (smallIconSize+pad) * cgs.widthRatioCoef;
-			}
-		} else if ( power == DASH_WHEEL_SLOT ) {
-			if (cgs.media.dashIcon) {
-				CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.dashIcon );
-				holdX += (smallIconSize+pad) * cgs.widthRatioCoef;
-			}
-		} else {
-			icon = (power == STASIS_WHEEL_SLOT) ? FP_LEVITATION : power;
-			if (cgs.media.forcePowerIcons[icon]) {
-				CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.forcePowerIcons[icon] ); //only cache the icon for display
-				holdX += (smallIconSize+pad) * cgs.widthRatioCoef;
-			}
+		icon = CG_ForceSelectIcon( power );
+		if ( icon ) {
+			CG_DrawPic( holdX, y + yOffset, smallIconSize * cgs.widthRatioCoef, smallIconSize, icon );
+			holdX += (smallIconSize+pad) * cgs.widthRatioCoef;
 		}
 	}
 
@@ -2642,6 +2639,10 @@ void CG_DrawForceSelect( void )
 	else if ( cg.forceSelect == DASH_WHEEL_SLOT )
 	{
 		CG_DrawProportionalString(SCREEN_WIDTH / 2, y + 30 + yOffset, "Dash", UI_CENTER | UI_SMALLFONT, colorTable[CT_ICON_BLUE]);
+	}
+	else if ( CG_ForceSelectUsesFlamethrower( cg.forceSelect ) )
+	{
+		CG_DrawProportionalString(SCREEN_WIDTH / 2, y + 30 + yOffset, "Flamethrower", UI_CENTER | UI_SMALLFONT, colorTable[CT_ICON_BLUE]);
 	}
 	else if ( showPowersName[cg.forceSelect] )
 	{

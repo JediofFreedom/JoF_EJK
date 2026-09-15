@@ -34,6 +34,29 @@ static void CG_LogStrafeTrail(void);
 #endif
 static void CG_LastWeapon(void);
 
+static void CG_UpdateFlamethrowerOverride(const playerState_t *ps, const playerState_t *ops) {
+	// Observe every snapshot, not just frames in which the force wheel is open.
+	if (!ops || ps->clientNum != ops->clientNum ||
+		ps->persistant[PERS_SPAWN_COUNT] != ops->persistant[PERS_SPAWN_COUNT] ||
+		cgs.serverMod != SVMOD_JAPLUS || !(ps->eFlags & 0x1000)) {
+		cg.forceSelectLightningOverride = qfalse;
+	}
+	if (cgs.serverMod != SVMOD_JAPLUS || !(ps->eFlags & 0x1000)) {
+		return;
+	}
+	if (ps->eFlags & EF_BOBAFIRE) {
+		// Positive evidence of flamethrower use also restores a later merc grant
+		// when the server never cleared the old merc bit between grants.
+		cg.forceSelectLightningOverride = qfalse;
+	} else if (!(ps->eFlags & EF_EMPOWERED) &&
+		ps->activeForcePass > 0 && ps->activeForcePass <= FORCE_LEVEL_3) {
+		// This is the lightning branch of CG_Player, without EF_BOBAFIRE.
+		// Higher activeForcePass values represent Drain, not Lightning.
+		// Empower temporarily replaces merc, so don't latch its lightning.
+		cg.forceSelectLightningOverride = qtrue;
+	}
+}
+
 /*
 ==================
 CG_ResetEntity
@@ -119,6 +142,7 @@ void CG_SetInitialSnapshot( snapshot_t *snap ) {
 	entityState_t	*state;
 
 	cg.snap = snap;
+	CG_UpdateFlamethrowerOverride(&snap->ps, NULL);
 	CG_PrepareForceOwnSaberSounds(&snap->ps, NULL);
 
 	if ((cg_entities[snap->ps.clientNum].ghoul2 == NULL) && trap->G2_HaveWeGhoul2Models(cgs.clientinfo[snap->ps.clientNum].ghoul2Model))
@@ -218,6 +242,7 @@ static void CG_TransitionSnapshot( void ) {
 	// move nextSnap to snap and do the transitions
 	oldFrame = cg.snap;
 	cg.snap = cg.nextSnap;
+	CG_UpdateFlamethrowerOverride(&cg.snap->ps, &oldFrame->ps);
 	// Resolve paired dual-saber sounds before any snapshot events are dispatched.
 	CG_PrepareForceOwnSaberSounds(&cg.snap->ps, &oldFrame->ps);
 

@@ -1143,6 +1143,7 @@ typedef struct cg_s {
 	short		lastWeaponSelect[2];//japro
 
 	int			forceSelect;
+	qboolean	forceSelectLightningOverride; // Observed real lightning despite JA+'s merc bit.
 	int			itemSelect;
 
 	// auto rotating items
@@ -1901,6 +1902,7 @@ typedef struct cgMedia_s {
 	qhandle_t forcePowerIcons[NUM_FORCE_POWERS];
 	qhandle_t repulseIcon;		// JoF: custom Force Repulse wheel icon
 	qhandle_t dashIcon;			// JoF: custom Force Dash wheel icon
+	qhandle_t flamethrowerIcon;	// JoF: JA+ merc-mode replacement for Force Lightning
 
 	qhandle_t rageRecShader;
 
