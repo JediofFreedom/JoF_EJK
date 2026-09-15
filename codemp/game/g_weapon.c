@@ -720,6 +720,7 @@ static void WP_DisruptorMainFire( gentity_t *ent )
 
 			tent = G_TempEntity( tr.endpos, EV_DISRUPTOR_HIT );
 			tent->s.eventParm = DirToByte( tr.plane.normal );
+			tent->s.otherEntityNum = tr.entityNum;
 			if (traceEnt->client)
 			{
 				tent->s.weapon = 1;
@@ -995,6 +996,7 @@ void WP_DisruptorAltFire( gentity_t *ent )
 
 						tent = G_TempEntity( tr.endpos, EV_DISRUPTOR_HIT );
 						tent->s.eventParm = DirToByte( tr.plane.normal );
+						tent->s.otherEntityNum = tr.entityNum;
 					}
 				 }
 				 else
@@ -1045,6 +1047,7 @@ void WP_DisruptorAltFire( gentity_t *ent )
 
 				tent = G_TempEntity( tr.endpos, EV_DISRUPTOR_HIT );
 				tent->s.eventParm = DirToByte( tr.plane.normal );
+				tent->s.otherEntityNum = tr.entityNum;
 				if (traceEnt->client)
 				{
 					tent->s.weapon = 1;

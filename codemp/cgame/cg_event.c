@@ -2973,7 +2973,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		ByteToDir( es->eventParm, dir );
 		if (es->weapon)
 		{ //client
-			FX_DisruptorHitPlayer( cent->lerpOrigin, dir, qtrue );
+			FX_DisruptorHitPlayer( cent->lerpOrigin, dir, !CG_IsDroidEntity(es->otherEntityNum) );
 		}
 		else
 		{ //non-client
@@ -3988,7 +3988,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		if (cg.predictedPlayerState.duelInProgress && (cg.predictedPlayerState.clientNum != es->number && cg.predictedPlayerState.duelIndex != es->number))
 			break;
 
-		if (cg_blood.integer) {
+		if (cg_blood.integer && !CG_IsDroidEntity(es->number)) {
 			trap->S_StartSound(NULL, es->number, CHAN_BODY, cgs.media.gibSound);
 			CG_GibPlayer(cent->lerpOrigin);
 		}

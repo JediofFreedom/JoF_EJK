@@ -1093,6 +1093,8 @@ static void CG_General( centity_t *cent ) {
 		cent->currentState.weapon == G2_MODEL_PART)
 	{ //special case for client limbs
 		centity_t *clEnt;
+		int ownerNum = cent->currentState.modelindex >= 0 ?
+			cent->currentState.modelindex : cent->currentState.otherEntityNum2;
 		int dismember_settings = cg_dismember.integer;
 		float smoothFactor = 0.5f*timescale.value;
 		int k = 0;
@@ -1100,14 +1102,10 @@ static void CG_General( centity_t *cent ) {
 
 		doNotSetModel = qtrue;
 
-		if (cent->currentState.modelindex >= 0)
-		{
-			clEnt = &cg_entities[cent->currentState.modelindex];
+		if (ownerNum < 0 || ownerNum >= ENTITYNUM_NONE) {
+			return;
 		}
-		else
-		{
-			clEnt = &cg_entities[cent->currentState.otherEntityNum2];
-		}
+		clEnt = &cg_entities[ownerNum];
 
 		if (!dismember_settings)
 		{ //This client does not wish to see dismemberment.
@@ -1156,6 +1154,9 @@ static void CG_General( centity_t *cent ) {
 
 			cent->bolt4 = -1;
 			cent->trailTime = 0;
+			// Detached parts are ET_GENERAL, not ET_NPC. Keep the owner's type
+			// with the copied model so removal/reuse of the NPC cannot start blood.
+			cent->limbNoSmoke = CG_IsDroidEntity(ownerNum);
 
 			if (cent->currentState.modelGhoul2 == G2_MODELPART_HEAD)
 			{
@@ -1281,7 +1282,7 @@ static void CG_General( centity_t *cent ) {
 			}
 
 			newBolt = trap->G2API_AddBolt( cent->ghoul2, 0, limbTagName );
-			if ( newBolt != -1 )
+			if ( newBolt != -1 && !cent->limbNoSmoke )
 			{
 				vec3_t boltOrg, boltAng;
 
@@ -1308,7 +1309,7 @@ static void CG_General( centity_t *cent ) {
 			trap->G2API_SetSurfaceOnOff(clEnt->ghoul2, stubCapName, 0);
 
 			newBolt = trap->G2API_AddBolt( clEnt->ghoul2, 0, stubTagName );
-			if ( newBolt != -1 )
+			if ( newBolt != -1 && !cent->limbNoSmoke )
 			{
 				vec3_t boltOrg, boltAng;
 
@@ -1362,7 +1363,7 @@ static void CG_General( centity_t *cent ) {
 			cent->lerpOrigin[k]=cent->turAngles[k];
 		}
 
-		if (cent->ghoul2 && cent->bolt4 != -1 && cent->trailTime < cg.time)
+		if (!cent->limbNoSmoke && cent->ghoul2 && cent->bolt4 != -1 && cent->trailTime < cg.time)
 		{
 			if ( cent->bolt4 != -1 &&
 				(cent->currentState.pos.trDelta[0] || cent->currentState.pos.trDelta[1] || cent->currentState.pos.trDelta[2]) )

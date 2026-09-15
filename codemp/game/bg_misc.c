@@ -474,6 +474,30 @@ qboolean BG_WeaponIsVehicleGun(int weapon)
 	}
 }
 
+qboolean BG_IsDroidClass(class_t npcClass)
+{
+	switch (npcClass)
+	{
+	case CLASS_ATST:
+	case CLASS_GONK:
+	case CLASS_INTERROGATOR:
+	case CLASS_MARK1:
+	case CLASS_MARK2:
+	case CLASS_GALAKMECH:
+	case CLASS_MOUSE:
+	case CLASS_PROBE:
+	case CLASS_PROTOCOL:
+	case CLASS_R2D2:
+	case CLASS_R5D2:
+	case CLASS_REMOTE:
+	case CLASS_SEEKER:
+	case CLASS_SENTRY:
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
 qboolean BG_FileExists( const char *fileName ) {
 	if ( fileName && fileName[0] ) {
 		fileHandle_t f = NULL_FILE;
