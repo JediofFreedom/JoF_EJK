@@ -27,6 +27,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // It also handles local physics interaction, like fragments bouncing off walls
 
 #include "cg_local.h"
+#include "game/bg_pickup.h"
 
 static	pmove_t		cg_pmove;
 
@@ -697,6 +698,9 @@ static void CG_TouchItem( centity_t *cent ) {
 	}
 
 	item = &bg_itemlist[ cent->currentState.modelindex ];
+	if (CG_UsesPickupConfirmation() && BG_ConfirmedPickupType(item->giType)) {
+		return; // Only this server's accepted pickups produce local feedback.
+	}
 
 	//Currently there is no reliable way of knowing if the client has touched a certain item before another if they are next to each other, or rather
 	//if the server has touched them in the same order. This results often in grabbing an item in the prediction and the server giving you the other

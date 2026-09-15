@@ -3896,6 +3896,7 @@ static void CG_DrawPickupItem( void ) {
 	int		value;
 	float	*fadeColor;
 
+	CG_AdvancePickupQueue();
 	value = cg.itemPickup;
 	if ( value && cg_items[ value ].icon != -1 )
 	{
