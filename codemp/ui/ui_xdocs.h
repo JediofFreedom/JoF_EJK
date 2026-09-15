@@ -72,6 +72,12 @@
 
 // EternalJK HUD cvars:
 
+XDOCS_CVAR_DEF("cg_saberRainSteam", "Steam on exposed lightsabers during rain",
+	SETTING("0", "Off") NL
+	SETTING("1", "On for everyone (default)") NL
+	SETTING("2", "Only on your own lightsabers")
+)
+
 //XDOCS_CVAR_DEF("cg_", "Description",
 	//"More somethings if needed." NL
 	//SETTING("0", "something something probably (Base behavior)") NL

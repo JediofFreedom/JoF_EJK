@@ -10377,6 +10377,22 @@ static QINLINE void CG_ChatBox_DrawStrings(void)
 	}
 }
 
+static void CG_DrawForceSenseOverlay( void )
+{
+	if (cgs.serverMod != SVMOD_JAPLUS ||
+		!(cp_pluginDisable.integer & JAPRO_PLUGIN_NEWSIGHTEFFECT) || !cg.snap ||
+		cg.snap->ps.stats[STAT_HEALTH] <= 0 ||
+		cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR ||
+		!(cg.snap->ps.fd.forcePowersActive & (1 << FP_SEE)))
+		return;
+
+	// The original SP shader supplies the rotating, pulsing purple ring.
+	// Keep this opt-in effect independent of the generic screen-tint setting.
+	trap->R_SetColor(NULL);
+	CG_DrawPic(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, cgs.media.forceSenseOverlay);
+	trap->R_SetColor(NULL);
+}
+
 static void CG_Draw2DScreenTints( void )
 {
 	float			rageTime, rageRecTime, absorbTime, protectTime, ysalTime;
@@ -10877,6 +10893,7 @@ static void CG_Draw2D( void ) {
 	}
 
 	CG_Draw2DScreenTints();
+	CG_DrawForceSenseOverlay();
 
 	if (cg.snap->ps.rocketLockIndex != ENTITYNUM_NONE && (cg.time - cg.snap->ps.rocketLockTime) > 0)
 	{

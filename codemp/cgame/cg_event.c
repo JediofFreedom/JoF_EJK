@@ -1465,6 +1465,94 @@ static qboolean isGlobalVGS(const char *s) {
 	return qfalse;
 }
 
+// Toggle sounds sent by G_Sound contain the server hilt's sound, not the
+// client-only override. Do not globally replace that sound for other players.
+void CG_PrepareForceOwnSaberSounds(const playerState_t *ps, const playerState_t *oldPs) {
+	int active, oldActive;
+	memset(cg.forceSaberSoundPending, 0, sizeof(cg.forceSaberSoundPending));
+	memset(cg.forceSaberSoundUsed, 0, sizeof(cg.forceSaberSoundUsed));
+	if (!oldPs || ps->clientNum != cg.clientNum || oldPs->clientNum != cg.clientNum)
+		return;
+	// For duals: 0 = both active, 1 = primary only, 2 = both off.
+	active = ps->saberHolstered == 2 ? 0 : ps->saberHolstered == 1 ? 1 : 3;
+	oldActive = oldPs->saberHolstered == 2 ? 0 : oldPs->saberHolstered == 1 ? 1 : 3;
+	cg.forceSaberSoundPending[0] = active & ~oldActive;
+	cg.forceSaberSoundPending[1] = oldActive & ~active;
+}
+
+static sfxHandle_t CG_ForceOwnSaberSound(const entityState_t *es, int source, sfxHandle_t sound) {
+	clientInfo_t *ci;
+	int matches[2] = {0, 0}, available[2], preferred[2];
+	int i, j;
+	vec3_t delta;
+	float distance;
+
+	if (!sound || !cg.snap || cg.clientNum < 0 || cg.clientNum >= MAX_CLIENTS ||
+		cg.snap->ps.clientNum != cg.clientNum || !cg_forceOwnSaber.string[0] ||
+		!Q_stricmp(cg_forceOwnSaber.string, "none")) {
+		return sound;
+	}
+	if (source != cg.clientNum) {
+		if (source < MAX_CLIENTS || es->eType != ET_EVENTS + EV_GENERAL_SOUND) {
+			return sound;
+		}
+		// Vanilla G_Sound uses an anonymous, snapped-position temp entity.
+		// Use authoritative positions, not the local player's predicted origin.
+		VectorSubtract(es->pos.trBase, cg.snap->ps.origin, delta);
+		distance = VectorLengthSquared(delta);
+		if (distance > 32 * 32) {
+			return sound;
+		}
+		for (i = 0; i < cg.snap->numEntities; i++) {
+			const entityState_t *other = &cg.snap->entities[i];
+			if (other->number == cg.clientNum ||
+				(other->eType != ET_PLAYER && other->eType != ET_NPC)) {
+				continue;
+			}
+			VectorSubtract(es->pos.trBase, other->pos.trBase, delta);
+			if (VectorLengthSquared(delta) <= distance + 3) {
+				return sound; // Another player is closer, or ownership is ambiguous.
+			}
+		}
+	}
+	ci = &cgs.clientinfo[cg.clientNum];
+	for (i = 0; i < MAX_SABERS; i++) {
+		for (j = 0; j < 2; j++) {
+			sfxHandle_t original = j ? ci->serverSaberSoundOff[i] : ci->serverSaberSoundOn[i];
+			if (original == sound && ci->saber[i].model[0])
+				matches[j] |= 1 << i;
+		}
+	}
+	for (j = 0; j < 2; j++) {
+		available[j] = matches[j] & ~cg.forceSaberSoundUsed[j];
+		preferred[j] = available[j] & cg.forceSaberSoundPending[j];
+	}
+	if (preferred[0] || preferred[1]) {
+		available[0] = preferred[0];
+		available[1] = preferred[1];
+	} else if (!available[0] && !available[1]) {
+		available[0] = matches[0];
+		available[1] = matches[1];
+	}
+	// If the same file is used for ignition AND shutdown, require an actual
+	// state transition to distinguish them rather than guessing a sound type.
+	if ((available[0] && available[1]) || (!available[0] && !available[1]))
+		return sound;
+	j = available[1] ? 1 : 0;
+	if (available[j] == 3 && cg.snap->ps.saberHolstered == 1)
+		available[j] = j ? 2 : 1;
+	// Shared server sounds are emitted once per hilt for a full dual toggle.
+	// Consume each matching slot once so different forced hilts both get heard.
+	for (i = 0; i < MAX_SABERS; i++) {
+		if (available[j] & (1 << i)) {
+			sfxHandle_t custom = j ? ci->saber[i].soundOff : ci->saber[i].soundOn;
+			cg.forceSaberSoundUsed[j] |= 1 << i;
+			return custom ? custom : sound;
+		}
+	}
+	return sound;
+}
+
 static qboolean CG_ProximityCheck(vec3_t pos1, vec3_t pos2) { //Returns qtrue if two vectors are within 32 of eachother in every way?
 	int i;
 	for (i = 0; i <= 2; i++) {
@@ -3699,7 +3787,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			else
 			{
 				if ( cgs.gameSounds[ es->eventParm ] ) {
-					trap->S_StartSound (NULL, es->number, es->saberEntityNum, cgs.gameSounds[ es->eventParm ] );
+					trap->S_StartSound (NULL, es->number, es->saberEntityNum,
+						CG_ForceOwnSaberSound(es, es->number, cgs.gameSounds[ es->eventParm ]) );
 				} else {
 					s = CG_ConfigString( CS_SOUNDS + es->eventParm );
 					trap->S_StartSound (NULL, es->number, es->saberEntityNum, CG_CustomSound( es->number, s ) );
@@ -3796,7 +3885,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		DEBUGNAME("EV_ENTITY_SOUND");
 		//somewhat of a hack - weapon is the caller entity's index, trickedentindex is the proper sound channel
 		if ( cgs.gameSounds[ es->eventParm ] ) {
-			trap->S_StartSound (NULL, es->clientNum, es->trickedentindex, cgs.gameSounds[ es->eventParm ] );
+			trap->S_StartSound (NULL, es->clientNum, es->trickedentindex,
+				CG_ForceOwnSaberSound(es, es->clientNum, cgs.gameSounds[ es->eventParm ]) );
 		} else {
 			s = CG_ConfigString( CS_SOUNDS + es->eventParm );
 			trap->S_StartSound (NULL, es->clientNum, es->trickedentindex, CG_CustomSound( es->clientNum, s ) );

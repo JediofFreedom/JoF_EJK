@@ -354,6 +354,7 @@ XCVAR_DEF( cg_saberDynamicMarks,				"0",					NULL,					CVAR_NONE )
 XCVAR_DEF( cg_saberDynamicMarkTime,				"60000",				NULL,					CVAR_NONE )
 XCVAR_DEF( cg_saberModelTraceEffect,			"0",					NULL,					CVAR_NONE )
 XCVAR_DEF( cg_saberTrail,						"1",					NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_saberRainSteam,					"1",					NULL,					CVAR_ARCHIVE ) // 0 off, 1 everyone, 2 only me
 XCVAR_DEF( cg_saberClash,						"1",					NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_saberClashSize,					"1.0",					CG_SaberClashSizeChange,CVAR_ARCHIVE )
 XCVAR_DEF( cg_shaderSaberCore,					"0.625",				NULL,					CVAR_NONE )

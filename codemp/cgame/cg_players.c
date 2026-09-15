@@ -1381,7 +1381,7 @@ void CG_LoadClientInfo( clientInfo_t *ci, int clientNum ) {
 		for ( i = 0 ; i < MAX_GENTITIES ; i++ ) {
 			if ( cg_entities[i].currentState.clientNum == clientNum
 				&& cg_entities[i].currentState.eType == ET_PLAYER ) {
-				CG_ResetPlayerEntity( &cg_entities[i] );
+				CG_ResetPlayerEntity( &cg_entities[i], qfalse );
 			}
 		}
 
@@ -1474,7 +1474,7 @@ void CG_LoadClientInfo( clientInfo_t *ci, int clientNum ) {
 	for ( i = 0 ; i < MAX_GENTITIES ; i++ ) {
 		if ( cg_entities[i].currentState.clientNum == clientNum
 			&& cg_entities[i].currentState.eType == ET_PLAYER ) {
-			CG_ResetPlayerEntity( &cg_entities[i] );
+			CG_ResetPlayerEntity( &cg_entities[i], qfalse );
 		}
 	}
 }
@@ -2454,6 +2454,25 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	if (clientNum == cg.clientNum && strlen(cg_forceOwnSaber.string) && Q_stricmp(cg_forceOwnSaber.string, "none"))
 	{
 		parsed = sscanf(cg_forceOwnSaber.string, "%s %s", saber1, saber2);
+		if (parsed > 0)
+		{
+			saberInfo_t serverSabers[MAX_SABERS];
+			const char *serverSaber2 = Info_ValueForKey(configstring, "st2");
+			int saberNum;
+
+			memset(serverSabers, 0, sizeof(serverSabers));
+			WP_SetSaber(clientNum, serverSabers, 0, v);
+			if (serverSaber2[0])
+				WP_SetSaber(clientNum, serverSabers, 1, serverSaber2);
+			for (saberNum = 0; saberNum < MAX_SABERS; saberNum++)
+			{
+				if (serverSabers[saberNum].model[0])
+				{
+					newInfo.serverSaberSoundOn[saberNum] = serverSabers[saberNum].soundOn;
+					newInfo.serverSaberSoundOff[saberNum] = serverSabers[saberNum].soundOff;
+				}
+			}
+		}
 		if (parsed > 0 && saber1 && saber1[0] && Q_stricmp(saber1, "none"))
 			v = saber1;
 	}
@@ -4869,6 +4888,35 @@ Description: Makes the player appear to have breath puffs (from the cold).
 Added 11/06/02 by Aurelio Reis.
 Ported to MP 01/14/2019
 */
+// Client time can be corrected backwards after a large server timescale change.
+// A normal breathing cycle never schedules its next puff more than 3s ahead.
+static qboolean CG_UpdateBreathTimers(centity_t *cent)
+{
+	if (cent->breathPuffTime > cg.time &&
+		(double)cent->breathPuffTime - cg.time <= 3000.0)
+		return qfalse;
+
+	if (trap->S_GetVoiceVolume(cent->currentState.number) > 0)
+	{
+		cent->breathPuffTime = cg.time + 300;
+		cent->breathTime = cg.time + 150;
+	}
+	else
+	{
+		cent->breathPuffTime = cg.time + 3000;
+		cent->breathTime = cg.time + 1500;
+	}
+	return qtrue;
+}
+
+static float CG_BreathPitchOffset(int breathTime, int time)
+{
+	// Keep the cosmetic tilt within its normal 3.75-degree range, even if
+	// stale timing state reaches this code before the next breathing update.
+	float phase = (float)fabs((double)breathTime - time);
+	return -Com_Clamp(0.0f, 1500.0f, phase) * 0.0025f;
+}
+
 //extern vmCvar_t	cg_drawBreath;
 static void CG_BreathPuffs( centity_t *cent, vec3_t angles, vec3_t origin )
 {
@@ -4884,21 +4932,8 @@ static void CG_BreathPuffs( centity_t *cent, vec3_t angles, vec3_t origin )
 		return;
 	}
 
-	if (cent->breathPuffTime > cg.time) {
+	if (!CG_UpdateBreathTimers(cent)) {
 		return;
-	}
-
-	//Update these here incase we don't have a head_front bolt.
-	// TODO: It'd be nice if they breath faster when they're more damaged or when running...
-	if (trap->S_GetVoiceVolume(cent->currentState.number) > 0)
-	{//make breath when talking
-		cent->breathPuffTime = cg.time + 300; // every 200 ms
-		cent->breathTime = cg.time + 150;
-	}
-	else
-	{
-		cent->breathPuffTime = cg.time + 3000; // every 3 seconds.
-		cent->breathTime = cg.time + 1500;
 	}
 
 	if (cg_stylePlayer.integer & JAPRO_STYLE_DISABLEBREATHING)
@@ -5137,10 +5172,7 @@ static void CG_G2PlayerAngles( centity_t *cent, matrix3_t legs, vec3_t legsAngle
 			if (cent->currentState.torsoAnim < BOTH_ATTACK1 || cent->currentState.torsoAnim > BOTH_ROLL_STAB ||
 				(cent->currentState.torsoAnim >= BOTH_SABERFAST_STANCE && cent->currentState.torsoAnim <= BOTH_SABERSTAFF_STANCE))
 			{ //not attacking
-				if (cent->breathTime - cg.time < 0)
-					cent->lerpAngles[PITCH] += (float)(cent->breathTime - cg.time) * 0.0025f;
-				else
-					cent->lerpAngles[PITCH] -= (float)(cent->breathTime - cg.time) * 0.0025f;
+				cent->lerpAngles[PITCH] += CG_BreathPitchOffset(cent->breathTime, cg.time);
 			}
 		}
 
@@ -7752,6 +7784,46 @@ void CG_SaberCompWork(vec3_t start, vec3_t end, centity_t *owner, int saberNum, 
 
 qboolean BG_SuperBreakWinAnim( int anim );
 
+static void CG_SaberRainSteam(centity_t *cent, int saberNum, int bladeNum,
+	vec3_t base, vec3_t direction, float length)
+{
+	vec3_t point, sky;
+	vec3_t up = {0, 0, 1};
+	trace_t trace;
+	int contents;
+	int *nextTime = &cent->saberRainSteamTime[saberNum][bladeNum];
+
+	if (!cg.saberRainActive || cg.saberRainFrozen || cl_paused.integer ||
+		cg_saberRainSteam.integer <= 0 || length <= 0 ||
+		(cg_saberRainSteam.integer == 2 && cent->currentState.number != cg.clientNum))
+	{
+		return;
+	}
+
+	// One burst per blade every 300-600 ms, including at high FPS and in mirrors.
+	// Discard a stale deadline after rewinding a demo.
+	if (*nextTime > cg.time && *nextTime <= cg.time + 600)
+		return;
+	*nextTime = cg.time + Q_irand(300, 600);
+
+	VectorMA(base, Q_flrand(0.1f, 1.0f) * length, direction, point);
+	contents = CG_PointContents(point, cent->currentState.number);
+	if (contents & (CONTENTS_SOLID | CONTENTS_INSIDE | CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA))
+		return;
+
+	// Trace against doors and roofs too, so a rainy map does not steam indoors.
+	VectorCopy(point, sky);
+	sky[2] += 65536.0f;
+	CG_Trace(&trace, point, NULL, NULL, sky, cent->currentState.number, MASK_SOLID);
+	if (trace.startsolid || trace.allsolid ||
+		(!(trace.surfaceFlags & SURF_SKY) && !(trace.fraction == 1.0f && (contents & CONTENTS_OUTSIDE))))
+	{
+		return;
+	}
+
+	trap->FX_PlayEffectID(cgs.effects.mSaberRainSteam, point, up, -1, -1, qfalse);
+}
+
 void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, int renderfx, int modelIndex, int saberNum, int bladeNum, vec3_t origin, vec3_t angles, qboolean fromSaber, qboolean dontDraw)
 {
 	vec3_t	org_, end, v, rgb1,
@@ -8486,6 +8558,12 @@ JustDoIt:
 			CG_DoSaberLight( &client->saber[saberNum], cent->currentState.clientNum, saberNum, saberScale );//rgb
 		}
 		return;
+	}
+
+	if (!WP_SaberBladeUseSecondBladeStyle(&client->saber[saberNum], bladeNum) ||
+		!(client->saber[saberNum].saberFlags2 & SFL2_NO_BLADE2))
+	{
+		CG_SaberRainSteam(cent, saberNum, bladeNum, org_, axis_[0], saberLen);
 	}
 
 	// Pass in the renderfx flags attached to the saber weapon model...this is done so that saber glows
@@ -14422,14 +14500,24 @@ endOfCall:
 ===============
 CG_ResetPlayerEntity
 
-A player just came into view or teleported, so reset all animation info
+A player just came into view or teleported. Preserve matching animations only
+when returning to visibility with the same model; always reset orientation.
 ===============
 */
-void CG_ResetPlayerEntity( centity_t *cent )
+void CG_ResetPlayerEntity( centity_t *cent, qboolean preserveAnimations )
 {
 	clientInfo_t *ci;
 	int i = 0;
 	int j = 0;
+	qboolean preserveLegs = preserveAnimations && cent->pe.legs.animation &&
+		cent->pe.legs.animationNumber == cent->currentState.legsAnim &&
+		cent->pe.legs.lastFlip == cent->currentState.legsFlip;
+	qboolean preserveTorso = preserveAnimations && cent->pe.torso.animation &&
+		cent->pe.torso.animationNumber == cent->currentState.torsoAnim &&
+		cent->pe.torso.lastFlip == cent->currentState.torsoFlip;
+
+	// Torso and legs share bone overrides, so retain their state together.
+	preserveLegs = preserveTorso = preserveLegs && preserveTorso;
 
 //	cent->errorTime = -99999;		// guarantee no error decay added
 //	cent->extrapolated = qfalse;
@@ -14490,6 +14578,8 @@ void CG_ResetPlayerEntity( centity_t *cent )
 	ci->facial_frown = 0;
 	ci->facial_aux = 0;
 	ci->superSmoothTime = 0;
+	cent->breathPuffTime = 0;
+	cent->breathTime = 0;
 
 	//reset lerp origin smooth point
 	VectorCopy(cent->lerpOrigin, cent->beamEnd);
@@ -14497,8 +14587,14 @@ void CG_ResetPlayerEntity( centity_t *cent )
 	if (cent->currentState.eType != ET_NPC ||
 		!(cent->currentState.eFlags & EF_DEAD))
 	{
-		CG_ClearLerpFrame( cent, ci, &cent->pe.legs, cent->currentState.legsAnim, qfalse);
-		CG_ClearLerpFrame( cent, ci, &cent->pe.torso, cent->currentState.torsoAnim, qtrue);
+		if (!preserveLegs)
+		{
+			CG_ClearLerpFrame( cent, ci, &cent->pe.legs, cent->currentState.legsAnim, qfalse);
+		}
+		if (!preserveTorso)
+		{
+			CG_ClearLerpFrame( cent, ci, &cent->pe.torso, cent->currentState.torsoAnim, qtrue);
+		}
 
 		BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, cent->lerpOrigin );
 		BG_EvaluateTrajectory( &cent->currentState.apos, cg.time, cent->lerpAngles );
@@ -14506,13 +14602,19 @@ void CG_ResetPlayerEntity( centity_t *cent )
 //		VectorCopy( cent->lerpOrigin, cent->rawOrigin );
 		VectorCopy( cent->lerpAngles, cent->rawAngles );
 
-		memset( &cent->pe.legs, 0, sizeof( cent->pe.legs ) );
+		if (!preserveLegs)
+		{
+			memset( &cent->pe.legs, 0, sizeof( cent->pe.legs ) );
+		}
 		cent->pe.legs.yawAngle = cent->rawAngles[YAW];
 		cent->pe.legs.yawing = qfalse;
 		cent->pe.legs.pitchAngle = 0;
 		cent->pe.legs.pitching = qfalse;
 
-		memset( &cent->pe.torso, 0, sizeof( cent->pe.torso ) );
+		if (!preserveTorso)
+		{
+			memset( &cent->pe.torso, 0, sizeof( cent->pe.torso ) );
+		}
 		cent->pe.torso.yawAngle = cent->rawAngles[YAW];
 		cent->pe.torso.yawing = qfalse;
 		cent->pe.torso.pitchAngle = cent->rawAngles[PITCH];

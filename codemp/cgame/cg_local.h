@@ -351,6 +351,9 @@ typedef struct clientInfo_s {
 	float			colorOverride[3];
 
 	saberInfo_t		saber[MAX_SABERS];
+	// Original server saber sounds, before cg_forceOwnSaber replaces the hilts.
+	sfxHandle_t		serverSaberSoundOn[MAX_SABERS];
+	sfxHandle_t		serverSaberSoundOff[MAX_SABERS];
 	void			*ghoul2Weapons[MAX_SABERS];
 
 	char			saberName[MAX_QPATH];
@@ -630,6 +633,7 @@ typedef struct centity_s {
 	int				lastStrafeTrailTime;
 
 	int				breathPuffTime;
+	int				saberRainSteamTime[MAX_SABERS][MAX_BLADES];
 	int				breathTime; //can maybe just use breathPuffTime from ci?
 #endif
 
@@ -1121,6 +1125,8 @@ typedef struct cg_s {
 	int			eventSequence;
 	int			predictableEvents[MAX_PREDICTED_EVENTS];
 	int			lastExternalEvent;		// last ps.externalEvent played, so the predicted and snapshot dispatch paths don't double-play
+	int			forceSaberSoundPending[2]; // on/off hilt masks from the authoritative snapshot transition
+	int			forceSaberSoundUsed[2]; // hilt sounds already matched in this snapshot
 
 	float		stepChange;				// for stair up smoothing
 	int			stepTime;
@@ -1156,6 +1162,8 @@ typedef struct cg_s {
 	int			damageTaken[32];
 
 	qboolean	coldBreathEffects;
+	qboolean	saberRainActive;
+	qboolean	saberRainFrozen;
 	qboolean	rainSoundEffects;
 
 	float		zoomSensitivity;
@@ -1667,6 +1675,7 @@ typedef struct cgMedia_s {
 	qhandle_t	playerShieldDamage;
 	qhandle_t	protectShader;
 	qhandle_t	forceSightBubble;
+	qhandle_t	forceSenseOverlay;
 	qhandle_t	forceShell;
 	qhandle_t	sightShell;
 
@@ -2047,6 +2056,7 @@ typedef struct cgEffects_s {
 
 	fxHandle_t	mSparks;
 	fxHandle_t	mSaberCut;
+	fxHandle_t	mSaberRainSteam;
 	fxHandle_t	mTurretMuzzleFlash;
 	fxHandle_t	mSaberBlock;
 	fxHandle_t	mSaberBloodSparks;
@@ -2434,7 +2444,7 @@ void CG_CreateNPCClient(clientInfo_t **ci);
 void CG_DestroyNPCClient(clientInfo_t **ci);
 
 void CG_Player( centity_t *cent );
-void CG_ResetPlayerEntity( centity_t *cent );
+void CG_ResetPlayerEntity( centity_t *cent, qboolean preserveAnimations );
 void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team );
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized );
 qboolean CG_ModelIsBlacklisted( const char *modelName );
@@ -2462,6 +2472,7 @@ void CG_LoadDeferredPlayers( void );
 void CG_CheckEvents( centity_t *cent );
 const char	*CG_PlaceString( int rank );
 void CG_EntityEvent( centity_t *cent, vec3_t position );
+void CG_PrepareForceOwnSaberSounds( const playerState_t *ps, const playerState_t *oldPs );
 void CG_PainEvent( centity_t *cent, int health );
 void CG_ReattachLimb(centity_t *source);
 

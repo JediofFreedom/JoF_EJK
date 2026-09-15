@@ -1549,20 +1549,44 @@ void R_AtiHackToggle_f(void)
 }
 
 void R_RemapSkyShader_f (void) {
-	int num;
-	char *newSky = ri.Cmd_Argv(1);
+	char newSky[MAX_QPATH];
+	const char *arg = ri.Cmd_Argv(1);
+	shader_t *newSkyShader;
+	qhandle_t handle;
+	int num, numShaders;
 
-	if (ri.Cmd_Argc() != 2 || !strlen(newSky)) {
+	if (ri.Cmd_Argc() != 2 || !arg[0]) {
 		ri.Printf(PRINT_ALL, "Usage: /remapSky <new>\n");
 		return;
 	}
 
-	if (Q_stricmp(newSky, "clear") && !strchr(newSky, '/'))
-		newSky = va("textures/skies/%s", ri.Cmd_Argv(1));
+	if (Q_stricmp(arg, "clear") && !strchr(arg, '/')) {
+		Com_sprintf(newSky, sizeof(newSky), "textures/skies/%s", arg);
+	} else {
+		Q_strncpyz(newSky, arg, sizeof(newSky));
+	}
 
-	for (num = 0; num < tr.numShaders; num++) {
+	// Resolve the replacement before walking tr.shaders. Registration may add a
+	// shader, and va() storage may be overwritten during shader/image loading.
+	newSkyShader = R_FindShaderByName(newSky);
+	if (newSkyShader == tr.defaultShader) {
+		handle = RE_RegisterShaderLightMap(newSky, lightmapsNone, stylesDefault);
+		newSkyShader = R_GetShaderByHandle(handle);
+	}
+
+	if (newSkyShader == tr.defaultShader || newSkyShader->defaultShader) {
+		ri.Printf(PRINT_ALL, S_COLOR_YELLOW "WARNING: /remapSky shader %s not found\n", newSky);
+		return;
+	}
+	if (Q_stricmp(newSky, "clear") && !newSkyShader->sky) {
+		ri.Printf(PRINT_ALL, S_COLOR_YELLOW "WARNING: /remapSky shader %s is not a sky shader\n", newSky);
+		return;
+	}
+
+	numShaders = tr.numShaders;
+	for (num = 0; num < numShaders; num++) {
 		if (tr.shaders[num]->sky) {
-			R_RemapShader(tr.shaders[num]->name, newSky, NULL);
+			R_RemapShader(tr.shaders[num]->name, newSkyShader->name, NULL);
 		}
 	}
 }

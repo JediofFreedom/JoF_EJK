@@ -1565,7 +1565,7 @@ static bitInfo_T pluginDisables[] = { // MAX_WEAPON_TWEAKS tweaks (24)
 	{"No auto replier"},//5
 	{"Disable new force effects"},//6
 	{"No new deathmsg"},//7
-	{"New sight effect"},//8
+	{"Force Sense camera effect"},//8 - /plugin 7 on JA+
 	{"No alt dim effect"},//9
 	{"Holster staff on back"},//10
 	{"Disable Ledge grab"},//11
@@ -1662,7 +1662,7 @@ void CG_PluginDisable_f( void ) {
 		trap->Cvar_Set( "cp_pluginDisable", va( "%i", (1 << index2) ^ (cp_pluginDisable.integer & mask ) ) );
 		trap->Cvar_Update( &cp_pluginDisable );
 
-		if (index2 == 10 || index2 == 5) {
+		if (index2 == 10 || index2 == 5 || index2 == 7) {
 			Com_Printf("%s %s^7\n", pluginDisables[index2].string, (CG_PluginOptionEnabled(index2)
 				? "^1Disabled" : "^2Enabled") );
 		}

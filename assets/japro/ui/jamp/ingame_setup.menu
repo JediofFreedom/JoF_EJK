@@ -3008,9 +3008,29 @@
 
 		itemDef
 		{
+			name				saberrainsteam
+			group				morevisuals
+			type				ITEM_TYPE_MULTI
+			text				"Saber Rain Steam:"
+			cvar				"cg_saberRainSteam"
+			cvarFloatList { "On" 1 "Only Me" 2 "Off" 0 }
+			rect				220 303 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			165
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"Steam on exposed lightsabers during rain: everyone, only you, or off."
+			action { play "sound/interface/button1" }
+		}
+
+		itemDef
+		{
 			name				done2button_glow
 			style				WINDOW_STYLE_SHADER
-			rect				260 305 200 16
+			rect				260 325 200 16
 			background			"gfx/menus/menu_blendbox"
 			forecolor			1 0.5 0.5 1
 			visible				0
@@ -3023,7 +3043,7 @@
 			group				morevisuals
 	  		type				ITEM_TYPE_BUTTON
 			text				"Done"
-			rect				260 303 200 20
+			rect				260 323 200 20
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			100
 			textaligny			0
