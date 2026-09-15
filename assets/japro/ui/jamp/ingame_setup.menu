@@ -2545,7 +2545,7 @@
 			textscale 			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			descText			"Toggle to always display player names above heads."
+			descText			"Show visible players' names above heads, except during duels or while aiming at them."
 			action				{ play "sound/interface/button1" }
 			mouseenter			{ show highlight9 }
 			mouseexit			{ hide highlight9 }
