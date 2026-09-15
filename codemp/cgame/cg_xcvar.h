@@ -231,6 +231,7 @@ XCVAR_DEF( cg_strafeTrailFPS,					"40",	NULL,					0 )
 XCVAR_DEF( cg_strafeTrailGhost,					"1",	NULL,					CVAR_ARCHIVE )
 
 XCVAR_DEF( cg_drainFX,							"1",	NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_lightningEnvironment,				"1",	NULL,					CVAR_ARCHIVE ) // 0: vanilla, 1: environmental lightning
 //Make maxpackets userinfo maybe idk
 
 #if 1
