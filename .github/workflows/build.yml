@@ -804,12 +804,14 @@ jobs:
           curl -L -o ${{ github.workspace }}/install/JediAcademy/base/JoF_AssetsExtra.pk3 \
             https://jofhub.eu/apps/cloud/repository/assets/JoF_AssetsExtra.pk3
 
+      # Only eternaljk(ded) has debug info to begin with - see
+      # jof_enable_release_symbols() in codemp/CMakeLists.txt.
       - name: Split debug symbols
         working-directory: ${{ github.workspace }}/install/JediAcademy
         shell: bash
         run: |
           mkdir -p ${{ github.workspace }}/symbols
-          find . -type f \( -name "*.so" -o -perm -u+x \) | while read -r f; do
+          find . -type f -iname "eternaljk*" | while read -r f; do
             file "$f" | grep -q "ELF" || continue
             debug="${{ github.workspace }}/symbols/$(basename "$f").debug"
             objcopy --only-keep-debug "$f" "$debug"
