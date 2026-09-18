@@ -33,6 +33,9 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 	#define XCVAR_DEF( name, defVal, update, flags ) { & name , #name , defVal , update , flags },
 #endif
 
+XCVAR_DEF( cg_pickupConfirm, "1", NULL, CVAR_USERINFO|CVAR_ROM )
+XCVAR_DEF( cg_pickupReady, "0", NULL, CVAR_USERINFO|CVAR_ROM )
+
 		//name				default value	update function			flag(s)
 XCVAR_DEF( g_forceRegenTime,		"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cl_currentServerAddress,	"0",	NULL,					CVAR_ROM )

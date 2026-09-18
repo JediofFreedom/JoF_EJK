@@ -2288,6 +2288,10 @@ qboolean ClientUserinfoChanged( int clientNum ) { //I think anything treated as 
 		client->pers.localClient = qtrue;
 
 	// check the item prediction
+	// A module unload revokes readiness through engine-handled userinfo.
+	// A later capability flag alone must not restore an earlier handshake.
+	if (strcmp(Info_ValueForKey(userinfo, "cg_pickupReady"), "3"))
+		client->pers.pickupConfirmed = qfalse;
 	s = Info_ValueForKey( userinfo, "cg_predictItems" );
 	if ( !atoi( s ) )	client->pers.predictItemPickup = qfalse;
 	else				client->pers.predictItemPickup = qtrue;
@@ -3044,6 +3048,8 @@ void ClientBegin( int clientNum, qboolean allowTeamReset ) {
 	ent->playerState = &ent->client->ps;
 
 	client->pers.connected = CON_CONNECTED;
+	// Readiness lasts for this connection, including respawns/team changes.
+	// ClientConnect clears pers; map restart makes the cgame negotiate again.
 	if (client->pers.teamState.state == TEAM_BEGIN) //For some reason this is being called when you are spectating a player and they leave/spec.  So dont reset your time in that case..
 		client->pers.enterTime = level.time; 
 	client->pers.teamState.state = TEAM_BEGIN;

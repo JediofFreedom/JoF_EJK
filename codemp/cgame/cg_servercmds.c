@@ -1185,6 +1185,12 @@ require a reload of all the media
 static void CG_MapRestart( void ) {
 	int i;
 	clientInfo_t *ci;
+	cg.pickupQueueHead = cg.pickupQueueCount = 0;
+	CG_ResetPickupEventTracking();
+	if (CG_UsesPickupConfirmation()) {
+		cg.itemPickup = 0;
+	}
+	cg.pickupHandshakeActive = cg.pickupConfirmed = qfalse;
 	for (i = 0 ; i < MAX_CLIENTS ; i++)
 	{
 		ci = &cgs.clientinfo[i];
@@ -1938,6 +1944,14 @@ Cmd_Argc() / Cmd_Argv()
 static void CG_ServerCommand( void ) {
 	const char		*cmd = CG_Argv( 0 );
 	serverCommand_t	*command = NULL;
+	if (!Q_stricmp(cmd, "jof_pickupReady")) {
+		CG_PickupReady_f();
+		return;
+	}
+	if (!Q_stricmp(cmd, "jof_pickup")) {
+		CG_ConfirmedPickup_f();
+		return;
+	}
 
 	if ( !cmd[0] ) {
 		// server claimed the command

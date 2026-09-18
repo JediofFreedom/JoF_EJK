@@ -282,6 +282,7 @@ static void CG_TransitionSnapshot( void ) {
 			CG_TransitionPlayerState( ps, ops );
 		}
 		else {
+			CG_CheckLegacyPickupEvents( ps, ops );
 			// under prediction, server-injected events (ps.externalEvent) can
 			// be missed by the predicted-pair transition in
 			// CG_PredictPlayerState; dispatch them off the authoritative
