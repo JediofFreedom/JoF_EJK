@@ -2185,6 +2185,9 @@ qboolean CG_ModelIsBlacklisted( const char *modelName ) {
 	return BG_ModelInList( modelName, cg_modelBlacklist.string );
 }
 
+//whatever this client's staff was part way through, it belongs to the old saber
+static void CG_StaffSwapForgetClient( int clientNum );
+
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	clientInfo_t *ci;
 	clientInfo_t newInfo;
@@ -2689,7 +2692,18 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	  //Otherwise we will end up with extra instances all over the place, I think.
 		trap->G2API_CleanGhoul2Models(&ci->ghoul2Model);
 	}
+
+	//newInfo is about to take these over as NULL, so let go of the holstered hilt instances rather
+	//than losing the only pointers to them. They get rebuilt from whatever saber he has now.
+	if (ci->holsterGhoul2 && trap->G2_HaveWeGhoul2Models(ci->holsterGhoul2))
+		trap->G2API_CleanGhoul2Models(&ci->holsterGhoul2);
+
+	if (ci->holsterGhoul2_2 && trap->G2_HaveWeGhoul2Models(ci->holsterGhoul2_2))
+		trap->G2API_CleanGhoul2Models(&ci->holsterGhoul2_2);
+
 	*ci = newInfo;
+
+	CG_StaffSwapForgetClient( clientNum );
 
 	//force a weapon change anyway, for all clients being rendered to the current client
 	while (i < MAX_CLIENTS)
@@ -10708,48 +10722,456 @@ void CG_CheckThirdPersonAlpha( centity_t *cent, refEntity_t *legs )
 	}
 }
 
-void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, clientInfo_t *ci, refEntity_t parent )
+typedef enum {
+	STAFFSWAP_NONE,		//not part way through a JA+ staff swap
+	STAFFSWAP_ONBACK,	//the hand has not reached the hilt yet, so it is still on his back
+	STAFFSWAP_INHAND	//he has hold of it
+} staffSwapPhase_t;
+
+//JA+ moves a staff between the hand and the back over BOTH_S1_S7_NEW when it is drawn, and over
+//BOTH_S7_S1_NEW - the same animation played backwards - when it is put away. The weapon itself
+//changes on the first frame of that, so without this the hilt sits in the hand while the arm is
+//still reaching for it. cg_holsteredStaffSwap is how far into the draw the hand closes around the
+//hilt; the put-away being the same animation reversed means that one fraction serves for both.
+//One playing of a swap animation moves the hilt once. Ghoul2 blends the outgoing animation into the
+//incoming one, which makes the frame it reports wobble either side of the swap point while that
+//settles, so without remembering that it has already changed hands the staff jumps back and forth.
+typedef struct {
+	int			anim;		//the animation this belongs to
+	int			animTime;	//and which playing of it
+	qboolean	swapped;	//whether the hilt has already changed hands during it
+} staffSwapLatch_t;
+
+static staffSwapLatch_t staffSwapLatch[MAX_CLIENTS];
+
+//Everything about a swap that does not depend on the animation: whether this is a staff carrier
+//whose hilt lives on his back on this server. The sound needs to know that before any swap animation
+//has come through, so it is asked here rather than read off the animation like the rest.
+static qboolean CG_StaffHolsteredOnBack( clientInfo_t *ci, const char **why )
 {
-    int newBolt, newBolt2;
-    mdxaBone_t matrix;
-    vec3_t boltOrg, boltOrg2, bAngles;
-    refEntity_t re, re2;
-    vec3_t holsterPos;
-	vec3_t holsterAng1, holsterAng2;
+	//A swap moves the hilt out of his hand, so it only applies where the hilt would be drawn on his
+	//back instead - otherwise the staff simply disappears for the animation.
+	if (cgs.serverMod != SVMOD_JAPLUS)
+	{
+		*why = "not a JA+ server";	//nobody is sending the reach animation, so nothing to sync with
+		return qfalse;
+	}
 
 	if (cp_pluginDisable.integer & JAPRO_PLUGIN_HOLSTEREDSABERS)
+	{
+		*why = "holstered sabers off";
+		return qfalse;
+	}
+
+	if (cp_pluginDisable.integer & JAPRO_PLUGIN_HOLSTEREDSABER)
+	{
+		*why = "plugin 9 off";	//he is not holstering to his back in the first place
+		return qfalse;
+	}
+
+	if (ci->saber[1].model[0] || (ci->saber[0].type != SABER_STAFF && ci->saber[0].numBlades < 2))
+	{
+		*why = "not a staff";
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+static staffSwapPhase_t CG_StaffSwapPhaseReal( centity_t *cent, clientInfo_t *ci, const char **why, float *fracOut )
+{
+	int					anim = cent->currentState.torsoAnim;
+	int					startFrame, endFrame, lowFrame, highFrame, g2Flags, cl;
+	float				frac, currentFrame, g2AnimSpeed;
+	qboolean			drawing;
+	staffSwapPhase_t	phase, afterSwap;
+	staffSwapLatch_t	*latch;
+
+	//A staff in its own stance draws and puts away on BOTH_S1_S7/BOTH_S7_S1; carried in the one blade
+	//stance it uses the ordinary BOTH_STAND1TO2/BOTH_STAND2TO1 instead. JA+ replaces either pair with
+	//its own _NEW versions, the ones that reach for his back, and the plain ones still play for a
+	//moment first while he takes the weapon.
+	if (anim == BOTH_S1_S7_NEW || anim == BOTH_STAND1TO2_NEW)
+		drawing = qtrue;
+	else if (anim == BOTH_S7_S1_NEW || anim == BOTH_STAND2TO1_NEW)
+		drawing = qfalse;
+	else if (anim != BOTH_S1_S7 && anim != BOTH_STAND1TO2)
+	{
+		*why = "not a JA+ swap anim";
+		return STAFFSWAP_NONE;
+	}
+	else
+		drawing = qtrue;
+
+	if (!CG_StaffHolsteredOnBack( ci, why ))
+		return STAFFSWAP_NONE;
+
+	if (anim == BOTH_S1_S7 || anim == BOTH_STAND1TO2)
+	{ //the ordinary draw plays for a moment before JA+ replaces it with the reach, and he takes the
+	  //weapon in that gap. The hilt is still on his back throughout, so hold it there and keep the
+	  //blades in, otherwise it flickers into his hand before he has even reached for it.
+		*why = "waiting on the JA+ draw";
+		return STAFFSWAP_ONBACK;
+	}
+
+	afterSwap = drawing ? STAFFSWAP_INHAND : STAFFSWAP_ONBACK;
+	cl = cent->currentState.clientNum;
+	latch = (cl >= 0 && cl < MAX_CLIENTS) ? &staffSwapLatch[cl] : NULL;
+
+	if (latch)
+	{
+		if (latch->anim != anim || latch->animTime != cent->pe.torso.animationTime)
+		{ //a different animation, or this one started again
+			latch->anim = anim;
+			latch->animTime = cent->pe.torso.animationTime;
+			latch->swapped = qfalse;
+		}
+
+		if (latch->swapped)
+		{
+			*why = "swapped already";
+			return afterSwap;
+		}
+	}
+
+	//Ask ghoul2 which frame he is actually on rather than working it out from the clock - the torso
+	//animation runs on lower_lumbar. Both swap animations are the same range of frames, one forwards
+	//and one backwards, so the frame alone says where his hand is, the same way round for both.
+	if (!trap->G2API_GetBoneAnim( cent->ghoul2, "lower_lumbar", cg.time, &currentFrame,
+			&startFrame, &endFrame, &g2Flags, &g2AnimSpeed, cgs.gameModels, 0 ))
+	{
+		*why = "no torso anim";
+		return STAFFSWAP_NONE;
+	}
+
+	lowFrame = (startFrame < endFrame) ? startFrame : endFrame;
+	highFrame = (startFrame < endFrame) ? endFrame : startFrame;
+
+	if (highFrame - lowFrame < 1)
+	{
+		*why = "anim has no length here";
+		return STAFFSWAP_NONE;
+	}
+
+	frac = (currentFrame - (float)lowFrame) / (float)(highFrame - lowFrame);
+	frac = Com_Clamp( 0.0f, 1.0f, frac );
+
+	*fracOut = frac;
+	*why = "in the swap";
+
+	phase = (frac < cg_holsteredStaffSwap.value) ? STAFFSWAP_ONBACK : STAFFSWAP_INHAND;
+
+	if (latch && phase == afterSwap)
+		latch->swapped = qtrue;	//and there it stays for the rest of this animation
+
+	return phase;
+}
+
+//The blades stay in for the whole of a put-away - he is shutting the staff down as he reaches back -
+//and for the part of a draw before his hand is on the hilt. Going through the phase keeps the
+//animation numbers behind the same gating as everything else rather than matching them raw.
+static qboolean CG_StaffSwapBladesIn( centity_t *cent, clientInfo_t *ci );
+
+//A JA+ server lights the staff the instant it is told to, which is while the hilt is still on the
+//player's back and his hand is empty - the blade does not appear until his hand closes round it, so
+//the ignition sound has to wait there too or it goes off on nothing. One sound per client is enough:
+//a staff is a single hilt, so there is never a second one to hold.
+typedef struct {
+	sfxHandle_t	sound;			//what to play once his hand is on the hilt
+	int			time;			//when it was held, so a swap that never comes cannot swallow it
+	qboolean	sawOnBack;		//whether the hilt has actually been seen waiting on his back
+	int			holstered;		//what his saber was doing last frame
+	int			unholsterTime;	//and when it last came on, which is when JA+ sounds the ignition
+	int			offAnim;		//the put-away whose shutdown has already been sounded
+	int			offAnimTime;	//and which playing of it
+	int			offTime;		//when that went out, so the late copy of it can be dropped
+} staffSwapSound_t;
+
+static staffSwapSound_t staffSwapSound[MAX_CLIENTS];
+
+//A new saber means the swap in progress, and any ignition being held for it, are both stale.
+static void CG_StaffSwapForgetClient( int clientNum )
+{
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS)
 		return;
 
-    if ( !cent->ghoul2 )
-        return;
+	memset( &staffSwapSound[clientNum], 0, sizeof( staffSwapSound[clientNum] ) );
+	memset( &staffSwapLatch[clientNum], 0, sizeof( staffSwapLatch[clientNum] ) );
+}
+
+#define STAFFSWAP_SOUND_WAIT	150		//how long to let the swap animation show up before giving up
+#define STAFFSWAP_SOUND_HOLD	2000	//and the longest the sound is ever held back
+
+//Play the ignition as soon as the hilt is out of his hand's way, which is the same moment the blade
+//is allowed to come out. Called for every saber carrier each frame, so a held sound always gets out,
+//and it is also where the moment his saber comes on is noticed - that is the one instant a JA+
+//server sounds an ignition, and it is what tells a stray sound apart from his.
+static void CG_StaffSwapIgnitionSound( centity_t *cent, staffSwapPhase_t phase )
+{
+	int					cl = cent->currentState.clientNum;
+	staffSwapSound_t	*held;
+
+	if (cl < 0 || cl >= MAX_CLIENTS)
+		return;
+
+	held = &staffSwapSound[cl];
+
+	if (held->holstered != cent->currentState.saberHolstered)
+	{
+		if (held->holstered && !cent->currentState.saberHolstered)
+			held->unholsterTime = cg.time;
+		held->holstered = cent->currentState.saberHolstered;
+	}
+
+	if (!held->sound)
+		return;
+
+	if (cg.time - held->time < STAFFSWAP_SOUND_HOLD)
+	{
+		if (phase == STAFFSWAP_ONBACK)
+		{ //his hand is not there yet
+			held->sawOnBack = qtrue;
+			return;
+		}
+
+		if (!held->sawOnBack && cg.time - held->time < STAFFSWAP_SOUND_WAIT)
+			return;	//the swap animation has not come through yet, give it a moment first
+	}
+
+	trap->S_StartSound( cent->lerpOrigin, cl, CHAN_AUTO, held->sound );
+	held->sound = 0;
+	held->sawOnBack = qfalse;
+}
+
+//The other half of the swap. Putting a staff away is a weapon change, and the sound for that does
+//not come until the change finishes - well after the blade has started going in, which begins with
+//the reach. Sound the shutdown where the blade actually goes out and drop the late one.
+#define STAFFSWAP_SOUND_OFF		2000	//how long the late copy stays unwelcome
+
+static void CG_StaffSwapShutdownSound( centity_t *cent, clientInfo_t *ci, staffSwapPhase_t phase )
+{
+	int					cl = cent->currentState.clientNum;
+	int					anim = cent->currentState.torsoAnim;
+	staffSwapSound_t	*held;
+
+	if (phase == STAFFSWAP_NONE || !cg_holsteredStaffSound.integer)
+		return;
+
+	if (anim != BOTH_S7_S1_NEW && anim != BOTH_STAND2TO1_NEW)
+		return;	//he is drawing it, not putting it away
+
+	if (cl < 0 || cl >= MAX_CLIENTS || !ci->saber[0].soundOff)
+		return;
+
+	if (!ci->saber[0].blade[0].length)
+		return;	//it is already out, so there is nothing to shut down
+
+	held = &staffSwapSound[cl];
+
+	if (held->offAnim == anim && held->offAnimTime == cent->pe.torso.animationTime)
+		return;	//this put-away has had its sound
+
+	held->offAnim = anim;
+	held->offAnimTime = cent->pe.torso.animationTime;
+	held->offTime = cg.time;
+
+	trap->S_StartSound( cent->lerpOrigin, cl, CHAN_AUTO, ci->saber[0].soundOff );
+}
+
+//Whether this client's staff has just been shut down where the blade went out, which is the one the
+//player heard - the weapon change's own copy is the late one and belongs nowhere.
+qboolean CG_StaffSwapShutdownSounded( int clientNum )
+{
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS)
+		return qfalse;
+
+	if (!staffSwapSound[clientNum].offTime)
+		return qfalse;
+
+	return (qboolean)(cg.time - staffSwapSound[clientNum].offTime < STAFFSWAP_SOUND_OFF);
+}
+
+//The draw animations, the plain ones and the JA+ reaches alike. Asked of the sound rather than the
+//phase because at the moment the server says "lit" ghoul2 may still be on the outgoing animation.
+static qboolean CG_StaffSwapDrawAnim( int anim )
+{
+	return (qboolean)(anim == BOTH_S1_S7 || anim == BOTH_STAND1TO2
+		|| anim == BOTH_S1_S7_NEW || anim == BOTH_STAND1TO2_NEW);
+}
+
+//Hold this client's ignition until his hand reaches the hilt, if that is what his staff is about to
+//do. Answers whether it took the sound on; the caller plays it itself when it did not.
+qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
+{
+	const char		*why = "";
+	clientInfo_t	*ci;
+	centity_t		*cent;
+	int				anim;
+
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS || !sound)
+		return qfalse;
+
+	if (!cg_holsteredStaffSound.integer)
+		return qfalse;
+
+	if (staffSwapSound[clientNum].sound)
+		return qtrue;	//already holding one for him, and a staff only has the one hilt to light
+
+	ci = &cgs.clientinfo[clientNum];
+	cent = &cg_entities[clientNum];
+
+	if (!ci->infoValid || !CG_StaffHolsteredOnBack( ci, &why ))
+		return qfalse;
+
+	if (cent->currentState.weapon != WP_SABER)
+		return qfalse;
+
+	//The local player draws off his own prediction, where the animation is a snapshot ahead of the
+	//one on his entity.
+	anim = (clientNum == cg.predictedPlayerState.clientNum)
+		? cg.predictedPlayerState.torsoAnim : cent->currentState.torsoAnim;
+
+	if (!CG_StaffSwapDrawAnim( anim ))
+		return qfalse;	//nothing is being drawn, so nothing is waiting on a hand
+
+	staffSwapSound[clientNum].sound = sound;
+	staffSwapSound[clientNum].time = cg.time;
+	staffSwapSound[clientNum].sawOnBack = qfalse;
+
+	return qtrue;
+}
+
+//JA+ plays the same ignition from the server as a plain sound dropped at the player's feet, with
+//nothing on it to say whose it is. Match it back to the staff carrier who has just been told to draw
+//- his own ignition, at his own position - and hold that one the same way.
+qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound )
+{
+	int i;
+
+	if (!sound)
+		return qfalse;
+
+	for (i = 0; i < MAX_CLIENTS; i++)
+	{
+		centity_t *cent = &cg_entities[i];
+
+		if (!cent->currentValid || cent->currentState.eType != ET_PLAYER)
+			continue;
+
+		if (cgs.clientinfo[i].saber[0].soundOn != sound)
+			continue;
+
+		if (cent->currentState.saberHolstered)
+			continue;	//he has not just been lit, so this is not his draw
+
+		//and it has to be the ignition for that, not some later sound of his that happens to share
+		//the handle - JA+ sounds one the instant the saber comes on and at no other time
+		if (!staffSwapSound[i].unholsterTime
+			|| cg.time - staffSwapSound[i].unholsterTime > STAFFSWAP_SOUND_WAIT)
+			continue;
+
+		if (DistanceSquared( origin, cent->lerpOrigin ) > 64.0f * 64.0f)
+			continue;
+
+		if (CG_StaffSwapHoldIgnitionSound( i, sound ))
+			return qtrue;
+	}
+
+	return qfalse;
+}
+
+//cg_holsteredStaffDebug prints one line per torso animation change (1 for yourself, 2 for everyone),
+//which is the quickest way to see whether the JA+ swap animation is arriving and what it is numbered
+static staffSwapPhase_t CG_StaffSwapPhase( centity_t *cent, clientInfo_t *ci )
+{
+	const char			*why = "";
+	float				frac = 0.0f;
+	staffSwapPhase_t	phase = CG_StaffSwapPhaseReal( cent, ci, &why, &frac );
+
+	if (cg_holsteredStaffDebug.integer)
+	{
+		static int	lastAnim[MAX_CLIENTS] = { 0 };
+		int			cl = cent->currentState.clientNum;
+
+		static staffSwapPhase_t lastPhase[MAX_CLIENTS] = { STAFFSWAP_NONE };
+
+		if (cl >= 0 && cl < MAX_CLIENTS
+			&& (cg_holsteredStaffDebug.integer > 1 || cl == cg.clientNum)
+			&& (lastAnim[cl] != cent->currentState.torsoAnim || lastPhase[cl] != phase))
+		{
+			lastAnim[cl] = cent->currentState.torsoAnim;
+			lastPhase[cl] = phase;
+			trap->Print( "staffswap: cl %i anim %i '%s' -> %s (%s, frac %.2f, blade %.1f, holstered %i)\n",
+				cl, cent->currentState.torsoAnim,
+				GetStringForID( animTable, cent->currentState.torsoAnim ),
+				phase == STAFFSWAP_ONBACK ? "on back" : (phase == STAFFSWAP_INHAND ? "in hand" : "no swap"),
+				why, frac, ci->saber[0].blade[0].length, cent->currentState.saberHolstered );
+		}
+	}
+
+	CG_StaffSwapIgnitionSound( cent, phase );
+	CG_StaffSwapShutdownSound( cent, ci, phase );
+
+	return phase;
+}
+
+static qboolean CG_StaffSwapBladesIn( centity_t *cent, clientInfo_t *ci )
+{
+	staffSwapPhase_t phase = CG_StaffSwapPhase( cent, ci );
+
+	if (phase == STAFFSWAP_NONE)
+		return qfalse;
+
+	if (phase == STAFFSWAP_ONBACK)
+		return qtrue;	//he has nothing to light up with until his hand is on the hilt
+
+	return (qboolean)(cent->currentState.torsoAnim == BOTH_S7_S1_NEW
+		|| cent->currentState.torsoAnim == BOTH_STAND2TO1_NEW);
+}
+
+//Everything that decides whether a stowed hilt should be on show at all. Pulled out of the drawing
+//so that the staff, which rides the player's skeleton rather than being drawn loose, can be taken
+//off his back on the frames where this says no.
+static qboolean CG_HolsteredSaberVisible( centity_t *cent, clientInfo_t *ci, staffSwapPhase_t swapPhase )
+{
+	if (cp_pluginDisable.integer & JAPRO_PLUGIN_HOLSTEREDSABERS)
+		return qfalse;
+
+	if ( !cent->ghoul2 )
+		return qfalse;
 
 	if (cgs.serverMod != SVMOD_JAPLUS)
-		return;
+		return qfalse;
 
 	if (cent->currentState.eFlags & 0x1000)
-		return;
+		return qfalse;
 
-	if (cent->currentState.weapon == WP_SABER)
-		return;
+	//mid-swap the animation decides where the hilt is, otherwise it is on him whenever he is
+	//holding something else
+	if (swapPhase == STAFFSWAP_INHAND)
+		return qfalse;
 
-    if ( cent->currentState.eFlags & EF_DEAD )
-        return;
+	if (cent->currentState.weapon == WP_SABER && swapPhase != STAFFSWAP_ONBACK)
+		return qfalse;
 
-    if ( cent->currentState.powerups & ( 1 << PW_CLOAKED ) )
-    {
-        if ( !( cg.snap->ps.fd.forcePowersActive & ( 1 << FP_SEE ) )
-            || cg.snap->ps.clientNum == cent->currentState.number )
-            return;
-    }
+	if ( cent->currentState.eFlags & EF_DEAD )
+		return qfalse;
 
-    if (!cg.renderingThirdPerson && cent->currentState.clientNum == cg.clientNum)
-        return;
+	if ( cent->currentState.powerups & ( 1 << PW_CLOAKED ) )
+	{
+		if ( !( cg.snap->ps.fd.forcePowersActive & ( 1 << FP_SEE ) )
+			|| cg.snap->ps.clientNum == cent->currentState.number )
+			return qfalse;
+	}
 
-    if (!cg.renderingThirdPerson && cg.snap->ps.clientNum == cent->currentState.clientNum && cgs.clientinfo[cg.clientNum].team == TEAM_SPECTATOR && (cg.snap->ps.pm_flags & PMF_FOLLOW))
-        return;
+	if (!cg.renderingThirdPerson && cent->currentState.clientNum == cg.clientNum)
+		return qfalse;
 
-    if ( CG_IsMindTricked( cent->currentState.trickedentindex, cent->currentState.trickedentindex2, cent->currentState.trickedentindex3, cent->currentState.trickedentindex4, cg.snap->ps.clientNum ) )
-        return;
+	if (!cg.renderingThirdPerson && cg.snap->ps.clientNum == cent->currentState.clientNum && cgs.clientinfo[cg.clientNum].team == TEAM_SPECTATOR && (cg.snap->ps.pm_flags & PMF_FOLLOW))
+		return qfalse;
+
+	if ( CG_IsMindTricked( cent->currentState.trickedentindex, cent->currentState.trickedentindex2, cent->currentState.trickedentindex3, cent->currentState.trickedentindex4, cg.snap->ps.clientNum ) )
+		return qfalse;
 
 	if (cent->currentState.eType == ET_NPC)
 	{
@@ -10760,20 +11182,66 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 			cent->currentState.NPC_class != CLASS_REBORN &&
 			cent->currentState.NPC_class != CLASS_TAVION)
 		{
-			return;
+			return qfalse;
 		}
 	}
+
+	return qtrue;
+}
+
+void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, clientInfo_t *ci, refEntity_t parent )
+{
+    int newBolt, newBolt2;
+    mdxaBone_t matrix;
+    vec3_t boltOrg, boltOrg2, bAngles;
+    refEntity_t re, re2;
+    vec3_t holsterPos;
+	vec3_t holsterAng1, holsterAng2;
+	qboolean staffOnBack, visible;
+	staffSwapPhase_t swapPhase;
+
+	swapPhase = CG_StaffSwapPhase(cent, ci);
+	visible = CG_HolsteredSaberVisible(cent, ci, swapPhase);
+
+	if (!visible)
+		return;
 
 	//if ( cent->currentState.m_iVehicleNum )
 	//	return;
 
-	// Parse cvar values
-	sscanf(cg_holsteredSaberPos.string, "%f %f %f", &holsterPos[0], &holsterPos[1], &holsterPos[2]);
-	sscanf(cg_holsteredSaberAng1.string, "%f %f %f", &holsterAng1[0], &holsterAng1[1], &holsterAng1[2]);
-	sscanf(cg_holsteredSaberAng2.string, "%f %f %f", &holsterAng2[0], &holsterAng2[1], &holsterAng2[2]);
+	//A staff is a single hilt with a blade at each end, so it goes across the back rather than
+	//down a leg. Plugin 9 is the switch for that, and it is a JA+ disable bit: clearing it is what
+	//makes a JA+ server play the reach-over-the-shoulder animation, so the hilt belongs on the back
+	//exactly when the bit is clear. Dual sabers keep a hilt on each hip.
+	staffOnBack = (qboolean)(!(cp_pluginDisable.integer & JAPRO_PLUGIN_HOLSTEREDSABER)
+		&& !ci->saber[1].model[0]
+		&& (ci->saber[0].type == SABER_STAFF || ci->saber[0].numBlades > 1));
 
-	newBolt = trap->G2API_AddBolt( cent->ghoul2, 0, cg_holsteredSaberBolt.string );
-	newBolt2 = trap->G2API_AddBolt( cent->ghoul2, 0, cg_holsteredSaberBolt2.string );
+	// Parse cvar values
+	if (staffOnBack)
+	{
+		sscanf(cg_holsteredStaffPos.string, "%f %f %f", &holsterPos[0], &holsterPos[1], &holsterPos[2]);
+		sscanf(cg_holsteredStaffAng.string, "%f %f %f", &holsterAng1[0], &holsterAng1[1], &holsterAng1[2]);
+		VectorClear(holsterAng2);
+
+		newBolt = trap->G2API_AddBolt( cent->ghoul2, 0, cg_holsteredStaffBolt.string );
+		newBolt2 = -1;
+
+		if (newBolt == -1)
+		{ //this model has no back tag, so fall back to the hip rather than showing nothing
+			staffOnBack = qfalse;
+		}
+	}
+
+	if (!staffOnBack)
+	{
+		sscanf(cg_holsteredSaberPos.string, "%f %f %f", &holsterPos[0], &holsterPos[1], &holsterPos[2]);
+		sscanf(cg_holsteredSaberAng1.string, "%f %f %f", &holsterAng1[0], &holsterAng1[1], &holsterAng1[2]);
+		sscanf(cg_holsteredSaberAng2.string, "%f %f %f", &holsterAng2[0], &holsterAng2[1], &holsterAng2[2]);
+
+		newBolt = trap->G2API_AddBolt( cent->ghoul2, 0, cg_holsteredSaberBolt.string );
+		newBolt2 = trap->G2API_AddBolt( cent->ghoul2, 0, cg_holsteredSaberBolt2.string );
+	}
 
 	if ( newBolt != -1 )
 	{
@@ -10796,15 +11264,26 @@ void CG_DrawHolsteredSaber( centity_t *cent, int time, qhandle_t *gameModels, cl
 		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_X, re.axis[0] );
 		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Y, re.axis[1] );
 		BG_GiveMeVectorFromMatrix( &matrix, POSITIVE_Z, re.axis[2] );
-		VectorMA(boltOrg, holsterPos[0], re.axis[1], boltOrg);
-		VectorMA(boltOrg, holsterPos[1], re.axis[0], boltOrg);
-		VectorMA(boltOrg, holsterPos[2], re.axis[2], boltOrg);
 		VectorCopy(re.axis[0], boltAxis0);
 		VectorCopy(re.axis[1], boltAxis1);
 		VectorCopy(re.axis[2], boltAxis2);
-		VectorScale(boltAxis2, -1.0f, re.axis[2]); // holster1 blade axis points down relative to bolt
-		VectorCopy(boltAxis1, re.axis[1]);
-		CrossProduct(re.axis[1], re.axis[2], re.axis[0]);
+		if (staffOnBack)
+		{ //The axes are left exactly as the tag gives them, which is the pose JA+ gets by bolting the
+		  //hilt straight on. Drawing it ourselves rather than bolting it is what buys the angle: a
+		  //bolted model has no bone that can be turned, its skeleton is the engine's nameless stand-in.
+			VectorMA(boltOrg, holsterPos[0], boltAxis0, boltOrg);
+			VectorMA(boltOrg, holsterPos[1], boltAxis1, boltOrg);
+			VectorMA(boltOrg, holsterPos[2], boltAxis2, boltOrg);
+		}
+		else
+		{
+			VectorMA(boltOrg, holsterPos[0], boltAxis1, boltOrg);
+			VectorMA(boltOrg, holsterPos[1], boltAxis0, boltOrg);
+			VectorMA(boltOrg, holsterPos[2], boltAxis2, boltOrg);
+			VectorScale(boltAxis2, -1.0f, re.axis[2]); // holster1 blade axis points down relative to bolt
+			VectorCopy(boltAxis1, re.axis[1]);
+			CrossProduct(re.axis[1], re.axis[2], re.axis[0]);
+		}
 		AnglesToAxis(holsterAng1, angAxis);
 		MatrixMultiply(angAxis, re.axis, tempAxis);
 		AxisCopy(tempAxis, re.axis);
@@ -11418,8 +11897,11 @@ void CG_Player( centity_t *cent ) {
 
 	g2HasWeapon = trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 1);
 
-	if (!g2HasWeapon)
-	{ //force a redup of the weapon instance onto the client instance
+	if (!g2HasWeapon && CG_StaffSwapPhase(cent, ci) == STAFFSWAP_NONE)
+	{ //force a redup of the weapon instance onto the client instance - but not mid swap, where the
+	  //empty hand is deliberate. Forgetting the weapon there makes the next weapon check think he has
+	  //just drawn it: it bolts the hilt straight back into the hand and sounds the ignition, both of
+	  //which this then undoes, over and over for every frame of the reach.
 		cent->ghoul2weapon = NULL;
 		cent->weapon = 0;
 	}
@@ -11784,8 +12266,9 @@ void CG_Player( centity_t *cent ) {
 				{ //switching away from the saber
 					//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberoffquick.wav" ));
 					if (ci->saber[0].soundOff
-						&& !cent->currentState.saberHolstered)
-					{
+						&& !cent->currentState.saberHolstered
+						&& !CG_StaffSwapShutdownSounded( cent->currentState.number ))
+					{ //a staff going onto a JA+ back was shut down as the blade went in, not here
 						trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, ci->saber[0].soundOff);
 					}
 
@@ -11802,8 +12285,9 @@ void CG_Player( centity_t *cent ) {
 					&& !cent->saberWasInFlight)
 				{ //switching to the saber
 					//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberon.wav" ));
-					if (ci->saber[0].soundOn)
-					{
+					if (ci->saber[0].soundOn
+						&& !CG_StaffSwapHoldIgnitionSound( cent->currentState.number, ci->saber[0].soundOn ))
+					{ //a staff coming off a JA+ back lights when his hand gets to it, not before
 						trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, ci->saber[0].soundOn);
 					}
 
@@ -13612,6 +14096,12 @@ stillDoSaber:
 			BG_SI_SetDesiredLength(&ci->saber[0], 0, -1);
 			//BG_SI_SetDesiredLength(&ci->saber[1], 0, -1);
 		}
+
+		if (CG_StaffSwapBladesIn(cent, ci))
+		{ //so it neither ignites in mid air while the hilt is still on his back, nor stays lit in his
+		  //hand while he is reaching back to put it away
+			BG_SI_SetDesiredLength(&ci->saber[0], 0, -1);
+		}
 		/*
 		else
 		{
@@ -13666,8 +14156,11 @@ stillDoSaber:
 		{
 			saberEnt = &cg_entities[cent->currentState.saberEntityNum];
 
-			if (/*cent->bolt4 && */!g2HasWeapon)
-			{
+			if (/*cent->bolt4 && */!g2HasWeapon
+				&& CG_StaffSwapPhase(cent, ci) != STAFFSWAP_ONBACK)
+			{ //not while the hilt belongs on his back: bolting the saber back into an empty hand only
+			  //for the code below to strip it out again costs a ghoul2 copy, a ghoul2 clean and a
+			  //wiped saber entity every single frame of the reach
 				trap->G2API_CopySpecificGhoul2Model(CG_G2WeaponInstance(cent, WP_SABER), 0, cent->ghoul2, 1);
 
 				if (saberEnt && saberEnt->ghoul2)
@@ -13777,6 +14270,19 @@ stillDoSaber:
 			trap->G2API_RemoveGhoul2Model(&(cent->ghoul2), 1);
 			g2HasWeapon = qfalse;
 		}
+	}
+
+	if (cent->currentState.weapon == WP_SABER
+		&& CG_StaffSwapPhase(cent, ci) == STAFFSWAP_ONBACK
+		&& trap->G2API_HasGhoul2ModelOnIndex(&(cent->ghoul2), 1))
+	{ //The hilt is drawn on his back for this part of the swap, so his hand has to be empty - but
+	  //only while the saber is still the weapon, since once it has changed, index 1 holds whatever
+	  //he switched to. Ask ghoul2 rather than trusting g2HasWeapon: the saber gets bolted back on
+	  //above without that local being put straight again, so it goes stale just when this fires.
+	  //Normally this only has anything to take off on the frame the reach begins - the bolting back
+	  //on is held off for the rest of it.
+		trap->G2API_RemoveGhoul2Model(&(cent->ghoul2), 1);
+		g2HasWeapon = qfalse;
 	}
 
 	if (iwantout)
