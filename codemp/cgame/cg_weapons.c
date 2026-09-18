@@ -2584,21 +2584,8 @@ CG_MissileHitPlayer
 */
 void CG_MissileHitPlayer(int weapon, vec3_t origin, vec3_t dir, int entityNum, qboolean altFire)
 {
-	qboolean	humanoid = qtrue;
+	qboolean	humanoid = !CG_IsDroidEntity(entityNum);
 	vec3_t up={0,0,1};
-
-	/*
-	// NOTENOTE Non-portable code from single player
-	if ( cent->gent )
-	{
-		other = &g_entities[cent->gent->s.otherEntityNum];
-
-		if ( other->client && other->client->playerTeam == TEAM_BOTS )
-		{
-			humanoid = qfalse;
-		}
-	}
-	*/
 
 	// NOTENOTE No bleeding in this game
 	CG_Bleed( origin, entityNum );//JAPRO - Clientside - Add Blood

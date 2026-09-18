@@ -1381,7 +1381,7 @@ void CG_LoadClientInfo( clientInfo_t *ci, int clientNum ) {
 		for ( i = 0 ; i < MAX_GENTITIES ; i++ ) {
 			if ( cg_entities[i].currentState.clientNum == clientNum
 				&& cg_entities[i].currentState.eType == ET_PLAYER ) {
-				CG_ResetPlayerEntity( &cg_entities[i] );
+				CG_ResetPlayerEntity( &cg_entities[i], qfalse );
 			}
 		}
 
@@ -1474,7 +1474,7 @@ void CG_LoadClientInfo( clientInfo_t *ci, int clientNum ) {
 	for ( i = 0 ; i < MAX_GENTITIES ; i++ ) {
 		if ( cg_entities[i].currentState.clientNum == clientNum
 			&& cg_entities[i].currentState.eType == ET_PLAYER ) {
-			CG_ResetPlayerEntity( &cg_entities[i] );
+			CG_ResetPlayerEntity( &cg_entities[i], qfalse );
 		}
 	}
 }
@@ -1535,6 +1535,88 @@ static void CG_InitG2SaberData(int saberNum, clientInfo_t *ci)
 	}
 }
 
+/*
+======================
+CG_SaberEntityOwnerSaber
+
+Find the saber info this client parsed for whoever owns a saber entity. Returns
+NULL for sabers nobody owns, like the Jedi Master saber.
+
+The owner link only lives in his saberEntityNum, and the server clears that the
+moment the saber is knocked to the ground (saberKnockDown), so remember the owner
+the first time we see the link - otherwise a thrown saber loses track of whose it
+is exactly when it lands and needs to be rebuilt.
+======================
+*/
+saberInfo_t *CG_SaberEntityOwnerSaber( centity_t *saberEnt )
+{
+	int i;
+	int saberEntNum = saberEnt->currentState.number;
+
+	if ( !saberEntNum )
+		return NULL;
+
+	for ( i = 0; i < MAX_GENTITIES; i++ )
+	{
+		centity_t *owner = &cg_entities[i];
+
+		if ( owner->currentState.saberEntityNum != saberEntNum )
+			continue;
+
+		if ( owner->currentState.eType == ET_PLAYER
+			&& i < MAX_CLIENTS
+			&& cgs.clientinfo[i].infoValid )
+		{
+			saberEnt->saberHiltOwner = i+1;
+			return &cgs.clientinfo[i].saber[0];
+		}
+
+		if ( owner->currentState.eType == ET_NPC
+			&& owner->currentValid
+			&& owner->npcClient )
+		{
+			saberEnt->saberHiltOwner = 0; //npc client info comes and goes, don't remember it
+			return &owner->npcClient->saber[0];
+		}
+	}
+
+	//no live link - fall back on whoever it belonged to last
+	if ( saberEnt->saberHiltOwner
+		&& cgs.clientinfo[saberEnt->saberHiltOwner-1].infoValid )
+		return &cgs.clientinfo[saberEnt->saberHiltOwner-1].saber[0];
+
+	return NULL;
+}
+
+/*
+======================
+CG_SaberEntityHiltModel
+
+Pick the hilt a saber entity (thrown, dropped, or being pulled back) is drawn
+with. Use the saber info this client parsed for the owner - the same data that
+builds the model in his hand - so a hilt that resolves differently here than it
+does on the server doesn't change shape the moment it leaves the hand. The
+server's model configstring is only a fallback for ownerless sabers.
+======================
+*/
+const char *CG_SaberEntityHiltModel( saberInfo_t *saber, centity_t *saberEnt, qhandle_t *skin )
+{
+	const char *model;
+
+	if ( saber && saber->model[0] )
+	{
+		*skin = saber->skin;
+		return saber->model;
+	}
+
+	*skin = 0;
+
+	model = CG_ConfigString( CS_MODELS+saberEnt->currentState.modelindex );
+	if ( model && model[0] )
+		return model;
+
+	return DEFAULT_SABER_MODEL;
+}
 
 /*
 ======================
@@ -1721,6 +1803,80 @@ static qboolean CG_ScanForExistingClientInfo( clientInfo_t *ci, int clientNum ) 
 
 /*
 ======================
+CG_LoadPlaceholderClientInfo
+
+Loads a stand-in model for a client whose real model hasn't been loaded yet,
+so deferred players don't all show up wearing the first loaded client's skin.
+
+cg_deferPlayersModel:
+	0			use the old behaviour (copy the first valid clientinfo)
+	1			the player's configured default model, per gender
+	model[/skin]	always use this model
+
+For 1 this honours cg_defaultModel / cg_defaultFemaleModel (the "Default Male
+Model" / "Default Female" fields in the profile menu), falling back to
+DEFAULT_MODEL / DEFAULT_MODEL_FEMALE when they are empty. cg_defaultModelRandom
+is deliberately not consulted: it exists to scatter clients whose model failed
+to register, whereas this is a short lived stand-in for a model that is about
+to load correctly.
+
+The real modelName/skinName/gender are preserved so the deferred load can
+still bring in the correct model later.
+======================
+*/
+static qboolean CG_LoadPlaceholderClientInfo( clientInfo_t *ci, int clientNum ) {
+	char	placeholder[MAX_QPATH];
+	char	realModel[MAX_QPATH], realSkin[MAX_QPATH];
+	int		realGender;
+	char	*slash;
+
+	if ( !cg_deferPlayersModel.string[0] || !Q_stricmp( cg_deferPlayersModel.string, "0" ) ) {
+		return qfalse;
+	}
+
+	if ( !Q_stricmp( cg_deferPlayersModel.string, "1" ) ) {
+		const char *configured;
+
+		if ( ci->gender == GENDER_FEMALE ) {
+			configured = cg_defaultFemaleModel.string[0] ? cg_defaultFemaleModel.string : DEFAULT_MODEL_FEMALE;
+		}
+		else {
+			configured = cg_defaultModel.string[0] ? cg_defaultModel.string : DEFAULT_MODEL;
+		}
+		Q_strncpyz( placeholder, configured, sizeof( placeholder ) );
+	}
+	else {
+		Q_strncpyz( placeholder, cg_deferPlayersModel.string, sizeof( placeholder ) );
+	}
+
+	Q_strncpyz( realModel, ci->modelName, sizeof( realModel ) );
+	Q_strncpyz( realSkin, ci->skinName, sizeof( realSkin ) );
+	realGender = ci->gender;
+
+	slash = strchr( placeholder, '/' );
+	if ( slash ) {
+		*slash = 0;
+		Q_strncpyz( ci->skinName, slash + 1, sizeof( ci->skinName ) );
+	}
+	else {
+		Q_strncpyz( ci->skinName, "default", sizeof( ci->skinName ) );
+	}
+	Q_strncpyz( ci->modelName, placeholder, sizeof( ci->modelName ) );
+
+	CG_LoadClientInfo( ci, clientNum );
+
+	Q_strncpyz( ci->modelName, realModel, sizeof( ci->modelName ) );
+	Q_strncpyz( ci->skinName, realSkin, sizeof( ci->skinName ) );
+	ci->gender = realGender;
+
+	// CG_LoadClientInfo cleared this, but the real model still needs loading
+	ci->deferred = qtrue;
+
+	return qtrue;
+}
+
+/*
+======================
 CG_SetDeferredClientInfo
 
 We aren't going to load it now, so grab some other
@@ -1789,6 +1945,12 @@ static void CG_SetDeferredClientInfo( clientInfo_t *ci, int clientNum ) {
 		// player, when the second enters.  Combat shouldn't be going on
 		// yet, so it shouldn't matter
 		CG_LoadClientInfo( ci, clientNum );
+		return;
+	}
+
+	// load a generic placeholder model instead of wearing whichever client
+	// happened to be loaded first (which was almost always client 0)
+	if ( CG_LoadPlaceholderClientInfo( ci, clientNum ) ) {
 		return;
 	}
 
@@ -2377,6 +2539,25 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	if (clientNum == cg.clientNum && strlen(cg_forceOwnSaber.string) && Q_stricmp(cg_forceOwnSaber.string, "none"))
 	{
 		parsed = sscanf(cg_forceOwnSaber.string, "%s %s", saber1, saber2);
+		if (parsed > 0)
+		{
+			saberInfo_t serverSabers[MAX_SABERS];
+			const char *serverSaber2 = Info_ValueForKey(configstring, "st2");
+			int saberNum;
+
+			memset(serverSabers, 0, sizeof(serverSabers));
+			WP_SetSaber(clientNum, serverSabers, 0, v);
+			if (serverSaber2[0])
+				WP_SetSaber(clientNum, serverSabers, 1, serverSaber2);
+			for (saberNum = 0; saberNum < MAX_SABERS; saberNum++)
+			{
+				if (serverSabers[saberNum].model[0])
+				{
+					newInfo.serverSaberSoundOn[saberNum] = serverSabers[saberNum].soundOn;
+					newInfo.serverSaberSoundOff[saberNum] = serverSabers[saberNum].soundOff;
+				}
+			}
+		}
 		if (parsed > 0 && saber1 && saber1[0] && Q_stricmp(saber1, "none"))
 			v = saber1;
 	}
@@ -4803,6 +4984,35 @@ Description: Makes the player appear to have breath puffs (from the cold).
 Added 11/06/02 by Aurelio Reis.
 Ported to MP 01/14/2019
 */
+// Client time can be corrected backwards after a large server timescale change.
+// A normal breathing cycle never schedules its next puff more than 3s ahead.
+static qboolean CG_UpdateBreathTimers(centity_t *cent)
+{
+	if (cent->breathPuffTime > cg.time &&
+		(double)cent->breathPuffTime - cg.time <= 3000.0)
+		return qfalse;
+
+	if (trap->S_GetVoiceVolume(cent->currentState.number) > 0)
+	{
+		cent->breathPuffTime = cg.time + 300;
+		cent->breathTime = cg.time + 150;
+	}
+	else
+	{
+		cent->breathPuffTime = cg.time + 3000;
+		cent->breathTime = cg.time + 1500;
+	}
+	return qtrue;
+}
+
+static float CG_BreathPitchOffset(int breathTime, int time)
+{
+	// Keep the cosmetic tilt within its normal 3.75-degree range, even if
+	// stale timing state reaches this code before the next breathing update.
+	float phase = (float)fabs((double)breathTime - time);
+	return -Com_Clamp(0.0f, 1500.0f, phase) * 0.0025f;
+}
+
 //extern vmCvar_t	cg_drawBreath;
 static void CG_BreathPuffs( centity_t *cent, vec3_t angles, vec3_t origin )
 {
@@ -4818,21 +5028,8 @@ static void CG_BreathPuffs( centity_t *cent, vec3_t angles, vec3_t origin )
 		return;
 	}
 
-	if (cent->breathPuffTime > cg.time) {
+	if (!CG_UpdateBreathTimers(cent)) {
 		return;
-	}
-
-	//Update these here incase we don't have a head_front bolt.
-	// TODO: It'd be nice if they breath faster when they're more damaged or when running...
-	if (trap->S_GetVoiceVolume(cent->currentState.number) > 0)
-	{//make breath when talking
-		cent->breathPuffTime = cg.time + 300; // every 200 ms
-		cent->breathTime = cg.time + 150;
-	}
-	else
-	{
-		cent->breathPuffTime = cg.time + 3000; // every 3 seconds.
-		cent->breathTime = cg.time + 1500;
 	}
 
 	if (cg_stylePlayer.integer & JAPRO_STYLE_DISABLEBREATHING)
@@ -5071,10 +5268,7 @@ static void CG_G2PlayerAngles( centity_t *cent, matrix3_t legs, vec3_t legsAngle
 			if (cent->currentState.torsoAnim < BOTH_ATTACK1 || cent->currentState.torsoAnim > BOTH_ROLL_STAB ||
 				(cent->currentState.torsoAnim >= BOTH_SABERFAST_STANCE && cent->currentState.torsoAnim <= BOTH_SABERSTAFF_STANCE))
 			{ //not attacking
-				if (cent->breathTime - cg.time < 0)
-					cent->lerpAngles[PITCH] += (float)(cent->breathTime - cg.time) * 0.0025f;
-				else
-					cent->lerpAngles[PITCH] -= (float)(cent->breathTime - cg.time) * 0.0025f;
+				cent->lerpAngles[PITCH] += CG_BreathPitchOffset(cent->breathTime, cg.time);
 			}
 		}
 
@@ -7686,6 +7880,46 @@ void CG_SaberCompWork(vec3_t start, vec3_t end, centity_t *owner, int saberNum, 
 
 qboolean BG_SuperBreakWinAnim( int anim );
 
+static void CG_SaberRainSteam(centity_t *cent, int saberNum, int bladeNum,
+	vec3_t base, vec3_t direction, float length)
+{
+	vec3_t point, sky;
+	vec3_t up = {0, 0, 1};
+	trace_t trace;
+	int contents;
+	int *nextTime = &cent->saberRainSteamTime[saberNum][bladeNum];
+
+	if (!cg.saberRainActive || cg.saberRainFrozen || cl_paused.integer ||
+		cg_saberRainSteam.integer <= 0 || length <= 0 ||
+		(cg_saberRainSteam.integer == 2 && cent->currentState.number != cg.clientNum))
+	{
+		return;
+	}
+
+	// One burst per blade every 300-600 ms, including at high FPS and in mirrors.
+	// Discard a stale deadline after rewinding a demo.
+	if (*nextTime > cg.time && *nextTime <= cg.time + 600)
+		return;
+	*nextTime = cg.time + Q_irand(300, 600);
+
+	VectorMA(base, Q_flrand(0.1f, 1.0f) * length, direction, point);
+	contents = CG_PointContents(point, cent->currentState.number);
+	if (contents & (CONTENTS_SOLID | CONTENTS_INSIDE | CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA))
+		return;
+
+	// Trace against doors and roofs too, so a rainy map does not steam indoors.
+	VectorCopy(point, sky);
+	sky[2] += 65536.0f;
+	CG_Trace(&trace, point, NULL, NULL, sky, cent->currentState.number, MASK_SOLID);
+	if (trace.startsolid || trace.allsolid ||
+		(!(trace.surfaceFlags & SURF_SKY) && !(trace.fraction == 1.0f && (contents & CONTENTS_OUTSIDE))))
+	{
+		return;
+	}
+
+	trap->FX_PlayEffectID(cgs.effects.mSaberRainSteam, point, up, -1, -1, qfalse);
+}
+
 void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, int renderfx, int modelIndex, int saberNum, int bladeNum, vec3_t origin, vec3_t angles, qboolean fromSaber, qboolean dontDraw)
 {
 	vec3_t	org_, end, v, rgb1,
@@ -8420,6 +8654,12 @@ JustDoIt:
 			CG_DoSaberLight( &client->saber[saberNum], cent->currentState.clientNum, saberNum, saberScale );//rgb
 		}
 		return;
+	}
+
+	if (!WP_SaberBladeUseSecondBladeStyle(&client->saber[saberNum], bladeNum) ||
+		!(client->saber[saberNum].saberFlags2 & SFL2_NO_BLADE2))
+	{
+		CG_SaberRainSteam(cent, saberNum, bladeNum, org_, axis_[0], saberLen);
 	}
 
 	// Pass in the renderfx flags attached to the saber weapon model...this is done so that saber glows
@@ -13525,11 +13765,20 @@ stillDoSaber:
 			&& cent->currentState.saberEntityNum)
 		{
 			centity_t *saberEnt;
+			qhandle_t hiltSkin;
+			const char *hiltModel;
 
 			saberEnt = &cg_entities[cent->currentState.saberEntityNum];
+			hiltModel = CG_SaberEntityHiltModel(&ci->saber[0], saberEnt, &hiltSkin);
+
+			if (cent->currentState.number < MAX_CLIENTS)
+			{ //remember whose this is - the server drops the link once it lands
+				saberEnt->saberHiltOwner = cent->currentState.number+1;
+			}
 
 			if (/*!cent->bolt4 &&*/ g2HasWeapon || !cent->bolt3 ||
-				saberEnt->serverSaberHitIndex != saberEnt->currentState.modelindex/*|| !cent->saberLength*/)
+				saberEnt->serverSaberHitIndex != saberEnt->currentState.modelindex ||
+				Q_stricmp(saberEnt->saberHiltModel, hiltModel)/*|| !cent->saberLength*/)
 			{ //saber is in flight, do not have it as a standard weapon model
 				qboolean addBolts = qfalse;
 				mdxaBone_t boltMat;
@@ -13563,34 +13812,29 @@ stillDoSaber:
 				saberEnt->currentState.bolt2 = 123;
 
 				if (saberEnt->ghoul2 &&
-					saberEnt->serverSaberHitIndex == saberEnt->currentState.modelindex)
+					saberEnt->serverSaberHitIndex == saberEnt->currentState.modelindex &&
+					!Q_stricmp(saberEnt->saberHiltModel, hiltModel))
 				{
 					// now set up the gun bolt on it
 					addBolts = qtrue;
 				}
 				else
 				{
-					const char *saberModel = CG_ConfigString( CS_MODELS+saberEnt->currentState.modelindex );
-
 					saberEnt->serverSaberHitIndex = saberEnt->currentState.modelindex;
+					Q_strncpyz(saberEnt->saberHiltModel, hiltModel, sizeof(saberEnt->saberHiltModel));
+					saberEnt->saberHiltSkin = hiltSkin;
 
 					if (saberEnt->ghoul2)
-					{ //clean if we already have one (because server changed model string index)
+					{ //clean if we already have one (because the hilt changed)
 						trap->G2API_CleanGhoul2Models(&(saberEnt->ghoul2));
 						saberEnt->ghoul2 = 0;
 					}
 
-					if (saberModel && saberModel[0])
+					trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, hiltModel, 0, hiltSkin, 0, 0, 0);
+
+					if (saberEnt->ghoul2 && hiltSkin)
 					{
-						trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, saberModel, 0, 0, 0, 0, 0);
-					}
-					else if (ci->saber[0].model[0])
-					{
-						trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, ci->saber[0].model, 0, 0, 0, 0, 0);
-					}
-					else
-					{
-						trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, DEFAULT_SABER_MODEL, 0, 0, 0, 0, 0);
+						trap->G2API_SetSkin(saberEnt->ghoul2, 0, hiltSkin, hiltSkin);
 					}
 					//trap->G2API_DuplicateGhoul2Instance(cent->ghoul2, &saberEnt->ghoul2);
 
@@ -13621,10 +13865,18 @@ stillDoSaber:
 						if (tagBolt == -1)
 						{
 							if (m == 0 && !reloaded)
-							{ //model lacks blade bolts, reload as default saber and retry
+							{ //guess this is an 0ldsk3wl saber - same fallback the in-hand model uses
+								tagBolt = trap->G2API_AddBolt(saberEnt->ghoul2, 0, "*flash");
+
+								if (tagBolt != -1)
+								{
+									break; //bolt 0 is the blade, that's all this model has
+								}
+
+								//no blade bolts at all, fall back to a hilt we know has them
 								trap->G2API_CleanGhoul2Models(&(saberEnt->ghoul2));
 								saberEnt->ghoul2 = 0;
-								trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, "models/weapons2/saber_reborn/saber_w.glm", 0, 0, 0, 0, 0);
+								trap->G2API_InitGhoul2Model(&saberEnt->ghoul2, DEFAULT_SABER_MODEL, 0, 0, 0, 0, 0);
 								reloaded = qtrue;
 								if (saberEnt->ghoul2)
 								{
@@ -14848,14 +15100,24 @@ endOfCall:
 ===============
 CG_ResetPlayerEntity
 
-A player just came into view or teleported, so reset all animation info
+A player just came into view or teleported. Preserve matching animations only
+when returning to visibility with the same model; always reset orientation.
 ===============
 */
-void CG_ResetPlayerEntity( centity_t *cent )
+void CG_ResetPlayerEntity( centity_t *cent, qboolean preserveAnimations )
 {
 	clientInfo_t *ci;
 	int i = 0;
 	int j = 0;
+	qboolean preserveLegs = preserveAnimations && cent->pe.legs.animation &&
+		cent->pe.legs.animationNumber == cent->currentState.legsAnim &&
+		cent->pe.legs.lastFlip == cent->currentState.legsFlip;
+	qboolean preserveTorso = preserveAnimations && cent->pe.torso.animation &&
+		cent->pe.torso.animationNumber == cent->currentState.torsoAnim &&
+		cent->pe.torso.lastFlip == cent->currentState.torsoFlip;
+
+	// Torso and legs share bone overrides, so retain their state together.
+	preserveLegs = preserveTorso = preserveLegs && preserveTorso;
 
 //	cent->errorTime = -99999;		// guarantee no error decay added
 //	cent->extrapolated = qfalse;
@@ -14916,6 +15178,8 @@ void CG_ResetPlayerEntity( centity_t *cent )
 	ci->facial_frown = 0;
 	ci->facial_aux = 0;
 	ci->superSmoothTime = 0;
+	cent->breathPuffTime = 0;
+	cent->breathTime = 0;
 
 	//reset lerp origin smooth point
 	VectorCopy(cent->lerpOrigin, cent->beamEnd);
@@ -14923,8 +15187,14 @@ void CG_ResetPlayerEntity( centity_t *cent )
 	if (cent->currentState.eType != ET_NPC ||
 		!(cent->currentState.eFlags & EF_DEAD))
 	{
-		CG_ClearLerpFrame( cent, ci, &cent->pe.legs, cent->currentState.legsAnim, qfalse);
-		CG_ClearLerpFrame( cent, ci, &cent->pe.torso, cent->currentState.torsoAnim, qtrue);
+		if (!preserveLegs)
+		{
+			CG_ClearLerpFrame( cent, ci, &cent->pe.legs, cent->currentState.legsAnim, qfalse);
+		}
+		if (!preserveTorso)
+		{
+			CG_ClearLerpFrame( cent, ci, &cent->pe.torso, cent->currentState.torsoAnim, qtrue);
+		}
 
 		BG_EvaluateTrajectory( &cent->currentState.pos, cg.time, cent->lerpOrigin );
 		BG_EvaluateTrajectory( &cent->currentState.apos, cg.time, cent->lerpAngles );
@@ -14932,13 +15202,19 @@ void CG_ResetPlayerEntity( centity_t *cent )
 //		VectorCopy( cent->lerpOrigin, cent->rawOrigin );
 		VectorCopy( cent->lerpAngles, cent->rawAngles );
 
-		memset( &cent->pe.legs, 0, sizeof( cent->pe.legs ) );
+		if (!preserveLegs)
+		{
+			memset( &cent->pe.legs, 0, sizeof( cent->pe.legs ) );
+		}
 		cent->pe.legs.yawAngle = cent->rawAngles[YAW];
 		cent->pe.legs.yawing = qfalse;
 		cent->pe.legs.pitchAngle = 0;
 		cent->pe.legs.pitching = qfalse;
 
-		memset( &cent->pe.torso, 0, sizeof( cent->pe.torso ) );
+		if (!preserveTorso)
+		{
+			memset( &cent->pe.torso, 0, sizeof( cent->pe.torso ) );
+		}
 		cent->pe.torso.yawAngle = cent->rawAngles[YAW];
 		cent->pe.torso.yawing = qfalse;
 		cent->pe.torso.pitchAngle = cent->rawAngles[PITCH];

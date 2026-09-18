@@ -108,6 +108,7 @@ XCVAR_DEF( cg_voteBeep,							"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_chatSounds,						"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_hitsounds,						"0",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_raceSounds,						"1",	NULL,								CVAR_ARCHIVE ) //Bitvalue, but so far we just have RS_TIMER_START set up
+XCVAR_DEF( cg_tauntAntiSpam,					"1",	NULL,								CVAR_ARCHIVE ) //Throttle repeated model voice lines per player
 XCVAR_DEF( cg_duelSounds,						"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_duelMusic,						"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_saberHum,							"0",	NULL,								CVAR_ARCHIVE )
@@ -217,6 +218,10 @@ XCVAR_DEF( cjp_client,						JOFCLIENTVERSION,	NULL,					CVAR_USERINFO|CVAR_ROM )
 // Advertise to a JoF JA+ server that this client wants the Force Stasis "it fired" sound.
 // The server only sends the reliable "stasis" servercmd when this userinfo key is non-empty.
 XCVAR_DEF( jofejk,							"1",	NULL,					CVAR_USERINFO|CVAR_ARCHIVE )
+XCVAR_DEF( binoScan, "1", NULL, CVAR_USERINFO|CVAR_ROM )
+XCVAR_DEF( binoNames, "1", NULL, CVAR_USERINFO|CVAR_ROM )
+XCVAR_DEF( cg_binocularScanScale, "100", NULL, CVAR_ARCHIVE ) // percentage, 25-200
+XCVAR_DEF( cg_binocularScanStyle, "0", NULL, CVAR_ARCHIVE ) // 0: detailed, 1: compact HUD digits
 XCVAR_DEF( cp_clanPwd,							"none",	NULL,					CVAR_USERINFO )
 XCVAR_DEF( cp_sbRGB1,							"0",	NULL,					CVAR_ARCHIVE | CVAR_USERINFO )
 XCVAR_DEF( cp_sbRGB2,							"0",	NULL,					CVAR_ARCHIVE | CVAR_USERINFO )
@@ -319,6 +324,7 @@ XCVAR_DEF( cg_debugPosition,					"0",					NULL,					CVAR_CHEAT )
 XCVAR_DEF( cg_debugEvents,						"0",					NULL,					CVAR_CHEAT )
 XCVAR_DEF( cg_dismember,						"3",					NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_deferPlayers,						"1",					NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_deferPlayersModel,				"1",					NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_errorDecay,						"100",					NULL,					CVAR_NONE )
 XCVAR_DEF( cg_footsteps,						"3",					NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_fov,								"90",					NULL,					CVAR_ARCHIVE )
@@ -365,6 +371,7 @@ XCVAR_DEF( cg_saberDynamicMarks,				"0",					NULL,					CVAR_NONE )
 XCVAR_DEF( cg_saberDynamicMarkTime,				"60000",				NULL,					CVAR_NONE )
 XCVAR_DEF( cg_saberModelTraceEffect,			"0",					NULL,					CVAR_NONE )
 XCVAR_DEF( cg_saberTrail,						"1",					NULL,					CVAR_ARCHIVE )
+XCVAR_DEF( cg_saberRainSteam,					"1",					NULL,					CVAR_ARCHIVE ) // 0 off, 1 everyone, 2 only me
 XCVAR_DEF( cg_saberClash,						"1",					NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_saberClashSize,					"1.0",					CG_SaberClashSizeChange,CVAR_ARCHIVE )
 XCVAR_DEF( cg_shaderSaberCore,					"0.625",				NULL,					CVAR_NONE )
