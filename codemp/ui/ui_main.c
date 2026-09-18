@@ -1332,6 +1332,8 @@ void UI_BuildPlayerModel_List( qboolean inGameLoad )
 	UI_UpdateSpeciesBrowser();
 }
 
+static void UI_UpdateForceRules( int realtime );
+
 void UI_SetActiveMenu( uiMenuCommand_t menu ) {
 	char buf[256];
 
@@ -1402,6 +1404,7 @@ void UI_SetActiveMenu( uiMenuCommand_t menu ) {
 			Menus_ActivateByName("ingame");
 			return;
 		case UIMENU_PLAYERCONFIG:
+			UI_UpdateForceRules(uiInfo.uiDC.realTime);
 			UI_UpdateCurrentServerInfo();
 			// trap->Cvar_Set( "cl_paused", "1" );
 			trap->Key_SetCatcher( KEYCATCH_UI );
@@ -1411,6 +1414,7 @@ void UI_SetActiveMenu( uiMenuCommand_t menu ) {
 			UpdateForceUsed();
 			return;
 		case UIMENU_PLAYERFORCE:
+			UI_UpdateForceRules(uiInfo.uiDC.realTime);
 			// trap->Cvar_Set( "cl_paused", "1" );
 			trap->Key_SetCatcher( KEYCATCH_UI );
 			UI_BuildPlayerList();
@@ -2465,7 +2469,6 @@ static void UI_DrawShowAllForce(rectDef_t* rect, float scale, vec4_t color, int 
 		trap->SE_GetStringTextString("MENUS_YES", s, sizeof(s));
 	}
 
-	UI_ReadLegalForce();
 	UpdateForceStatus();
 
 	Text_Paint(rect->x, rect->y, scale, color, s, 0, 0, textStyle, iMenuFont);
@@ -2814,7 +2817,7 @@ void UpdateForceStatus(void)
 		}
 
 		//Moved this to happen after it's done with force power disabling stuff
-		if (uiForcePowersRank[FP_SABER_OFFENSE] > 0 || ui_freeSaber.integer)
+		if (uiForcePowersRank[FP_SABER_OFFENSE] > 0 || UI_FreeSaber())
 		{	// Show lightsaber stuff.
 			Menu_ShowItemByName(menu, "nosaber", qfalse);
 			Menu_ShowItemByName(menu, "yessaber", qtrue);
@@ -13387,8 +13390,6 @@ void UI_Init( qboolean inGameLoad ) {
 
 	UI_SiegeInit();
 
-	UI_UpdateForcePowers();
-
 	UI_InitMemory();
 
 	// cache redundant calulations
@@ -13471,6 +13472,8 @@ void UI_Init( qboolean inGameLoad ) {
 	Init_Display(&uiInfo.uiDC);
 
 	UI_RegisterCvars();
+	// Read the saved allocation after cvars and serverinfo are available.
+	UI_UpdateForcePowers();
 	UI_Set2DRatio();
 
 	String_Init();
@@ -13562,60 +13565,24 @@ void UI_Init( qboolean inGameLoad ) {
 	UI_GetCharacterCvars();
 }
 
-#define	UI_FPS_FRAMES	4
-void UI_Refresh( int realtime )
+static void UI_UpdateForceRules( int realtime )
 {
-	static int index;
-	static int	previousTimes[UI_FPS_FRAMES];
-
-	//if ( !( trap->Key_GetCatcher() & KEYCATCH_UI ) ) {
-	//	return;
-	//}
-
-	trap->G2API_SetTime(realtime, 0);
-	trap->G2API_SetTime(realtime, 1);
-	//ghoul2 timer must be explicitly updated during ui rendering.
-
-	uiInfo.uiDC.frameTime = realtime - uiInfo.uiDC.realTime;
-	uiInfo.uiDC.realTime = realtime;
-
-	previousTimes[index % UI_FPS_FRAMES] = uiInfo.uiDC.frameTime;
-	index++;
-	if ( index > UI_FPS_FRAMES ) {
-		int i, total;
-		// average multiple frames together to smooth changes out a bit
-		total = 0;
-		for ( i = 0 ; i < UI_FPS_FRAMES ; i++ ) {
-			total += previousTimes[i];
-		}
-		if ( !total ) {
-			total = 1;
-		}
-		uiInfo.uiDC.FPS = 1000 * UI_FPS_FRAMES / total;
-	}
+	static qboolean rulesInitialized = qfalse;
+	static qboolean previousFreeSaber = qfalse;
+	const qboolean freeSaber = UI_FreeSaber();
 
 	UI_UpdateCvars();
-	UI_BuildQ3Model_List_Process();
-
-	if (Menu_Count() > 0) {
-		// paint all the menus
-		Menu_PaintAll();
-		// refresh server browser list
-		UI_DoServerRefresh();
-		// refresh server status
-		UI_BuildServerStatus(qfalse);
-		// refresh find player list
-		UI_BuildFindPlayerList(qfalse);
+	if (rulesInitialized && previousFreeSaber != freeSaber && !ui_rankChange.integer)
+	{
+		// Recalculate the new cost without choosing powers to delete. If the
+		// loadout is now over budget, the negative remainder tells the player
+		// exactly how many points must be removed.
+		UpdateForceUsed();
 	}
-	// draw cursor
-	UI_SetColor( NULL );
+	previousFreeSaber = freeSaber;
+	rulesInitialized = qtrue;
 
-	if (!uiInfo.newUIAPI || ui_drawCursor.integer) {
-		if ((trap->Key_GetCatcher() & KEYCATCH_UI) && Menu_Count() > 0) {
-			UI_DrawHandlePic( uiInfo.uiDC.cursorx, uiInfo.uiDC.cursory, 42.0f * uiInfo.uiDC.widthRatioCoef, 42.0f, uiInfo.uiDC.Assets.cursor );
-		}
-	}
-
+	// Apply the server's budget before processing the rank-change allocation.
 	if (ui_rankChange.integer)
 	{
 		FPMessageTime = realtime + 3000;
@@ -13665,11 +13632,11 @@ void UI_Refresh( int realtime )
 			UI_ReadLegalForce();
 		}
 
-		if (ui_freeSaber.integer && uiForcePowersRank[FP_SABER_OFFENSE] < 1)
+		if (freeSaber && uiForcePowersRank[FP_SABER_OFFENSE] < 1)
 		{
 			uiForcePowersRank[FP_SABER_OFFENSE] = 1;
 		}
-		if (ui_freeSaber.integer && uiForcePowersRank[FP_SABER_DEFENSE] < 1)
+		if (freeSaber && uiForcePowersRank[FP_SABER_DEFENSE] < 1)
 		{
 			uiForcePowersRank[FP_SABER_DEFENSE] = 1;
 		}
@@ -13679,15 +13646,60 @@ void UI_Refresh( int realtime )
 		UpdateForceUsed();
 	}
 
-	if (ui_freeSaber.integer)
-	{
-		bgForcePowerCost[FP_SABER_OFFENSE][FORCE_LEVEL_1] = 0;
-		bgForcePowerCost[FP_SABER_DEFENSE][FORCE_LEVEL_1] = 0;
+}
+
+#define	UI_FPS_FRAMES	4
+void UI_Refresh( int realtime )
+{
+	static int index;
+	static int	previousTimes[UI_FPS_FRAMES];
+
+	//if ( !( trap->Key_GetCatcher() & KEYCATCH_UI ) ) {
+	//	return;
+	//}
+
+	trap->G2API_SetTime(realtime, 0);
+	trap->G2API_SetTime(realtime, 1);
+	//ghoul2 timer must be explicitly updated during ui rendering.
+
+	uiInfo.uiDC.frameTime = realtime - uiInfo.uiDC.realTime;
+	uiInfo.uiDC.realTime = realtime;
+
+	previousTimes[index % UI_FPS_FRAMES] = uiInfo.uiDC.frameTime;
+	index++;
+	if ( index > UI_FPS_FRAMES ) {
+		int i, total;
+		// average multiple frames together to smooth changes out a bit
+		total = 0;
+		for ( i = 0 ; i < UI_FPS_FRAMES ; i++ ) {
+			total += previousTimes[i];
+		}
+		if ( !total ) {
+			total = 1;
+		}
+		uiInfo.uiDC.FPS = 1000 * UI_FPS_FRAMES / total;
 	}
-	else
-	{
-		bgForcePowerCost[FP_SABER_OFFENSE][FORCE_LEVEL_1] = 1;
-		bgForcePowerCost[FP_SABER_DEFENSE][FORCE_LEVEL_1] = 1;
+
+	UI_UpdateForceRules(realtime);
+	UI_BuildQ3Model_List_Process();
+
+	if (Menu_Count() > 0) {
+		// paint all the menus
+		Menu_PaintAll();
+		// refresh server browser list
+		UI_DoServerRefresh();
+		// refresh server status
+		UI_BuildServerStatus(qfalse);
+		// refresh find player list
+		UI_BuildFindPlayerList(qfalse);
+	}
+	// draw cursor
+	UI_SetColor( NULL );
+
+	if (!uiInfo.newUIAPI || ui_drawCursor.integer) {
+		if ((trap->Key_GetCatcher() & KEYCATCH_UI) && Menu_Count() > 0) {
+			UI_DrawHandlePic( uiInfo.uiDC.cursorx, uiInfo.uiDC.cursory, 42.0f * uiInfo.uiDC.widthRatioCoef, 42.0f, uiInfo.uiDC.Assets.cursor );
+		}
 	}
 
 	/*

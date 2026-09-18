@@ -33,6 +33,25 @@ FORCE INTERFACE
 #include "qcommon/qfiles.h"
 #include "ui_force.h"
 
+qboolean UI_FreeSaber(void) {
+	char info[MAX_INFO_STRING];
+	int gametype;
+
+	trap->GetConfigString(CS_SERVERINFO, info, sizeof(info));
+	gametype = atoi(Info_ValueForKey(info, "g_gametype"));
+	return UI_HasSetSaberOnly(info, gametype);
+}
+
+// Calculate UI costs from the current rule, without changing the shared table.
+// Server cvars can change before a refresh or force-template load.
+static int UI_ForcePowerCost(int power, int rank) {
+	if (UI_FreeSaber() && rank == FORCE_LEVEL_1 &&
+		(power == FP_SABER_OFFENSE || power == FP_SABER_DEFENSE)) {
+		return 0;
+	}
+	return bgForcePowerCost[power][rank];
+}
+
 int uiForceSide = FORCE_LIGHTSIDE;
 int uiJediNonJedi = -1;
 int uiForceRank = FORCE_MASTERY_JEDI_KNIGHT;
@@ -161,6 +180,9 @@ void UI_DrawForceStars(rectDef_t *rect, float scale, vec4_t color, int textStyle
 
 		for (i=FORCE_LEVEL_1;i<=max;i++)
 		{
+			// The star shows the power's base level cost.  A free-saber rule
+			// grants saber offense/defense level 1; it does not change what
+			// that level costs in the force-power legend.
 			starcolor = bgForcePowerCost[forceindex][i];
 
 			if (uiForcePowersDisabled[forceindex])
@@ -389,10 +411,8 @@ void UpdateForceUsed()
 
 	menu = Menus_FindByName("ingame_playerforce");
 	// Set the cost of the saberattack according to whether its free.
-	if (ui_freeSaber.integer)
+	if (UI_FreeSaber())
 	{	// Make saber free
-		bgForcePowerCost[FP_SABER_OFFENSE][FORCE_LEVEL_1] = 0;
-		bgForcePowerCost[FP_SABER_DEFENSE][FORCE_LEVEL_1] = 0;
 		// Make sure that we have one freebie in saber if applicable.
 		if (uiForcePowersRank[FP_SABER_OFFENSE]<1)
 		{
@@ -413,8 +433,6 @@ void UpdateForceUsed()
 	}
 	else
 	{	// Make saber normal cost
-		bgForcePowerCost[FP_SABER_OFFENSE][FORCE_LEVEL_1] = 1;
-		bgForcePowerCost[FP_SABER_DEFENSE][FORCE_LEVEL_1] = 1;
 		// Also, check if there is no saberattack.  If there isn't, there had better not be any defense or throw!
 		if (uiForcePowersRank[FP_SABER_OFFENSE]<1)
 		{
@@ -442,39 +460,21 @@ void UpdateForceUsed()
 		}
 	}
 
-	// Make sure that we're still legal.
+	// Recalculate without rewriting the selected ranks. A server-rule change
+	// can make a saved loadout exceed the current budget; keep that debt visible
+	// so the player decides which powers to lower.
 	for (curpower=0;curpower<NUM_FORCE_POWERS;curpower++)
-	{	// Make sure that our ranks are within legal limits.
+	{
 		if (uiForcePowersRank[curpower]<0)
 			uiForcePowersRank[curpower]=0;
 		else if (uiForcePowersRank[curpower]>=NUM_FORCE_POWER_LEVELS)
 			uiForcePowersRank[curpower]=(NUM_FORCE_POWER_LEVELS-1);
 
 		for (currank=FORCE_LEVEL_1;currank<=uiForcePowersRank[curpower];currank++)
-		{	// Check on this force power
-			if (uiForcePowersRank[curpower]>0)
-			{	// Do not charge the player for the one freebie in jump, or if there is one in saber.
-				if  (	(curpower == FP_LEVITATION && currank == FORCE_LEVEL_1) ||
-						(curpower == FP_SABER_OFFENSE && currank == FORCE_LEVEL_1 && ui_freeSaber.integer) ||
-						(curpower == FP_SABER_DEFENSE && currank == FORCE_LEVEL_1 && ui_freeSaber.integer) )
-				{
-					// Do nothing (written this way for clarity)
-				}
-				else
-				{	// Check if we can accrue the cost of this power.
-					if (bgForcePowerCost[curpower][currank] > uiForceAvailable)
-					{	// We can't afford this power.  Break to the next one.
-						// Remove this power from the player's roster.
-						uiForcePowersRank[curpower] = currank-1;
-						break;
-					}
-					else
-					{	// Sure we can afford it.
-						uiForceUsed += bgForcePowerCost[curpower][currank];
-						uiForceAvailable -= bgForcePowerCost[curpower][currank];
-					}
-				}
-			}
+		{
+			const int cost = UI_ForcePowerCost(curpower, currank);
+			uiForceUsed += cost;
+			uiForceAvailable -= cost;
 		}
 	}
 
@@ -532,7 +532,7 @@ void UI_ReadLegalForce(void)
 		}
 	}
 	//Second, legalize them.
-	if (!BG_LegalizedForcePowers2(fcfString, sizeof(fcfString), uiMaxRank, ui_freeSaber.integer, forceTeam, atoi(Info_ValueForKey(info, "g_gametype")), 0, ui_drawTeamForces.integer))
+	if (!BG_LegalizedForcePowers2(fcfString, sizeof(fcfString), uiMaxRank, UI_FreeSaber(), forceTeam, atoi(Info_ValueForKey(info, "g_gametype")), 0, ui_drawTeamForces.integer))
 	{ //if they were illegal, we should refresh them.
 		updateForceLater = qtrue;
 	}
@@ -618,13 +618,13 @@ void UI_ReadLegalForce(void)
 		// Accrue cost for each assigned rank for this power.
 		for (currank=FORCE_LEVEL_1;currank<=forcePowerRank;currank++)
 		{
-			if (bgForcePowerCost[c][currank] > uiForceAvailable)
+			if (UI_ForcePowerCost(c, currank) > uiForceAvailable)
 			{	// Break out, we can't afford any more power.
 				break;
 			}
 			// Pay for this rank of this power.
-			uiForceUsed += bgForcePowerCost[c][currank];
-			uiForceAvailable -= bgForcePowerCost[c][currank];
+			uiForceUsed += UI_ForcePowerCost(c, currank);
+			uiForceAvailable -= UI_ForcePowerCost(c, currank);
 
 			uiForcePowersRank[c]++;
 		}
@@ -634,11 +634,11 @@ void UI_ReadLegalForce(void)
 	{
 		uiForcePowersRank[FP_LEVITATION]=1;
 	}
-	if (uiForcePowersRank[FP_SABER_OFFENSE] < 1 && ui_freeSaber.integer)
+	if (uiForcePowersRank[FP_SABER_OFFENSE] < 1 && UI_FreeSaber())
 	{
 		uiForcePowersRank[FP_SABER_OFFENSE]=1;
 	}
-	if (uiForcePowersRank[FP_SABER_DEFENSE] < 1 && ui_freeSaber.integer)
+	if (uiForcePowersRank[FP_SABER_DEFENSE] < 1 && UI_FreeSaber())
 	{
 		uiForcePowersRank[FP_SABER_DEFENSE]=1;
 	}
@@ -721,14 +721,14 @@ void UI_UpdateForcePowers()
 
 				if (i_f == FP_SABER_OFFENSE &&
 					uiForcePowersRank[i_f] < 1 &&
-					ui_freeSaber.integer)
+					UI_FreeSaber())
 				{
 					uiForcePowersRank[i_f] = 1;
 				}
 
 				if (i_f == FP_SABER_DEFENSE &&
 					uiForcePowersRank[i_f] < 1 &&
-					ui_freeSaber.integer)
+					UI_FreeSaber())
 				{
 					uiForcePowersRank[i_f] = 1;
 				}
@@ -759,11 +759,11 @@ validitycheck:
 			{
 				uiForcePowersRank[i] = 1;
 			}
-			else if (i == FP_SABER_OFFENSE && ui_freeSaber.integer)
+			else if (i == FP_SABER_OFFENSE && UI_FreeSaber())
 			{
 				uiForcePowersRank[i] = 1;
 			}
-			else if (i == FP_SABER_DEFENSE && ui_freeSaber.integer)
+			else if (i == FP_SABER_DEFENSE && UI_FreeSaber())
 			{
 				uiForcePowersRank[i] = 1;
 			}
@@ -1091,11 +1091,11 @@ qboolean UI_ForcePowerRank_HandleKey(int flags, float *special, int key, int num
 		{
 			min += 1;
 		}
-		if (type == UI_FORCE_RANK_SABERATTACK && ui_freeSaber.integer)
+		if (type == UI_FORCE_RANK_SABERATTACK && UI_FreeSaber())
 		{
 			min += 1;
 		}
-		if (type == UI_FORCE_RANK_SABERDEFEND && ui_freeSaber.integer)
+		if (type == UI_FORCE_RANK_SABERDEFEND && UI_FreeSaber())
 		{
 			min += 1;
 		}
@@ -1120,22 +1120,22 @@ qboolean UI_ForcePowerRank_HandleKey(int flags, float *special, int key, int num
 		if (raising)
 		{	// Check if we can accrue the cost of this power.
 			rank = uiForcePowersRank[forcepower]+1;
-			if (bgForcePowerCost[forcepower][rank] > uiForceAvailable)
+			if (UI_ForcePowerCost(forcepower, rank) > uiForceAvailable)
 			{	// We can't afford this power.  Abandon ship.
 				return qtrue;
 			}
 			else
 			{	// Sure we can afford it.
-				uiForceUsed += bgForcePowerCost[forcepower][rank];
-				uiForceAvailable -= bgForcePowerCost[forcepower][rank];
+				uiForceUsed += UI_ForcePowerCost(forcepower, rank);
+				uiForceAvailable -= UI_ForcePowerCost(forcepower, rank);
 				uiForcePowersRank[forcepower]=rank;
 			}
 		}
 		else
 		{	// Lower the point.
 			rank = uiForcePowersRank[forcepower];
-			uiForceUsed -= bgForcePowerCost[forcepower][rank];
-			uiForceAvailable += bgForcePowerCost[forcepower][rank];
+			uiForceUsed -= UI_ForcePowerCost(forcepower, rank);
+			uiForceAvailable += UI_ForcePowerCost(forcepower, rank);
 			uiForcePowersRank[forcepower]--;
 		}
 
@@ -1283,7 +1283,7 @@ void UI_ForceConfigHandle( int oldindex, int newindex )
 		}
 	}
 
-	BG_LegalizedForcePowers(fcfBuffer, sizeof (fcfBuffer), uiMaxRank, ui_freeSaber.integer, forceTeam, atoi( Info_ValueForKey( info, "g_gametype" )), 0);
+	BG_LegalizedForcePowers(fcfBuffer, sizeof (fcfBuffer), uiMaxRank, UI_FreeSaber(), forceTeam, atoi( Info_ValueForKey( info, "g_gametype" )), 0);
 	//legalize the config based on the max rank
 
 	//now that we're done with the handle, it's time to parse our force data out of the string
@@ -1335,11 +1335,11 @@ void UI_ForceConfigHandle( int oldindex, int newindex )
 		{
 			uiForcePowersRank[c]=1;
 		}
-		else if (c==FP_SABER_OFFENSE && ui_freeSaber.integer)
+		else if (c==FP_SABER_OFFENSE && UI_FreeSaber())
 		{
 			uiForcePowersRank[c]=1;
 		}
-		else if (c==FP_SABER_DEFENSE && ui_freeSaber.integer)
+		else if (c==FP_SABER_DEFENSE && UI_FreeSaber())
 		{
 			uiForcePowersRank[c]=1;
 		}
@@ -1385,13 +1385,13 @@ void UI_ForceConfigHandle( int oldindex, int newindex )
 		// Accrue cost for each assigned rank for this power.
 		for (currank=FORCE_LEVEL_1;currank<=forcePowerRank;currank++)
 		{
-			if (bgForcePowerCost[c][currank] > uiForceAvailable)
+			if (UI_ForcePowerCost(c, currank) > uiForceAvailable)
 			{	// Break out, we can't afford any more power.
 				break;
 			}
 			// Pay for this rank of this power.
-			uiForceUsed += bgForcePowerCost[c][currank];
-			uiForceAvailable -= bgForcePowerCost[c][currank];
+			uiForceUsed += UI_ForcePowerCost(c, currank);
+			uiForceAvailable -= UI_ForcePowerCost(c, currank);
 
 			uiForcePowersRank[c]++;
 		}
@@ -1401,11 +1401,11 @@ void UI_ForceConfigHandle( int oldindex, int newindex )
 	{
 		uiForcePowersRank[FP_LEVITATION]=1;
 	}
-	if (uiForcePowersRank[FP_SABER_OFFENSE] < 1 && ui_freeSaber.integer)
+	if (uiForcePowersRank[FP_SABER_OFFENSE] < 1 && UI_FreeSaber())
 	{
 		uiForcePowersRank[FP_SABER_OFFENSE]=1;
 	}
-	if (uiForcePowersRank[FP_SABER_DEFENSE] < 1 && ui_freeSaber.integer)
+	if (uiForcePowersRank[FP_SABER_DEFENSE] < 1 && UI_FreeSaber())
 	{
 		uiForcePowersRank[FP_SABER_DEFENSE]=1;
 	}

@@ -1062,6 +1062,13 @@ things like godmode, noclip, etc, are commands directed to the server,
 so when they are typed in at the console, they will need to be forwarded.
 ===================
 */
+static void CL_SendPendingUserinfo( void ) {
+	if ( cvar_modifiedFlags & CVAR_USERINFO ) {
+		cvar_modifiedFlags &= ~CVAR_USERINFO;
+		CL_AddReliableCommand( va("userinfo \"%s\"", Cvar_InfoString( CVAR_USERINFO ) ), qfalse );
+	}
+}
+
 void CL_ForwardCommandToServer( const char *string ) {
 	char	*cmd;
 
@@ -1075,6 +1082,11 @@ void CL_ForwardCommandToServer( const char *string ) {
 	if (clc.demoplaying || cls.state < CA_CONNECTED || cmd[0] == '+' ) {
 		Com_Printf ("Unknown command \"%s" S_COLOR_WHITE "\"\n", cmd);
 		return;
+	}
+
+	// The server's forcechanged handler immediately rereads forcepowers.
+	if ( !Q_stricmp( cmd, "forcechanged" ) ) {
+		CL_SendPendingUserinfo();
 	}
 
 	if ( Cmd_Argc() > 1 ) {
@@ -1175,6 +1187,10 @@ void CL_ForwardToServer_f( void ) {
 
 	// don't forward the first argument
 	if ( Cmd_Argc() > 1 ) {
+		// The force menu uses this explicit "cmd forcechanged" path.
+		if ( !Q_stricmp( Cmd_Argv( 1 ), "forcechanged" ) ) {
+			CL_SendPendingUserinfo();
+		}
 		CL_AddReliableCommand( Cmd_Args(), qfalse );
 	}
 }
@@ -2805,10 +2821,7 @@ void CL_CheckUserinfo( void ) {
 		return;
 	}
 	// send a reliable userinfo update if needed
-	if ( cvar_modifiedFlags & CVAR_USERINFO ) {
-		cvar_modifiedFlags &= ~CVAR_USERINFO;
-		CL_AddReliableCommand( va("userinfo \"%s\"", Cvar_InfoString( CVAR_USERINFO ) ), qfalse );
-	}
+	CL_SendPendingUserinfo();
 
 }
 
