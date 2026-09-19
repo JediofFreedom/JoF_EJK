@@ -2185,6 +2185,22 @@ qboolean CG_ModelIsBlacklisted( const char *modelName ) {
 	return BG_ModelInList( modelName, cg_modelBlacklist.string );
 }
 
+void CG_CleanHolsteredSabers( clientInfo_t *ci ) {
+	if ( !ci ) {
+		return;
+	}
+
+	if ( ci->holsterGhoul2 && trap->G2_HaveWeGhoul2Models( ci->holsterGhoul2 ) ) {
+		trap->G2API_CleanGhoul2Models( &ci->holsterGhoul2 );
+	}
+	ci->holsterGhoul2 = NULL;
+
+	if ( ci->holsterGhoul2_2 && trap->G2_HaveWeGhoul2Models( ci->holsterGhoul2_2 ) ) {
+		trap->G2API_CleanGhoul2Models( &ci->holsterGhoul2_2 );
+	}
+	ci->holsterGhoul2_2 = NULL;
+}
+
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	clientInfo_t *ci;
 	clientInfo_t newInfo;
@@ -2227,6 +2243,7 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 			}
 			k++;
 		}
+		CG_CleanHolsteredSabers( ci );
 
 		if ( ci->infoValid )
 			cgs.numClients--;
@@ -2689,6 +2706,7 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	  //Otherwise we will end up with extra instances all over the place, I think.
 		trap->G2API_CleanGhoul2Models(&ci->ghoul2Model);
 	}
+	CG_CleanHolsteredSabers( ci );
 	*ci = newInfo;
 
 	//force a weapon change anyway, for all clients being rendered to the current client
