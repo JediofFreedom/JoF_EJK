@@ -1785,6 +1785,9 @@ static void CG_RemapShader_f( void ) {
 
 		trap->Cmd_Argv( 1, shader1, sizeof( shader1 ) );
 		trap->Cmd_Argv( 2, shader2, sizeof( shader2 ) );
+		// cg_remaps: 0 off, 1 map only (block player model remaps), 2 map + model
+		if ( cg_remaps.integer == 1 && !Q_stricmpn( shader1, "models/players/", 15 ) )
+			return;
 		if ( cg_remaps.integer )//JAPRO - Clientside - Allow noremaps
 			trap->R_RemapShader( shader1, shader2, CG_Argv( 3 ) );
 	}
