@@ -472,8 +472,10 @@ void CG_ToggleBinoculars(centity_t *cent, int forceZoom)
 		return;
 	}
 
-	if (cg.snap->ps.weaponstate != WEAPON_READY)
-	{ //So we can't fool it and reactivate while switching to the saber or something.
+	if (cg.snap->ps.weaponTime > 0 ||
+		cg.snap->ps.weaponstate == WEAPON_CHARGING ||
+		cg.snap->ps.weaponstate == WEAPON_CHARGING_ALT)
+	{ //Block genuine weapon activity without getting stuck on a stale state after an emote or knockdown.
 		return;
 	}
 

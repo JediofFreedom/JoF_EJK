@@ -9071,6 +9071,11 @@ if (pm->ps->duelInProgress)
 
 	if (pm->ps->weapon == WP_SABER)
 	{
+		// Primary fire becomes the tactical-link gesture while viewing through
+		// binoculars with a fully holstered saber. The server handles the actual
+		// tag; clearing it here also prevents client prediction from igniting.
+		if (pm->ps->zoomMode == 2 && pm->ps->saberHolstered == 2)
+			pm->cmd.buttons &= ~BUTTON_ATTACK;
 		//rww - we still need the item stuff, so we won't return immediately
 		PM_WeaponLightsaber();
 		killAfterItem = 1;

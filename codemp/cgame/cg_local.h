@@ -1073,6 +1073,9 @@ typedef struct cg_s {
 	binocularTarget_t binocularTargets[MAX_BINOCULAR_TARGETS];
 	int binocularTargetCount;
 	int binocularUpdateTime;
+	binocularTarget_t missionParty[MAX_MISSION_PARTY];
+	int missionPartyCount;
+	int missionPartyUpdateTime;
 	int			clientFrame;		// incremented each frame
 
 	int			clientNum;
