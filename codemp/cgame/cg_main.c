@@ -824,9 +824,9 @@ static void CG_RegisterSounds( void ) {
 	trap->S_RegisterSound("sound/weapons/force/see.wav");
 	trap->S_RegisterSound("sound/weapons/force/rage.wav");
 	trap->S_RegisterSound("sound/weapons/force/lightning");
-	trap->S_RegisterSound("sound/weapons/force/lightninghit1");
-	trap->S_RegisterSound("sound/weapons/force/lightninghit2");
-	trap->S_RegisterSound("sound/weapons/force/lightninghit3");
+	cgs.media.forceLightningImpactSounds[0] = trap->S_RegisterSound("sound/weapons/force/lightninghit1");
+	cgs.media.forceLightningImpactSounds[1] = trap->S_RegisterSound("sound/weapons/force/lightninghit2");
+	cgs.media.forceLightningImpactSounds[2] = trap->S_RegisterSound("sound/weapons/force/lightninghit3");
 	trap->S_RegisterSound("sound/weapons/force/drain.wav");
 	trap->S_RegisterSound("sound/weapons/force/jumpbuild.wav");
 	trap->S_RegisterSound("sound/weapons/force/distract.wav");
@@ -1370,6 +1370,8 @@ static void CG_RegisterGraphics( void )
 
 	cgs.effects.forceLightning		= trap->FX_RegisterEffect( "effects/force/lightning.efx" );
 	cgs.effects.forceLightningWide	= trap->FX_RegisterEffect( "effects/force/lightningwide.efx" );
+	cgs.media.forceLightningArcShader = trap->R_RegisterShader("gfx/misc/blueLine");
+	cgs.media.forceLightningFlashShader = trap->R_RegisterShader("gfx/misc/lightningFlash");
 	cgs.effects.forceDrain		= trap->FX_RegisterEffect( "effects/mp/drain.efx" );
 	cgs.effects.forceDrainWide	= trap->FX_RegisterEffect( "effects/mp/drainwide.efx" );
 	cgs.effects.forceDrainWideJaPRO	= trap->FX_RegisterEffect( "effects/mp/drainwide_japro.efx" );
