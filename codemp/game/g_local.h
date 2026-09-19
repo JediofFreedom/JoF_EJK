@@ -530,6 +530,7 @@ struct gentity_s {
 	vec3_t		pos3;
 
 	char		*message;
+	char		*dialogue;		// Native dialogue name for NPCs and dialogue-aware entities.
 
 	int			timestamp;		// body queue sinking, etc
 

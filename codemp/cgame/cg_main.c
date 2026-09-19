@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 // cg_main.c -- initialization and primary entry point for cgame
 #include "cg_local.h"
+#include "cg_dialogue.h"
 
 #include "ui/ui_shared.h"
 // display context for new ui stuff
@@ -3068,6 +3069,7 @@ Ghoul2 Insert End
 	cgDC.Assets.qhBigFont = cgDC.Assets.qhMediumFont;
 
 	memset( &cgs, 0, sizeof( cgs ) );
+	CG_DialogueReset();
 	memset( cg_weapons, 0, sizeof(cg_weapons) );
 	memset( cg_dueltypes, 0, sizeof(cg_dueltypes) );//JAPRO - Clientside - Fullforce Duels
 

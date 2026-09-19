@@ -25,6 +25,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // active (after loading) gameplay
 
 #include "cg_local.h"
+#include "cg_dialogue.h"
 
 #include "game/bg_saga.h"
 
@@ -11040,12 +11041,14 @@ static void CG_Draw2D( void ) {
 	if ( !cg_draw2D.integer ) {
 		gCGHasFallVector = qfalse;
 		VectorClear( gCGFallVector );
+		CG_DialogueDraw();
 		return;
 	}
 
 	if ( cg.snap->ps.pm_type == PM_INTERMISSION ) {
 		CG_DrawIntermission();
 		CG_ChatBox_DrawStrings();
+		CG_DialogueDraw();
 		return;
 	}
 
@@ -11422,6 +11425,8 @@ static void CG_Draw2D( void ) {
 
 	if (cg_drawPlayerNames.integer)//JAPRO
 		CG_PlayerLabels();
+
+	CG_DialogueDraw();
 }
 
 qboolean CG_CullPointAndRadius( const vec3_t pt, float radius);
