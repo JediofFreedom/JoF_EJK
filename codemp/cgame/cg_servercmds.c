@@ -27,6 +27,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // be a valid snapshot this frame
 
 #include "cg_local.h"
+#include "cg_dialogue.h"
 #include "ui/menudef.h"
 #include "ghoul2/G2.h"
 #include "ui/ui_public.h"
@@ -1187,6 +1188,12 @@ require a reload of all the media
 static void CG_MapRestart( void ) {
 	int i;
 	clientInfo_t *ci;
+	cg.pickupQueueHead = cg.pickupQueueCount = 0;
+	CG_ResetPickupEventTracking();
+	if (CG_UsesPickupConfirmation()) {
+		cg.itemPickup = 0;
+	}
+	cg.pickupHandshakeActive = cg.pickupConfirmed = qfalse;
 	for (i = 0 ; i < MAX_CLIENTS ; i++)
 	{
 		ci = &cgs.clientinfo[i];
@@ -1904,6 +1911,7 @@ static serverCommand_t	commands[] = {
 	{ "cps",				CG_CenterPrintSE_f },
 	{ "cs",					CG_ConfigStringModified },
 	{ "ircg",				CG_RestoreClientGhoul_f },
+	{ "jof_dialogue",		CG_DialogueServerCommand },
 	{ "kg2",				CG_KillGhoul2_f },
 	{ "kls",				CG_KillLoopSounds_f },
 	{ "lchat",				CG_Chat_f },
@@ -1940,6 +1948,14 @@ Cmd_Argc() / Cmd_Argv()
 static void CG_ServerCommand( void ) {
 	const char		*cmd = CG_Argv( 0 );
 	serverCommand_t	*command = NULL;
+	if (!Q_stricmp(cmd, "jof_pickupReady")) {
+		CG_PickupReady_f();
+		return;
+	}
+	if (!Q_stricmp(cmd, "jof_pickup")) {
+		CG_ConfirmedPickup_f();
+		return;
+	}
 
 	if ( !cmd[0] ) {
 		// server claimed the command

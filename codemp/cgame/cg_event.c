@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // cg_event.c -- handle entity events at snapshot or playerstate transitions
 
 #include "cg_local.h"
+#include "game/bg_pickup.h"
 #include "fx_local.h"
 #include "ui/ui_shared.h"
 #include "ui/ui_public.h"
@@ -604,9 +605,67 @@ CG_ItemPickup
 A new item was picked up this frame
 ================
 */
+static qboolean CG_PickupHandshakeSupported(void) {
+	// Require the same JoF JA+ identity used by the engine and UI.
+	return cg_pickupConfirm.integer == 1 &&
+		!Q_stricmp(Info_ValueForKey(CG_ConfigString(CS_SERVERINFO), "V"), "2.5B0") &&
+		!strcmp(Info_ValueForKey(CG_ConfigString(CS_SERVERINFO), "g_pickupConfirm"), "3");
+}
+
+void CG_UpdatePickupHandshake(void) {
+	if (cg.demoPlayback || !CG_PickupHandshakeSupported()) {
+		cg.pickupHandshakeActive = qfalse;
+		cg.pickupConfirmed = qfalse;
+		return;
+	}
+	if (!cg.pickupHandshakeActive) {
+		// One attempt per module/map. A flood-filtered request safely leaves
+		// ordinary feedback enabled; never compete with gameplay commands.
+		trap->SendClientCommand("jof_pickupReady 3");
+		cg.pickupHandshakeActive = qtrue;
+	}
+}
+
+void CG_PickupReady_f(void) {
+	if (cg.pickupHandshakeActive && CG_PickupHandshakeSupported() &&
+		!strcmp(CG_Argv(1), "3") && !CG_Argv(2)[0])
+		cg.pickupConfirmed = qtrue;
+}
+
+qboolean CG_UsesPickupConfirmation( void ) {
+	return CG_PickupHandshakeSupported() && cg.pickupConfirmed;
+}
+
+void CG_AdvancePickupQueue( void ) {
+	if (!CG_UsesPickupConfirmation()) {
+		cg.pickupQueueHead = cg.pickupQueueCount = 0;
+		return;
+	}
+	if (cg.pickupQueueCount &&
+		(!cg.itemPickup || cg.time - cg.itemPickupTime >= 750)) {
+		cg.itemPickup = cg.pickupQueue[cg.pickupQueueHead];
+		cg.pickupQueueHead = (cg.pickupQueueHead + 1) % ARRAY_LEN(cg.pickupQueue);
+		cg.pickupQueueCount--;
+		cg.itemPickupTime = cg.time;
+	}
+}
+
+static void CG_QueuePickupNotification( int itemNum ) {
+	if (CG_UsesPickupConfirmation() && cg.itemPickup && cg.time - cg.itemPickupTime < 3000) {
+		// Bounded HUD backlog; console/sound still report every confirmation.
+		if (cg.pickupQueueCount == ARRAY_LEN(cg.pickupQueue)) {
+			cg.pickupQueueHead = (cg.pickupQueueHead + 1) % ARRAY_LEN(cg.pickupQueue);
+			cg.pickupQueueCount--;
+		}
+		cg.pickupQueue[(cg.pickupQueueHead + cg.pickupQueueCount++) % ARRAY_LEN(cg.pickupQueue)] = itemNum;
+	} else {
+		cg.itemPickup = itemNum;
+		cg.itemPickupTime = cg.time;
+	}
+}
+
 static void CG_ItemPickup( int itemNum ) {
-	cg.itemPickup = itemNum;
-	cg.itemPickupTime = cg.time;
+	CG_QueuePickupNotification(itemNum);
 	cg.itemPickupBlendTime = cg.time;
 	// see if it should be the grabbed weapon
 	if ( cg.snap && bg_itemlist[itemNum].giType == IT_WEAPON ) {
@@ -779,6 +838,28 @@ CG_PainEvent
 Also called by playerstate transition
 ================
 */
+void CG_ConfirmedPickup_f( void ) {
+	const char *arg;
+	int index = 0;
+	if (!CG_UsesPickupConfirmation() || CG_Argv(2)[0]) {
+		return;
+	}
+	arg = CG_Argv(1);
+	if (!arg[0]) return;
+	while (*arg) {
+		if (*arg < '0' || *arg > '9' || index >= bg_numItems) return;
+		index = index * 10 + (*arg++ - '0');
+	}
+	if (index < 1 || index >= bg_numItems || !BG_ConfirmedPickupType(bg_itemlist[index].giType)) return;
+	// Commands are executed once in reliable sequence order, not per prediction
+	// frame. Do not apply the legacy entity-based 500ms suppression here.
+	if (cg.snap && cg.snap->ps.clientNum != cg.clientNum) return;
+	if (bg_itemlist[index].pickup_sound && bg_itemlist[index].pickup_sound[0]) {
+		trap->S_StartLocalSound(trap->S_RegisterSound(bg_itemlist[index].pickup_sound), CHAN_AUTO);
+	}
+	CG_ItemPickup(index);
+}
+
 void CG_PainEvent( centity_t *cent, int health ) {
 	char	*snd;
 
@@ -2333,7 +2414,14 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			int		index;
 			qboolean	newindex = qfalse;
 
+			if (es->eventParm < 0 || es->eventParm >= MAX_GENTITIES) {
+				break;
+			}
 			index = cg_entities[es->eventParm].currentState.modelindex;		// player predicted
+			if (es->number == cg.clientNum && CG_UsesPickupConfirmation() &&
+				index > 0 && index < bg_numItems && BG_ConfirmedPickupType(bg_itemlist[index].giType)) {
+				break; // Reliable jof_pickup is the sole local feedback source.
+			}
 
 			if (index < 1 && cg_entities[es->eventParm].currentState.isJediMaster)
 			{ //a holocron most likely
@@ -2942,7 +3030,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 			if (ci)
 			{
-				if (ci->saber[0].soundOn)
+				//a staff being drawn over a JA+ shoulder is not in his hand yet, so its ignition
+				//waits with the blade rather than going off on an empty hand
+				if (ci->saber[0].soundOn
+					&& !CG_StaffSwapHoldIgnitionSound( es->number, ci->saber[0].soundOn ))
 				{
 					trap->S_StartSound (NULL, es->number, CHAN_AUTO, ci->saber[0].soundOn );
 				}
@@ -3884,8 +3975,15 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			else
 			{
 				if ( cgs.gameSounds[ es->eventParm ] ) {
-					trap->S_StartSound (NULL, es->number, es->saberEntityNum,
-						CG_ForceOwnSaberSound(es, es->number, cgs.gameSounds[ es->eventParm ]) );
+					//the forced hilt's own sound is the one he is owed, so settle that first and
+					//hold that one - his saber info is what the staff swap matches against
+					sfxHandle_t sound = CG_ForceOwnSaberSound(es, es->number, cgs.gameSounds[ es->eventParm ]);
+					//JA+ hands the saber ignition out this way, dropped at the owner's feet with
+					//nothing on it to say whose it is - hold it back if it belongs to a staff being
+					//drawn over a shoulder, so it lands with the blade
+					if ( CG_StaffSwapHoldGeneralSound( es->pos.trBase, sound ) )
+						break;
+					trap->S_StartSound (NULL, es->number, es->saberEntityNum, sound );
 				} else {
 					s = CG_ConfigString( CS_SOUNDS + es->eventParm );
 					if ( CG_ClassifyVoiceLine( s, &voiceLine ) && CG_VoiceLineThrottled( es->number, voiceLine ) )

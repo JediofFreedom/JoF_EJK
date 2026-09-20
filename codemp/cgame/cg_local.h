@@ -1258,6 +1258,12 @@ typedef struct cg_s {
 	//==========================
 
 	int			itemPickup;
+	int             pickupQueue[16];
+	qboolean pickupConfirmed;
+	qboolean pickupHandshakeActive;
+	int             pickupQueueHead, pickupQueueCount;
+	int			pickupEventSequences[MAX_PREDICTED_EVENTS];
+	int			pickupEventParms[MAX_PREDICTED_EVENTS];
 	int			itemPickupTime;
 	int			itemPickupBlendTime;	// the pulse around the crosshair is timed seperately
 
@@ -2452,6 +2458,9 @@ void CG_DestroyNPCClient(clientInfo_t **ci);
 
 void CG_Player( centity_t *cent );
 void CG_ResetPlayerEntity( centity_t *cent, qboolean preserveAnimations );
+qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound );
+qboolean CG_StaffSwapShutdownSounded( int clientNum );
+qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound );
 void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team );
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized );
 void CG_CleanHolsteredSabers( clientInfo_t *ci );
@@ -2661,6 +2670,11 @@ void CG_FreeCosmetics( void );
 //
 void CG_ExecuteNewServerCommands( int latestSequence );
 void CG_ParseServerinfo( void );
+void CG_ConfirmedPickup_f( void );
+void CG_AdvancePickupQueue( void );
+qboolean CG_UsesPickupConfirmation( void );
+void CG_UpdatePickupHandshake(void);
+void CG_PickupReady_f(void);
 void CG_SetConfigValues( void );
 void CG_ShaderStateChanged(void);
 
@@ -2671,6 +2685,8 @@ int CG_IsMindTricked(int trickIndex1, int trickIndex2, int trickIndex3, int tric
 void CG_Respawn( void );
 void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops );
 void CG_CheckExternalEvent( playerState_t *ps, playerState_t *ops );
+void CG_CheckLegacyPickupEvents( playerState_t *ps, playerState_t *ops );
+void CG_ResetPickupEventTracking( void );
 void CG_CheckChangedPredictableEvents( playerState_t *ps );
 
 
