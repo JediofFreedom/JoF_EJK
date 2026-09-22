@@ -40,3 +40,5 @@ Installing and running EternalJK:
 * [loda](https://github.com/videoP)
 * [Sunny](https://github.com/JKSunny) - for the Vulkan renderer version we package with our releases: [![Fork](https://img.shields.io/badge/repository-EternalJK-brightgreen.svg)](https://github.com/JKSunny/EternalJK)
 * [Tayst](https://github.com/taysta) - for changes contributed to Sunny's EJK which we sourced from.
+* [Alereon](https://github.com/Alereon) - for the Cosmetics feature (hats and capes)
+* [Jedi Knight Galaxies Developers](https://github.com/JKGDevs) - for their Dialogue feature 
