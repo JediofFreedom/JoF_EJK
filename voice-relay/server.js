@@ -29,6 +29,11 @@ function peerKey(remote) {
   return `${remote.family}|${remote.address}|${remote.port}`;
 }
 
+function peerAddress(peer) {
+  const address = peer.family === 'IPv6' ? `[${peer.address}]` : peer.address;
+  return `${address}:${peer.port}`;
+}
+
 function parsePacket(packet) {
   if (packet.length < HEADER_BYTES || packet.length > MAX_PACKET_BYTES ||
       !packet.subarray(0, 4).equals(MAGIC) || packet[4] !== VERSION ||
@@ -74,9 +79,14 @@ socket.on('message', (packet, remote) => {
     if (room.size >= MAX_PEERS_PER_ROOM) return;
     peer = { ...remote, sender: parsed.sender, lastSeen: now, tokens: RATE_BURST, rateUpdated: now };
     room.set(key, peer);
+    console.log(`[join] room=${JSON.stringify(parsed.room)} client=${peer.sender} endpoint=${peerAddress(peer)} peers=${room.size}`);
   }
   peer.lastSeen = now;
-  if (parsed.type === TYPE_JOIN) peer.sender = parsed.sender;
+  if (parsed.type === TYPE_JOIN && peer.sender !== parsed.sender) {
+    const previousSender = peer.sender;
+    peer.sender = parsed.sender;
+    console.log(`[identity] room=${JSON.stringify(parsed.room)} client=${previousSender}->${peer.sender} endpoint=${peerAddress(peer)}`);
+  }
 
   if (parsed.type !== TYPE_DATA || !allowVoice(peer, now)) return;
 
@@ -95,7 +105,10 @@ const cleanup = setInterval(() => {
   const cutoff = Date.now() - PEER_TIMEOUT_MS;
   for (const [roomName, room] of rooms) {
     for (const [key, peer] of room) {
-      if (peer.lastSeen < cutoff) room.delete(key);
+      if (peer.lastSeen < cutoff) {
+        room.delete(key);
+        console.log(`[leave] room=${JSON.stringify(roomName)} client=${peer.sender} endpoint=${peerAddress(peer)} peers=${room.size}`);
+      }
     }
     if (room.size === 0) rooms.delete(roomName);
   }

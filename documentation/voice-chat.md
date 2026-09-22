@@ -65,3 +65,6 @@ both server and client relay addresses to use the built-in relay. Run
 The relay validates packet sizes, isolates rooms, expires inactive peers, and
 rate-limits voice datagrams. It does not encrypt or authenticate audio; deploy it
 like other public game UDP services and do not treat room names as secrets.
+Valid client heartbeats produce `[join]` messages in the relay console. A
+`[leave]` message appears after a client stops sending heartbeats for 15 seconds;
+each message includes the room, client number, endpoint, and room population.
