@@ -3168,6 +3168,11 @@ void PM_WeaponLightsaber(void)
 		{
 			pm->ps->weaponTime -= pml.msec;
 		}
+		if ( pm->ps->weaponTime <= 0 )
+		{
+			pm->ps->weaponTime = 0;
+			pm->ps->weaponstate = WEAPON_READY;
+		}
 
 		checkOnlyWeap = qtrue;
 		goto weapChecks;

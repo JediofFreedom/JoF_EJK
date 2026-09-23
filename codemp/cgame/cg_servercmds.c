@@ -1224,6 +1224,7 @@ static void CG_MapRestart( void ) {
 
 	cg.intermissionStarted = qfalse;
 	cg.binocularTargetCount = 0;
+	cg.missionPartyCount = 0;
 
 	cgs.voteTime = 0;
 
@@ -1875,6 +1876,66 @@ static void CG_BinocularNames_f(void) {
 	}
 }
 
+// partyStats <server time> <count>
+// [<entity> <health> <max health> <armor> <force> <max force>]...
+static void CG_MissionPartyStats_f(void) {
+	int i, count, serverTime;
+	binocularTarget_t members[MAX_MISSION_PARTY];
+	memset(members, 0, sizeof(members));
+	if (trap->Cmd_Argc() < 3)
+		return;
+	serverTime = CG_BinocularIntArg(1);
+	count = CG_BinocularIntArg(2);
+	if (serverTime < 0 || count < 0 || count > MAX_MISSION_PARTY ||
+		trap->Cmd_Argc() != 3 + count * 6)
+		return;
+	for (i = 0; i < count; i++) {
+		binocularTarget_t *member = &members[i];
+		member->entityNum = CG_BinocularIntArg(3 + i * 6);
+		member->health = CG_BinocularIntArg(4 + i * 6);
+		member->maxHealth = CG_BinocularIntArg(5 + i * 6);
+		member->armor = CG_BinocularIntArg(6 + i * 6);
+		member->force = CG_BinocularIntArg(7 + i * 6);
+		member->maxForce = CG_BinocularIntArg(8 + i * 6);
+		if (member->entityNum < 0 || member->entityNum >= ENTITYNUM_WORLD ||
+			member->health < 0 || member->maxHealth <= 0 || member->armor < 0 ||
+			member->force < 0 || member->maxForce <= 0)
+			return;
+		// Player display names are already available locally and do not need to
+		// consume reliable-command bandwidth.
+		if (member->entityNum < MAX_CLIENTS && cgs.clientinfo[member->entityNum].infoValid) {
+			Q_strncpyz(member->name, cgs.clientinfo[member->entityNum].name, sizeof(member->name));
+			Q_CleanStr(member->name);
+		}
+	}
+	memcpy(cg.missionParty, members, count * sizeof(members[0]));
+	cg.missionPartyUpdateTime = serverTime;
+	cg.missionPartyCount = count;
+}
+
+static void CG_MissionPartyNames_f(void) {
+	int arg, i, argc = trap->Cmd_Argc();
+	if (argc < 4 || (argc - 2) % 2 ||
+		CG_BinocularIntArg(1) != cg.missionPartyUpdateTime)
+		return;
+	for (arg = 2; arg < argc; arg += 2) {
+		int entityNum = CG_BinocularIntArg(arg);
+		for (i = 0; i < cg.missionPartyCount; i++) {
+			if (cg.missionParty[i].entityNum == entityNum) {
+				char *name = cg.missionParty[i].name;
+				int j;
+				Q_strncpyz(name, CG_Argv(arg + 1), sizeof(cg.missionParty[i].name));
+				Q_CleanStr(name);
+				for (j = 0; name[j]; j++) {
+					if ((unsigned char)name[j] < 32 || name[j] == 127)
+						name[j] = ' ';
+				}
+				break;
+			}
+		}
+	}
+}
+
 // Force Stasis (JoF JA+ V58): the server sends a reliable "stasis" command when the
 // power fires (only to clients that advertised the "jofejk" userinfo key). Play the
 // local feedback sound, with a client-side cooldown so bursts / replayed snapshots
@@ -1903,6 +1964,8 @@ int svcmdcmp( const void *a, const void *b ) {
 static serverCommand_t	commands[] = {
 	{ "binoStats", CG_BinocularStats_f },
 	{ "binoNames", CG_BinocularNames_f },
+	{ "partyStats", CG_MissionPartyStats_f },
+	{ "partyNames", CG_MissionPartyNames_f },
 	{ "chat",				CG_Chat_f },
 	{ "clientLevelShot",	CG_ClientLevelShot_f },
 	{ "cp",					CG_CenterPrint_f },
