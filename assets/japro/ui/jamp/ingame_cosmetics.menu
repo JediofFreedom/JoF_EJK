@@ -208,7 +208,7 @@
 			name				showcosmetics
 			group				none
 			type				ITEM_TYPE_MULTI
-			text				"Show Cosmetics"
+			text				"Show Cosmetics:"
 			cvar				"cg_cosmetics"
 			cvarFloatList
 			{
