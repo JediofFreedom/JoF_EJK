@@ -1584,7 +1584,7 @@
 			textaligny			5
 			textalign			ITEM_ALIGN_CENTER
 			textstyle			3
-			forecolor			1 0 0 1
+			forecolor			1 .682 0 1
 			backcolor			0 0 1 0
 			cvarTest			ui_r_modified
 			showCvar			{ 1 }
@@ -1928,7 +1928,7 @@
 			descText			"Automatically adapt exposure to scene brightness."
 			mouseenter			{ show highlight3 }
 			mouseexit			{ hide highlight3 }
-			action				{ play "sound/interface/button1" ; setcvar ui_r_modified 1 ; setcvar ui_vidrestart 1 }
+			action				{ play "sound/interface/button1" }
 		}
 
 		itemDef
@@ -2165,7 +2165,7 @@
 			textaligny			5
 			textalign			ITEM_ALIGN_CENTER
 			textstyle			3
-			forecolor			1 0 0 1
+			forecolor			1 .682 0 1
 			backcolor			0 0 1 0
 			cvarTest			ui_r_modified
 			showCvar			{ 1 }
