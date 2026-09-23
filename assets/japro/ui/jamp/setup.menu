@@ -1575,7 +1575,7 @@
 			descText			"Automatically adapt exposure to scene brightness."
 			mouseenter			{ show highlight3 }
 			mouseexit			{ hide highlight3 }
-			action				{ play "sound/interface/button1.wav" ; setcvar ui_r_modified 1 ; setcvar ui_vidrestart 1 ; show applyChanges }
+			action				{ play "sound/interface/button1.wav" }
 		}
 
 		itemDef
@@ -1805,7 +1805,7 @@
 			textalignx			170
 			textalign			ITEM_ALIGN_CENTER
 			textstyle			0
-			forecolor			1 0 0 1
+			forecolor			1 .682 0 1
 			backcolor			0 0 1 0
 			visible				0
 
