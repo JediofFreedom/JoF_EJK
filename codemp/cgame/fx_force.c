@@ -111,10 +111,23 @@ static void FX_LightningFlash(vec3_t origin, float size) {
 #define LIGHTNING_NEST_MAX_LIFE 280
 #define LIGHTNING_NEST_SCATTER_RADIUS 280.0f
 #define LIGHTNING_NEST_SCATTER_ATTEMPTS 4
-#define LIGHTNING_NEST_SCATTER_MIN_DIST 40.0f
-// Rejects scatter directions this far behind the caster's facing, so a
-// nest never lands somewhere the player can't see it strike.
-#define LIGHTNING_NEST_FORWARD_MIN_DOT -0.15f
+#define LIGHTNING_NEST_SCATTER_MIN_DIST 90.0f
+// Minimum dot(direction, forward) on the HORIZONTAL plane only for a
+// scatter candidate to be accepted - keeps side/rear wall strikes to a
+// forward-biased cone (0.4 = within ~66 degrees of straight ahead) while
+// never restricting floor/ceiling strikes, which have little/no horizontal
+// component and are always allowed (see FX_LightningDirectionAllowed).
+#define LIGHTNING_NEST_FORWARD_MIN_DOT 0.4f
+// Ceiling candidates almost never fail the vertical-direction check above
+// and indoor ceilings are usually close/easy to hit, so without this they
+// land far more often than walls or floor. This extra coin-flip thins them
+// out - lower = rarer ceiling strikes.
+#define LIGHTNING_NEST_CEILING_CHANCE 0.1f
+// Caps how steeply a wall-strike direction may tilt upward (dir.z). 0.3 =
+// roughly 17 degrees above level. Without this, wall candidates could
+// still aim steeply up toward the ceiling transition and land high on the
+// wall even though they're technically "walls", not ceiling.
+#define LIGHTNING_NEST_WALL_MAX_UP 0.55f
 #define LIGHTNING_NEST_SPAWN_CHANCE 0.7f
 #define LIGHTNING_NEST_MIN_STRIKES 10
 #define LIGHTNING_NEST_MAX_STRIKES 18
@@ -172,6 +185,31 @@ static void FX_LightningExpireNests(int owner) {
 			lightningNests[i].active = qfalse;
 }
 
+// True if dir is either near-vertical (floor always allowed; ceiling
+// allowed but thinned out via LIGHTNING_NEST_CEILING_CHANCE) or within a
+// forward-biased horizontal cone of forward AND not tilted too steeply
+// upward (walls - restricted, so strikes don't land behind, at sharp side
+// angles, or high up near the ceiling transition).
+static qboolean FX_LightningDirectionAllowed(vec3_t dir, vec3_t forward) {
+	vec3_t dirFlat, fwdFlat;
+	VectorCopy(dir, dirFlat); dirFlat[2] = 0;
+
+	if (VectorLengthSquared(dirFlat) < 0.05f) {
+		if (dir[2] > 0.0f && Q_flrand(0.0f, 1.0f) > LIGHTNING_NEST_CEILING_CHANCE)
+			return qfalse;
+		return qtrue;
+	}
+
+	if (dir[2] > LIGHTNING_NEST_WALL_MAX_UP)
+		return qfalse;
+
+	VectorCopy(forward, fwdFlat); fwdFlat[2] = 0;
+	VectorNormalize(dirFlat);
+	if (VectorNormalize(fwdFlat) < 0.05f)
+		return qtrue;
+	return DotProduct(dirFlat, fwdFlat) >= LIGHTNING_NEST_FORWARD_MIN_DOT;
+}
+
 // Probes random 3D directions from the hand for a valid surface point.
 static qboolean FX_LightningScatterNest(vec3_t origin, vec3_t forward, int owner, vec3_t outPos, vec3_t outNormal) {
 	int attempt;
@@ -184,7 +222,7 @@ static qboolean FX_LightningScatterNest(vec3_t origin, vec3_t forward, int owner
 		dir[2] = Q_flrand(-1.0f, 1.0f);
 		if (VectorNormalize(dir) < 0.1f)
 			continue;
-		if (DotProduct(dir, forward) < LIGHTNING_NEST_FORWARD_MIN_DOT)
+		if (!FX_LightningDirectionAllowed(dir, forward))
 			continue;
 
 		VectorMA(origin, LIGHTNING_NEST_SCATTER_RADIUS, dir, end);
@@ -266,6 +304,15 @@ static void FX_LightningCrawlNest(lightningNest_t *nest, int owner) {
 	VectorMA(candidate, LIGHTNING_NEST_CRAWL_PROBE, nest->normal, probeStart);
 	VectorMA(candidate, -LIGHTNING_NEST_CRAWL_PROBE, nest->normal, probeEnd);
 	if (!FX_LightningTrace(&tr, probeStart, probeEnd, owner) || !FX_LightningSurface(&tr)) {
+		VectorScale(nest->crawlDir, -1.0f, nest->crawlDir);
+		return;
+	}
+	// A ceiling surface's normal points downward (normal.z negative). The
+	// spawn-time ceiling gate (LIGHTNING_NEST_CEILING_CHANCE) only stops a
+	// nest from being BORN on the ceiling - without this check it could
+	// still crawl onto one from an adjoining wall near a corner. Bounce
+	// back instead of continuing onto it.
+	if (tr.plane.normal[2] < -0.5f) {
 		VectorScale(nest->crawlDir, -1.0f, nest->crawlDir);
 		return;
 	}
