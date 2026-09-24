@@ -79,6 +79,7 @@ XCVAR_DEF( cg_chatBoxX,				"30",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_chatBoxCutOffLength,	"350",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_chatBoxEmojis,		"0",	NULL,					CVAR_ARCHIVE_ND )
 XCVAR_DEF( cg_chatBoxShowCutoff,	"0",	NULL,					CVAR_ARCHIVE_ND )
+XCVAR_DEF( cg_chatBoxShowCutoffColor,"7",	NULL,				CVAR_ARCHIVE_ND ) //color index 0-9, default 7 = white
 XCVAR_DEF( cg_hudColors,			"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_tintHud,				"1",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_drawScore,			"2",	NULL,					CVAR_ARCHIVE ) //score counter on HUD
