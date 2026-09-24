@@ -247,7 +247,7 @@ if(BuildMPEngine OR BuildMPDed)
 	set(MPEngineAndDedLibraries ${MPBotLib})
 	# Platform-specific libraries
 	if(WIN32)
-		set(MPEngineAndDedLibraries ${MPEngineAndDedLibraries} "winmm" "wsock32")
+		set(MPEngineAndDedLibraries ${MPEngineAndDedLibraries} "winmm" "wsock32" "ws2_32")
 	endif(WIN32)
 
 	# Include directories
@@ -403,6 +403,7 @@ if(BuildMPEngine OR BuildMPDed)
 		"${MPDir}/server/sv_net_chan.cpp"
 		"${MPDir}/server/sv_snapshot.cpp"
 		"${MPDir}/server/sv_world.cpp"
+		"${MPDir}/server/sv_voice.cpp"
 		"${MPDir}/server/sv_gameapi.cpp"
 		"${MPDir}/server/sv_gameapi.h"
 		"${MPDir}/server/duel_cull.cpp"
@@ -541,6 +542,7 @@ if(BuildMPEngine)
 		"${MPDir}/client/cl_ui.cpp"
 		"${MPDir}/client/cl_uiapi.cpp"
 		"${MPDir}/client/cl_uiapi.h"
+		"${MPDir}/client/cl_voice.cpp"
 		"${MPDir}/client/FXExport.cpp"
 		"${MPDir}/client/FXExport.h"
 		"${MPDir}/client/FxPrimitives.cpp"

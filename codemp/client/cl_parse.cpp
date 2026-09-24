@@ -48,6 +48,8 @@ char *svc_strings[256] = {
 	"svc_snapshot",
 	"svc_setgame",
 	"svc_mapchange",
+	"svc_EOF",
+	"svc_voice",
 };
 
 void SHOWNET( msg_t *msg, char *s) {
@@ -433,6 +435,7 @@ void CL_SystemInfoChanged( void ) {
 	qboolean		gameSet;
 
 	systemInfo = cl.gameState.stringData + cl.gameState.stringOffsets[ CS_SYSTEMINFO ];
+	CL_VoiceSystemInfo(systemInfo);
 	// NOTE TTimo:
 	// when the serverId changes, any further messages we send to the server will use this new serverId
 	// https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=475
@@ -922,6 +925,9 @@ void CL_ParseServerMessage( msg_t *msg ) {
 		case svc_mapchange:
 			if ( cls.cgameStarted )
 				CGVM_MapChange();
+			break;
+		case svc_voice:
+			CL_ParseVoice(msg);
 			break;
 		}
 	}

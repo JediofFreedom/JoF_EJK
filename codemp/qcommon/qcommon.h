@@ -232,6 +232,9 @@ PROTOCOL
 
 // the svc_strings[] array in cl_parse.c should mirror this
 //
+#define VOICE_PROTOCOL_NAME "jof-adpcm1"
+#define VOICE_MAX_PACKET_BYTES 512
+
 // server to client
 //
 enum svc_ops_e {
@@ -245,7 +248,9 @@ enum svc_ops_e {
 	svc_snapshot,
 	svc_setgame,
 	svc_mapchange,
-	svc_EOF
+	svc_EOF,
+	// Keep extension opcodes after svc_EOF so legacy protocol values stay stable.
+	svc_voice
 };
 
 //
@@ -257,7 +262,9 @@ enum clc_ops_e {
 	clc_move,				// [[usercmd_t]
 	clc_moveNoDelta,		// [[usercmd_t]
 	clc_clientCommand,		// [string] message
-	clc_EOF
+	clc_EOF,
+	// Keep extension opcodes after clc_EOF so legacy protocol values stay stable.
+	clc_voice
 };
 
 /*

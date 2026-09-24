@@ -627,6 +627,15 @@ void CL_ClearState (void);
 
 void CL_WritePacket( void );
 
+// cl_voice.cpp
+void CL_VoiceInit( void );
+void CL_VoiceShutdown( void );
+void CL_VoiceRestartCapture( void );
+void CL_VoiceFrame( void );
+void CL_VoiceSystemInfo( const char *systemInfo );
+qboolean CL_VoiceWritePacket( msg_t *msg );
+void CL_ParseVoice( msg_t *msg );
+
 float CL_KeyState (kbutton_t *key);
 const char *Key_KeynumToString( int keynum/*, qboolean bTranslate */ ); //note: translate is only called for menu display not configs
 

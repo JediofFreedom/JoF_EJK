@@ -1746,6 +1746,20 @@ void SV_ReadDemoMessage(client_t *cl, msg_t *msg)
 					CGVM_MapChange();*/
 				SV_DemoCompleted(cl);
 				break;
+			case svc_voice:
+			{
+				MSG_ReadByte(msg); // sender
+				MSG_ReadByte(msg); // generation
+				MSG_ReadLong(msg); // sequence
+				const int voiceLength = MSG_ReadShort(msg);
+				if (voiceLength < 0 || voiceLength > VOICE_MAX_PACKET_BYTES || msg->readcount + voiceLength > msg->cursize) {
+					SV_DemoCompleted(cl);
+					return;
+				}
+				byte voiceData[VOICE_MAX_PACKET_BYTES];
+				MSG_ReadData(msg, voiceData, voiceLength);
+				break;
+			}
 		}
 	}
 #else

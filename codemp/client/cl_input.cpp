@@ -2107,6 +2107,10 @@ void CL_WritePacket( void ) {
 		MSG_WriteString( &buf, clc.reliableCommands[ i & (MAX_RELIABLE_COMMANDS-1) ] );
 	}
 
+	// Voice is intentionally sent unreliably before the movement command. A
+	// dropped packet should become silence, never delayed speech.
+	CL_VoiceWritePacket(&buf);
+
 	// we want to send all the usercmds that were generated in the last
 	// few packet, so even if a couple packets are dropped in a row,
 	// all the cmds will make it to the server

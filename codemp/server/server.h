@@ -159,6 +159,20 @@ typedef struct client_s {
 	sharedEntity_t	*gentity;			// SV_GentityNum(clientnum)
 	char			name[MAX_NAME_LENGTH];			// extracted from userinfo, high bits masked
 
+	// Voice packets are deliberately lossy. Keeping a short fixed queue avoids
+	// allocations in the packet path and bounds latency if a recipient is slow.
+	qboolean		hasVoice;
+	struct {
+		byte sender;
+		byte generation;
+		int sequence;
+		unsigned short length;
+		byte data[VOICE_MAX_PACKET_BYTES];
+	} voicePackets[16];
+	int				voiceQueueStart;
+	int				voiceQueueCount;
+	int				lastVoicePacketTime;
+
 	// downloading
 	char			downloadName[MAX_QPATH]; // if not empty string, we are downloading
 	fileHandle_t	download;			// file being downloaded
@@ -314,6 +328,7 @@ extern	cvar_t	*sv_banFile;
 extern	cvar_t	*sv_maxOOBRate;
 extern	cvar_t	*sv_maxOOBRateIP;
 extern	cvar_t	*sv_autoWhitelist;
+extern	cvar_t	*sv_voice;
 
 extern	cvar_t	*sv_snapShotDuelCull;
 
@@ -435,6 +450,8 @@ void SV_WriteFrameToClient (client_t *client, msg_t *msg);
 void SV_SendMessageToClient( msg_t *msg, client_t *client );
 void SV_SendClientMessages( void );
 void SV_SendClientSnapshot( client_t *client );
+void SV_UserVoice( client_t *client, msg_t *msg );
+void SV_WriteVoiceToClient( client_t *client, msg_t *msg );
 
 //
 // sv_game.c

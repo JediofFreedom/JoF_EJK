@@ -1,0 +1,12 @@
+{
+  "name": "jof-voice-relay",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dependency-free UDP voice relay for EternalJK/JoF",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

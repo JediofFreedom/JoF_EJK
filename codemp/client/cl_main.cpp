@@ -1489,6 +1489,7 @@ handles will be invalid
 */
 // extern void S_UnCacheDynamicMusic( void );
 void CL_Snd_Restart_f( void ) {
+	CL_VoiceRestartCapture();
 	S_Shutdown();
 	S_Init();
 
@@ -3025,6 +3026,7 @@ void CL_Frame ( int msec ) {
 	// send intentions now
 	extern int cmdratecap_commandGenerated;
 	cmdratecap_commandGenerated = 0;
+	CL_VoiceFrame();
 	CL_SendCmd();
 
 	// resend a connection request if necessary
@@ -3994,6 +3996,7 @@ void CL_Init( void ) {
 	cls.realtime = 0;
 
 	CL_InitInput ();
+	CL_VoiceInit();
 
 	//
 	// register our variables
@@ -4268,6 +4271,7 @@ void CL_Shutdown( void ) {
 	// RJ: added the shutdown all to close down the cgame (to free up some memory, such as in the fx system)
 	CL_ShutdownAll( qtrue );
 
+	CL_VoiceShutdown();
 	S_Shutdown();
 	//CL_ShutdownUI();
 

@@ -1227,6 +1227,7 @@ into a more C friendly form.
 void SV_UserinfoChanged( client_t *cl ) {
 	char	*val=NULL, *ip=NULL;
 	int		i=0, len=0;
+	cl->hasVoice = (qboolean)!Q_stricmp(Info_ValueForKey(cl->userinfo, "cl_voiceProtocol"), VOICE_PROTOCOL_NAME);
 
 	if (sv_legacyFixes->integer && !(sv_legacyFixes->integer & SVFIXES_ALLOW_INVALID_PLAYER_NAMES) &&
 		svs.servermod != SVMOD_JAPLUS && svs.servermod != SVMOD_MBII && svs.servermod != SVMOD_JAPRO)
@@ -2017,6 +2018,11 @@ void SV_ExecuteClientMessage( client_t *cl, msg_t *msg ) {
 			return;	// disconnect command
 		}
 	} while ( 1 );
+
+	if (c == clc_voice) {
+		SV_UserVoice(cl, msg);
+		c = MSG_ReadByte(msg);
+	}
 
 	// read the usercmd_t
 	if ( c == clc_move ) {
