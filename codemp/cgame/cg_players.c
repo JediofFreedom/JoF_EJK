@@ -2185,6 +2185,21 @@ qboolean CG_ModelIsBlacklisted( const char *modelName ) {
 	return BG_ModelInList( modelName, cg_modelBlacklist.string );
 }
 
+void CG_CleanHolsteredSabers( clientInfo_t *ci ) {
+	if ( !ci ) {
+		return;
+	}
+
+	if ( ci->holsterGhoul2 && trap->G2_HaveWeGhoul2Models( ci->holsterGhoul2 ) ) {
+		trap->G2API_CleanGhoul2Models( &ci->holsterGhoul2 );
+	}
+	ci->holsterGhoul2 = NULL;
+
+	if ( ci->holsterGhoul2_2 && trap->G2_HaveWeGhoul2Models( ci->holsterGhoul2_2 ) ) {
+		trap->G2API_CleanGhoul2Models( &ci->holsterGhoul2_2 );
+	}
+	ci->holsterGhoul2_2 = NULL;
+}
 //whatever this client's staff was part way through, it belongs to the old saber
 static void CG_StaffSwapForgetClient( int clientNum );
 
@@ -2230,6 +2245,7 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 			}
 			k++;
 		}
+		CG_CleanHolsteredSabers( ci );
 
 		if ( ci->infoValid )
 			cgs.numClients--;
@@ -2692,15 +2708,7 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	  //Otherwise we will end up with extra instances all over the place, I think.
 		trap->G2API_CleanGhoul2Models(&ci->ghoul2Model);
 	}
-
-	//newInfo is about to take these over as NULL, so let go of the holstered hilt instances rather
-	//than losing the only pointers to them. They get rebuilt from whatever saber he has now.
-	if (ci->holsterGhoul2 && trap->G2_HaveWeGhoul2Models(ci->holsterGhoul2))
-		trap->G2API_CleanGhoul2Models(&ci->holsterGhoul2);
-
-	if (ci->holsterGhoul2_2 && trap->G2_HaveWeGhoul2Models(ci->holsterGhoul2_2))
-		trap->G2API_CleanGhoul2Models(&ci->holsterGhoul2_2);
-
+	CG_CleanHolsteredSabers( ci );
 	*ci = newInfo;
 
 	CG_StaffSwapForgetClient( clientNum );

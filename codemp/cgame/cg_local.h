@@ -2463,6 +2463,7 @@ qboolean CG_StaffSwapShutdownSounded( int clientNum );
 qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound );
 void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team );
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized );
+void CG_CleanHolsteredSabers( clientInfo_t *ci );
 saberInfo_t *CG_SaberEntityOwnerSaber( centity_t *saberEnt );
 const char *CG_SaberEntityHiltModel( saberInfo_t *saber, centity_t *saberEnt, qhandle_t *skin );
 qboolean CG_ModelIsBlacklisted( const char *modelName );
