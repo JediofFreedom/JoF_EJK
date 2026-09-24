@@ -92,6 +92,25 @@ configure_file(
     @ONLY
 )
 
+# Emits debug info for Release builds of this one target (matched by CI
+# splitting it into a separate .pdb/.debug/.dSYM and stripping the shipped
+# binary - see .github/workflows/build.yml), so crash dumps from real,
+# shipped builds are symbolicatable. Scoped to just this target rather than
+# project-wide, so there's exactly one debug file to deal with per platform
+# instead of one per bundled third-party library too.
+#
+# Uses the older per-config LINK_FLAGS_<CONFIG> property rather than
+# target_link_options() (CMake 3.13+) since this project only requires
+# CMake 3.10.
+function(jof_enable_release_symbols target)
+	if(MSVC)
+		target_compile_options(${target} PRIVATE $<$<CONFIG:Release>:/Zi>)
+		set_property(TARGET ${target} APPEND_STRING PROPERTY LINK_FLAGS_RELEASE " /DEBUG /OPT:REF /OPT:ICF")
+	elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
+		target_compile_options(${target} PRIVATE $<$<CONFIG:Release>:-g>)
+	endif()
+endfunction()
+
 #    Add Game Project
 if(BuildMPGame)
 	add_subdirectory("${MPDir}/game")
@@ -627,6 +646,7 @@ if(BuildMPEngine)
 		"${SharedDir}/sys/sys_public.h"
 		"${SharedDir}/sys/con_local.h"
 		"${SharedDir}/sys/con_log.cpp"
+		"${SharedDir}/sys/sys_crashdump.cpp"
 		)
 
 	if(WIN32)
@@ -727,6 +747,8 @@ if(BuildMPEngine)
 	# Hide symbols not explicitly marked public.
 	set_property(TARGET ${MPEngine} APPEND PROPERTY COMPILE_OPTIONS ${OPENJK_VISIBILITY_FLAGS})
 
+	jof_enable_release_symbols(${MPEngine})
+
 	set_target_properties(${MPEngine} PROPERTIES INCLUDE_DIRECTORIES "${MPEngineIncludeDirectories}")
 	set_target_properties(${MPEngine} PROPERTIES PROJECT_LABEL "MP Client")
 	target_link_libraries(${MPEngine} PRIVATE ${MPEngineLibraries} ${MPCGame} ${MPUI} ${MPVanillaRenderer})
@@ -801,6 +823,7 @@ if(BuildMPDed)
 			"${SharedDir}/sys/con_local.h"
 			"${SharedDir}/sys/con_log.cpp"
 			"${SharedDir}/sys/con_win32.cpp"
+			"${SharedDir}/sys/sys_crashdump.cpp"
 			)
 		set(MPDedLibraries ${MPDedLibraries} ${CMAKE_DL_LIBS})
 		source_group("sys" FILES ${MPDedSysFiles})
@@ -816,6 +839,7 @@ if(BuildMPDed)
 			"${SharedDir}/sys/con_local.h"
 			"${SharedDir}/sys/con_log.cpp"
 			"${SharedDir}/sys/con_tty.cpp"
+			"${SharedDir}/sys/sys_crashdump.cpp"
 			)
 		set(MPDedLibraries ${MPDedLibraries} ${CMAKE_DL_LIBS})
 		source_group("sys" FILES ${MPDedSysFiles})
@@ -832,6 +856,8 @@ if(BuildMPDed)
 
 	# Hide symbols not explicitly marked public.
 	set_property(TARGET ${MPDed} APPEND PROPERTY COMPILE_OPTIONS ${OPENJK_VISIBILITY_FLAGS})
+
+	jof_enable_release_symbols(${MPDed})
 
 	set_target_properties(${MPDed} PROPERTIES INCLUDE_DIRECTORIES "${MPDedIncludeDirectories}")
 	set_target_properties(${MPDed} PROPERTIES PROJECT_LABEL "MP Dedicated Server")
