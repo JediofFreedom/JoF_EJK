@@ -1331,6 +1331,21 @@ This will usually be deferred to a safe time
 ===================
 */
 
+static sfxHandle_t CG_SaberHumSound( const saberInfo_t *saber, int clientNum ) {
+	if (saber->soundLoopCustom || cg_saberHum.integer == 6 ||
+		clientNum < 0 || clientNum >= MAX_CLIENTS) {
+		return saber->soundLoop;
+	}
+
+	if (cg_saberHum.integer >= 1 && cg_saberHum.integer <= 5) {
+		return cgs.media.saberHumSounds[cg_saberHum.integer - 1];
+	}
+	if (cg_saberHum.integer == 0) {
+		return cgs.media.saberHumSounds[clientNum % 5];
+	}
+	return saber->soundLoop;
+}
+
 void CG_LoadClientInfo( clientInfo_t *ci, int clientNum ) {
 	qboolean	modelloaded;
 	qboolean	isDefaultModel;
@@ -1341,29 +1356,6 @@ void CG_LoadClientInfo( clientInfo_t *ci, int clientNum ) {
 	if (ci->gender == GENDER_FEMALE) {
 		fallbackModel = DEFAULT_MODEL_FEMALE;
 	}
-
-	switch (cg_saberHum.integer)
-	{
-	case 1:
-		ci->saber[0].soundLoop = trap->S_RegisterSound("sound/weapons/saber/saberhum1.wav");
-		break;
-	case 2:
-		ci->saber[0].soundLoop = trap->S_RegisterSound("sound/weapons/saber/saberhum2.wav");
-		break;
-	case 3:
-		ci->saber[0].soundLoop = trap->S_RegisterSound("sound/weapons/saber/saberhum3.wav");
-		break;
-	case 4:
-		ci->saber[0].soundLoop = trap->S_RegisterSound("sound/weapons/saber/saberhum4.wav");
-		break;
-	case 5:
-		ci->saber[0].soundLoop = trap->S_RegisterSound("sound/weapons/saber/saberhum5.wav");
-		break;
-	case 0:
-	default:
-		ci->saber[0].soundLoop = cgs.media.saberHumSounds[clientNum % 5];
-	}
-
 
 	if (clientNum < 0 || clientNum >= MAX_CLIENTS)
 	{
@@ -13714,6 +13706,7 @@ stillDoSaber:
 		{
 			vec3_t soundSpot;
 			qboolean didFirstSound = qfalse;
+			const sfxHandle_t primaryHum = CG_SaberHumSound(&ci->saber[0], cent->currentState.number);
 
 			if (cg.snap->ps.clientNum == cent->currentState.number)
 			{
@@ -13729,7 +13722,7 @@ stillDoSaber:
 			}
 
 			if (ci->saber[0].model[0]
-				&& ci->saber[0].soundLoop
+				&& primaryHum
 				&& !cent->currentState.saberInFlight)
 			{
 				int i = 0;
@@ -13748,13 +13741,13 @@ stillDoSaber:
 				if (hasLen)
 				{
 					trap->S_AddLoopingSound( cent->currentState.number, soundSpot, vec3_origin,
-						ci->saber[0].soundLoop );
+						primaryHum );
 					didFirstSound = qtrue;
 				}
 			}
 			if (ci->saber[1].model[0]
 				&& ci->saber[1].soundLoop
-					&& (!didFirstSound || ci->saber[0].soundLoop != ci->saber[1].soundLoop))
+					&& (!didFirstSound || primaryHum != ci->saber[1].soundLoop))
 			{
 				int i = 0;
 				qboolean hasLen = qfalse;

@@ -891,7 +891,7 @@
 			name				highlightApplyButton
 			group				highlights
 			style				WINDOW_STYLE_SHADER
-			rect				365 313 120 32
+			rect				365 343 120 32
 			background			"gfx/menus/menu_blendbox"
 			forecolor			1 1 1 1
 			visible			0
@@ -4253,6 +4253,28 @@
 			}
 		}
 
+		itemDef
+		{
+			name				saber_hum
+			group				sound
+			type				ITEM_TYPE_MULTI
+			text				"Saber Hum:"
+			cvar				"cg_saberHum"
+			cvarFloatList		{ "Random (Default)" 0 "Hum 1" 1 "Hum 2" 2 "Hum 3" 3 "Hum 4" 4 "Hum 5" 5 "Hilt default" 6 }
+			rect				220 303 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			165
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"Changes immediately. Custom hilt hums are always preserved; Hilt default disables randomization."
+			action				{ play "sound/interface/button1" }
+			mouseenter			{ show highlight14 }
+			mouseexit			{ hide highlight14 }
+		}
+
 
 		// APPLY CHANGES button
 		itemDef
@@ -4262,7 +4284,7 @@
 			text				@MENUS_SET_LANGUAGE
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_EMPTY
-			rect				365 313 120 32
+			rect				365 343 120 32
 			font				2
 			textscale			1
 			textalign			ITEM_ALIGN_CENTER
