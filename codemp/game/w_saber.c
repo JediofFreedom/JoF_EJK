@@ -8263,12 +8263,14 @@ qboolean G_JediMeleeKata( gentity_t *self, gentity_t *target )
 {
 	vec3_t toTarget, targetAngles;
 	trace_t trace;
+	int attackerAnim, victimAnim;
 
 	if ( !self || !self->client || !self->ghoul2 || self->health <= 0 ||
 		!target || !target->inuse || !target->client || !target->ghoul2 ||
 		!g2SaberInstance || target->health <= 0 ||
 		( target->s.eType != ET_PLAYER && target->s.eType != ET_NPC ) ||
-		self->localAnimIndex > 1 || target->localAnimIndex > 1 ||
+		self->localAnimIndex < 0 || self->localAnimIndex > 1 ||
+		target->localAnimIndex < 0 || target->localAnimIndex > 1 ||
 		!G_CanBeEnemy( self, target ) ||
 		self->client->ps.weapon != WP_MELEE || self->client->grappleState ||
 		target->client->grappleState ||
@@ -8293,16 +8295,33 @@ qboolean G_JediMeleeKata( gentity_t *self, gentity_t *target )
 		return qfalse;
 	}
 
+	// The throw needs a third animation on the victim after the paired hold.
+	attackerAnim = BOTH_KYLE_PA_2;
+	victimAnim = BOTH_PLAYER_PA_2;
+	if ( BG_HasAnimation( self->localAnimIndex, BOTH_KYLE_PA_3 ) &&
+		BG_HasAnimation( target->localAnimIndex, BOTH_PLAYER_PA_3 ) &&
+		BG_HasAnimation( target->localAnimIndex, BOTH_PLAYER_PA_3_FLY ) &&
+		Q_irand( 0, 1 ) )
+	{
+		attackerAnim = BOTH_KYLE_PA_3;
+		victimAnim = BOTH_PLAYER_PA_3;
+	}
+	if ( !BG_HasAnimation( self->localAnimIndex, attackerAnim ) ||
+		!BG_HasAnimation( target->localAnimIndex, victimAnim ) )
+	{
+		return qfalse;
+	}
+
 	vectoangles( toTarget, targetAngles );
 	SetClientViewAngle( self, targetAngles );
-	G_SetAnim( self, &self->client->pers.cmd, SETANIM_BOTH, BOTH_KYLE_PA_2,
+	G_SetAnim( self, &self->client->pers.cmd, SETANIM_BOTH, attackerAnim,
 		SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD, 0 );
-	G_SetAnim( target, &target->client->pers.cmd, SETANIM_BOTH, BOTH_PLAYER_PA_2,
+	G_SetAnim( target, &target->client->pers.cmd, SETANIM_BOTH, victimAnim,
 		SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD, 0 );
-	if ( self->client->ps.torsoAnim != BOTH_KYLE_PA_2 ||
-		self->client->ps.legsAnim != BOTH_KYLE_PA_2 ||
-		target->client->ps.torsoAnim != BOTH_PLAYER_PA_2 ||
-		target->client->ps.legsAnim != BOTH_PLAYER_PA_2 )
+	if ( self->client->ps.torsoAnim != attackerAnim ||
+		self->client->ps.legsAnim != attackerAnim ||
+		target->client->ps.torsoAnim != victimAnim ||
+		target->client->ps.legsAnim != victimAnim )
 	{
 		return qfalse;
 	}
@@ -8727,6 +8746,52 @@ void WP_SaberPositionUpdate( gentity_t *self, usercmd_t *ucmd )
 								}
 
 								self->client->grappleState = 0;
+							}
+						}
+					}
+					else if (self->client->ps.torsoAnim == BOTH_KYLE_PA_3)
+					{ //hold, strike twice, then throw
+						int hitTime = self->client->grappleState == 1 ? 3000 : 1800;
+						if (self->client->grappleState <= 2 && self->client->ps.torsoTimer < hitTime)
+						{
+							int victimAnim = grappler->client->ps.torsoAnim;
+							int victimTime = grappler->client->ps.torsoTimer;
+
+							G_Damage(grappler, self, self, NULL, self->client->ps.origin, 10, 0, MOD_MELEE);
+							if (grappler->health > 0)
+							{
+								grappler->client->ps.torsoAnim = victimAnim;
+								grappler->client->ps.legsAnim = victimAnim;
+								grappler->client->ps.torsoTimer = victimTime;
+								grappler->client->ps.legsTimer = victimTime;
+								grappler->client->ps.weaponTime = victimTime;
+							}
+							self->client->grappleState++;
+						}
+						else if (self->client->grappleState >= 3 && self->client->ps.torsoTimer < 800)
+						{
+							vec3_t tossDir;
+
+							// Release both sides together; the victim's flight is no longer a grapple.
+							self->client->grappleState = 0;
+							grappler->client->grappleState = 0;
+							G_Damage(grappler, self, self, NULL, self->client->ps.origin, 20, 0, MOD_MELEE);
+							if (grappler->health > 0)
+							{
+								VectorSubtract(grappler->client->ps.origin, self->client->ps.origin, tossDir);
+								VectorNormalize(tossDir);
+								VectorScale(tossDir, 500.0f, tossDir);
+								tossDir[2] = 200.0f;
+								VectorAdd(grappler->client->ps.velocity, tossDir, grappler->client->ps.velocity);
+								if ( BG_HasAnimation( grappler->localAnimIndex, BOTH_PLAYER_PA_3_FLY ) )
+								{
+									G_SetAnim(grappler, &grappler->client->pers.cmd, SETANIM_BOTH,
+										BOTH_PLAYER_PA_3_FLY, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD, 0);
+									if (grappler->client->ps.torsoAnim == BOTH_PLAYER_PA_3_FLY)
+									{
+										grappler->client->ps.weaponTime = grappler->client->ps.torsoTimer;
+									}
+								}
 							}
 						}
 					}
