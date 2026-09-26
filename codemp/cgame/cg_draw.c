@@ -12460,6 +12460,7 @@ static void CG_PlayerLabels(void)
 		trace_t		trace;
 		centity_t	*cent = &cg_entities[i];
 		vec3_t		diff;
+		int			vehicleNum = cent->currentState.m_iVehicleNum;
 
 		if (!cent->currentValid)
 			continue;
@@ -12493,12 +12494,21 @@ static void CG_PlayerLabels(void)
 		if (VectorLength(diff) >= 3000) //Make sure distance is less than... 3000 ?
 			continue;
 
-		// Only an unobstructed camera-to-player trace (or a hit on this player)
-		// is visible. Doors, movers and other bodies must block names too.
+		// A vehicle's body may hide its occupants. Only accept it as a visible
+		// target when this player is riding a valid vehicle in this snapshot.
+		if (vehicleNum < MAX_CLIENTS || vehicleNum >= ENTITYNUM_WORLD ||
+			!cg_entities[vehicleNum].currentValid ||
+			cg_entities[vehicleNum].currentState.eType != ET_NPC ||
+			cg_entities[vehicleNum].currentState.NPC_class != CLASS_VEHICLE)
+			vehicleNum = ENTITYNUM_NONE;
+
+		// The player or their vehicle must be visible. Doors, movers and
+		// unrelated bodies still block names.
 		CG_Trace(&trace, cg.refdef.vieworg, NULL, NULL, cent->lerpOrigin,
 			cg.snap->ps.clientNum, CONTENTS_SOLID | CONTENTS_BODY);
 		if (trace.startsolid || trace.allsolid ||
-			(trace.fraction < 1.0f && trace.entityNum != i))
+			(trace.fraction < 1.0f && trace.entityNum != i &&
+				(vehicleNum == ENTITYNUM_NONE || trace.entityNum != vehicleNum)))
 			continue;
 
 		VectorCopy(cent->lerpOrigin, pos);
