@@ -1334,6 +1334,20 @@ static void Jedi_Advance( void )
 	//TIMER_Set( NPC, "duck", 0 );
 }
 
+static void MartialArtist_Advance( void )
+{
+	Jedi_Advance();
+
+	// Local navigation can report failure around actors and small floor seams.
+	// Keep applying safe forward pressure when it produced no command at all.
+	if ( !NPCS.ucmd.forwardmove && !NPCS.ucmd.rightmove &&
+		VectorLengthSquared( NPCS.NPC->client->ps.moveDir ) == 0 &&
+		NPC_MoveDirClear( 127, 0, qfalse ) )
+	{
+		NPCS.ucmd.forwardmove = 127;
+	}
+}
+
 static qboolean MartialArtist_TryAcrobatics( int enemy_dist )
 {
 	qboolean enemyAttacking;
@@ -1385,6 +1399,12 @@ static qboolean MartialArtist_TryAcrobatics( int enemy_dist )
 
 static void MartialArtist_CombatMovement( int enemy_dist )
 {
+	vec3_t toEnemy;
+	float enemyRadialSpeed = 0;
+	qboolean enemyDown = qfalse;
+	qboolean enemyRetreating = qfalse;
+	qboolean hurt = NPCS.NPC->health < NPCS.NPC->client->pers.maxHealth * 0.4f;
+
 	// Paired animations and full-body kicks must own the actor completely.
 	// weaponTime alone is not enough: ordinary punches and acrobatic recovery
 	// also set it, and freezing here made the NPC stare until those timers ended.
@@ -1402,6 +1422,27 @@ static void MartialArtist_CombatMovement( int enemy_dist )
 	NPCS.ucmd.buttons &= ~BUTTON_WALKING;
 	TIMER_Set( NPCS.NPC, "walking", -level.time );
 
+	if ( NPCS.NPC->enemy->client )
+	{
+		VectorSubtract( NPCS.NPC->enemy->r.currentOrigin,
+			NPCS.NPC->r.currentOrigin, toEnemy );
+		toEnemy[2] = 0;
+		VectorNormalize( toEnemy );
+		enemyRadialSpeed = DotProduct( NPCS.NPC->enemy->client->ps.velocity, toEnemy );
+		enemyRetreating = enemyRadialSpeed > 90;
+		enemyDown = PM_InKnockDown( &NPCS.NPC->enemy->client->ps );
+	}
+
+	// Do not dance around a vulnerable or fleeing opponent. Close before the
+	// recovery finishes, while normal attack range checks still prevent whiffs.
+	if ( (enemyDown || enemyRetreating) && enemy_dist > 10 )
+	{
+		TIMER_Set( NPCS.NPC, "strafeLeft", 0 );
+		TIMER_Set( NPCS.NPC, "strafeRight", 0 );
+		MartialArtist_Advance();
+		return;
+	}
+
 	if ( MartialArtist_TryAcrobatics( enemy_dist ) )
 	{
 		return;
@@ -1414,8 +1455,9 @@ static void MartialArtist_CombatMovement( int enemy_dist )
 		return;
 	}
 
-	if ( enemy_dist <= 18 && TIMER_Done( NPCS.NPC, "martialFeintDebounce" ) &&
-		!Q_irand( 0, 5 ) )
+	if ( enemy_dist <= (hurt ? 32 : 18) &&
+		TIMER_Done( NPCS.NPC, "martialFeintDebounce" ) &&
+		!Q_irand( 0, hurt ? 2 : 5 ) )
 	{
 		TIMER_Set( NPCS.NPC, "martialFeint", Q_irand( 250, 450 ) );
 		TIMER_Set( NPCS.NPC, "martialFeintDebounce", Q_irand( 2200, 4200 ) );
@@ -1428,12 +1470,12 @@ static void MartialArtist_CombatMovement( int enemy_dist )
 		// Sprint through open ground; weaving here only delays contact.
 		TIMER_Set( NPCS.NPC, "strafeLeft", 0 );
 		TIMER_Set( NPCS.NPC, "strafeRight", 0 );
-		Jedi_Advance();
+		MartialArtist_Advance();
 	}
 	else if ( enemy_dist > 52 )
 	{
 		// Close on a diagonal and change the entry side every few steps.
-		Jedi_Advance();
+		MartialArtist_Advance();
 		if ( TIMER_Done( NPCS.NPC, "strafeLeft" ) &&
 			TIMER_Done( NPCS.NPC, "strafeRight" ) )
 		{
@@ -1443,7 +1485,7 @@ static void MartialArtist_CombatMovement( int enemy_dist )
 	else if ( enemy_dist > 18 )
 	{
 		// Pressure the edge of grab range while orbiting toward the flank.
-		Jedi_Advance();
+		MartialArtist_Advance();
 		if ( TIMER_Done( NPCS.NPC, "strafeLeft" ) &&
 			TIMER_Done( NPCS.NPC, "strafeRight" ) )
 		{
@@ -1467,7 +1509,7 @@ static void MartialArtist_CombatMovement( int enemy_dist )
 		}
 		if ( enemy_dist > 5 || !orbiting )
 		{
-			Jedi_Advance();
+			MartialArtist_Advance();
 		}
 	}
 }
@@ -5430,7 +5472,9 @@ static void Jedi_Combat( void )
 	if ( !(NPCS.NPC->client->ps.fd.forcePowersActive&(1<<FP_GRIP)) || NPCS.NPC->client->ps.fd.forcePowerLevel[FP_GRIP] < FORCE_LEVEL_2 )
 	{//not gripping
 		//If we can't get straight at him
-		if ( !Jedi_ClearPathToSpot( enemy_dest, NPCS.NPC->enemy->s.number ) )
+		if ( !Jedi_ClearPathToSpot( enemy_dest, NPCS.NPC->enemy->s.number ) &&
+			(NPCS.NPC->client->NPC_class != CLASS_MARTIALARTIST ||
+			!NPC_ClearLOS4( NPCS.NPC->enemy )) )
 		{//hunt him down
 			//Com_Printf( "No Clear Path\n" );
 			if ( (NPC_ClearLOS4( NPCS.NPC->enemy )||NPCS.NPCInfo->enemyLastSeenTime>level.time-500) && NPC_FaceEnemy( qtrue ) )//( NPCInfo->rank == RANK_CREWMAN || NPCInfo->rank > RANK_LT_JG ) &&
