@@ -90,6 +90,7 @@ extern qboolean NPC_SomeoneLookingAtMe(gentity_t *ent);
 extern int WP_GetVelocityForForceJump( gentity_t *self, vec3_t jumpVel, usercmd_t *ucmd );
 
 extern void G_TestLine(vec3_t start, vec3_t end, int color, int time);
+extern void G_UcmdMoveForDir( gentity_t *self, usercmd_t *cmd, vec3_t dir );
 
 static void Jedi_Aggression( gentity_t *self, int change );
 qboolean Jedi_WaitingAmbush( gentity_t *self );
@@ -1391,15 +1392,31 @@ static void Jedi_Advance( void )
 
 static void MartialArtist_Advance( void )
 {
-	Jedi_Advance();
+	vec3_t direct;
 
-	// Local navigation can report failure around actors and small floor seams.
-	// Keep applying safe forward pressure when it produced no command at all.
-	if ( !NPCS.ucmd.forwardmove && !NPCS.ucmd.rightmove &&
-		VectorLengthSquared( NPCS.NPC->client->ps.moveDir ) == 0 &&
-		NPC_MoveDirClear( 127, 0, qfalse ) )
+	NPCS.NPCInfo->combatMove = qtrue;
+	NPCS.NPCInfo->goalEntity = NPCS.NPC->enemy;
+	NPC_MoveToGoal( qtrue );
+
+	// Navigation can return success without producing a command (for example when
+	// its animation guard fires), while moveDir still contains last frame's value.
+	// Treat the command as authoritative and recover with a direct, safe pursuit.
+	if ( !NPCS.ucmd.forwardmove && !NPCS.ucmd.rightmove )
 	{
-		NPCS.ucmd.forwardmove = 127;
+		VectorSubtract( NPCS.NPC->enemy->r.currentOrigin,
+			NPCS.NPC->r.currentOrigin, direct );
+		direct[2] = 0;
+		if ( VectorNormalize( direct ) > 1.0f )
+		{
+			G_UcmdMoveForDir( NPCS.NPC, &NPCS.ucmd, direct );
+			if ( !NPC_MoveDirClear( NPCS.ucmd.forwardmove,
+				NPCS.ucmd.rightmove, qfalse ) )
+			{
+				NPCS.ucmd.forwardmove = 0;
+				NPCS.ucmd.rightmove = 0;
+				VectorClear( NPCS.NPC->client->ps.moveDir );
+			}
+		}
 	}
 }
 
@@ -5552,7 +5569,6 @@ static qboolean Jedi_Jumping( gentity_t *goal )
 	return qfalse;
 }
 
-extern void G_UcmdMoveForDir( gentity_t *self, usercmd_t *cmd, vec3_t dir );
 static void Jedi_CheckEnemyMovement( float enemy_dist )
 {
 	if ( !NPCS.NPC->enemy || !NPCS.NPC->enemy->client )
