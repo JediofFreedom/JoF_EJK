@@ -1683,6 +1683,11 @@ static void MartialArtist_CombatMovement( int enemy_dist )
 		BG_KickingAnim( NPCS.NPC->client->ps.torsoAnim )) &&
 		!MartialArtist_KickActive() )
 	{
+		// PM_Weapon normally clears the kick move when its animation expires.
+		// Since we replace that animation here, finish the whole kick state first;
+		// otherwise PMove keeps freezing movement on the stale LS_KICK_* move.
+		NPCS.NPC->client->ps.saberMove = LS_READY;
+		NPCS.NPC->client->ps.weaponTime = 0;
 		NPC_SetAnim( NPCS.NPC, SETANIM_BOTH, BOTH_STAND1,
 			SETANIM_FLAG_OVERRIDE );
 	}
