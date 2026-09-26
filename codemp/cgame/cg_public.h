@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #pragma once
 
 #define	CGAME_API_VERSION		2
+#define RADIAL_MENU_PAGE_COUNT 5
 
 #define	CMD_BACKUP			512//JAPRO - FPS UNLOCK ENGINE
 #define	CMD_MASK			(CMD_BACKUP - 1)
@@ -737,6 +738,7 @@ typedef struct cgameImport_s {
 		void		(*Video_GetSize)						( int *width, int *height );
 		void		(*Video_Draw)							( float x, float y, float w, float h );
 	} ext;
+	int				(*GetRadialMenuPage)					( void );
 
 } cgameImport_t;
 
