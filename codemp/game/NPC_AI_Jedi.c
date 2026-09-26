@@ -1657,6 +1657,14 @@ static qboolean MartialArtist_Strafe( martialTactics_t *tactics,
 	return qtrue;
 }
 
+static qboolean MartialArtist_KickActive( void )
+{
+	return (BG_KickingAnim( NPCS.NPC->client->ps.legsAnim ) &&
+		NPCS.NPC->client->ps.legsTimer > 0) ||
+		(BG_KickingAnim( NPCS.NPC->client->ps.torsoAnim ) &&
+		NPCS.NPC->client->ps.torsoTimer > 0);
+}
+
 static void MartialArtist_CombatMovement( int enemy_dist )
 {
 	vec3_t toEnemy;
@@ -1668,13 +1676,23 @@ static void MartialArtist_CombatMovement( int enemy_dist )
 	qboolean hurt = NPCS.NPC->health < NPCS.NPC->client->pers.maxHealth * 0.4f;
 	qboolean orbiting;
 
-	// Paired animations and full-body kicks must own the actor completely.
+	// A completed kick can remain as the current animation until another animation
+	// replaces it. Pmove treats the animation ID alone as movement locking, so
+	// explicitly leave the finished kick before issuing pursuit commands.
+	if ( (BG_KickingAnim( NPCS.NPC->client->ps.legsAnim ) ||
+		BG_KickingAnim( NPCS.NPC->client->ps.torsoAnim )) &&
+		!MartialArtist_KickActive() )
+	{
+		NPC_SetAnim( NPCS.NPC, SETANIM_BOTH, BOTH_STAND1,
+			SETANIM_FLAG_OVERRIDE );
+	}
+
+	// Paired animations and active full-body kicks must own the actor completely.
 	// weaponTime alone is not enough: ordinary punches and acrobatic recovery
 	// also set it, and freezing here made the NPC stare until those timers ended.
 	if ( NPCS.NPC->client->grappleState ||
 		TIMER_Exists( NPCS.NPC, "meleeKataWindup" ) ||
-		BG_KickingAnim( NPCS.NPC->client->ps.legsAnim ) ||
-		BG_KickingAnim( NPCS.NPC->client->ps.torsoAnim ) )
+		MartialArtist_KickActive() )
 	{
 		NPCS.ucmd.forwardmove = 0;
 		NPCS.ucmd.rightmove = 0;
@@ -4835,7 +4853,7 @@ static qboolean Jedi_MeleeAttackDecide( int enemy_dist )
 
 	if ( NPCS.NPC->client->grappleState ||
 		NPCS.NPC->client->ps.weaponTime > 0 ||
-		BG_KickingAnim( NPCS.NPC->client->ps.legsAnim ) )
+		MartialArtist_KickActive() )
 	{
 		return qtrue;
 	}
