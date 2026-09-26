@@ -1108,6 +1108,12 @@ static qboolean CG_InKnockDownState( playerState_t *ps )
 	return qfalse;
 }
 
+static qboolean CG_InMeleeGrappleVictimState( playerState_t *ps )
+{
+	return (BG_InGrappleMove( ps->legsAnim ) == 3 && ps->legsTimer > 0) ||
+		(BG_InGrappleMove( ps->torsoAnim ) == 3 && ps->torsoTimer > 0);
+}
+
 // JA+ marks victims of its added side/back kicks with forceDodgeAnim 4/5 and
 // then plays this custom falling/get-up sequence. Ordinary knockdowns do not
 // use these markers, so only the added kick mechanic takes the special path.
@@ -1197,6 +1203,15 @@ void CG_PredictPlayerState( void ) {
 		{
 			CG_InterpolateVehiclePlayerState(qtrue);
 		}
+		return;
+	}
+
+	// Grapple victims are positioned, animated, and released by the server. Local
+	// command replay cannot reproduce the grappler's state and causes visible
+	// corrections during the hold and at the start of the throw.
+	if ( CG_InMeleeGrappleVictimState( &cg.snap->ps ) )
+	{
+		CG_InterpolatePlayerState( qfalse );
 		return;
 	}
 

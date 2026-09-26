@@ -8844,6 +8844,14 @@ void WP_SaberPositionUpdate( gentity_t *self, usercmd_t *ucmd )
 								VectorScale(tossDir, 500.0f, tossDir);
 								tossDir[2] = 200.0f;
 								VectorAdd(grappler->client->ps.velocity, tossDir, grappler->client->ps.velocity);
+								// Keep server movement and local prediction on the same ballistic
+								// path. Direct velocity changes without knockback time let replayed
+								// user commands steer the predicted victim away from the throw.
+								grappler->client->ps.pm_flags |= PMF_TIME_KNOCKBACK;
+								if ( grappler->client->ps.pm_time < 200 )
+								{
+									grappler->client->ps.pm_time = 200;
+								}
 								if ( BG_HasAnimation( grappler->localAnimIndex, BOTH_PLAYER_PA_3_FLY ) )
 								{
 									G_SetAnim(grappler, &grappler->client->pers.cmd, SETANIM_BOTH,
