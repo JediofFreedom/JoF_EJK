@@ -12447,6 +12447,50 @@ static void CG_LeadIndicator(void)
 extern void BG_VehicleAdjustBBoxForOrientation(Vehicle_t *veh, vec3_t origin, vec3_t mins, vec3_t maxs,
     int clientNum, int tracemask, void (*localTrace)(trace_t *, const vec3_t, const vec3_t, const vec3_t, int, int));
 
+// Draw a pilot whose player entity was omitted because the vehicle hides riders.
+static void CG_HiddenVehiclePilotLabel(int clientNum, centity_t *veh, int localVehicleNum)
+{
+	vec3_t pos, diff;
+	trace_t trace;
+	float x, y, top = 64.0f;
+	int vehicleNum = veh->currentState.number;
+
+	VectorSubtract(veh->lerpOrigin, cg.refdef.vieworg, diff);
+	if (VectorLength(diff) >= 3000)
+		return;
+	CG_TraceSkipEntity(&trace, cg.refdef.vieworg, NULL, NULL, veh->lerpOrigin,
+		cg.snap->ps.clientNum, localVehicleNum, CONTENTS_SOLID | CONTENTS_BODY);
+	if (trace.startsolid || trace.allsolid ||
+		(trace.fraction < 1.0f && trace.entityNum != vehicleNum))
+		return;
+
+	if (veh->currentState.solid && veh->currentState.solid != SOLID_BMODEL)
+		top = ((veh->currentState.solid >> 16) & 255) - 32;
+	if (veh->m_pVehicle && veh->m_pVehicle->m_pVehicleInfo) {
+		vec3_t mins, maxs;
+		float *oldOrientation = veh->m_pVehicle->m_vOrientation;
+		VectorSet(mins, -16, -16, -24);
+		VectorSet(maxs, 16, 16, top);
+		veh->m_pVehicle->m_vOrientation = veh->lerpAngles;
+		BG_VehicleAdjustBBoxForOrientation(veh->m_pVehicle, veh->lerpOrigin,
+			mins, maxs, vehicleNum, MASK_PLAYERSOLID, NULL);
+		veh->m_pVehicle->m_vOrientation = oldOrientation;
+		if (maxs[2] > top)
+			top = maxs[2];
+	}
+	VectorCopy(veh->lerpOrigin, pos);
+	pos[2] += top + 24;
+	if (!CG_WorldCoordToScreenCoord(pos, &x, &y))
+		return;
+	CG_TraceSkipEntity(&trace, cg.refdef.vieworg, NULL, NULL, pos,
+		cg.snap->ps.clientNum, localVehicleNum, CONTENTS_SOLID);
+	if (trace.startsolid || trace.allsolid ||
+		(trace.fraction < 1.0f && trace.entityNum != vehicleNum))
+		return;
+	CG_DrawScaledProportionalString(x, y, cgs.clientinfo[clientNum].name,
+		UI_CENTER, colorTable[CT_WHITE], cg_drawPlayerNamesScale.value);
+}
+
 static void CG_PlayerLabels(void)
 {
 	int i;
@@ -12565,6 +12609,25 @@ static void CG_PlayerLabels(void)
 			continue;
 
 		CG_DrawScaledProportionalString(x, y, cgs.clientinfo[i].name, UI_CENTER, colorTable[CT_WHITE], cg_drawPlayerNamesScale.value);
+	}
+
+	// hideRider vehicles remove their pilots from other clients' snapshots.
+	// The vehicle owner remains available and identifies the missing pilot.
+	for (i = MAX_CLIENTS; i < ENTITYNUM_WORLD; i++) {
+		centity_t *veh = &cg_entities[i];
+		int pilotNum = veh->currentState.owner;
+
+		if (!veh->currentValid || veh->currentState.eType != ET_NPC ||
+			veh->currentState.NPC_class != CLASS_VEHICLE ||
+			pilotNum < 0 || pilotNum >= MAX_CLIENTS ||
+			veh->currentState.m_iVehicleNum != pilotNum + 1 ||
+			pilotNum == cg.clientNum || pilotNum == cg.snap->ps.clientNum ||
+			cg_entities[pilotNum].currentValid ||
+			!cgs.clientinfo[pilotNum].infoValid ||
+			cgs.clientinfo[pilotNum].team == TEAM_SPECTATOR)
+			continue;
+
+		CG_HiddenVehiclePilotLabel(pilotNum, veh, localVehicleNum);
 	}
 }
 
