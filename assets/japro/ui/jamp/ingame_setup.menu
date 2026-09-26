@@ -34,6 +34,7 @@
 			hide			vidrestart
 			hide			visuals
 			hide			morevisuals
+			hide			visuals3
 			hide			hud
 			hide			sound
 			hide			options
@@ -146,6 +147,7 @@
 				hide			vidrestart
 				hide			visuals
 				hide			morevisuals
+				hide			visuals3
 				hide			hud
 				hide			sound
 				hide			options
@@ -213,6 +215,7 @@
 				hide			vidrestart
 				hide			visuals
 				hide			morevisuals
+				hide			visuals3
 				hide			hud
 				hide			sound
 				hide			options
@@ -280,6 +283,7 @@
 				hide			vidrestart
 				show			visuals
 				hide			morevisuals
+				hide			visuals3
 				hide			hud
 				hide			sound
 				hide			options
@@ -347,6 +351,7 @@
 				hide			vidrestart
 				hide			visuals
 				hide			morevisuals
+				hide			visuals3
 				show			hud
 				hide			sound
 				hide			options
@@ -414,6 +419,7 @@
 				hide			vidrestart
 				hide			visuals
 				hide			morevisuals
+				hide			visuals3
 				hide			hud
 				show			sound
 				hide			langapply
@@ -482,6 +488,7 @@
 				hide			vidrestart
 				hide			visuals
 				hide			morevisuals
+				hide			visuals3
 				hide			hud
 				hide			sound
 				show			options
@@ -549,6 +556,7 @@
 				hide			vidrestart
 				hide			visuals
 				hide			morevisuals
+				hide			visuals3
 				hide			hud
 				hide			sound
 				hide			options
@@ -616,6 +624,7 @@
 				hide			vidrestart
 				hide			visuals
 				hide			morevisuals
+				hide			visuals3
 				hide			hud
 				hide			sound
 				hide			options
@@ -685,6 +694,7 @@
 				hide			vidrestart
 				hide			visuals
 				hide			morevisuals
+				hide			visuals3
 				hide			hud
 				hide			sound
 				hide			options
@@ -3434,22 +3444,39 @@
 
 		itemDef
 		{
-			name				saberrainsteam
+			name				morevisuals3button_glow
+			style				WINDOW_STYLE_SHADER
+			rect				260 305 200 16
+			background			"gfx/menus/menu_blendbox"
+			forecolor			1 0.5 0.5 1
+			visible				0
+			decoration
+		}
+
+		itemDef
+		{
+			name				morevisuals3button
 			group				morevisuals
-			type				ITEM_TYPE_MULTI
-			text				"Saber Rain Steam:"
-			cvar				"cg_saberRainSteam"
-			cvarFloatList { "On" 1 "Only Me" 2 "Off" 0 }
-			rect				220 303 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
+			type				ITEM_TYPE_BUTTON
+			text				"More Visual Options"
+			rect				260 303 200 20
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			100
 			textaligny			0
 			font				4
 			textscale			1
-			forecolor			.615 .615 .956 1
+			forecolor			1 .682 0 1
 			visible				0
-			descText			"Steam on exposed lightsabers during rain: everyone, only you, or off."
-			action { play "sound/interface/button1" }
+			descText			"Configure more visual options."
+			action
+			{
+				play			"sound/interface/button1"
+				hide			morevisuals
+				hide			morevisuals3button_glow
+				show			visuals3
+			}
+			mouseenter			{ show morevisuals3button_glow }
+			mouseexit			{ hide morevisuals3button_glow }
 		}
 
 		itemDef
@@ -3484,9 +3511,96 @@
 				show			visuals
 				hide			done2button_glow
 				hide			morevisuals
+				hide			visuals3
 			}
 			mouseenter			{ show done2button_glow }
 			mouseexit			{ hide done2button_glow }
+		}
+
+		//----------------------------------------------------------------------------------------------
+		//
+		//	MORE VISUALS (PAGE 3)
+		//
+		//----------------------------------------------------------------------------------------------
+		itemDef
+		{
+			name				saberrainsteam
+			group				visuals3
+			type				ITEM_TYPE_MULTI
+			text				"Saber Rain Steam:"
+			cvar				"cg_saberRainSteam"
+			cvarFloatList	{ "On" 1 "Only Me" 2 "Off" 0 }
+			rect				220 43 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			165
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"Steam on exposed lightsabers during rain: everyone, only you, or off."
+			action				{ play "sound/interface/button1" }
+			mouseenter			{ show highlight1 }
+			mouseexit			{ hide highlight1 }
+		}
+
+		itemDef
+		{
+			name				environmentlightning
+			group				visuals3
+			type				ITEM_TYPE_MULTI
+			text				"Environmental Force Lightning:"
+			cvar				"cg_lightningEnvironment"
+			cvarFloatList	{ @MENUS_ON 1 @MENUS_OFF 0 }
+			rect				220 63 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			165
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"Use environmental effects for Force Lightning."
+			action				{ play "sound/interface/button1" }
+			mouseenter			{ show highlight2 }
+			mouseexit			{ hide highlight2 }
+		}
+
+		itemDef
+		{
+			name				visuals3done_glow
+			style				WINDOW_STYLE_SHADER
+			rect				260 325 200 16
+			background			"gfx/menus/menu_blendbox"
+			forecolor			1 0.5 0.5 1
+			visible				0
+			decoration
+		}
+
+		itemDef
+		{
+			name				visuals3done
+			group				visuals3
+			type				ITEM_TYPE_BUTTON
+			text				"Done"
+			rect				260 323 200 20
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			100
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			1 .682 0 1
+			visible				0
+			descText			"Return to more visuals."
+			action
+			{
+				play			"sound/interface/button1"
+				show			morevisuals
+				hide			visuals3done_glow
+				hide			visuals3
+			}
+			mouseenter			{ show visuals3done_glow }
+			mouseexit			{ hide visuals3done_glow }
 		}
 
 		//----------------------------------------------------------------------------------------------
