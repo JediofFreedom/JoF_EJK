@@ -625,6 +625,7 @@ typedef struct centity_s {
 	qboolean		ikStatus;
 
 	qboolean		saberWasInFlight;
+	qboolean		saberHolsterSoundPlayed; // shutdown already sounded when switching to melee
 
 	float			smoothYaw;
 
@@ -2468,6 +2469,7 @@ void CG_Player( centity_t *cent );
 void CG_ResetPlayerEntity( centity_t *cent, qboolean preserveAnimations );
 qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound );
 qboolean CG_StaffSwapShutdownSounded( int clientNum );
+void CG_PlayEarlySaberHolsterSound( centity_t *cent );
 qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound );
 void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team );
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized );
