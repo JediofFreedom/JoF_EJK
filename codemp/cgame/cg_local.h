@@ -2266,6 +2266,7 @@ typedef struct cgs_s {
 	qboolean radialMenuExecuteOnClose;
 	int radialMenuOpenTime;
 	int radialMenuSelection;
+	int radialMenuPage;
 	float radialMenuX;
 	float radialMenuY;
 
