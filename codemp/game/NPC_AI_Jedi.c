@@ -1446,6 +1446,30 @@ static void Jedi_CombatDistance( int enemy_dist )
 		TIMER_Set( NPCS.NPC, "attackDelay", Q_irand( 0, 1000 ) );
 	}
 
+	if ( NPCS.NPC->client->NPC_class == CLASS_MARTIALARTIST )
+	{
+		// Martial artists commit to hand-to-hand range instead of maintaining
+		// saber distance. Strafe timers still give them the Jedi circling and
+		// acrobatics once they have closed the gap.
+		if ( NPCS.NPC->client->grappleState ||
+			TIMER_Exists( NPCS.NPC, "meleeKataWindup" ) ||
+			NPCS.NPC->client->ps.weaponTime > 0 )
+		{
+			NPCS.ucmd.forwardmove = 0;
+			NPCS.ucmd.rightmove = 0;
+			VectorClear( NPCS.NPC->client->ps.moveDir );
+		}
+		else if ( enemy_dist > 8 )
+		{
+			Jedi_Advance();
+		}
+		else if ( enemy_dist < -12 )
+		{
+			Jedi_Retreat();
+		}
+		return;
+	}
+
 	if ( NPCS.NPC->client->NPC_class == CLASS_BOBAFETT )
 	{
 		if ( !TIMER_Done( NPCS.NPC, "flameTime" ) )

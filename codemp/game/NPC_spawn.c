@@ -406,6 +406,7 @@ void NPC_SetMiscDefaultData( gentity_t *ent )
 		 	if( ent->client->NPC_class == CLASS_TAVION ||
 				ent->client->NPC_class == CLASS_REBORN ||
 				ent->client->NPC_class == CLASS_DESANN ||
+				ent->client->NPC_class == CLASS_MARTIALARTIST ||
 				ent->client->NPC_class == CLASS_SHADOWTROOPER )
 			{
 				ent->client->enemyTeam = NPCTEAM_PLAYER;
@@ -919,7 +920,8 @@ void NPC_Begin (gentity_t *ent)
 			&& ent->client->NPC_class != CLASS_SHADOWTROOPER
 			//&& ent->client->NPC_class != CLASS_TAVION
 			//&& ent->client->NPC_class != CLASS_DESANN
-			&& ent->client->NPC_class != CLASS_JEDI )
+			&& ent->client->NPC_class != CLASS_JEDI
+			&& ent->client->NPC_class != CLASS_MARTIALARTIST )
 		{// up everyone except jedi
 			ent->NPC->stats.health += ent->NPC->stats.health/4 * g_npcspskill.integer; // 100% on easy, 125% on medium, 150% on hard
 		}
@@ -977,6 +979,7 @@ void NPC_Begin (gentity_t *ent)
 		}
 	}
 	else if ( ent->client->NPC_class == CLASS_REBORN
+		|| ent->client->NPC_class == CLASS_MARTIALARTIST
 		|| ent->client->NPC_class == CLASS_SHADOWTROOPER )
 	{
 		switch ( g_npcspskill.integer )
