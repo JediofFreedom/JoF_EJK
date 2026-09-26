@@ -12642,6 +12642,18 @@ void PmoveSingle (pmove_t *pmove) {
 		pm_entVeh = NULL;
 	}
 
+	if ( BG_InGrappleMove( pm->ps->torsoAnim ) == 3 ||
+		BG_InGrappleMove( pm->ps->legsAnim ) == 3 )
+	{
+		// A grapple victim cannot attack, use powers or switch weapons to
+		// interrupt the paired animation. This also covers the throw flight.
+		pm->cmd.buttons &= BUTTON_TALK|BUTTON_WALKING;
+		pm->cmd.weapon = pm->ps->weapon;
+		pm->cmd.forwardmove = 0;
+		pm->cmd.rightmove = 0;
+		pm->cmd.upmove = 0;
+	}
+
 	gPMDoSlowFall = PM_DoSlowFall();
 
 	// this counter lets us debug movement problems with a journal

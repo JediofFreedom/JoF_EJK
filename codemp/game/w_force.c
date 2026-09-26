@@ -5328,6 +5328,13 @@ void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd )
 	{
 		return;
 	}
+	if (self->client->grappleState >= 20)
+	{
+		// Force powers are updated before Pmove, so suppress victim input here too.
+		ucmd->buttons &= BUTTON_TALK|BUTTON_WALKING;
+		ucmd->weapon = self->client->ps.weapon;
+		ucmd->forwardmove = ucmd->rightmove = ucmd->upmove = 0;
+	}
 
 //	if (!self->NPC && self->client->ps.fd.forcePowerSelected == FP_LEVITATION)
 //		self->client->ps.fd.forcePowerSelected = 0;

@@ -8330,6 +8330,11 @@ qboolean G_JediMeleeKata( gentity_t *self, gentity_t *target )
 	self->client->grappleState = 1;
 	target->client->grappleIndex = self->s.number;
 	target->client->grappleState = 20;
+	VectorClear( self->client->ps.velocity );
+	VectorClear( target->client->ps.velocity );
+	VectorClear( target->client->ps.moveDir );
+	target->client->ps.forceHandExtend = HANDEXTEND_NONE;
+	target->client->ps.forceHandExtendTime = 0;
 	self->client->ps.weaponTime = self->client->ps.torsoTimer;
 	if ( target->client->ps.torsoTimer < self->client->ps.torsoTimer )
 	{
@@ -8546,6 +8551,44 @@ void WP_SaberPositionUpdate( gentity_t *self, usercmd_t *ucmd )
 	else if (self->client->grappleState)
 	{
 		gentity_t *grappler = &g_entities[self->client->grappleIndex];
+		if ( self->client->grappleState >= 20 && self->health > 0 &&
+			grappler->inuse && grappler->health > 0 &&
+			grappler->client && grappler->s.eType == ET_NPC &&
+			grappler->client->ps.weapon == WP_MELEE &&
+			grappler->client->grappleIndex == self->s.number &&
+			grappler->client->grappleState > 0 &&
+			grappler->client->grappleState < 20 )
+		{
+			int victimAnim = 0;
+			if ( grappler->client->ps.torsoAnim == BOTH_KYLE_PA_2 )
+			{
+				victimAnim = BOTH_PLAYER_PA_2;
+			}
+			else if ( grappler->client->ps.torsoAnim == BOTH_KYLE_PA_3 )
+			{
+				victimAnim = BOTH_PLAYER_PA_3;
+			}
+			if ( victimAnim )
+			{
+				VectorClear( self->client->ps.velocity );
+				VectorClear( self->client->ps.moveDir );
+				self->client->ps.forceHandExtend = HANDEXTEND_NONE;
+				self->client->ps.forceHandExtendTime = 0;
+				if ( self->client->ps.torsoAnim != victimAnim ||
+					self->client->ps.legsAnim != victimAnim )
+				{
+					G_SetAnim( self, &self->client->pers.cmd, SETANIM_BOTH,
+						victimAnim, SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD, 0 );
+					if ( self->client->ps.torsoAnim == victimAnim &&
+						self->client->ps.legsAnim == victimAnim )
+					{
+						self->client->ps.torsoTimer = grappler->client->ps.torsoTimer;
+						self->client->ps.legsTimer = grappler->client->ps.legsTimer;
+						self->client->ps.weaponTime = self->client->ps.torsoTimer;
+					}
+				}
+			}
+		}
 
 		if (!grappler->inuse || !grappler->client || grappler->client->grappleIndex != self->s.number ||
 			!BG_InGrappleMove(grappler->client->ps.torsoAnim) || !BG_InGrappleMove(grappler->client->ps.legsAnim) ||
