@@ -1340,6 +1340,7 @@ static qboolean MartialArtist_TryAcrobatics( int enemy_dist )
 
 	if ( !TIMER_Done( NPCS.NPC, "martialAcrobatics" ) ||
 		(NPCS.NPCInfo->scriptFlags&SCF_NO_ACROBATICS) ||
+		NPCS.NPC->client->ps.weaponTime > 0 ||
 		NPCS.NPC->client->ps.groundEntityNum == ENTITYNUM_NONE ||
 		PM_InKnockDown( &NPCS.NPC->client->ps ) ||
 		BG_InRoll( &NPCS.NPC->client->ps, NPCS.NPC->client->ps.legsAnim ) )
@@ -1384,10 +1385,13 @@ static qboolean MartialArtist_TryAcrobatics( int enemy_dist )
 
 static void MartialArtist_CombatMovement( int enemy_dist )
 {
-	// Paired animations and committed strikes must own the actor completely.
+	// Paired animations and full-body kicks must own the actor completely.
+	// weaponTime alone is not enough: ordinary punches and acrobatic recovery
+	// also set it, and freezing here made the NPC stare until those timers ended.
 	if ( NPCS.NPC->client->grappleState ||
 		TIMER_Exists( NPCS.NPC, "meleeKataWindup" ) ||
-		NPCS.NPC->client->ps.weaponTime > 0 )
+		BG_KickingAnim( NPCS.NPC->client->ps.legsAnim ) ||
+		BG_KickingAnim( NPCS.NPC->client->ps.torsoAnim ) )
 	{
 		NPCS.ucmd.forwardmove = 0;
 		NPCS.ucmd.rightmove = 0;
@@ -1454,12 +1458,14 @@ static void MartialArtist_CombatMovement( int enemy_dist )
 	else
 	{
 		// Stay mobile in the pocket so strikes arrive from changing angles.
+		qboolean orbiting = qtrue;
+
 		if ( TIMER_Done( NPCS.NPC, "strafeLeft" ) &&
 			TIMER_Done( NPCS.NPC, "strafeRight" ) )
 		{
-			Jedi_Strafe( 500, 900, 50, 250, qfalse );
+			orbiting = Jedi_Strafe( 500, 900, 50, 250, qfalse );
 		}
-		if ( enemy_dist > 5 )
+		if ( enemy_dist > 5 || !orbiting )
 		{
 			Jedi_Advance();
 		}
