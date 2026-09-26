@@ -10794,6 +10794,30 @@ static qboolean CG_StaffHolsteredOnBack( clientInfo_t *ci, const char **why )
 	return qtrue;
 }
 
+// EV_CHANGE_WEAPON arrives when the saber starts lowering. Sound its shutdown
+// then, rather than waiting for the weapon model to change after the drop time.
+void CG_PlayEarlySaberHolsterSound( centity_t *cent )
+{
+	int clientNum = cent->currentState.clientNum;
+	clientInfo_t *ci;
+	const char *why = "";
+
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS || cent->weapon != WP_SABER ||
+		cent->currentState.saberHolstered || cent->saberHolsterSoundPlayed)
+		return;
+
+	ci = &cgs.clientinfo[clientNum];
+	// JA+ staff shutdown is already synchronized to the back-holster animation.
+	if (cg_holsteredStaffSound.integer && CG_StaffHolsteredOnBack(ci, &why))
+		return;
+
+	if (ci->saber[0].soundOff && !CG_StaffSwapShutdownSounded(clientNum))
+		trap->S_StartSound(cent->lerpOrigin, clientNum, CHAN_AUTO, ci->saber[0].soundOff);
+	if (ci->saber[1].soundOff && ci->saber[1].model[0])
+		trap->S_StartSound(cent->lerpOrigin, clientNum, CHAN_AUTO, ci->saber[1].soundOff);
+	cent->saberHolsterSoundPlayed = qtrue;
+}
+
 static staffSwapPhase_t CG_StaffSwapPhaseReal( centity_t *cent, clientInfo_t *ci, const char **why, float *fracOut )
 {
 	int					anim = cent->currentState.torsoAnim;
@@ -12279,7 +12303,8 @@ void CG_Player( centity_t *cent ) {
 			{
 				if (cent->weapon == WP_SABER
 					&& cent->weapon != cent->currentState.weapon
-					&& !cent->currentState.saberHolstered)
+					&& !cent->currentState.saberHolstered
+					&& !cent->saberHolsterSoundPlayed)
 				{ //switching away from the saber
 					//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberoffquick.wav" ));
 					if (cg.time - cent->saberSoundOffDebounceTime >= 800)
@@ -12329,6 +12354,7 @@ void CG_Player( centity_t *cent ) {
 			}
 
 			cent->weapon = cent->currentState.weapon;
+			cent->saberHolsterSoundPlayed = qfalse;
 			cent->ghoul2weapon = CG_G2WeaponInstance(cent, cent->currentState.weapon);
 		}
 	}

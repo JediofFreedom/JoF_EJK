@@ -3306,7 +3306,8 @@ void CG_CheckPlayerG2Weapons(playerState_t *ps, centity_t *cent)
 	{
 		CG_CopyG2WeaponInstance(cent, ps->weapon, cent->ghoul2);
 		cent->ghoul2weapon = CG_G2WeaponInstance(cent, ps->weapon);
-		if (cent->weapon == WP_SABER && cent->weapon != ps->weapon && !ps->saberHolstered)
+		if (cent->weapon == WP_SABER && cent->weapon != ps->weapon &&
+			!ps->saberHolstered && !cent->saberHolsterSoundPlayed)
 		{ //switching away from the saber
 			//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberoffquick.wav" ));
 			if (cg.time - cent->saberSoundOffDebounceTime >= 800)
@@ -3350,6 +3351,7 @@ void CG_CheckPlayerG2Weapons(playerState_t *ps, centity_t *cent)
 			BG_SI_SetDesiredLength(&cgs.clientinfo[ps->clientNum].saber[1], 0, -1);
 		}
 		cent->weapon = ps->weapon;
+		cent->saberHolsterSoundPlayed = qfalse;
 	}
 }
 
