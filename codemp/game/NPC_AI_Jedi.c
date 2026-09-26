@@ -4299,7 +4299,9 @@ static void Jedi_CombatIdle( int enemy_dist )
 }
 
 #define JEDI_MELEE_ATTACK_RANGE 16
-#define JEDI_MELEE_KATA_RANGE   56
+#define JEDI_MELEE_KATA_RANGE   32
+
+extern qboolean TryGrapple( gentity_t *ent );
 
 static qboolean Jedi_MeleeAttackDecide( int enemy_dist )
 {
@@ -4324,19 +4326,34 @@ static qboolean Jedi_MeleeAttackDecide( int enemy_dist )
 	if ( enemy_dist <= JEDI_MELEE_KATA_RANGE &&
 		TIMER_Done( NPCS.NPC, "meleeKataCooldown" ) )
 	{
-		NPC_SetAnim( NPCS.NPC, SETANIM_BOTH, BOTH_A7_KICK_S,
-			SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD|SETANIM_FLAG_RESTART );
-		if ( NPCS.NPC->client->ps.legsAnim == BOTH_A7_KICK_S )
+		int oldForwardMove = NPCS.ucmd.forwardmove;
+		int oldRightMove = NPCS.ucmd.rightmove;
+
+		/* The WP_MELEE kata is the paired grapple sequence.  Pick one of its
+		 * two damaging variants here; G_GrabSomeMofos uses this movement direction
+		 * to select the matching attacker/victim animations. */
+		switch ( Q_irand( 0, 1 ) )
 		{
-			NPCS.NPC->client->ps.saberMove = LS_KICK_S;
-			NPCS.NPC->client->ps.weaponTime = NPCS.NPC->client->ps.legsTimer;
-			TIMER_Set( NPCS.NPC, "meleeKataActive", NPCS.NPC->client->ps.legsTimer );
-			NPCS.ucmd.forwardmove = 0;
+		case 0:
+			NPCS.ucmd.forwardmove = 127;
 			NPCS.ucmd.rightmove = 0;
+			break;
+		case 1:
+			NPCS.ucmd.forwardmove = -127;
+			NPCS.ucmd.rightmove = 0;
+			break;
+		}
+
+		if ( TryGrapple( NPCS.NPC ) )
+		{
+			TIMER_Set( NPCS.NPC, "meleeKataActive", NPCS.NPC->client->ps.torsoTimer );
 			VectorClear( NPCS.NPC->client->ps.moveDir );
 			TIMER_Set( NPCS.NPC, "meleeKataCooldown", Q_irand( 6000, 10000 ) );
 			return qtrue;
 		}
+
+		NPCS.ucmd.forwardmove = oldForwardMove;
+		NPCS.ucmd.rightmove = oldRightMove;
 	}
 
 	if ( enemy_dist > JEDI_MELEE_ATTACK_RANGE ||

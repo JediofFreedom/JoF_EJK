@@ -8074,11 +8074,6 @@ static void G_KickSomeMofos(gentity_t *ent)
 			break;
 		case BOTH_A7_KICK_S:
 			kickPush = flrand( 75.0f, 125.0f );
-			if ( ent->s.number >= MAX_CLIENTS && ent->client->ps.weapon == WP_MELEE &&
-				!TIMER_Done( ent, "meleeKataActive" ) )
-			{//Jedi melee kata gets a little more reach than an ordinary spin kick.
-				kickDist += 20.0f;
-			}
 			if ( ri->footRBolt != -1 )
 			{//actually trace to a bolt
 				if ( elapsedTime >= 550
@@ -8272,6 +8267,7 @@ static void G_GrabSomeMofos(gentity_t *self)
 	vec3_t pos;
 	vec3_t grabMins, grabMaxs;
 	trace_t trace;
+	gentity_t *grabbed = NULL;
 
 	if (!self->ghoul2 || ri->handRBolt == -1)
 	{ //no good
@@ -8286,14 +8282,43 @@ static void G_GrabSomeMofos(gentity_t *self)
 	VectorSet(grabMins, -4.0f, -4.0f, -4.0f);
 	VectorSet(grabMaxs, 4.0f, 4.0f, 4.0f);
 
-	//trace from my origin to my hand, if we hit anyone then get 'em
-	JP_Trace( &trace, self->client->ps.origin, grabMins, grabMaxs, pos, self->s.number, MASK_SHOT, qfalse, G2TRFLAG_DOGHOULTRACE|G2TRFLAG_GETSURFINDEX|G2TRFLAG_THICK|G2TRFLAG_HITCORPSES, g_g2TraceLod.integer );
-
-	if (trace.fraction != 1.0f &&
-		trace.entityNum < ENTITYNUM_WORLD)
+	if ( self->s.number >= MAX_CLIENTS && self->enemy && self->enemy->inuse &&
+		self->enemy->client && self->enemy->health > 0 &&
+		!TIMER_Done( self, "meleeKataActive" ) )
 	{
-		gentity_t *grabbed = &g_entities[trace.entityNum];
+		vec3_t targetDir;
+		float targetDist;
 
+		/* Jedi melee katas may acquire their current enemy from any facing and
+		 * slightly beyond the normal hand trace.  Keep the limit within the
+		 * grapple system's 64-unit separation guard. */
+		VectorSubtract( self->enemy->r.currentOrigin, self->r.currentOrigin, targetDir );
+		targetDist = VectorLength( targetDir );
+		if ( targetDist <= 64.0f )
+		{
+			JP_Trace( &trace, self->client->ps.origin, grabMins, grabMaxs,
+				self->enemy->client->ps.origin, self->s.number, MASK_SHOT, qfalse,
+				G2TRFLAG_DOGHOULTRACE|G2TRFLAG_GETSURFINDEX|G2TRFLAG_THICK|G2TRFLAG_HITCORPSES,
+				g_g2TraceLod.integer );
+			if ( trace.fraction == 1.0f || trace.entityNum == self->enemy->s.number )
+			{
+				grabbed = self->enemy;
+			}
+		}
+	}
+
+	if ( !grabbed )
+	{
+		//trace from my origin to my hand, if we hit anyone then get 'em
+		JP_Trace( &trace, self->client->ps.origin, grabMins, grabMaxs, pos, self->s.number, MASK_SHOT, qfalse, G2TRFLAG_DOGHOULTRACE|G2TRFLAG_GETSURFINDEX|G2TRFLAG_THICK|G2TRFLAG_HITCORPSES, g_g2TraceLod.integer );
+		if ( trace.fraction != 1.0f && trace.entityNum < ENTITYNUM_WORLD )
+		{
+			grabbed = &g_entities[trace.entityNum];
+		}
+	}
+
+	if ( grabbed )
+	{
 		if (grabbed->inuse && (grabbed->s.eType == ET_PLAYER || grabbed->s.eType == ET_NPC) &&
 			grabbed->client && grabbed->health > 0 &&
 			G_CanBeEnemy(self, grabbed) &&
@@ -8303,6 +8328,11 @@ static void G_GrabSomeMofos(gentity_t *self)
 		{ //grabbed an active player/npc
 			int tortureAnim = -1;
 			int correspondingAnim = -1;
+			vec3_t grabAngles;
+
+			VectorSubtract( grabbed->client->ps.origin, self->client->ps.origin, grabAngles );
+			vectoangles( grabAngles, grabAngles );
+			SetClientViewAngle( self, grabAngles );
 
 			if (self->client->pers.cmd.forwardmove > 0)
 			{ //punch grab
