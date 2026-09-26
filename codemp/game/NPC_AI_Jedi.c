@@ -93,6 +93,9 @@ extern void G_TestLine(vec3_t start, vec3_t end, int color, int time);
 
 static void Jedi_Aggression( gentity_t *self, int change );
 qboolean Jedi_WaitingAmbush( gentity_t *self );
+evasionType_t Jedi_CheckFlipEvasions( gentity_t *self, float rightdot, float zdiff );
+static qboolean Jedi_Strafe( int strafeTimeMin, int strafeTimeMax,
+	int nextStrafeTimeMin, int nextStrafeTimeMax, qboolean walking );
 
 extern int bg_parryDebounce[];
 
@@ -137,6 +140,9 @@ void Jedi_ClearTimers( gentity_t *ent )
 	TIMER_Set( ent, "gripping", 0 );
 	TIMER_Set( ent, "draining", 0 );
 	TIMER_Set( ent, "noturn", 0 );
+	TIMER_Set( ent, "martialAcrobatics", 0 );
+	TIMER_Set( ent, "martialFeint", 0 );
+	TIMER_Set( ent, "martialFeintDebounce", 0 );
 }
 
 void Jedi_PlayBlockedPushSound( gentity_t *self )
@@ -1328,6 +1334,138 @@ static void Jedi_Advance( void )
 	//TIMER_Set( NPC, "duck", 0 );
 }
 
+static qboolean MartialArtist_TryAcrobatics( int enemy_dist )
+{
+	qboolean enemyAttacking;
+
+	if ( !TIMER_Done( NPCS.NPC, "martialAcrobatics" ) ||
+		(NPCS.NPCInfo->scriptFlags&SCF_NO_ACROBATICS) ||
+		NPCS.NPC->client->ps.groundEntityNum == ENTITYNUM_NONE ||
+		PM_InKnockDown( &NPCS.NPC->client->ps ) ||
+		BG_InRoll( &NPCS.NPC->client->ps, NPCS.NPC->client->ps.legsAnim ) )
+	{
+		return qfalse;
+	}
+
+	enemyAttacking = NPCS.NPC->enemy->client &&
+		NPCS.NPC->enemy->client->ps.weaponTime > 0;
+
+	// Slip across an incoming attack instead of repeatedly backing out of range.
+	if ( enemyAttacking && enemy_dist < 96 && !Q_irand( 0, 2 ) )
+	{
+		TIMER_Set( NPCS.NPC, "martialAcrobatics", Q_irand( 1800, 3200 ) );
+		if ( Jedi_CheckFlipEvasions( NPCS.NPC,
+			Q_irand( 0, 1 ) ? 1.0f : -1.0f, 0 ) != EVASION_NONE )
+		{
+			TIMER_Set( NPCS.NPC, "strafeLeft", 0 );
+			TIMER_Set( NPCS.NPC, "strafeRight", 0 );
+			return qtrue;
+		}
+	}
+
+	// Occasionally turn a long approach into a forward force flip. The normal
+	// movement code chooses the animation and preserves collision handling.
+	if ( enemy_dist >= 96 && enemy_dist <= 224 &&
+		NPCS.NPC->enemy->client &&
+		NPCS.NPC->enemy->client->ps.groundEntityNum != ENTITYNUM_NONE &&
+		fabs( NPCS.NPC->enemy->r.currentOrigin[2] - NPCS.NPC->r.currentOrigin[2] ) < 48 &&
+		!Q_irand( 0, 3 ) && NPC_MoveDirClear( 127, 0, qfalse ) )
+	{
+		NPCS.ucmd.forwardmove = 127;
+		NPCS.NPC->client->ps.fd.forceJumpCharge = 280;
+		TIMER_Set( NPCS.NPC, "martialAcrobatics", Q_irand( 2500, 4500 ) );
+		TIMER_Set( NPCS.NPC, "strafeLeft", 0 );
+		TIMER_Set( NPCS.NPC, "strafeRight", 0 );
+		return qtrue;
+	}
+
+	return qfalse;
+}
+
+static void MartialArtist_CombatMovement( int enemy_dist )
+{
+	// Paired animations and committed strikes must own the actor completely.
+	if ( NPCS.NPC->client->grappleState ||
+		TIMER_Exists( NPCS.NPC, "meleeKataWindup" ) ||
+		NPCS.NPC->client->ps.weaponTime > 0 )
+	{
+		NPCS.ucmd.forwardmove = 0;
+		NPCS.ucmd.rightmove = 0;
+		VectorClear( NPCS.NPC->client->ps.moveDir );
+		return;
+	}
+
+	NPCS.ucmd.buttons &= ~BUTTON_WALKING;
+	TIMER_Set( NPCS.NPC, "walking", -level.time );
+
+	if ( MartialArtist_TryAcrobatics( enemy_dist ) )
+	{
+		return;
+	}
+
+	// A short disengage creates rhythm without surrendering hand-to-hand range.
+	if ( !TIMER_Done( NPCS.NPC, "martialFeint" ) )
+	{
+		Jedi_Retreat();
+		return;
+	}
+
+	if ( enemy_dist <= 18 && TIMER_Done( NPCS.NPC, "martialFeintDebounce" ) &&
+		!Q_irand( 0, 5 ) )
+	{
+		TIMER_Set( NPCS.NPC, "martialFeint", Q_irand( 250, 450 ) );
+		TIMER_Set( NPCS.NPC, "martialFeintDebounce", Q_irand( 2200, 4200 ) );
+		Jedi_Retreat();
+		return;
+	}
+
+	if ( enemy_dist > 160 )
+	{
+		// Sprint through open ground; weaving here only delays contact.
+		TIMER_Set( NPCS.NPC, "strafeLeft", 0 );
+		TIMER_Set( NPCS.NPC, "strafeRight", 0 );
+		Jedi_Advance();
+	}
+	else if ( enemy_dist > 52 )
+	{
+		// Close on a diagonal and change the entry side every few steps.
+		Jedi_Advance();
+		if ( TIMER_Done( NPCS.NPC, "strafeLeft" ) &&
+			TIMER_Done( NPCS.NPC, "strafeRight" ) )
+		{
+			Jedi_Strafe( 450, 850, 100, 450, qfalse );
+		}
+	}
+	else if ( enemy_dist > 18 )
+	{
+		// Pressure the edge of grab range while orbiting toward the flank.
+		Jedi_Advance();
+		if ( TIMER_Done( NPCS.NPC, "strafeLeft" ) &&
+			TIMER_Done( NPCS.NPC, "strafeRight" ) )
+		{
+			Jedi_Strafe( 600, 1100, 100, 350, qfalse );
+		}
+	}
+	else if ( enemy_dist < -10 )
+	{
+		// Make enough room for the animations, then immediately re-engage.
+		Jedi_Retreat();
+	}
+	else
+	{
+		// Stay mobile in the pocket so strikes arrive from changing angles.
+		if ( TIMER_Done( NPCS.NPC, "strafeLeft" ) &&
+			TIMER_Done( NPCS.NPC, "strafeRight" ) )
+		{
+			Jedi_Strafe( 500, 900, 50, 250, qfalse );
+		}
+		if ( enemy_dist > 5 )
+		{
+			Jedi_Advance();
+		}
+	}
+}
+
 static void Jedi_AdjustSaberAnimLevel( gentity_t *self, int newLevel )
 {
 	if ( !self || !self->client )
@@ -1448,25 +1586,7 @@ static void Jedi_CombatDistance( int enemy_dist )
 
 	if ( NPCS.NPC->client->NPC_class == CLASS_MARTIALARTIST )
 	{
-		// Martial artists commit to hand-to-hand range instead of maintaining
-		// saber distance. Strafe timers still give them the Jedi circling and
-		// acrobatics once they have closed the gap.
-		if ( NPCS.NPC->client->grappleState ||
-			TIMER_Exists( NPCS.NPC, "meleeKataWindup" ) ||
-			NPCS.NPC->client->ps.weaponTime > 0 )
-		{
-			NPCS.ucmd.forwardmove = 0;
-			NPCS.ucmd.rightmove = 0;
-			VectorClear( NPCS.NPC->client->ps.moveDir );
-		}
-		else if ( enemy_dist > 8 )
-		{
-			Jedi_Advance();
-		}
-		else if ( enemy_dist < -12 )
-		{
-			Jedi_Retreat();
-		}
+		MartialArtist_CombatMovement( enemy_dist );
 		return;
 	}
 
@@ -4109,7 +4229,8 @@ static void Jedi_CombatTimersUpdate( int enemy_dist )
 		}
 	}
 
-	if ( TIMER_Done( NPCS.NPC, "noStrafe" ) && TIMER_Done( NPCS.NPC, "strafeLeft" ) && TIMER_Done( NPCS.NPC, "strafeRight" ) )
+	if ( NPCS.NPC->client->NPC_class != CLASS_MARTIALARTIST &&
+		TIMER_Done( NPCS.NPC, "noStrafe" ) && TIMER_Done( NPCS.NPC, "strafeLeft" ) && TIMER_Done( NPCS.NPC, "strafeRight" ) )
 	{
 		//FIXME: Maybe more likely to do this if aggression higher?  Or some other stat?
 		if ( !Q_irand( 0, 4 ) )
