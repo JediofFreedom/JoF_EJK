@@ -8074,6 +8074,11 @@ static void G_KickSomeMofos(gentity_t *ent)
 			break;
 		case BOTH_A7_KICK_S:
 			kickPush = flrand( 75.0f, 125.0f );
+			if ( ent->s.number >= MAX_CLIENTS && ent->client->ps.weapon == WP_MELEE &&
+				!TIMER_Done( ent, "meleeKataActive" ) )
+			{//Jedi melee kata gets a little more reach than an ordinary spin kick.
+				kickDist += 20.0f;
+			}
 			if ( ri->footRBolt != -1 )
 			{//actually trace to a bolt
 				if ( elapsedTime >= 550
