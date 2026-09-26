@@ -795,7 +795,7 @@ void IN_Button0Down(void)
 {
 	if ( cl.radialMenuActive ) {
 		if ( !radialMenuAttackDown ) {
-			cl.radialMenuPage = ( cl.radialMenuPage + RADIAL_MENU_PAGE_COUNT - 1 ) % RADIAL_MENU_PAGE_COUNT;
+			cl.radialMenuPage = ( cl.radialMenuPage + 1 ) % RADIAL_MENU_PAGE_COUNT;
 			radialMenuAttackDown = qtrue;
 		}
 		return;
@@ -840,7 +840,7 @@ void IN_Button6Up(void) {IN_KeyUp(&in_buttons[6]);}
 void IN_Button7Down(void) {
 	if ( cl.radialMenuActive ) {
 		if ( !radialMenuAltAttackDown ) {
-			cl.radialMenuPage = ( cl.radialMenuPage + 1 ) % RADIAL_MENU_PAGE_COUNT;
+			cl.radialMenuPage = ( cl.radialMenuPage + RADIAL_MENU_PAGE_COUNT - 1 ) % RADIAL_MENU_PAGE_COUNT;
 			radialMenuAltAttackDown = qtrue;
 		}
 		return;
