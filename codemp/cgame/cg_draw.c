@@ -12203,6 +12203,9 @@ static void CG_LeadIndicator(void)
 		}
 }
 
+extern void BG_VehicleAdjustBBoxForOrientation(Vehicle_t *veh, vec3_t origin, vec3_t mins, vec3_t maxs,
+    int clientNum, int tracemask, void (*localTrace)(trace_t *, const vec3_t, const vec3_t, const vec3_t, int, int));
+
 static void CG_PlayerLabels(void)
 {
 	int i;
@@ -12218,7 +12221,9 @@ static void CG_PlayerLabels(void)
 		trace_t		trace;
 		centity_t	*cent = &cg_entities[i];
 		vec3_t		diff;
-		int			vehicleNum = cent->currentState.m_iVehicleNum;
+		centity_t	*veh = NULL;
+		int			vehicleNum;
+		int			labelsAbove = 0;
 
 		if (!cent->currentValid)
 			continue;
@@ -12248,37 +12253,66 @@ static void CG_PlayerLabels(void)
 		if (cent->cloaked || (cent->currentState.powerups & (1 << PW_CLOAKED)))
 			continue;
 
-		VectorSubtract(cent->lerpOrigin, cg.refdef.vieworg, diff);
+		vehicleNum = cent->currentState.m_iVehicleNum;
+		if (vehicleNum >= MAX_CLIENTS && vehicleNum < ENTITYNUM_WORLD &&
+			cg_entities[vehicleNum].currentValid &&
+			cg_entities[vehicleNum].currentState.eType == ET_NPC &&
+			cg_entities[vehicleNum].currentState.NPC_class == CLASS_VEHICLE)
+			veh = &cg_entities[vehicleNum];
+
+		VectorSubtract(veh ? veh->lerpOrigin : cent->lerpOrigin, cg.refdef.vieworg, diff);
 		if (VectorLength(diff) >= 3000) //Make sure distance is less than... 3000 ?
 			continue;
 
-		// A vehicle's body may hide its occupants. Only accept it as a visible
-		// target when this player is riding a valid vehicle in this snapshot.
-		if (vehicleNum < MAX_CLIENTS || vehicleNum >= ENTITYNUM_WORLD ||
-			!cg_entities[vehicleNum].currentValid ||
-			cg_entities[vehicleNum].currentState.eType != ET_NPC ||
-			cg_entities[vehicleNum].currentState.NPC_class != CLASS_VEHICLE)
-			vehicleNum = ENTITYNUM_NONE;
-
-		// The player or their vehicle must be visible. Doors, movers and
-		// unrelated bodies still block names.
-		CG_Trace(&trace, cg.refdef.vieworg, NULL, NULL, cent->lerpOrigin,
+		// Trace to the visible vehicle, not to a rider hidden inside its hull.
+		CG_Trace(&trace, cg.refdef.vieworg, NULL, NULL,
+			veh ? veh->lerpOrigin : cent->lerpOrigin,
 			cg.snap->ps.clientNum, CONTENTS_SOLID | CONTENTS_BODY);
 		if (trace.startsolid || trace.allsolid ||
 			(trace.fraction < 1.0f && trace.entityNum != i &&
-				(vehicleNum == ENTITYNUM_NONE || trace.entityNum != vehicleNum)))
+				(!veh || trace.entityNum != vehicleNum)))
 			continue;
 
-		VectorCopy(cent->lerpOrigin, pos);
-		pos[2] += 64;
+		if (veh) {
+			int j;
+			float top = 64.0f;
+
+			// The packed bbox is too small for some ships; use the vehicle's
+			// oriented bounds when available so the label clears its hull.
+			if (veh->currentState.solid && veh->currentState.solid != SOLID_BMODEL)
+				top = ((veh->currentState.solid >> 16) & 255) - 32;
+			if (veh->m_pVehicle && veh->m_pVehicle->m_pVehicleInfo) {
+				vec3_t mins, maxs;
+				float *oldOrientation = veh->m_pVehicle->m_vOrientation;
+				VectorSet(mins, -16, -16, -24);
+				VectorSet(maxs, 16, 16, top);
+				veh->m_pVehicle->m_vOrientation = veh->lerpAngles;
+				BG_VehicleAdjustBBoxForOrientation(veh->m_pVehicle, veh->lerpOrigin,
+					mins, maxs, vehicleNum, MASK_PLAYERSOLID, NULL);
+				veh->m_pVehicle->m_vOrientation = oldOrientation;
+				if (maxs[2] > top)
+					top = maxs[2];
+			}
+			VectorCopy(veh->lerpOrigin, pos);
+			pos[2] += top + 24;
+			for (j = 0; j < i; j++)
+				if (cg_entities[j].currentValid &&
+					cg_entities[j].currentState.m_iVehicleNum == vehicleNum)
+					labelsAbove++;
+		} else {
+			VectorCopy(cent->lerpOrigin, pos);
+			pos[2] += 64;
+		}
 
 		if (!CG_WorldCoordToScreenCoord(pos, &x, &y)) //off-screen, don't draw it
 			continue;
+		y -= labelsAbove * 14.0f;
 
 		// The elevated label itself must not be projected through a ceiling/wall.
 		CG_Trace(&trace, cg.refdef.vieworg, NULL, NULL, pos,
 			cg.snap->ps.clientNum, CONTENTS_SOLID);
-		if (trace.startsolid || trace.allsolid || trace.fraction < 1.0f)
+		if (trace.startsolid || trace.allsolid ||
+			(trace.fraction < 1.0f && (!veh || trace.entityNum != vehicleNum)))
 			continue;
 
 		CG_DrawScaledProportionalString(x, y, cgs.clientinfo[i].name, UI_CENTER, colorTable[CT_WHITE], cg_drawPlayerNamesScale.value);
