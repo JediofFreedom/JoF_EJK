@@ -36,22 +36,22 @@ extern float CG_RadiusForCent( centity_t *cent );
 qboolean CG_WorldCoordToScreenCoord(vec3_t worldCoord, float *x, float *y);
 qboolean CG_CalcMuzzlePoint( int entityNum, vec3_t muzzle );
 
-static vmCvar_t *CG_RadialBindCvar( int index ) {
-	switch ( index ) {
-	case 0: return &cg_radialBind1;
-	case 1: return &cg_radialBind2;
-	case 2: return &cg_radialBind3;
-	case 3: return &cg_radialBind4;
-	case 4: return &cg_radialBind5;
-	case 5: return &cg_radialBind6;
-	case 6: return &cg_radialBind7;
-	case 7: return &cg_radialBind8;
-	default: return NULL;
-	}
-}
-
 #define RADIAL_MENU_BIND_COUNT 8
 #define RADIAL_MENU_ABORT_SLOT 8
+static vmCvar_t *CG_RadialBindCvar( int page, int index ) {
+	static vmCvar_t *const binds[RADIAL_MENU_PAGE_COUNT * RADIAL_MENU_BIND_COUNT] = {
+		&cg_radialBind1, &cg_radialBind2, &cg_radialBind3, &cg_radialBind4, &cg_radialBind5, &cg_radialBind6, &cg_radialBind7, &cg_radialBind8,
+		&cg_radialBind9, &cg_radialBind10, &cg_radialBind11, &cg_radialBind12, &cg_radialBind13, &cg_radialBind14, &cg_radialBind15, &cg_radialBind16,
+		&cg_radialBind17, &cg_radialBind18, &cg_radialBind19, &cg_radialBind20, &cg_radialBind21, &cg_radialBind22, &cg_radialBind23, &cg_radialBind24,
+		&cg_radialBind25, &cg_radialBind26, &cg_radialBind27, &cg_radialBind28, &cg_radialBind29, &cg_radialBind30, &cg_radialBind31, &cg_radialBind32,
+		&cg_radialBind33, &cg_radialBind34, &cg_radialBind35, &cg_radialBind36, &cg_radialBind37, &cg_radialBind38, &cg_radialBind39, &cg_radialBind40
+	};
+
+	if ( page < 0 || page >= RADIAL_MENU_PAGE_COUNT || index < 0 || index >= RADIAL_MENU_BIND_COUNT ) {
+		return NULL;
+	}
+	return binds[page * RADIAL_MENU_BIND_COUNT + index];
+}
 
 static qboolean CG_RadialMenuIsAbortSlot( int index ) {
 	return (qboolean)( index == RADIAL_MENU_ABORT_SLOT );
@@ -73,8 +73,8 @@ static float CG_RadialMenuEaseOut( float t ) {
 }
 
 
-static void CG_RadialMenuCopyLabel( int index, char *label, int labelSize ) {
-	vmCvar_t *bind = CG_RadialBindCvar( index );
+static void CG_RadialMenuCopyLabel( int page, int index, char *label, int labelSize ) {
+	vmCvar_t *bind = CG_RadialBindCvar( page, index );
 
 	if ( CG_RadialMenuIsAbortSlot( index ) ) {
 		Q_strncpyz( label, "Abort", labelSize );
@@ -128,25 +128,33 @@ void CG_RadialMenuSync( void ) {
 	qboolean active = qfalse;
 	float x = 0.0f;
 	float y = 0.0f;
+	int page = 0;
 
 	if ( !trap->GetRadialMenuState ) {
 		return;
 	}
 
 	trap->GetRadialMenuState( &active, &x, &y );
+	if ( trap->GetRadialMenuPage ) {
+		page = trap->GetRadialMenuPage();
+	}
+	if ( page < 0 || page >= RADIAL_MENU_PAGE_COUNT ) {
+		page = 0;
+	}
 
 	if ( active && !cgs.radialMenuActive ) {
 		cgs.radialMenuOpenTime = cg.time;
 	}
 
 	if ( cgs.radialMenuActive && !active && cgs.radialMenuSelection >= 0 && !CG_RadialMenuIsAbortSlot( cgs.radialMenuSelection ) ) {
-		vmCvar_t *bind = CG_RadialBindCvar( cgs.radialMenuSelection );
+		vmCvar_t *bind = CG_RadialBindCvar( page, cgs.radialMenuSelection );
 		if ( bind && bind->string[0] ) {
 			trap->SendConsoleCommand( va( "%s\n", bind->string ) );
 		}
 	}
 
 	cgs.radialMenuActive = active;
+	cgs.radialMenuPage = page;
 	cgs.radialMenuX = x;
 	cgs.radialMenuY = y;
 	cgs.radialMenuSelection = active ? CG_RadialMenuSelection( x, y ) : -1;
@@ -234,7 +242,7 @@ void CG_RadialMenuDraw( void ) {
 		char label[64];
 		float textWidth;
 
-		CG_RadialMenuCopyLabel( i, label, sizeof( label ) );
+		CG_RadialMenuCopyLabel( cgs.radialMenuPage, i, label, sizeof( label ) );
 		textColor[0] = ( i == cgs.radialMenuSelection ) ? activeColor[0] : colorWhite[0]; textColor[1] = ( i == cgs.radialMenuSelection ) ? activeColor[1] : colorWhite[1]; textColor[2] = ( i == cgs.radialMenuSelection ) ? activeColor[2] : colorWhite[2]; textColor[3] = ( i == cgs.radialMenuSelection ) ? activeColor[3] : colorWhite[3];
 		textColor[3] = ( i == cgs.radialMenuSelection ? 1.0f : 0.82f ) * alphaScale;
 		textWidth = CG_Text_Width( label, textScale, FONT_SMALL2 );
@@ -248,7 +256,7 @@ void CG_RadialMenuDraw( void ) {
 		float textWidth;
 		const float py = centerY + outerRadius * 0.86f;
 
-		CG_RadialMenuCopyLabel( RADIAL_MENU_ABORT_SLOT, label, sizeof( label ) );
+		CG_RadialMenuCopyLabel( cgs.radialMenuPage, RADIAL_MENU_ABORT_SLOT, label, sizeof( label ) );
 		textColor[0] = ( cgs.radialMenuSelection == RADIAL_MENU_ABORT_SLOT ) ? abortActiveColor[0] : colorWhite[0]; textColor[1] = ( cgs.radialMenuSelection == RADIAL_MENU_ABORT_SLOT ) ? abortActiveColor[1] : colorWhite[1]; textColor[2] = ( cgs.radialMenuSelection == RADIAL_MENU_ABORT_SLOT ) ? abortActiveColor[2] : colorWhite[2]; textColor[3] = ( cgs.radialMenuSelection == RADIAL_MENU_ABORT_SLOT ) ? abortActiveColor[3] : colorWhite[3];
 		textColor[3] = ( cgs.radialMenuSelection == RADIAL_MENU_ABORT_SLOT ? 1.0f : 0.85f ) * alphaScale;
 		textWidth = CG_Text_Width( label, textScale, FONT_SMALL2 );
@@ -256,8 +264,29 @@ void CG_RadialMenuDraw( void ) {
 		CG_Text_Paint( centerX - textWidth * 0.5f, py, textScale, textColor, label, 0.0f, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_SMALL2 );
 	}
 
-	CG_FillRect( centerX - deadzone, centerY - deadzone, deadzone * 2.0f, deadzone * 2.0f, ringShadow );
-	CG_FillRect( centerX - 3.0f, centerY - 3.0f, 6.0f, 6.0f, dotColor );
+	// Five diamonds mirror the page selector shown in issue #306. The larger,
+	// brighter diamond marks the current page without covering the bind labels.
+	CG_FillRect( centerX - 40.0f * animScale, centerY - 18.0f * animScale,
+		80.0f * animScale, 36.0f * animScale, ringShadow );
+	CG_FillRect( centerX - 38.0f * animScale, centerY - 16.0f * animScale,
+		76.0f * animScale, 32.0f * animScale, idleColor );
+	for ( i = 0; i < RADIAL_MENU_PAGE_COUNT; i++ ) {
+		const float px = centerX + ( i - RADIAL_MENU_PAGE_COUNT / 2 ) * 13.0f * animScale;
+		const qboolean selected = (qboolean)( i == cgs.radialMenuPage );
+		const float size = ( selected ? 13.0f : 8.0f ) * animScale;
+		vec4_t pageColor;
+
+		VectorCopy( selected ? activeColor : dotColor, pageColor );
+		pageColor[3] = ( selected ? activeColor[3] : dotColor[3] ) * alphaScale;
+		trap->R_SetColor( pageColor );
+		CG_DrawRotatePic2( px, centerY, size, size, 45.0f, cgs.media.whiteShader );
+		if ( selected ) {
+			trap->R_SetColor( colorWhite );
+			CG_DrawRotatePic2( px, centerY, 3.5f * animScale, 3.5f * animScale,
+				45.0f, cgs.media.whiteShader );
+		}
+	}
+	trap->R_SetColor( NULL );
 }
 static void CG_DrawSiegeTimer(int timeRemaining, qboolean isMyTeam);
 static void CG_DrawSiegeDeathTimer( int timeRemaining );
