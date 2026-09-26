@@ -4300,8 +4300,46 @@ static void Jedi_CombatIdle( int enemy_dist )
 
 #define JEDI_MELEE_ATTACK_RANGE 16
 #define JEDI_MELEE_KATA_RANGE   32
+#define JEDI_MELEE_KATA_WINDUP  400
 
 extern qboolean G_JediMeleeKata( gentity_t *self, gentity_t *target );
+
+static qboolean Jedi_MeleeKataWindup( void )
+{
+	if ( !TIMER_Exists( NPCS.NPC, "meleeKataWindup" ) )
+	{
+		return qfalse;
+	}
+
+	NPCS.ucmd.forwardmove = 0;
+	NPCS.ucmd.rightmove = 0;
+	VectorClear( NPCS.NPC->client->ps.moveDir );
+	if ( NPCS.NPC->client->ps.torsoAnim != BOTH_KYLE_GRAB ||
+		NPCS.NPC->client->ps.legsAnim != BOTH_KYLE_GRAB )
+	{
+		TIMER_Remove( NPCS.NPC, "meleeKataWindup" );
+		return qfalse;
+	}
+	if ( !TIMER_Done( NPCS.NPC, "meleeKataWindup" ) )
+	{
+		return qtrue;
+	}
+
+	TIMER_Remove( NPCS.NPC, "meleeKataWindup" );
+	if ( NPCS.NPC->enemy && G_JediMeleeKata( NPCS.NPC, NPCS.NPC->enemy ) )
+	{
+		return qtrue;
+	}
+
+	// The target moved away or the grab was interrupted. Finish visibly as a miss.
+	NPC_SetAnim( NPCS.NPC, SETANIM_BOTH, BOTH_KYLE_MISS,
+		SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD );
+	if ( NPCS.NPC->client->ps.torsoAnim == BOTH_KYLE_MISS )
+	{
+		NPCS.NPC->client->ps.weaponTime = NPCS.NPC->client->ps.torsoTimer;
+	}
+	return qtrue;
+}
 
 static qboolean Jedi_MeleeAttackDecide( int enemy_dist )
 {
@@ -4327,13 +4365,23 @@ static qboolean Jedi_MeleeAttackDecide( int enemy_dist )
 	if ( enemy_dist <= JEDI_MELEE_KATA_RANGE &&
 		TIMER_Done( NPCS.NPC, "meleeKataCooldown" ) )
 	{
-		if ( G_JediMeleeKata( NPCS.NPC, NPCS.NPC->enemy ) )
+		if ( BG_HasAnimation( NPCS.NPC->localAnimIndex, BOTH_KYLE_GRAB ) )
 		{
-			NPCS.ucmd.forwardmove = 0;
-			NPCS.ucmd.rightmove = 0;
-			VectorClear( NPCS.NPC->client->ps.moveDir );
-			TIMER_Set( NPCS.NPC, "meleeKataCooldown", Q_irand( 6000, 10000 ) );
-			return qtrue;
+			NPC_SetAnim( NPCS.NPC, SETANIM_BOTH, BOTH_KYLE_GRAB,
+				SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD|SETANIM_FLAG_RESTART );
+			if ( NPCS.NPC->client->ps.torsoAnim == BOTH_KYLE_GRAB &&
+				NPCS.NPC->client->ps.legsAnim == BOTH_KYLE_GRAB )
+			{
+				NPCS.NPC->client->ps.torsoTimer += 500;
+				NPCS.NPC->client->ps.legsTimer = NPCS.NPC->client->ps.torsoTimer;
+				NPCS.NPC->client->ps.weaponTime = NPCS.NPC->client->ps.torsoTimer;
+				TIMER_Set( NPCS.NPC, "meleeKataWindup", JEDI_MELEE_KATA_WINDUP );
+				TIMER_Set( NPCS.NPC, "meleeKataCooldown", Q_irand( 6000, 10000 ) );
+				NPCS.ucmd.forwardmove = 0;
+				NPCS.ucmd.rightmove = 0;
+				VectorClear( NPCS.NPC->client->ps.moveDir );
+				return qtrue;
+			}
 		}
 	}
 
@@ -6353,6 +6401,10 @@ extern void NPC_BSST_Patrol( void );
 extern void NPC_BSSniper_Default( void );
 void NPC_BSJedi_Default( void )
 {
+	if ( Jedi_MeleeKataWindup() )
+	{
+		return;
+	}
 	if ( Jedi_InSpecialMove() )
 	{
 		return;

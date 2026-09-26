@@ -8523,7 +8523,10 @@ void WP_SaberPositionUpdate( gentity_t *self, usercmd_t *ucmd )
 	}
 	else if (self->client->ps.torsoAnim == BOTH_KYLE_GRAB)
 	{ //try to grab someone
-		G_GrabSomeMofos(self);
+		if ( !TIMER_Exists( self, "meleeKataWindup" ) )
+		{
+			G_GrabSomeMofos(self);
+		}
 	}
 	else if (self->client->grappleState)
 	{
