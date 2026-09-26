@@ -3720,6 +3720,10 @@ static void Jedi_SetEnemyInfo( vec3_t enemy_dest, vec3_t enemy_dir, float *enemy
 		VectorSubtract( enemy_dest, NPCS.NPC->r.currentOrigin, enemy_dir );
 		//FIXME: enemy_dist calc needs to include all blade lengths, and include distance from hand to start of blade....
 		*enemy_dist = VectorNormalize( enemy_dir );// - (NPC->client->ps.saberLengthMax + NPC->r.maxs[0]*1.5 + 16);
+		if ( NPCS.NPC->client->ps.weapon == WP_MELEE )
+		{
+			*enemy_dist -= NPCS.NPC->r.maxs[0] + NPCS.NPC->enemy->r.maxs[0];
+		}
 	}
 	else
 	{//see where enemy is headed
@@ -3730,7 +3734,15 @@ static void Jedi_SetEnemyInfo( vec3_t enemy_dest, vec3_t enemy_dir, float *enemy
 		//figure out what dir the enemy's estimated position is from me and how far from the tip of my saber he is
 		VectorSubtract( enemy_dest, NPCS.NPC->r.currentOrigin, enemy_dir );//NPC->client->renderInfo.muzzlePoint
 		//FIXME: enemy_dist calc needs to include all blade lengths, and include distance from hand to start of blade....
-		*enemy_dist = VectorNormalize( enemy_dir ) - (NPCS.NPC->client->saber[0].blade[0].lengthMax + NPCS.NPC->r.maxs[0]*1.5 + 16); //just use the blade 0 len I guess
+		*enemy_dist = VectorNormalize( enemy_dir );
+		if ( NPCS.NPC->client->ps.weapon == WP_MELEE )
+		{
+			*enemy_dist -= NPCS.NPC->r.maxs[0] + NPCS.NPC->enemy->r.maxs[0];
+		}
+		else
+		{
+			*enemy_dist -= NPCS.NPC->client->saber[0].blade[0].lengthMax + NPCS.NPC->r.maxs[0]*1.5 + 16;
+		}
 		//FIXME: keep a group of enemies around me and use that info to make decisions...
 		//		For instance, if there are multiple enemies, evade more, push them away
 		//		and use medium attacks.  If enemies are using blasters, switch to fast.
@@ -4286,6 +4298,124 @@ static void Jedi_CombatIdle( int enemy_dist )
 	}
 }
 
+#define JEDI_MELEE_ATTACK_RANGE 16
+#define JEDI_MELEE_KATA_RANGE   32
+#define JEDI_MELEE_KATA_WINDUP  400
+
+extern qboolean G_JediMeleeKata( gentity_t *self, gentity_t *target );
+
+static qboolean Jedi_MeleeKataWindup( void )
+{
+	if ( !TIMER_Exists( NPCS.NPC, "meleeKataWindup" ) )
+	{
+		return qfalse;
+	}
+
+	NPCS.ucmd.forwardmove = 0;
+	NPCS.ucmd.rightmove = 0;
+	VectorClear( NPCS.NPC->client->ps.moveDir );
+	if ( NPCS.NPC->client->ps.torsoAnim != BOTH_KYLE_GRAB ||
+		NPCS.NPC->client->ps.legsAnim != BOTH_KYLE_GRAB )
+	{
+		TIMER_Remove( NPCS.NPC, "meleeKataWindup" );
+		return qfalse;
+	}
+	if ( !TIMER_Done( NPCS.NPC, "meleeKataWindup" ) )
+	{
+		return qtrue;
+	}
+
+	TIMER_Remove( NPCS.NPC, "meleeKataWindup" );
+	if ( NPCS.NPC->enemy && G_JediMeleeKata( NPCS.NPC, NPCS.NPC->enemy ) )
+	{
+		return qtrue;
+	}
+
+	// The target moved away or the grab was interrupted. Finish visibly as a miss.
+	NPC_SetAnim( NPCS.NPC, SETANIM_BOTH, BOTH_KYLE_MISS,
+		SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD );
+	if ( NPCS.NPC->client->ps.torsoAnim == BOTH_KYLE_MISS )
+	{
+		NPCS.NPC->client->ps.weaponTime = NPCS.NPC->client->ps.torsoTimer;
+	}
+	return qtrue;
+}
+
+static qboolean Jedi_MeleeAttackDecide( int enemy_dist )
+{
+	NPCS.ucmd.buttons &= ~(BUTTON_ATTACK|BUTTON_ALT_ATTACK);
+
+	if ( !TIMER_Exists( NPCS.NPC, "meleeKataCooldown" ) )
+	{
+		TIMER_Set( NPCS.NPC, "meleeKataCooldown", Q_irand( 4000, 7000 ) );
+	}
+
+	if ( NPCS.NPCInfo->scriptFlags&SCF_DONT_FIRE )
+	{
+		return qfalse;
+	}
+
+	if ( NPCS.NPC->client->grappleState ||
+		NPCS.NPC->client->ps.weaponTime > 0 ||
+		BG_KickingAnim( NPCS.NPC->client->ps.legsAnim ) )
+	{
+		return qtrue;
+	}
+
+	if ( enemy_dist <= JEDI_MELEE_KATA_RANGE &&
+		TIMER_Done( NPCS.NPC, "meleeKataCooldown" ) )
+	{
+		if ( BG_HasAnimation( NPCS.NPC->localAnimIndex, BOTH_KYLE_GRAB ) )
+		{
+			NPC_SetAnim( NPCS.NPC, SETANIM_BOTH, BOTH_KYLE_GRAB,
+				SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD|SETANIM_FLAG_RESTART );
+			if ( NPCS.NPC->client->ps.torsoAnim == BOTH_KYLE_GRAB &&
+				NPCS.NPC->client->ps.legsAnim == BOTH_KYLE_GRAB )
+			{
+				NPCS.NPC->client->ps.torsoTimer += 500;
+				NPCS.NPC->client->ps.legsTimer = NPCS.NPC->client->ps.torsoTimer;
+				NPCS.NPC->client->ps.weaponTime = NPCS.NPC->client->ps.torsoTimer;
+				TIMER_Set( NPCS.NPC, "meleeKataWindup", JEDI_MELEE_KATA_WINDUP );
+				TIMER_Set( NPCS.NPC, "meleeKataCooldown", Q_irand( 6000, 10000 ) );
+				NPCS.ucmd.forwardmove = 0;
+				NPCS.ucmd.rightmove = 0;
+				VectorClear( NPCS.NPC->client->ps.moveDir );
+				return qtrue;
+			}
+		}
+	}
+
+	if ( enemy_dist > JEDI_MELEE_ATTACK_RANGE ||
+		!TIMER_Done( NPCS.NPC, "meleeAttackDelay" ) )
+	{
+		return qfalse;
+	}
+
+	if ( Q_irand( 0, 2 ) )
+	{
+		NPCS.ucmd.buttons |= BUTTON_ATTACK;
+	}
+	else
+	{
+		NPC_SetAnim( NPCS.NPC, SETANIM_BOTH, BOTH_A7_KICK_F,
+			SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD|SETANIM_FLAG_RESTART );
+		if ( NPCS.NPC->client->ps.legsAnim == BOTH_A7_KICK_F )
+		{
+			NPCS.NPC->client->ps.saberMove = LS_KICK_F;
+			NPCS.NPC->client->ps.weaponTime = NPCS.NPC->client->ps.legsTimer;
+			NPCS.ucmd.forwardmove = 0;
+			NPCS.ucmd.rightmove = 0;
+			VectorClear( NPCS.NPC->client->ps.moveDir );
+		}
+		else
+		{
+			NPCS.ucmd.buttons |= BUTTON_ATTACK;
+		}
+	}
+	TIMER_Set( NPCS.NPC, "meleeAttackDelay", Q_irand( 300, 700 ) );
+	return qtrue;
+}
+
 static qboolean Jedi_AttackDecide( int enemy_dist )
 {
 	// Begin fixed cultist_destroyer AI
@@ -4308,6 +4438,11 @@ static qboolean Jedi_AttackDecide( int enemy_dist )
 			return qtrue;
 		}
 		return qfalse;
+	}
+
+	if ( NPCS.NPC->client->ps.weapon == WP_MELEE )
+	{
+		return Jedi_MeleeAttackDecide( enemy_dist );
 	}
 
 	if ( NPCS.NPC->enemy->client
@@ -6266,6 +6401,10 @@ extern void NPC_BSST_Patrol( void );
 extern void NPC_BSSniper_Default( void );
 void NPC_BSJedi_Default( void )
 {
+	if ( Jedi_MeleeKataWindup() )
+	{
+		return;
+	}
 	if ( Jedi_InSpecialMove() )
 	{
 		return;
