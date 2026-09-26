@@ -8517,6 +8517,21 @@ void WP_SaberPositionUpdate( gentity_t *self, usercmd_t *ucmd )
 		return;
 	}
 
+	if ( TIMER_Exists( self, "meleeKataRecovery" ) &&
+		TIMER_Done( self, "meleeKataRecovery" ) )
+	{
+		TIMER_Remove( self, "meleeKataRecovery" );
+		if ( self->health > 0 && !self->client->grappleState &&
+			self->client->ps.forceHandExtend != HANDEXTEND_KNOCKDOWN )
+		{
+			// Use the game's throw recovery after the flight animation has played.
+			// It keeps the victim down until grounded, then plays the getup.
+			self->client->ps.forceHandExtend = HANDEXTEND_POSTTHROWN;
+			self->client->ps.forceDodgeAnim = 0;
+			self->client->ps.forceHandExtendTime = level.time + 900;
+		}
+	}
+
 	if ((BG_KickingAnim(self->client->ps.legsAnim) || (!(SaberKickTweak(self)) /*!d_saberKickTweak.integer*/ && (self->client->ps.legsAnim == BOTH_JUMPATTACK7))))//JAPRO
 	{ //do some kick traces and stuff if we're in the appropriate anim
 		G_KickSomeMofos(self);
@@ -8793,6 +8808,8 @@ void WP_SaberPositionUpdate( gentity_t *self, usercmd_t *ucmd )
 									if (grappler->client->ps.torsoAnim == BOTH_PLAYER_PA_3_FLY)
 									{
 										grappler->client->ps.weaponTime = grappler->client->ps.torsoTimer;
+										TIMER_Set( grappler, "meleeKataRecovery",
+											grappler->client->ps.torsoTimer - 100 );
 									}
 								}
 							}

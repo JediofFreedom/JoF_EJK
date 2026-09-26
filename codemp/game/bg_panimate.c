@@ -703,6 +703,7 @@ int BG_InGrappleMove(int anim)
 	case BOTH_PLAYER_PA_2:
 	case BOTH_PLAYER_PA_FLY:
 	case BOTH_PLAYER_PA_3:
+	case BOTH_PLAYER_PA_3_FLY:
 		return 3; //getting the shit beaten out of you
 		break;
 	}
