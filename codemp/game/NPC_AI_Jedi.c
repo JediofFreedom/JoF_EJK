@@ -4140,7 +4140,13 @@ static void Jedi_TimersApply( void )
 		}
 	}
 
-	Jedi_DebounceDirectionChanges();
+	// Martial artists already debounce orbit, feint, and approach changes in
+	// their movement controller. The generic Jedi debounce inserts a 1-2 second
+	// stop whenever a feint reverses back into an advance.
+	if ( NPCS.NPC->client->NPC_class != CLASS_MARTIALARTIST )
+	{
+		Jedi_DebounceDirectionChanges();
+	}
 
 	//use careful anim/slower movement if not already moving
 	if ( !NPCS.ucmd.forwardmove && !TIMER_Done( NPCS.NPC, "walking" ) )
