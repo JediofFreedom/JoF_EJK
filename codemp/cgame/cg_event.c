@@ -154,6 +154,19 @@ static void CG_Obituary( entityState_t *ent ) {
 	if ( !targetInfo || !targetInfo->infoValid ) {
 		return;
 	}
+
+	if (cgs.serverMod == SVMOD_JAPLUS &&
+		!(cp_pluginDisable.integer & JAPRO_PLUGIN_ENDDUELROTATION) &&
+		mod == MOD_SABER &&
+		cg.snap && cg.snap->ps.clientNum == cg.clientNum &&
+		!(cg.snap->ps.pm_flags & PMF_FOLLOW) &&
+		cg.snap->ps.stats[STAT_HEALTH] > 0 &&
+		attacker == cg.clientNum && target == cg.endDuelOpponent &&
+		cg.endDuelLastTime > 0 && cg.time >= cg.endDuelLastTime &&
+		cg.time - cg.endDuelLastTime <= 1000) {
+		cg.endDuelCameraTime = cg.time;
+		cg.endDuelCameraSpawnCount = cg.snap->ps.persistant[PERS_SPAWN_COUNT];
+	}
 	Com_sprintf(targetName, sizeof(targetName), "%s%s", targetInfo->name, S_COLOR_WHITE);
 	targetInfo->deaths++;
 
