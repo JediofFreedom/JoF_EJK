@@ -12450,6 +12450,11 @@ extern void BG_VehicleAdjustBBoxForOrientation(Vehicle_t *veh, vec3_t origin, ve
 static void CG_PlayerLabels(void)
 {
 	int i;
+	int localVehicleNum = cg.snap ? cg.snap->ps.m_iVehicleNum : ENTITYNUM_NONE;
+
+	// The camera can be inside the local fighter's collision box.
+	if (localVehicleNum <= 0 || localVehicleNum >= ENTITYNUM_WORLD)
+		localVehicleNum = ENTITYNUM_NONE;
 
 	if (!cg.snap || (cgs.restricts & RESTRICT_PLAYERLABELS) ||
 		cg.predictedPlayerState.zoomMode == 2 ||
@@ -12483,8 +12488,6 @@ static void CG_PlayerLabels(void)
 			continue;
 		if (cent->currentState.bolt1) // Never label players participating in a private duel.
 			continue;
-		if (cg_drawnCrosshairNameClient == i)
-			continue;
 		if (CG_IsMindTricked(cent->currentState.trickedentindex,
 			cent->currentState.trickedentindex2,
 			cent->currentState.trickedentindex3,
@@ -12501,15 +12504,19 @@ static void CG_PlayerLabels(void)
 			cg_entities[vehicleNum].currentState.eType == ET_NPC &&
 			cg_entities[vehicleNum].currentState.NPC_class == CLASS_VEHICLE)
 			veh = &cg_entities[vehicleNum];
+		// A crosshair name is centered on the HUD, so it does not replace
+		// the label that identifies which vehicle the player occupies.
+		if (cg_drawnCrosshairNameClient == i && !veh)
+			continue;
 
 		VectorSubtract(veh ? veh->lerpOrigin : cent->lerpOrigin, cg.refdef.vieworg, diff);
 		if (VectorLength(diff) >= 3000) //Make sure distance is less than... 3000 ?
 			continue;
 
 		// Trace to the visible vehicle, not to a rider hidden inside its hull.
-		CG_Trace(&trace, cg.refdef.vieworg, NULL, NULL,
+		CG_TraceSkipEntity(&trace, cg.refdef.vieworg, NULL, NULL,
 			veh ? veh->lerpOrigin : cent->lerpOrigin,
-			cg.snap->ps.clientNum, CONTENTS_SOLID | CONTENTS_BODY);
+			cg.snap->ps.clientNum, localVehicleNum, CONTENTS_SOLID | CONTENTS_BODY);
 		if (trace.startsolid || trace.allsolid ||
 			(trace.fraction < 1.0f && trace.entityNum != i &&
 				(!veh || trace.entityNum != vehicleNum)))
@@ -12551,8 +12558,8 @@ static void CG_PlayerLabels(void)
 		y -= labelsAbove * 14.0f;
 
 		// The elevated label itself must not be projected through a ceiling/wall.
-		CG_Trace(&trace, cg.refdef.vieworg, NULL, NULL, pos,
-			cg.snap->ps.clientNum, CONTENTS_SOLID);
+		CG_TraceSkipEntity(&trace, cg.refdef.vieworg, NULL, NULL, pos,
+			cg.snap->ps.clientNum, localVehicleNum, CONTENTS_SOLID);
 		if (trace.startsolid || trace.allsolid ||
 			(trace.fraction < 1.0f && (!veh || trace.entityNum != vehicleNum)))
 			continue;

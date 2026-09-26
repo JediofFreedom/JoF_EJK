@@ -2503,6 +2503,8 @@ void CG_BuildSolidList( void );
 int	CG_PointContents( const vec3_t point, int passEntityNum );
 void CG_Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end,
 					 int skipNumber, int mask );
+void CG_TraceSkipEntity( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs,
+		const vec3_t end, int skipNumber, int skipNumber2, int mask );
 void CG_G2Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end,
 					 int skipNumber, int mask );
 void CG_CrosshairTrace(trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int skipNumber, qboolean g2Check); //japro
