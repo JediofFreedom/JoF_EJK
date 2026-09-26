@@ -1676,16 +1676,14 @@ static void MartialArtist_CombatMovement( int enemy_dist )
 	qboolean hurt = NPCS.NPC->health < NPCS.NPC->client->pers.maxHealth * 0.4f;
 	qboolean orbiting;
 
-	// A completed kick can remain as the current animation until another animation
-	// replaces it. Pmove treats the animation ID alone as movement locking, so
-	// explicitly leave the finished kick before issuing pursuit commands.
-	if ( (BG_KickingAnim( NPCS.NPC->client->ps.legsAnim ) ||
+	// Animation processing can leave either the kick animation or saber move
+	// behind. PMove treats both as movement locking, so clear the complete state
+	// before issuing pursuit commands.
+	if ( (BG_KickMove( NPCS.NPC->client->ps.saberMove ) ||
+		BG_KickingAnim( NPCS.NPC->client->ps.legsAnim ) ||
 		BG_KickingAnim( NPCS.NPC->client->ps.torsoAnim )) &&
 		!MartialArtist_KickActive() )
 	{
-		// PM_Weapon normally clears the kick move when its animation expires.
-		// Since we replace that animation here, finish the whole kick state first;
-		// otherwise PMove keeps freezing movement on the stale LS_KICK_* move.
 		NPCS.NPC->client->ps.saberMove = LS_READY;
 		NPCS.NPC->client->ps.weaponTime = 0;
 		NPC_SetAnim( NPCS.NPC, SETANIM_BOTH, BOTH_STAND1,
