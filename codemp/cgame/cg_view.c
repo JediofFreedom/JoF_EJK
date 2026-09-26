@@ -745,6 +745,31 @@ CG_OffsetThirdPersonView
 ===============
 */
 extern qboolean BG_UnrestrainedPitchRoll( playerState_t *ps, Vehicle_t *pVeh );
+
+#define END_DUEL_CAMERA_DURATION 3200
+
+static qboolean CG_EndDuelCameraActive( void ) {
+	return cgs.serverMod == SVMOD_JAPLUS &&
+		!(cp_pluginDisable.integer & JAPRO_PLUGIN_ENDDUELROTATION) &&
+		cg.endDuelCameraTime > 0 &&
+		cg.time >= cg.endDuelCameraTime &&
+		cg.time - cg.endDuelCameraTime < END_DUEL_CAMERA_DURATION &&
+		!cg.predictedPlayerState.duelInProgress &&
+		cg.predictedPlayerState.stats[STAT_HEALTH] > 0 &&
+		cg.predictedPlayerState.persistant[PERS_SPAWN_COUNT] == cg.endDuelCameraSpawnCount &&
+		!(cg.predictedPlayerState.pm_flags & PMF_FOLLOW);
+}
+
+static float CG_EndDuelCameraAngle( void ) {
+	float progress;
+
+	if (!CG_EndDuelCameraActive()) {
+		return 0.0f;
+	}
+	progress = (float)(cg.time - cg.endDuelCameraTime) / END_DUEL_CAMERA_DURATION;
+	return 360.0f * progress * progress * (3.0f - 2.0f * progress);
+}
+
 static void CG_OffsetThirdPersonView( void )
 {
 	vec3_t	target, location, diff;
@@ -808,6 +833,7 @@ static void CG_OffsetThirdPersonView( void )
 		else {
 			focusAngles[YAW] += cg_thirdPersonAngle.value;
 		}
+		focusAngles[YAW] += CG_EndDuelCameraAngle();
 
 		if (cg.snap && cg.snap->ps.m_iVehicleNum)
 		{
@@ -1866,7 +1892,7 @@ static int CG_CalcViewValues( void ) {
 		else if ( cg.renderingThirdPerson ) { // loda
 			// back away from character
 #ifndef TOURNAMENT_CLIENT
-			if (cg_thirdPersonSpecialCam.integer &&
+			if (cg_thirdPersonSpecialCam.integer && !CG_EndDuelCameraActive() &&
 				BG_SaberInSpecial(cg.snap->ps.saberMove))
 			{ //the action cam
 				if (!CG_ThirdPersonActionCam())
@@ -3088,6 +3114,10 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	if (cg.predictedPlayerState.persistant[PERS_TEAM] == TEAM_SPECTATOR)
 	{
 		cg.renderingThirdPerson = qfalse;
+	}
+	else if (CG_EndDuelCameraActive() && !cg.predictedPlayerState.zoomMode)
+	{
+		cg.renderingThirdPerson = qtrue;
 	}
 
 	// build cg.refdef

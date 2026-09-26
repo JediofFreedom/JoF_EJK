@@ -670,6 +670,18 @@ void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops ) {
                 *ops = *ps;
         }
 
+	if (cgs.serverMod == SVMOD_JAPLUS) {
+		if (ps->duelInProgress && ps->clientNum == cg.clientNum &&
+			ps->duelIndex >= 0 && ps->duelIndex < MAX_CLIENTS &&
+			!(ps->pm_flags & PMF_FOLLOW) && ps->stats[STAT_HEALTH] > 0) {
+			cg.endDuelOpponent = ps->duelIndex;
+			cg.endDuelLastTime = cg.time;
+			if (!ops->duelInProgress) {
+				cg.endDuelCameraTime = 0;
+			}
+		}
+	}
+
 	// damage events (player is getting wounded)
 	if ( ps->damageEvent != ops->damageEvent && ps->damageCount ) {
 		CG_DamageFeedback( ps->damageYaw, ps->damagePitch, ps->damageCount );
