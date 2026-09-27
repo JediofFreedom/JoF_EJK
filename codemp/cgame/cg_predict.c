@@ -1110,6 +1110,15 @@ static qboolean CG_InKnockDownState( playerState_t *ps )
 
 static qboolean CG_InMeleeGrappleVictimState( playerState_t *ps )
 {
+	// The paired hold is positioned directly by the server and cannot be
+	// reconstructed locally. Once the throw animation starts, its velocity and
+	// knockback time are predictable, so resume prediction for a smooth launch.
+	if ( ps->legsAnim == BOTH_PLAYER_PA_3_FLY ||
+		ps->torsoAnim == BOTH_PLAYER_PA_3_FLY )
+	{
+		return qfalse;
+	}
+
 	return (BG_InGrappleMove( ps->legsAnim ) == 3 && ps->legsTimer > 0) ||
 		(BG_InGrappleMove( ps->torsoAnim ) == 3 && ps->torsoTimer > 0);
 }
@@ -1206,9 +1215,8 @@ void CG_PredictPlayerState( void ) {
 		return;
 	}
 
-	// Grapple victims are positioned, animated, and released by the server. Local
-	// command replay cannot reproduce the grappler's state and causes visible
-	// corrections during the hold and at the start of the throw.
+	// Grapple victims are positioned and animated by the server during the paired
+	// hold. Local command replay cannot reproduce the grappler's state there.
 	if ( CG_InMeleeGrappleVictimState( &cg.snap->ps ) )
 	{
 		CG_InterpolatePlayerState( qfalse );
