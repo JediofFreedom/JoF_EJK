@@ -8313,6 +8313,11 @@ qboolean G_JediMeleeKata( gentity_t *self, gentity_t *target )
 	}
 
 	vectoangles( toTarget, targetAngles );
+	// Paired melee animations only need horizontal facing. Feeding the vertical
+	// separation into SetClientViewAngle can leave the victim with an extreme
+	// pitch that remains locked throughout the throw animation.
+	targetAngles[PITCH] = 0.0f;
+	targetAngles[ROLL] = 0.0f;
 	SetClientViewAngle( self, targetAngles );
 	G_SetAnim( self, &self->client->pers.cmd, SETANIM_BOTH, attackerAnim,
 		SETANIM_FLAG_OVERRIDE|SETANIM_FLAG_HOLD, 0 );
@@ -8631,6 +8636,11 @@ void WP_SaberPositionUpdate( gentity_t *self, usercmd_t *ucmd )
 			else
 			{
 				vectoangles(grapAng, grapAng);
+				// Grapples align the actors around the vertical axis. Never derive
+				// camera pitch from their origin height difference: the flight anim
+				// keeps this angle locked after release.
+				grapAng[PITCH] = 0.0f;
+				grapAng[ROLL] = 0.0f;
 				SetClientViewAngle(self, grapAng);
 
 				if (self->client->grappleState >= 20)
