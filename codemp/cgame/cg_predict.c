@@ -1123,6 +1123,23 @@ static qboolean CG_InMeleeGrappleVictimState( playerState_t *ps )
 		(BG_InGrappleMove( ps->torsoAnim ) == 3 && ps->torsoTimer > 0);
 }
 
+static void CG_PreserveMeleeKataFlightAnimation( playerState_t *predicted,
+	const playerState_t *server )
+{
+	if ( (server->legsAnim != BOTH_PLAYER_PA_3_FLY || server->legsTimer <= 0) &&
+		(server->torsoAnim != BOTH_PLAYER_PA_3_FLY || server->torsoTimer <= 0) )
+	{
+		return;
+	}
+
+	// Predict the ballistic origin, but render the server-selected paired throw
+	// animation. Pmove command replay may otherwise replace it with an air anim.
+	predicted->legsAnim = BOTH_PLAYER_PA_3_FLY;
+	predicted->torsoAnim = BOTH_PLAYER_PA_3_FLY;
+	predicted->legsFlip = server->legsFlip;
+	predicted->torsoFlip = server->torsoFlip;
+}
+
 // JA+ marks victims of its added side/back kicks with forceDodgeAnim 4/5 and
 // then plays this custom falling/get-up sequence. Ordinary knockdowns do not
 // use these markers, so only the added kick mechanic takes the special path.
@@ -1812,6 +1829,8 @@ void CG_PredictPlayerState( void ) {
 		}
 		goto revertES;
 	}
+
+	CG_PreserveMeleeKataFlightAnimation( &cg.predictedPlayerState, &cg.snap->ps );
 
 	if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 	{
