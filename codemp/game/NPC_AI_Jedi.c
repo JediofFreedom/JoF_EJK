@@ -1665,6 +1665,50 @@ static qboolean MartialArtist_KickActive( void )
 		NPCS.NPC->client->ps.torsoTimer > 0);
 }
 
+static qboolean MartialArtist_EscapeEnemyHead( void )
+{
+	martialTactics_t *tactics;
+	qboolean onEnemy;
+	int direction;
+
+	if ( !NPCS.NPC->enemy )
+	{
+		return qfalse;
+	}
+
+	onEnemy = NPCS.NPC->client->ps.groundEntityNum == NPCS.NPC->enemy->s.number;
+	if ( onEnemy && TIMER_Done( NPCS.NPC, "martialHeadEscape" ) )
+	{
+		tactics = MartialArtist_Tactics();
+		direction = Q_irand( 0, 1 ) ? 127 : -127;
+		if ( tactics )
+		{
+			tactics->orbitDirection = direction;
+		}
+		TIMER_Set( NPCS.NPC, "martialHeadEscape", Q_irand( 450, 650 ) );
+	}
+
+	if ( TIMER_Done( NPCS.NPC, "martialHeadEscape" ) )
+	{
+		return qfalse;
+	}
+
+	tactics = MartialArtist_Tactics();
+	direction = tactics && tactics->orbitDirection ?
+		tactics->orbitDirection : (NPCS.NPC->s.number & 1 ? 127 : -127);
+	TIMER_Set( NPCS.NPC, "strafeLeft", 0 );
+	TIMER_Set( NPCS.NPC, "strafeRight", 0 );
+	NPCS.ucmd.forwardmove = -96;
+	NPCS.ucmd.rightmove = direction;
+	if ( onEnemy )
+	{
+		NPCS.ucmd.upmove = 127;
+	}
+	VectorClear( NPCS.NPC->client->ps.moveDir );
+	NPC_FaceEnemy( qtrue );
+	return qtrue;
+}
+
 static void MartialArtist_CombatMovement( int enemy_dist )
 {
 	vec3_t toEnemy;
@@ -1675,6 +1719,23 @@ static void MartialArtist_CombatMovement( int enemy_dist )
 	qboolean enemyRetreating = qfalse;
 	qboolean hurt = NPCS.NPC->health < NPCS.NPC->client->pers.maxHealth * 0.4f;
 	qboolean orbiting;
+
+	if ( !TIMER_Done( NPCS.NPC, "taunting" ) )
+	{
+		if ( enemy_dist <= 64 )
+		{
+			TIMER_Set( NPCS.NPC, "taunting", -level.time );
+			NPCS.NPC->client->ps.forceHandExtend = HANDEXTEND_NONE;
+			NPCS.NPC->client->ps.forceHandExtendTime = 0;
+		}
+		else
+		{
+			NPCS.ucmd.forwardmove = 0;
+			NPCS.ucmd.rightmove = 0;
+			VectorClear( NPCS.NPC->client->ps.moveDir );
+			return;
+		}
+	}
 
 	// Animation processing can leave either the kick animation or saber move
 	// behind. PMove treats both as movement locking, so clear the complete state
@@ -4758,6 +4819,18 @@ static void Jedi_CombatIdle( int enemy_dist )
 		{
 			if ( TIMER_Done( NPCS.NPC, "chatter" ) && NPCS.NPC->client->ps.forceHandExtend == HANDEXTEND_NONE )
 			{//FIXME: add more taunt behaviors
+				if ( NPCS.NPC->client->NPC_class == CLASS_MARTIALARTIST &&
+					BG_HasAnimation( NPCS.NPC->localAnimIndex, BOTH_GESTURE1 ) )
+				{
+					int tauntTime = BG_AnimLength( NPCS.NPC->localAnimIndex, BOTH_GESTURE1 );
+
+					NPCS.NPC->client->ps.forceHandExtend = HANDEXTEND_JEDITAUNT;
+					NPCS.NPC->client->ps.forceHandExtendTime = level.time + tauntTime;
+					TIMER_Set( NPCS.NPC, "taunting", tauntTime );
+					TIMER_Set( NPCS.NPC, "chatter", Q_irand( 5000, 10000 ) );
+					Jedi_BattleTaunt();
+					return;
+				}
 				//FIXME: sometimes he turns it off, then turns it right back on again???
 				if ( enemy_dist > 200
 					&& NPCS.NPC->client->NPC_class != CLASS_BOBAFETT
@@ -5833,6 +5906,12 @@ static void Jedi_Combat( void )
 
 	//See where enemy will be 300 ms from now
 	Jedi_SetEnemyInfo( enemy_dest, enemy_dir, &enemy_dist, enemy_movedir, &enemy_movespeed, 300 );
+
+	if ( NPCS.NPC->client->NPC_class == CLASS_MARTIALARTIST &&
+		MartialArtist_EscapeEnemyHead() )
+	{
+		return;
+	}
 
 	if ( Jedi_Jumping( NPCS.NPC->enemy ) )
 	{//I'm in the middle of a jump, so just see if I should attack
