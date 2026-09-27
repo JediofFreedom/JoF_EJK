@@ -4837,7 +4837,7 @@ static qboolean Jedi_MeleeAttackDecide( int enemy_dist )
 	martialTactics_t *tactics = NULL;
 	qboolean enemyDown = qfalse;
 	qboolean enemyActivelyAttacking = qfalse;
-	qboolean targetStable = qtrue;
+	qboolean kataCounterOpportunity = qfalse;
 	qboolean useKick = qfalse;
 	float enemyRadialSpeed = 0;
 	vec3_t toEnemy;
@@ -4871,21 +4871,22 @@ static qboolean Jedi_MeleeAttackDecide( int enemy_dist )
 			toEnemy[2] = 0;
 			VectorNormalize( toEnemy );
 			enemyRadialSpeed = DotProduct( NPCS.NPC->enemy->client->ps.velocity, toEnemy );
-			targetStable = VectorLengthSquared( NPCS.NPC->enemy->client->ps.velocity ) < 10000;
 			enemyDown = PM_InKnockDown( &NPCS.NPC->enemy->client->ps );
 			enemyActivelyAttacking =
 				(NPCS.NPC->enemy->client->pers.cmd.buttons&(BUTTON_ATTACK|BUTTON_ALT_ATTACK)) ||
 				BG_SaberInAttack( NPCS.NPC->enemy->client->ps.saberMove ) ||
 				PM_SaberInStart( NPCS.NPC->enemy->client->ps.saberMove );
+			kataCounterOpportunity = enemyActivelyAttacking || enemyRadialSpeed < -90;
 		}
 	}
 
 	if ( enemy_dist <= JEDI_MELEE_KATA_RANGE &&
 		TIMER_Done( NPCS.NPC, "meleeKataCooldown" ) &&
 		(!tactics || (TIMER_Done( NPCS.NPC, "meleeKataDecision" ) &&
-			targetStable && !enemyDown && !enemyActivelyAttacking &&
+			!enemyDown &&
 			InFront( NPCS.NPC->enemy->r.currentOrigin, NPCS.NPC->r.currentOrigin,
-				NPCS.NPC->client->ps.viewangles, 0.3f ) && !Q_irand( 0, 2 ))) )
+				NPCS.NPC->client->ps.viewangles, 0.3f ) &&
+			!Q_irand( 0, kataCounterOpportunity ? 1 : 2 ))) )
 	{
 		if ( tactics )
 		{
