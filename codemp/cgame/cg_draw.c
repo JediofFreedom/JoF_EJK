@@ -2802,6 +2802,31 @@ void CG_DrawForceSelect( void )
 	}
 }
 
+static int CG_BuildInvenWheel( int wheel[] )
+{
+	int i;
+	int wheelCount = 0;
+
+	for ( i = 0; i < HI_NUM_HOLDABLE; i++ )
+	{
+		if ( !(cg.snap->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << i)) )
+		{
+			continue;
+		}
+		if ( !BG_IsItemSelectable( &cg.predictedPlayerState, i ) )
+		{
+			continue;
+		}
+		if ( !cgs.media.invenIcons[i] )
+		{
+			continue;
+		}
+		wheel[wheelCount++] = i;
+	}
+
+	return wheelCount;
+}
+
 /*
 ===================
 CG_DrawInventorySelect
@@ -2809,13 +2834,14 @@ CG_DrawInventorySelect
 */
 void CG_DrawInvenSelect( void )
 {
-	int				i;
-	int				sideMax,holdCount,iconCnt;
-	int				smallIconSize,bigIconSize;
-	int				sideLeftIconCnt,sideRightIconCnt;
-	int				count;
-	int				holdX, x, y, y2, pad;
-//	float			addX;
+	int		i;
+	int		count;
+	int		smallIconSize,bigIconSize;
+	int		holdX, x, y, pad;
+	int		sideLeftIconCnt,sideRightIconCnt;
+	int		sideMax,holdCount;
+	int		wheel[HI_NUM_HOLDABLE];
+	int		wheelCount, cur = -1, idx, drawn, item;
 
 	// don't display if dead
 	if ( cg.snap->ps.stats[STAT_HEALTH] <= 0 )
@@ -2838,50 +2864,48 @@ void CG_DrawInvenSelect( void )
 		cg.itemSelect = bg_itemlist[cg.snap->ps.stats[STAT_HOLDABLE_ITEM]].giTag;
 	}
 
-//const int bits = cg.snap->ps.stats[ STAT_ITEMS ];
-
-	// count the number of items owned
-	count = 0;
-	for ( i = 0 ; i < HI_NUM_HOLDABLE ; i++ )
+	// Build the wheel order (only owned AND currently selectable items), mirroring
+	// CG_BuildForceWheel, so the side counts always match what's actually drawable
+	// and wrap-around never lands on an empty/undrawable slot.
+	wheelCount = CG_BuildInvenWheel( wheel );
+	if (wheelCount == 0)
 	{
-		if (/*CG_InventorySelectable(i) && inv_icons[i]*/
-			(cg.snap->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << i)) )
-		{
-			count++;
-		}
-	}
-
-	if (!count)
-	{
-		y2 = 0; //err?
-		CG_DrawProportionalString(SCREEN_WIDTH / 2, y2 + 22, "EMPTY INVENTORY", UI_CENTER | UI_SMALLFONT, colorTable[CT_ICON_BLUE]);
+		CG_DrawProportionalString(SCREEN_WIDTH / 2, 22, "EMPTY INVENTORY", UI_CENTER | UI_SMALLFONT, colorTable[CT_ICON_BLUE]);
 		return;
 	}
 
-	sideMax = 3;	// Max number of icons on the side
+	for (i = 0; i < wheelCount; i++)
+	{
+		if (wheel[i] == cg.itemSelect)
+		{
+			cur = i;
+			break;
+		}
+	}
+	if (cur < 0)	// selection no longer valid (e.g. dropped/used) - fall back to first entry
+	{
+		cur = 0;
+		cg.itemSelect = wheel[0];
+	}
 
-	// Calculate how many icons will appear to either side of the center one
-	holdCount = count - 1;	// -1 for the center icon
-	if (holdCount == 0)			// No icons to either side
+	count = wheelCount;
+	sideMax = 3;
+
+	holdCount = count - 1;
+	if (holdCount == 0)
 	{
 		sideLeftIconCnt = 0;
 		sideRightIconCnt = 0;
 	}
-	else if (count > (2*sideMax))	// Go to the max on each side
+	else if (count > (2*sideMax))
 	{
 		sideLeftIconCnt = sideMax;
 		sideRightIconCnt = sideMax;
 	}
-	else							// Less than max, so do the calc
+	else
 	{
 		sideLeftIconCnt = holdCount/2;
 		sideRightIconCnt = holdCount - sideLeftIconCnt;
-	}
-
-	i = cg.itemSelect - 1;
-	if (i<0)
-	{
-		i = HI_NUM_HOLDABLE-1;
 	}
 
 	smallIconSize = 40;
@@ -2891,56 +2915,38 @@ void CG_DrawInvenSelect( void )
 	x = SCREEN_WIDTH / 2;
 	y = 410;
 
-	// Left side ICONS
-	// Work backwards from current icon
+	trap->R_SetColor(NULL);
+
+	// Left side - walk backwards from the centered icon through the wheel
 	holdX = x - ((bigIconSize/2) + pad + smallIconSize) * cgs.widthRatioCoef;
-//	addX = (float) smallIconSize * .75;
-
-	for (iconCnt=0;iconCnt<sideLeftIconCnt;i--)
+	idx = cur;
+	for (drawn = 0; drawn < sideLeftIconCnt; drawn++)
 	{
-		if (i<0)
+		idx--;
+		if (idx < 0)
 		{
-			i = HI_NUM_HOLDABLE-1;
+			idx = wheelCount - 1;
 		}
 
-		if ( !(cg.snap->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << i)) || i == cg.itemSelect )
-		{
-			continue;
-		}
-
-		++iconCnt;					// Good icon
-
-		if (!BG_IsItemSelectable(&cg.predictedPlayerState, i))
-		{
-			continue;
-		}
-
-		if (cgs.media.invenIcons[i])
+		item = wheel[idx];
+		if (cgs.media.invenIcons[item])
 		{
 			trap->R_SetColor(NULL);
-			CG_DrawPic( holdX, y+10, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.invenIcons[i] );
-
-			trap->R_SetColor(colorTable[CT_ICON_BLUE]);
-			/*CG_DrawNumField (holdX + addX, y + smallIconSize, 2, cg.snap->ps.inventory[i], 6, 12,
-				NUM_FONT_SMALL,qfalse);
-				*/
-
+			CG_DrawPic( holdX, y+10, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.invenIcons[item] );
 			holdX -= (smallIconSize+pad) * cgs.widthRatioCoef;
 		}
 	}
 
-	// Current Center Icon
-	if (cgs.media.invenIcons[cg.itemSelect] && BG_IsItemSelectable(&cg.predictedPlayerState, cg.itemSelect))
+	// Current center icon
+	item = wheel[cur];
+	if (cgs.media.invenIcons[item])
 	{
 		int itemNdex;
 		trap->R_SetColor(NULL);
-		CG_DrawPic( x-(bigIconSize/2) * cgs.widthRatioCoef, (y-((bigIconSize-smallIconSize)/2))+10, bigIconSize * cgs.widthRatioCoef, bigIconSize, cgs.media.invenIcons[cg.itemSelect] );
-	//	addX = (float) bigIconSize * .75;
+		CG_DrawPic( x-(bigIconSize/2) * cgs.widthRatioCoef, (y-((bigIconSize-smallIconSize)/2))+10, bigIconSize * cgs.widthRatioCoef, bigIconSize, cgs.media.invenIcons[item] );
 		trap->R_SetColor(colorTable[CT_ICON_BLUE]);
-		/*CG_DrawNumField ((x-(bigIconSize/2)) + addX, y, 2, cg.snap->ps.inventory[cg.inventorySelect], 6, 12,
-			NUM_FONT_SMALL,qfalse);*/
 
-		itemNdex = BG_GetItemIndexByTag(cg.itemSelect, IT_HOLDABLE);
+		itemNdex = BG_GetItemIndexByTag(item, IT_HOLDABLE);
 		if (bg_itemlist[itemNdex].classname)
 		{
 			vec4_t	textColor = { .312f, .75f, .621f, 1.0f };
@@ -2960,44 +2966,22 @@ void CG_DrawInvenSelect( void )
 		}
 	}
 
-	i = cg.itemSelect + 1;
-	if (i> HI_NUM_HOLDABLE-1)
-	{
-		i = 0;
-	}
-
-	// Right side ICONS
-	// Work forwards from current icon
+	// Right side - walk forwards from the centered icon through the wheel
 	holdX = x + ((bigIconSize/2) + pad) * cgs.widthRatioCoef;
-//	addX = (float) smallIconSize * .75;
-	for (iconCnt=0;iconCnt<sideRightIconCnt;i++)
+	idx = cur;
+	for (drawn = 0; drawn < sideRightIconCnt; drawn++)
 	{
-		if (i> HI_NUM_HOLDABLE-1)
+		idx++;
+		if (idx >= wheelCount)
 		{
-			i = 0;
+			idx = 0;
 		}
 
-		if ( !(cg.snap->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << i)) || i == cg.itemSelect )
-		{
-			continue;
-		}
-
-		++iconCnt;					// Good icon
-
-		if (!BG_IsItemSelectable(&cg.predictedPlayerState, i))
-		{
-			continue;
-		}
-
-		if (cgs.media.invenIcons[i])
+		item = wheel[idx];
+		if (cgs.media.invenIcons[item])
 		{
 			trap->R_SetColor(NULL);
-			CG_DrawPic( holdX, y+10, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.invenIcons[i] );
-
-			trap->R_SetColor(colorTable[CT_ICON_BLUE]);
-			/*CG_DrawNumField (holdX + addX, y + smallIconSize, 2, cg.snap->ps.inventory[i], 6, 12,
-				NUM_FONT_SMALL,qfalse);*/
-
+			CG_DrawPic( holdX, y+10, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.invenIcons[item] );
 			holdX += (smallIconSize+pad) * cgs.widthRatioCoef;
 		}
 	}
