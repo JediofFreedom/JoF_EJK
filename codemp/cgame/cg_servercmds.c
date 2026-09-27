@@ -1708,8 +1708,14 @@ static void CG_Chat_f( void ) {
 	if (cmd[0] != 'l') { // normal chat ?/}
 
 		trap->Cmd_Argv( 1, text, sizeof( text ) );
+		if ( cg.pmOnlyChat &&
+			(Q_stricmp( cmd, "chat" ) || !Q_stristr( text, "^7]: ^6" )) )
+		{
+			return;
+		}
 
-		if ( !Q_stricmp( cmd, "chat" ) && !cg_teamChatsOnly.integer )
+		if ( !Q_stricmp( cmd, "chat" ) &&
+			(!cg_teamChatsOnly.integer || cg.pmOnlyChat) )
 		{
 			CG_RemoveChatEscapeChar( text );
 
@@ -1773,6 +1779,12 @@ static void CG_Chat_f( void ) {
 		trap->Cmd_Argv( 2, loc, sizeof( loc ) );
 		trap->Cmd_Argv( 3, color, sizeof( color ) );
 		trap->Cmd_Argv( 4, message, sizeof( message ) );
+		if ( cg.pmOnlyChat &&
+			(Q_stricmp( cmd, "lchat" ) || color[0] != COLOR_MAGENTA ||
+			(name[0] != '\x19' || name[1] != '[')) )
+		{
+			return;
+		}
 
 		//get localized text
 		if (loc[0] == '@')
@@ -1781,7 +1793,8 @@ static void CG_Chat_f( void ) {
 		if (cg_chatSounds.integer)//JAPRO - Clientside - Chatsounds option
 			trap->S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
 
-		if ( !Q_stricmp( cmd, "lchat" ) && !cg_teamChatsOnly.integer ) {
+		if ( !Q_stricmp( cmd, "lchat" ) &&
+			(!cg_teamChatsOnly.integer || cg.pmOnlyChat) ) {
 			Com_sprintf( text, sizeof( text ), "%s" S_COLOR_WHITE "<%s> ^%s%s", name, loc, color, message );
 			CG_RemoveChatEscapeChar( text );
 			CG_ChatBox_AddString( text );

@@ -1445,6 +1445,7 @@ Ghoul2 Insert End
 	short				numJumps;
 	int					userinfoUpdateDebounce;
 	char				lastChatMsg[MAX_SAY_TEXT + MAX_NETNAME + 32];
+	qboolean			pmOnlyChat;
 
 	int					drawingStrafeTrails;//optimization i guess
 	qboolean			loggingStrafeTrail;
