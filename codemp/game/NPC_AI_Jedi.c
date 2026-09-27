@@ -6096,6 +6096,10 @@ void NPC_Jedi_Pain(gentity_t *self, gentity_t *attacker, int damage)
 
 	//NPC_Pain( self, inflictor, other, point, damage, mod );
 	NPC_Pain(self, attacker, damage);
+	if ( self->client->NPC_class == CLASS_MARTIALARTIST )
+	{
+		self->painDebounceTime = 0;
+	}
 
 	if ( !damage && self->health > 0 )
 	{//FIXME: better way to know I was pushed
