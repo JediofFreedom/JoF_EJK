@@ -190,7 +190,9 @@ cvar_t		*s_show;
 cvar_t		*s_mixahead;
 cvar_t		*s_mixPreStep;
 cvar_t		*s_musicVolume;
-cvar_t		*s_musicOffset;		// one-shot: ms into the track that the next background track start should begin at
+cvar_t		*s_soundAntiSpam;
+cvar_t		*s_maxSounds;
+cvar_t		*s_musicOffset; 		// one-shot: ms into the track that the next background track start should begin at
 cvar_t		*s_separation;
 cvar_t		*s_lip_threshold_1;
 cvar_t		*s_lip_threshold_2;
@@ -520,10 +522,16 @@ void S_Init( void ) {
 	Cvar_CheckRange(s_volumeVoice, 0, 1, qfalse);
 	s_musicVolume = Cvar_Get ("s_musicvolume", "0.25", CVAR_ARCHIVE, "Music volume" );
 	Cvar_CheckRange(s_musicVolume, 0, 1, qfalse);
-	// Set by the cgame immediately before a S_StartBackgroundTrack() call to say "start this track N
-	//	milliseconds in" instead of from the beginning. Consumed (and reset to 0) by the first start
-	//	that follows, so it can never leak into an unrelated track.
-	s_musicOffset = Cvar_Get ("s_musicOffset", "0", CVAR_TEMP, "Milliseconds into the track that the next music start should resume from" );
+s_soundAntiSpam = Cvar_Get("s_soundAntiSpam", "1", CVAR_ARCHIVE, "Limit repeated sound effects");
+s_maxSounds = Cvar_Get("s_maxSounds", "100", CVAR_ARCHIVE);
+sb.lastReset = cls.realtime;
+sb.maxSoundsPerSec = s_maxSounds->integer;
+SFX_ResetAllCounts();
+
+// Set by the cgame immediately before a S_StartBackgroundTrack() call to say "start this track N
+//	milliseconds in" instead of from the beginning. Consumed (and reset to 0) by the first start
+//	that follows, so it can never leak into an unrelated track.
+s_musicOffset = Cvar_Get ("s_musicOffset", "0", CVAR_TEMP, "Milliseconds into the track that the next music start should resume from" );
 
 	s_separation = Cvar_Get ("s_separation", "0.5", CVAR_ARCHIVE);
 	s_khz = Cvar_Get ("s_khz", "44", CVAR_ARCHIVE|CVAR_LATCH);
@@ -1634,26 +1642,25 @@ void S_MuteSound(int entityNum, int entchannel)
 /*
 =================
 S_CanPlaySound
-Checks if we... can play the sound
+Limit repeated sounds within a one-second window when anti-spam is enabled.
 =================
 */
-cvar_t* s_maxSounds;
 qboolean S_CanPlaySound(const char* soundName)
 {
+	if (!s_soundAntiSpam->integer)
+		return qtrue;
 
-	int fxFileCount = SFX_GetCount(soundName);
-	if (fxFileCount > s_maxSounds->value)
-		return qfalse;
-	
-	int currentTime = cls.realtime; 
+	const int currentTime = cls.realtime;
+	sb.maxSoundsPerSec = s_maxSounds->integer;
 
-	sb.maxSoundsPerSec = s_maxSounds->value;
-
-	if (currentTime - sb.lastReset >= 1000) {
+	// Expire the window before checking the cap, even if this sound hit it.
+	if (currentTime < sb.lastReset || currentTime - sb.lastReset >= 1000) {
 		sb.lastReset = currentTime;
-
-		SFX_ResetAllCounts(); //Reset them every second? idk
+		SFX_ResetAllCounts();
 	}
+
+	if (SFX_GetCount(soundName) > s_maxSounds->value)
+		return qfalse;
 
 	SFX_IncrementPlayCount(soundName);
 	return qtrue;

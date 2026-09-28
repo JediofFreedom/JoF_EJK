@@ -901,7 +901,7 @@
 			name				highlightApplyButton
 			group				highlights
 			style				WINDOW_STYLE_SHADER
-			rect				365 343 120 32
+			rect			365 333 120 32
 			background			"gfx/menus/menu_blendbox"
 			forecolor			1 1 1 1
 			visible			0
@@ -4253,6 +4253,28 @@
 			action				{ play "sound/interface/button1" }
 		}
 
+		itemDef
+		{
+			name				soundantispam
+			group				sound
+			type				ITEM_TYPE_MULTI
+			text				"Sound Anti-Spam:"
+			cvar				"s_soundAntiSpam"
+			cvarFloatList		{ @MENUS_OFF 0 @MENUS_ON 1 }
+			rect				220 263 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			120
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"Limit repeated sound effects to prevent sound spam."
+			mouseenter			{ show highlight12 }
+			mouseexit			{ hide highlight12 }
+			action				{ play "sound/interface/button1" }
+		}
+
 		/*itemDef
 		{
 			name				eax
@@ -4309,7 +4331,7 @@
 			cvar				"se_language"
 			feeder				40
 			cvarStrList			feeder
-			rect				220 263 300 20
+			rect				220 283 300 20
 				textalign			ITEM_ALIGN_RIGHT
 			textalignx			165
 			textaligny			0
@@ -4324,8 +4346,8 @@
 				show			langapply
 			}
 
-			mouseenter			{ show	highlight12 }
-			mouseexit			{ hide	highlight12 }
+			mouseenter			{ show	highlight13 }
+			mouseexit			{ hide	highlight13 }
 		}
 
 		itemDef
@@ -4342,7 +4364,7 @@
 				Deutsch				deutsch
 				"Espa�ol" 			espanol
 			}
-			rect				220 283 300 20
+			rect				220 303 300 20
 				textalign			ITEM_ALIGN_RIGHT
 			textalignx			165
 			textaligny			0
@@ -4359,11 +4381,11 @@
 			}
 			mouseenter
 			{
-				show			highlight13
+				show			highlight14
 			}
 			mouseexit
 			{
-				hide			highlight13
+				hide			highlight14
 			}
 		}
 
@@ -4398,7 +4420,7 @@
 			text				@MENUS_SET_LANGUAGE
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_EMPTY
-			rect				365 343 120 32
+			rect			365 333 120 32
 			font				2
 			textscale			1
 			textalign			ITEM_ALIGN_CENTER
