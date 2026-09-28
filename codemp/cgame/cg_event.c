@@ -3648,11 +3648,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		{
 			// This is Force energy, not a gun impact: full-force duels must see it.
 			if (es->owner >= 0 && es->owner < MAX_GENTITIES &&
-				!CG_DuelCull(&cg_entities[es->owner]) &&
-				es->emplacedOwner > 0 && es->emplacedOwner < MAX_FX)
+				!CG_DuelCull(&cg_entities[es->owner]))
 			{
 				ByteToDir(es->eventParm, dir);
-				trap->FX_PlayEffectID(cgs.gameEffects[es->emplacedOwner], position, dir, -1, -1, qfalse);
+				CG_PlayDestructionEffect(es, position, dir, qtrue);
 			}
 			break;
 		}
@@ -3990,6 +3989,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 					//the forced hilt's own sound is the one he is owed, so settle that first and
 					//hold that one - his saber info is what the staff swap matches against
 					sfxHandle_t sound = CG_ForceOwnSaberSound(es, es->number, cgs.gameSounds[ es->eventParm ]);
+					sound = CG_DestructionCastSound(es, sound);
 					//JA+ hands the saber ignition out this way, dropped at the owner's feet with
 					//nothing on it to say whose it is - hold it back if it belongs to a staff being
 					//drawn over a shoulder, so it lands with the blade

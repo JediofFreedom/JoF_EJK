@@ -50,7 +50,7 @@ void G_UpdateForceDestruction(gentity_t *self)
 void ForceDestruction(gentity_t *self)
 {
 	playerState_t *ps;
-	gentity_t *missile;
+	gentity_t *missile, *sound;
 	trace_t trace;
 	vec3_t start, forward;
 	vec3_t mins = {-5, -5, -5}, maxs = {5, 5, 5};
@@ -98,8 +98,10 @@ void ForceDestruction(gentity_t *self)
 	missile->s.generic1 = DESTRUCTION_MISSILE_TAG;
 	missile->s.bolt1 = self->s.bolt1;
 	missile->s.pos.trTime = level.time; // no projectile prestep across the spawn trace
-	missile->s.otherEntityNum2 = G_EffectIndex("jof/destruction/projectile");
-	missile->s.emplacedOwner = G_EffectIndex("jof/destruction/impact");
+	// Only advertise stock assets. Updated clients replace these locally, while
+	// vanilla clients can render the attack even on maps without concussion items.
+	missile->s.otherEntityNum2 = G_EffectIndex("concussion/shot");
+	missile->s.emplacedOwner = G_EffectIndex("concussion/explosion");
 	missile->damage = DestructionClamp(g_forceDestructionDamage.integer, 1, 500);
 	missile->splashDamage = missile->damage;
 	missile->splashRadius = DestructionClamp(g_forceDestructionRadius.integer, 16, 512);
@@ -119,7 +121,15 @@ void ForceDestruction(gentity_t *self)
 	self->client->dangerTime = level.time;
 	ps->eFlags &= ~EF_INVULNERABLE;
 	self->client->invulnerableTimer = 0;
-	G_Sound(self, CHAN_BODY, G_SoundIndex("sound/weapons/force/push.wav"));
+	// Vanilla clients hear Force Push; updated clients can substitute the pack's
+	// casting sound without advertising an unavailable custom sound to everyone.
+	sound = G_TempEntity(self->r.currentOrigin, EV_GENERAL_SOUND);
+	sound->s.eventParm = G_SoundIndex("sound/weapons/force/push.wav");
+	sound->s.saberEntityNum = CHAN_BODY;
+	sound->s.weapon = WP_CONCUSSION;
+	sound->s.generic1 = DESTRUCTION_MISSILE_TAG;
+	sound->s.owner = self->s.number;
+	sound->s.bolt1 = self->s.bolt1;
 }
 
 static void DestructionDamage(gentity_t *missile, gentity_t *target,

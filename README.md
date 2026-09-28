@@ -43,3 +43,4 @@ Installing and running EternalJK:
 * [Tayst](https://github.com/taysta) - for changes contributed to Sunny's EJK which we sourced from.
 * [Alereon](https://github.com/Alereon) - for the Cosmetics feature (hats and capes)
 * [Jedi Knight Galaxies Developers](https://github.com/JKGDevs) - for their Dialogue feature 
+* [Movie Battles II team](https://moviebattles.org/) - for the Force Destruction sounds, visual effects, and icon.

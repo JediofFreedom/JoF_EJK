@@ -103,6 +103,9 @@ function(add_zip_command output)
   string(REPLACE <ARCHIVE> "${output}" ZipCommand "${ZipCommand}")
   string(REPLACE <FILES> "${ARGS_FILES}" ZipCommand "${ZipCommand}")
   add_custom_command(OUTPUT ${output}
+    # Recreate managed archives so renamed/deleted source files are not retained
+    # by archivers whose default behavior is to update an existing ZIP.
+    COMMAND "${CMAKE_COMMAND}" -E remove -f "${CMAKE_CURRENT_BINARY_DIR}/${output}"
     COMMAND ${ZipCommand}
     DEPENDS ${ARGS_DEPENDS})
 endfunction(add_zip_command)

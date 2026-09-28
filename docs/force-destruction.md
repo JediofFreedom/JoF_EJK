@@ -5,10 +5,18 @@ energy orb that bursts on contact. It damages and knocks back nearby targets,
 including its caster at close range. This is a server-granted extra ability,
 like the Repulse wheel integration, not a new purchasable force-power rank.
 
+## Asset credits
+
+Force Destruction's sounds, visual effects (VFX), and icon are credited to the
+[Movie Battles II team](https://moviebattles.org/). These assets were supplied
+through `Aldro'sBallForceDestruction.pk3`. The attribution also ships in
+`jofclient-assets.pk3` as `credits/force-destruction.txt`.
+
 ## Enable and use
 
-Install the updated game module, client executable/cgame, and
-`jofclient-assets.pk3`. On this repo's game server, set:
+Install the updated game module on the server. For the wheel integration and
+custom visuals, install the updated client executable/cgame and
+`jofclient-assets.pk3` on clients. On this repo's game server, set:
 
 ```text
 seta g_forceDestruction 1
@@ -65,8 +73,38 @@ unrelated mod using the same spare bit does not accidentally expose this ability
 `NUM_FORCE_POWERS`, networked force arrays, force configuration strings, and real
 `forcesel` values stay unchanged. The dedicated `force_destruction` command is
 validated by the server on every request. The missile uses the existing concussion
-entity type with a reserved `generic1` marker (213) and standard FX overrides.
-The new assets reuse the game's Force texture and sound; no external art is required.
+entity type with a reserved `generic1` marker (213). Its networked FX overrides
+reference only stock `concussion/shot` and `concussion/explosion` assets, including
+on saber-only maps. Vanilla and older clients therefore see a normal concussion
+projectile and explosion without downloading the new assets. Damage and knockback
+remain server-authoritative; vanilla clients do not gain the new wheel entry.
+
+Updated clients recognize the marker and choose assets locally from Aldro's
+user-supplied `Aldro'sBallForceDestruction.pk3`. Only its `effects`, `gfx` and
+`sound` assets are used; its shaders, models and NPC definitions are not imported.
+
+- Trail: `effects/forcedestruction/destruction.efx`.
+- Impact: `effects/forcedestruction/destruction_explode_enhanced2.efx`, falling
+  back to `destruction_explode.efx` if the enhanced effect is unavailable.
+- Wheel icon: `gfx/forcedestruction/force_destruction.tga`.
+- Cast sound: `sound/forcedestruction/destruction.mp3`.
+- Impact sounds: `sound/forcedestruction/forcedestruct01.wav` and
+  `forcedestruct02.wav`, alternating by missile entity number.
+
+The imported VFX are unchanged except that their original `Sound` blocks are
+replaced by client-side playback of the supplied WAVs. This prevents doubled
+impact sounds and allows independent audio fallback. The trail, icon and MP3 are
+copied unchanged. The supplied WAVs are stereo, which the engine rejects for
+effects; their copies are downmixed with `(left + right) / 2` to mono PCM16 at
+the original 22050 Hz, preserving duration. The source PK3 is not modified.
+
+Missing effects use stock concussion visuals. A missing icon uses Lightning's
+icon; missing cast audio uses Force Push; a missing impact sample uses the other
+sample, or stock mine-impact audio if neither is available. Stock concussion
+effects retain their own audio. The server advertises only stock FX and a tagged
+stock Force-push sound event, so vanilla clients do not need custom downloads.
+Normal weapon visuals and sounds are unchanged. Gameplay/damage does not depend
+on which assets a client has installed.
 
 Run the focused regression checks (add `-A x64` or `-A Win32` when using Visual Studio):
 
@@ -77,7 +115,10 @@ ctest --test-dir build/force-destruction-check -C Release --output-on-failure
 ```
 
 These compile the real ability, Force restriction/Absorb helpers, wheel builder,
-and input-routing code against mocked engine services; they are not an in-game test.
+input routing and FX selection/playback code against mocked engine services;
+they are not an in-game test. Media checks cover all 128 combinations of
+missing/present trail, both impact effects, icon and three sound files, as well
+as unchanged ordinary weapon FX/sounds.
 
 In-game checks before release:
 
@@ -87,3 +128,7 @@ In-game checks before release:
 - Test a direct hit, splash falloff, cover, nearby self-damage, NPCs and breakable props.
 - Test Absorb 1/2/3, Protect, friendly fire off/on, separate duels and dimensions.
 - Check the effect, sound and icon at different frame rates, then join an unmodified server.
+- Join with a vanilla client and no custom assets; verify projectile and explosion
+  visibility on a saber-only map. On an updated client, test a missing asset pack,
+  each missing EFX, icon and sound file separately; then restore the pack
+  and confirm custom visuals. Check normal concussion shots alongside Destruction.

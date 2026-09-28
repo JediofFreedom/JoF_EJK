@@ -1172,6 +1172,74 @@ static void CG_RegisterSounds( void ) {
 }
 
 
+static void CG_RegisterDestructionEffects(void)
+{
+	fxHandle_t effect;
+	sfxHandle_t sound;
+
+	// Always preload the stock effects, including on saber-only maps. These
+	// handles are local and do not replace the server's shared FX registrations.
+	cgs.effects.destructionProjectile = trap->FX_RegisterEffect("concussion/shot");
+	cgs.effects.destructionImpact = trap->FX_RegisterEffect("concussion/explosion");
+	cgs.effects.destructionCustomImpact = qfalse;
+
+	effect = trap->FX_RegisterEffect("forcedestruction/destruction");
+	if (effect)
+		cgs.effects.destructionProjectile = effect;
+	effect = trap->FX_RegisterEffect("forcedestruction/destruction_explode_enhanced2");
+	if (!effect)
+		effect = trap->FX_RegisterEffect("forcedestruction/destruction_explode");
+	if (effect)
+	{
+		cgs.effects.destructionImpact = effect;
+		cgs.effects.destructionCustomImpact = qtrue;
+	}
+
+	cgs.media.destructionIcon = trap->R_RegisterShaderNoMip("gfx/forcedestruction/force_destruction.tga");
+	if (!cgs.media.destructionIcon)
+		cgs.media.destructionIcon = cgs.media.forcePowerIcons[FP_LIGHTNING];
+
+	// Choose audio independently of visuals: partial packs must not leave silent
+	// casts or impacts. Sound is played here, not inside the imported impact EFX.
+	cgs.media.destructionCastSound = trap->S_RegisterSound("sound/forcedestruction/destruction.mp3");
+	if (!cgs.media.destructionCastSound)
+		cgs.media.destructionCastSound = trap->S_RegisterSound("sound/weapons/force/push.wav");
+	sound = trap->S_RegisterSound("sound/vehicles/weapons/mine/impact.wav");
+	cgs.media.destructionImpactSounds[0] = trap->S_RegisterSound("sound/forcedestruction/forcedestruct01.wav");
+	cgs.media.destructionImpactSounds[1] = trap->S_RegisterSound("sound/forcedestruction/forcedestruct02.wav");
+	if (!cgs.media.destructionImpactSounds[0])
+		cgs.media.destructionImpactSounds[0] = cgs.media.destructionImpactSounds[1];
+	if (!cgs.media.destructionImpactSounds[1])
+		cgs.media.destructionImpactSounds[1] = cgs.media.destructionImpactSounds[0];
+	if (!cgs.media.destructionImpactSounds[0])
+		cgs.media.destructionImpactSounds[0] = cgs.media.destructionImpactSounds[1] = sound;
+}
+
+sfxHandle_t CG_DestructionCastSound(const entityState_t *state, sfxHandle_t fallback)
+{
+	if (state->weapon == WP_CONCUSSION && state->generic1 == DESTRUCTION_MISSILE_TAG &&
+		cgs.media.destructionCastSound)
+		return cgs.media.destructionCastSound;
+	return fallback;
+}
+
+qboolean CG_PlayDestructionEffect(const entityState_t *state, vec3_t origin,
+	const vec3_t direction, qboolean impact)
+{
+	vec3_t forward;
+
+	if (state->weapon != WP_CONCUSSION || state->generic1 != DESTRUCTION_MISSILE_TAG)
+		return qfalse;
+
+	if (VectorNormalize2(direction, forward) == 0.0f)
+		forward[2] = 1.0f;
+	trap->FX_PlayEffectID(impact ? cgs.effects.destructionImpact : cgs.effects.destructionProjectile,
+		origin, forward, -1, -1, qfalse);
+	if (impact && cgs.effects.destructionCustomImpact && cgs.media.destructionImpactSounds[state->number & 1])
+		trap->S_StartSound(origin, state->number, CHAN_AUTO, cgs.media.destructionImpactSounds[state->number & 1]);
+	return qtrue;
+}
+
 //-------------------------------------
 // CG_RegisterEffects
 //
@@ -1219,6 +1287,7 @@ static void CG_RegisterEffects( void )
 	cgs.effects.acidSplash = trap->FX_RegisterEffect( "env/acid_splash" );
 	cgs.effects.heal2FX = trap->FX_RegisterEffect("force/heal2");
 	cgs.effects.rageFX = trap->FX_RegisterEffect("force/rage2");
+	CG_RegisterDestructionEffects();
 
 }
 
@@ -3169,7 +3238,6 @@ Ghoul2 Insert End
 	cgs.media.rageRecShader = trap->R_RegisterShaderNoMip("gfx/mp/f_icon_ragerec");
 	cgs.media.repulseIcon   = trap->R_RegisterShaderNoMip("gfx/jof/force_repulse.tga");	// JoF: Force Repulse wheel icon
 	cgs.media.dashIcon      = trap->R_RegisterShaderNoMip("gfx/jof/force_dash.tga");		// JoF: Force Dash wheel icon
-	cgs.media.destructionIcon = trap->R_RegisterShaderNoMip("gfx/jof/force_destruction");
 	trap->Cvar_Set("cl_destructionSelected", "0");
 	cgs.media.flamethrowerIcon = trap->R_RegisterShaderNoMip("gfx/jof/force_flamethrower.png");
 

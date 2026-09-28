@@ -17,6 +17,7 @@ static gameImport_t imports;
 gameImport_t *trap = &imports;
 static int shots, damageTaken[4], damageCalls[4], covered, blocked;
 static gentity_t absorbSound;
+static gentity_t castSound;
 
 static void TestPrint(const char *fmt, ...) { (void)fmt; }
 static void NORETURN TestError(int code, const char *fmt, ...) { (void)code; (void)fmt; abort(); }
@@ -24,7 +25,20 @@ void (*Com_Printf)(const char *, ...) = TestPrint;
 NORETURN_PTR void (*Com_Error)(int, const char *, ...) = TestError;
 void G_Sound(gentity_t *ent, int channel, int index) { (void)ent; (void)channel; (void)index; }
 int G_SoundIndex(const char *name) { CHECK(strstr(name, "force/")); return 1; }
-int G_EffectIndex(const char *name) { CHECK(strstr(name, "jof/destruction/")); return 1; }
+int G_EffectIndex(const char *name)
+{
+	if (!strcmp(name, "concussion/shot")) return 1;
+	CHECK(!strcmp(name, "concussion/explosion"));
+	return 2;
+}
+gentity_t *G_TempEntity(vec3_t origin, int event)
+{
+	CHECK(event == EV_GENERAL_SOUND);
+	memset(&castSound, 0, sizeof(castSound));
+	castSound.s.eType = ET_EVENTS + event;
+	VectorCopy(origin, castSound.s.pos.trBase);
+	return &castSound;
+}
 gentity_t *G_PreDefSound(vec3_t org, int sound) { (void)org; CHECK(sound == PDSOUND_ABSORBHIT); return &absorbSound; }
 void G_AddEvent(gentity_t *ent, int event, int parm) { ent->s.event = event; ent->s.eventParm = parm; }
 void G_SetOrigin(gentity_t *ent, vec3_t origin) { VectorCopy(origin, ent->r.currentOrigin); }
@@ -141,6 +155,13 @@ static void CheckGrantAndCast(void)
 	CHECK(self->client->forceDestructionCooldown == 5000);
 	CHECK(self->client->ps.forceHandExtend == HANDEXTEND_FORCEPUSH);
 	CHECK(g_entities[MAX_CLIENTS].s.generic1 == DESTRUCTION_MISSILE_TAG);
+	CHECK(g_entities[MAX_CLIENTS].s.weapon == WP_CONCUSSION);
+	CHECK(g_entities[MAX_CLIENTS].s.otherEntityNum2 == 1);
+	CHECK(g_entities[MAX_CLIENTS].s.emplacedOwner == 2);
+	CHECK(castSound.s.eType == ET_EVENTS + EV_GENERAL_SOUND);
+	CHECK(castSound.s.eventParm == 1 && castSound.s.saberEntityNum == CHAN_BODY);
+	CHECK(castSound.s.weapon == WP_CONCUSSION && castSound.s.generic1 == DESTRUCTION_MISSILE_TAG);
+	CHECK(castSound.s.owner == self->s.number && castSound.s.bolt1 == self->s.bolt1);
 	CHECK(g_entities[MAX_CLIENTS].nextthink == 4000);
 	self->client->ps.weaponTime = 0;
 	self->client->ps.forceHandExtend = HANDEXTEND_NONE;
@@ -198,6 +219,7 @@ static void CheckDamage(void)
 	CHECK(damageTaken[1] == 90 && damageCalls[1] == 1);
 	CHECK(damageTaken[2] == 45 && damageTaken[3] == 0 && damageTaken[0] == 90);
 	CHECK(missile->freeAfterEvent && missile->s.event == EV_MISSILE_MISS);
+	CHECK(missile->s.weapon == WP_CONCUSSION && missile->s.emplacedOwner == 2);
 
 	memset(damageTaken, 0, sizeof(damageTaken));
 	target->client->ps.fd.forcePower = 0;
