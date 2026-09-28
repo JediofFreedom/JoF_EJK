@@ -167,8 +167,6 @@ void CG_RadialMenuSync( void ) {
 }
 
 void CG_RadialMenuDraw( void ) {
-	static const vec4_t ringShadow = { 0.03f, 0.05f, 0.08f, 0.36f };
-	static const vec4_t idleColor = { 0.10f, 0.14f, 0.20f, 0.84f };
 	static const vec4_t activeColor = { 0.82f, 0.68f, 0.24f, 0.94f };
 	static const vec4_t abortColor = { 0.42f, 0.12f, 0.10f, 0.90f };
 	static const vec4_t abortActiveColor = { 0.80f, 0.24f, 0.18f, 0.96f };
@@ -266,10 +264,6 @@ void CG_RadialMenuDraw( void ) {
 
 	// Five diamonds mirror the page selector shown in issue #306. The larger,
 	// brighter diamond marks the current page without covering the bind labels.
-	CG_FillRect( centerX - 40.0f * animScale, centerY - 18.0f * animScale,
-		80.0f * animScale, 36.0f * animScale, ringShadow );
-	CG_FillRect( centerX - 38.0f * animScale, centerY - 16.0f * animScale,
-		76.0f * animScale, 32.0f * animScale, idleColor );
 	for ( i = 0; i < RADIAL_MENU_PAGE_COUNT; i++ ) {
 		const float px = centerX + ( i - RADIAL_MENU_PAGE_COUNT / 2 ) * 13.0f * animScale;
 		const qboolean selected = (qboolean)( i == cgs.radialMenuPage );
