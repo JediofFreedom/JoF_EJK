@@ -23,7 +23,8 @@ in the force wheel and press Use Force, or bind it directly:
 bind x force_destruction
 ```
 
-The wheel places it after Lightning (or at the end if Lightning is not owned).
+The wheel places it after Repulse and before Lightning. Missing powers are
+skipped without moving Destruction to the end of the wheel.
 Holding Use Force does not repeat the cast. No Lightning rank is required.
 Turning the server setting off or changing to the light side removes the grant.
 Unsupported servers do not get the wheel entry or client-generated command.

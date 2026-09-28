@@ -3527,11 +3527,12 @@ CG_BuildForceWheel
 Builds the ordered list of selectable force-wheel entries: the valid real powers in
 display order, with the stasis and repulse pseudo-slots inserted right after Force
 Sense (FP_SEE) and the dash pseudo-slot inserted right before Speed (FP_SPEED), if
-granted. Any pseudo-slot whose anchor power isn't owned is appended last.
-Returns the count and fills slots[] (must hold at least NUM_FORCE_POWERS+3 entries).
+granted. Destruction follows Repulse, before Lightning's position even if Lightning
+isn't owned. If Sense isn't owned, its extras precede Destruction instead of being
+appended last. Other pseudo-slots without their anchor are appended last.
+Returns the count and fills slots[] (must hold FORCE_WHEEL_CAPACITY entries).
 ===============
 */
-// slots must have FORCE_WHEEL_CAPACITY entries. Destruction follows Lightning.
 int CG_BuildForceWheel( int *slots )
 {
 	qboolean stasis = CG_HasStasis();
@@ -3540,12 +3541,22 @@ int CG_BuildForceWheel( int *slots )
 	qboolean destruction = CG_HasDestruction();
 	qboolean placed = qfalse;		// stasis/repulse anchor (FP_SEE)
 	qboolean dashPlaced = qfalse;	// dash anchor (FP_SPEED)
-	qboolean destructionPlaced = qfalse;
 	int n = 0, i;
 
 	for ( i = 0; i < NUM_FORCE_POWERS; i++ )
 	{
 		int p = forcePowerSorted[i];
+		if (destruction && p == FP_LIGHTNING)
+		{
+			// Keep Repulse -> Destruction -> Lightning even without Force Sense.
+			if (!placed)
+			{
+				if (stasis)  slots[n++] = STASIS_WHEEL_SLOT;
+				if (repulse) slots[n++] = REPULSE_WHEEL_SLOT;
+				placed = qtrue;
+			}
+			slots[n++] = DESTRUCTION_WHEEL_SLOT;
+		}
 		if ( !ForcePower_Valid( p ) )
 			continue;
 
@@ -3555,11 +3566,6 @@ int CG_BuildForceWheel( int *slots )
 			dashPlaced = qtrue;
 		}
 		slots[n++] = p;
-		if (destruction && p == FP_LIGHTNING && !destructionPlaced)
-		{
-			slots[n++] = DESTRUCTION_WHEEL_SLOT;
-			destructionPlaced = qtrue;
-		}
 		if ( (stasis || repulse) && p == FP_SEE && !placed )	// place pseudo-slots right after Force Sense
 		{
 			if ( stasis )  slots[n++] = STASIS_WHEEL_SLOT;
@@ -3577,8 +3583,6 @@ int CG_BuildForceWheel( int *slots )
 		if ( repulse ) slots[n++] = REPULSE_WHEEL_SLOT;
 	}
 
-	if (destruction && !destructionPlaced)
-		slots[n++] = DESTRUCTION_WHEEL_SLOT;
 	return n;
 }
 

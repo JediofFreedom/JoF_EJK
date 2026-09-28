@@ -40,6 +40,43 @@ static void Press(bool down)
 	RouteForceButton(&cmd);
 	if (destruction.integer) CHECK(!(cmd.buttons & BUTTON_FORCEPOWER));
 }
+
+static void CheckPartialWheelOrder()
+{
+	// Sense, Stasis, Repulse and Lightning may each be unavailable independently.
+	for (int grants = 0; grants < 16; ++grants)
+	{
+		struct { int slots[FORCE_WHEEL_CAPACITY]; int guard; } wheel = {{0}, 12345};
+		int expected[FORCE_WHEEL_CAPACITY], count = 0;
+		snapshot.ps.fd.forcePowersKnown = DESTRUCTION_KNOWN_FLAG | (1 << FP_PUSH) | (1 << FP_DRAIN);
+		expected[count++] = FP_PUSH;
+		if (grants & 1)
+		{
+			snapshot.ps.fd.forcePowersKnown |= 1 << FP_SEE;
+			expected[count++] = FP_SEE;
+		}
+		if (grants & 2)
+		{
+			snapshot.ps.fd.forcePowersKnown |= 1 << STASIS_KNOWN_BIT;
+			expected[count++] = STASIS_WHEEL_SLOT;
+		}
+		if (grants & 4)
+		{
+			snapshot.ps.fd.forcePowersKnown |= 1 << REPULSE_KNOWN_BIT;
+			expected[count++] = REPULSE_WHEEL_SLOT;
+		}
+		expected[count++] = DESTRUCTION_WHEEL_SLOT;
+		if (grants & 8)
+		{
+			snapshot.ps.fd.forcePowersKnown |= 1 << FP_LIGHTNING;
+			expected[count++] = FP_LIGHTNING;
+		}
+		expected[count++] = FP_DRAIN;
+		CHECK(CG_BuildForceWheel(wheel.slots) == count && wheel.guard == 12345);
+		for (int i = 0; i < count; ++i) CHECK(wheel.slots[i] == expected[i]);
+	}
+}
+
 int main()
 {
 	struct { int slots[FORCE_WHEEL_CAPACITY]; int guard; } wheel = {{0}, 12345};
@@ -52,13 +89,19 @@ int main()
 	cgs.forceDestruction = qfalse;
 	CHECK(CG_BuildForceWheel(wheel.slots) == 0); // unrelated servers may use the same spare bit
 	cgs.forceDestruction = qtrue;
+	CheckPartialWheelOrder();
 	snapshot.ps.fd.forcePowersKnown = (1 << FORCE_WHEEL_CAPACITY) - 1;
 	count = CG_BuildForceWheel(wheel.slots);
 	CHECK(count == FORCE_WHEEL_CAPACITY - 4 && wheel.guard == 12345);
 	found = 0;
 	for (i = 0; i < count; ++i)
 	{
-		if (wheel.slots[i] == DESTRUCTION_WHEEL_SLOT) { ++found; CHECK(i > 0 && wheel.slots[i-1] == FP_LIGHTNING); }
+		if (wheel.slots[i] == DESTRUCTION_WHEEL_SLOT)
+		{
+			++found;
+			CHECK(i > 0 && wheel.slots[i-1] == REPULSE_WHEEL_SLOT);
+			CHECK(i + 1 < count && wheel.slots[i+1] == FP_LIGHTNING);
+		}
 		CHECK(wheel.slots[i] >= 0 && wheel.slots[i] < FORCE_WHEEL_CAPACITY);
 	}
 	CHECK(found == 1);
