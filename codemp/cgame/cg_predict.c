@@ -1108,6 +1108,44 @@ static qboolean CG_InKnockDownState( playerState_t *ps )
 	return qfalse;
 }
 
+static qboolean CG_InMeleeGrappleVictimState( const playerState_t *ps )
+{
+	// The side kata's throw is ballistic once released. A channel can still
+	// contain the hold animation during the transition to the flight animation.
+	if ( ps->stats[STAT_HEALTH] <= 0 ||
+		(ps->legsAnim == BOTH_PLAYER_PA_3_FLY && ps->legsTimer > 0) ||
+		(ps->torsoAnim == BOTH_PLAYER_PA_3_FLY && ps->torsoTimer > 0) )
+	{
+		return qfalse;
+	}
+
+	return (BG_InGrappleMove( ps->legsAnim ) == 3 && ps->legsTimer > 0) ||
+		(BG_InGrappleMove( ps->torsoAnim ) == 3 && ps->torsoTimer > 0);
+}
+
+static void CG_PreserveMeleeKataFlightAnimation( playerState_t *predicted,
+	const playerState_t *server )
+{
+	if ( server->stats[STAT_HEALTH] <= 0 )
+	{
+		return;
+	}
+
+	// Predict the throw's movement, but keep the server's flight animation.
+	// Replayed movement/weapon commands can otherwise replace it with an idle
+	// or air animation. Only restore channels still marked as flight by the server.
+	if ( server->legsAnim == BOTH_PLAYER_PA_3_FLY && server->legsTimer > 0 )
+	{
+		predicted->legsAnim = server->legsAnim;
+		predicted->legsFlip = server->legsFlip;
+	}
+	if ( server->torsoAnim == BOTH_PLAYER_PA_3_FLY && server->torsoTimer > 0 )
+	{
+		predicted->torsoAnim = server->torsoAnim;
+		predicted->torsoFlip = server->torsoFlip;
+	}
+}
+
 // JA+ marks victims of its added side/back kicks with forceDodgeAnim 4/5 and
 // then plays this custom falling/get-up sequence. Ordinary knockdowns do not
 // use these markers, so only the added kick mechanic takes the special path.
@@ -1143,6 +1181,7 @@ void CG_PredictPlayerState( void ) {
 	int			cmdNum, current, i;
 	playerState_t	oldPlayerState;
 	playerState_t	oldVehicleState;
+	const playerState_t *predictionPS;
 	qboolean	moved;
 	usercmd_t	oldestCmd;
 	usercmd_t	latestCmd;
@@ -1170,6 +1209,32 @@ void CG_PredictPlayerState( void ) {
 		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 		{
 			CG_InterpolateVehiclePlayerState(qfalse);
+		}
+		return;
+	}
+
+	// Use the same snapshot as command replay below, including the first frame
+	// of a grab or release that has only arrived in nextSnap so far.
+	predictionPS = &cg.snap->ps;
+	if ( cg.nextSnap && !cg.nextFrameTeleport && !cg.thisFrameTeleport )
+	{
+		predictionPS = &cg.nextSnap->ps;
+	}
+
+	// Grapple victims are positioned and turned by the server (player or NPC).
+	// Keep its state while held, including when hilt changes reset one channel
+	// or replayed WASD commands would run past the end of an animation timer.
+	if ( CG_InMeleeGrappleVictimState( predictionPS ) )
+	{
+		oldPlayerState = cg.predictedPlayerState;
+		VectorClear( cg.predictedError );
+		cg.predictedErrorTime = 0;
+		cg.predictedTimeFrac = 0.0f;
+		CG_InterpolatePlayerState( qfalse );
+		if ( !cg_noPredict.integer && !g_synchronousClients.integer && !CG_UsingEWeb() )
+		{
+			// With prediction disabled, CG_TransitionSnapshot already does this.
+			CG_TransitionPlayerState( &cg.predictedPlayerState, &oldPlayerState );
 		}
 		return;
 	}
@@ -1778,6 +1843,8 @@ void CG_PredictPlayerState( void ) {
 		// check for predictable events that changed from previous predictions
 		//CG_CheckChangedPredictableEvents(&cg.predictedPlayerState);
 	}
+
+	CG_PreserveMeleeKataFlightAnimation( &cg.predictedPlayerState, predictionPS );
 
 	if ( cg_showMiss.integer == 2 ) {
 		trap->Print( "[%i : %i] ", cg_pmove.cmd.serverTime, cg.time );
