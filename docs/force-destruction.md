@@ -5,18 +5,12 @@ energy orb that bursts on contact. It damages and knocks back nearby targets,
 including its caster at close range. This is a server-granted extra ability,
 like the Repulse wheel integration, not a new purchasable force-power rank.
 
-## Asset credits
-
-Force Destruction's sounds, visual effects (VFX), and icon are credited to the
-[Movie Battles II team](https://moviebattles.org/). These assets were supplied
-through `Aldro'sBallForceDestruction.pk3`. The attribution also ships in
-`jofclient-assets.pk3` as `credits/force-destruction.txt`.
-
 ## Enable and use
 
 Install the updated game module on the server. For the wheel integration and
-custom visuals, install the updated client executable/cgame and
-`jofclient-assets.pk3` on clients. On this repo's game server, set:
+optional custom media support, install the updated client executable/cgame.
+No Destruction-specific asset pack is required or bundled. On this repo's
+game server, set:
 
 ```text
 seta g_forceDestruction 1
@@ -76,12 +70,14 @@ validated by the server on every request. The missile uses the existing concussi
 entity type with a reserved `generic1` marker (213). Its networked FX overrides
 reference only stock `concussion/shot` and `concussion/explosion` assets, including
 on saber-only maps. Vanilla and older clients therefore see a normal concussion
-projectile and explosion without downloading the new assets. Damage and knockback
+projectile and explosion without downloading custom assets. Damage and knockback
 remain server-authoritative; vanilla clients do not gain the new wheel entry.
 
-Updated clients recognize the marker and choose assets locally from Aldro's
-user-supplied `Aldro'sBallForceDestruction.pk3`. Only its `effects`, `gfx` and
-`sound` assets are used; its shaders, models and NPC definitions are not imported.
+Updated clients recognize the marker and use stock concussion effects and their
+vanilla impact audio by default, with Force Push cast audio and Lightning's wheel
+icon. Custom Destruction effects, sounds and icons are not included in this repo
+or `jofclient-assets.pk3`. Optional locally installed media can override these
+defaults independently at the following paths:
 
 - Trail: `effects/forcedestruction/destruction.efx`.
 - Impact: `effects/forcedestruction/destruction_explode_enhanced2.efx`, falling
@@ -91,12 +87,10 @@ user-supplied `Aldro'sBallForceDestruction.pk3`. Only its `effects`, `gfx` and
 - Impact sounds: `sound/forcedestruction/forcedestruct01.wav` and
   `forcedestruct02.wav`, alternating by missile entity number.
 
-The imported VFX are unchanged except that their original `Sound` blocks are
-replaced by client-side playback of the supplied WAVs. This prevents doubled
-impact sounds and allows independent audio fallback. The trail, icon and MP3 are
-copied unchanged. The supplied WAVs are stereo, which the engine rejects for
-effects; their copies are downmixed with `(left + right) / 2` to mono PCM16 at
-the original 22050 Hz, preserving duration. The source PK3 is not modified.
+Optional custom impact EFX must not contain their own `Sound` blocks: cgame
+selects and plays impact audio independently, preventing doubled sounds and
+allowing audio fallback. Custom WAV sound effects must be mono for engine
+compatibility.
 
 Missing effects use stock concussion visuals. A missing icon uses Lightning's
 icon; missing cast audio uses Force Push; a missing impact sample uses the other
@@ -118,7 +112,8 @@ These compile the real ability, Force restriction/Absorb helpers, wheel builder,
 input routing and FX selection/playback code against mocked engine services;
 they are not an in-game test. Media checks cover all 128 combinations of
 missing/present trail, both impact effects, icon and three sound files, as well
-as unchanged ordinary weapon FX/sounds.
+as unchanged ordinary weapon FX/sounds. The asset check ensures that custom
+Destruction media and its retired packaged credit are not bundled.
 
 In-game checks before release:
 

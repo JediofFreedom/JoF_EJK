@@ -1200,7 +1200,7 @@ static void CG_RegisterDestructionEffects(void)
 		cgs.media.destructionIcon = cgs.media.forcePowerIcons[FP_LIGHTNING];
 
 	// Choose audio independently of visuals: partial packs must not leave silent
-	// casts or impacts. Sound is played here, not inside the imported impact EFX.
+	// casts or impacts. Optional custom impact EFX must leave audio to cgame.
 	cgs.media.destructionCastSound = trap->S_RegisterSound("sound/forcedestruction/destruction.mp3");
 	if (!cgs.media.destructionCastSound)
 		cgs.media.destructionCastSound = trap->S_RegisterSound("sound/weapons/force/push.wav");
