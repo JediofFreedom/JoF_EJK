@@ -1173,7 +1173,6 @@ static qboolean CG_JAPlusViewLockedState( playerState_t *ps )
 	}
 	return CG_InKnockDownState( ps );
 }
-}
 
 // JA+ marks victims of its added side/back kicks with forceDodgeAnim 4/5 and
 // then plays this custom falling/get-up sequence. Ordinary knockdowns do not
