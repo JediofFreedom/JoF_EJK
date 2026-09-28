@@ -292,6 +292,17 @@ static int GetFlipkick(playerState_t *ps) {
 #endif
 }
 
+static qboolean CanFlipkickNPC(playerState_t *ps) {
+#ifdef _GAME
+	return GetFlipkick(ps) > 0;
+#else
+	// JA Pro supports flipkicking NPCs. JA+ (including JoF JA+) only
+	// advertises player flipkicks with JAPLUS_CINFO_FLIPKICK, so predicting
+	// the same move against an NPC makes the client diverge from the server.
+	return cgs.serverMod == SVMOD_JAPRO && GetFlipkick(ps) > 0;
+#endif
+}
+
 static int GetFixRoll(playerState_t *ps) {
 	//If we are dueling saber only and duels are SP damages and FFA is mp damages..
 		//return 0
@@ -3181,7 +3192,7 @@ static qboolean PM_CheckJump( void )
 #endif
 */
 
-							if ((trace.entityNum < MAX_CLIENTS) || (GetFlipkick(pm->ps) && kickedEnt->s.eType == ET_NPC))
+							if ((trace.entityNum < MAX_CLIENTS) || (CanFlipkickNPC(pm->ps) && kickedEnt && kickedEnt->s.eType == ET_NPC))
 
 							{
 								pm->ps->forceKickFlip = trace.entityNum+1; //let the server know that this person gets kicked by this client
@@ -3369,7 +3380,7 @@ static qboolean PM_CheckJump( void )
 				kickedEnt = PM_BGEntForNum(trace.entityNum);
 
 				if (GetFlipkick(pm->ps) >= 1) {
-					if ( trace.fraction < 1.0f && ((trace.entityNum < MAX_CLIENTS) || (kickedEnt->s.eType == ET_NPC)) && (pm->ps->stats[STAT_DASHTIME] <= 0)) //ass
+					if ( trace.fraction < 1.0f && ((trace.entityNum < MAX_CLIENTS) || (CanFlipkickNPC(pm->ps) && kickedEnt && kickedEnt->s.eType == ET_NPC)) && (pm->ps->stats[STAT_DASHTIME] <= 0))
 					//Dont allow frontkicking within 200ms of being frontkicked?
 
 //JAPRO - Serverside + Clientside - Re add flipkick and flipkickable npcs- End
