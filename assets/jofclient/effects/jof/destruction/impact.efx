@@ -1,0 +1,80 @@
+Particle
+{
+	flags useAlpha
+	life 350
+	rotation 0 360
+	rgb
+	{
+		start 1 0.6 0.2
+		end 0.6 0.01 0.01
+		flags linear
+	}
+	alpha
+	{
+		start 1
+		end 0
+		flags linear
+	}
+	size
+	{
+		start 16
+		end 150
+		flags linear
+	}
+	shaders
+	[
+		gfx/jof/destruction_energy
+	]
+}
+Particle
+{
+	flags useAlpha
+	count 18
+	life 250 500
+	velocity -220 -220 -80 220 220 220
+	gravity -280
+	rotation 0 360
+	rgb
+	{
+		start 1 0.65 0.2
+		end 0.9 0.04 0.01
+		flags linear
+	}
+	alpha
+	{
+		start 1
+		end 0
+		flags linear
+	}
+	size
+	{
+		start 5 9
+		end 0
+		flags linear
+	}
+	shaders
+	[
+		gfx/jof/destruction_energy
+	]
+}
+Light
+{
+	life 300
+	rgb
+	{
+		start 1 0.25 0.04
+	}
+	size
+	{
+		start 250
+		end 0
+		flags linear
+	}
+}
+Sound
+{
+	sounds
+	[
+		sound/weapons/force/lightninghit3.wav
+	]
+}

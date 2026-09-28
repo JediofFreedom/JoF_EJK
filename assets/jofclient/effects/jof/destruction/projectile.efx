@@ -1,0 +1,69 @@
+// The missile's server-supplied trail override plays this at its interpolated origin.
+Particle
+{
+	flags useAlpha
+	life 65
+	rotation 0 360
+	rgb
+	{
+		start 1 0.3 0.04
+		end 0.6 0.02 0.01
+		flags linear
+	}
+	alpha
+	{
+		start 0.8
+		end 0
+		flags linear
+	}
+	size
+	{
+		start 16
+		end 9
+		flags linear
+	}
+	shaders
+	[
+		gfx/jof/destruction_energy
+	]
+}
+Particle
+{
+	flags useAlpha
+	life 45
+	rotation 0 360
+	rgb
+	{
+		start 1 0.85 0.5
+	}
+	alpha
+	{
+		start 1
+		end 0
+		flags linear
+	}
+	size
+	{
+		start 7
+		end 3
+		flags linear
+	}
+	shaders
+	[
+		gfx/jof/destruction_energy
+	]
+}
+Light
+{
+	life 70
+	rgb
+	{
+		start 1 0.2 0.03
+	}
+	size
+	{
+		start 100
+		end 0
+		flags linear
+	}
+}

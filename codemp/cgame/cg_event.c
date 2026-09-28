@@ -3644,6 +3644,18 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_MISSILE_MISS:
 		DEBUGNAME("EV_MISSILE_MISS");
+		if (es->weapon == WP_CONCUSSION && es->generic1 == DESTRUCTION_MISSILE_TAG)
+		{
+			// This is Force energy, not a gun impact: full-force duels must see it.
+			if (es->owner >= 0 && es->owner < MAX_GENTITIES &&
+				!CG_DuelCull(&cg_entities[es->owner]) &&
+				es->emplacedOwner > 0 && es->emplacedOwner < MAX_FX)
+			{
+				ByteToDir(es->eventParm, dir);
+				trap->FX_PlayEffectID(cgs.gameEffects[es->emplacedOwner], position, dir, -1, -1, qfalse);
+			}
+			break;
+		}
 		if (cgs.serverMod == SVMOD_JAPRO && cg.predictedPlayerState.stats[STAT_RACEMODE] && cg.predictedPlayerState.stats[STAT_MOVEMENTSTYLE] >= MV_COOP_JKA) {
 		}
 		else if (cg.predictedPlayerState.duelInProgress &&

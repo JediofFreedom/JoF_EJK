@@ -94,7 +94,7 @@ qboolean CG_NoUseableForce(void)
 	}
 
 	// Also count JoF pseudo-powers (stasis/repulse/dash live in bits beyond NUM_FORCE_POWERS).
-	if ( CG_HasStasis() || CG_HasRepulse() || CG_HasDash() )
+	if ( CG_HasStasis() || CG_HasRepulse() || CG_HasDash() || CG_HasDestruction() )
 		return qfalse;
 
 	//no useable force powers, I guess.
@@ -3169,6 +3169,8 @@ Ghoul2 Insert End
 	cgs.media.rageRecShader = trap->R_RegisterShaderNoMip("gfx/mp/f_icon_ragerec");
 	cgs.media.repulseIcon   = trap->R_RegisterShaderNoMip("gfx/jof/force_repulse.tga");	// JoF: Force Repulse wheel icon
 	cgs.media.dashIcon      = trap->R_RegisterShaderNoMip("gfx/jof/force_dash.tga");		// JoF: Force Dash wheel icon
+	cgs.media.destructionIcon = trap->R_RegisterShaderNoMip("gfx/jof/force_destruction");
+	trap->Cvar_Set("cl_destructionSelected", "0");
 	cgs.media.flamethrowerIcon = trap->R_RegisterShaderNoMip("gfx/jof/force_flamethrower.png");
 
 
@@ -3375,6 +3377,7 @@ Called before every level change or subsystem restart
 */
 void CG_Shutdown( void )
 {
+	trap->Cvar_Set("cl_destructionSelected", "0");
 	// Userinfo is handled by the engine even when game commands are flood
 	// filtered. Do not leave readiness behind for a subsequently loaded mod.
 	trap->Cvar_Set("cg_pickupReady", "0");
@@ -3442,6 +3445,13 @@ qboolean CG_HasDash( void )
 	return (cg.snap && (cg.snap->ps.fd.forcePowersKnown & (1 << DASH_KNOWN_BIT))) ? qtrue : qfalse;
 }
 
+qboolean CG_HasDestruction( void )
+{
+	return cgs.forceDestruction && cg.snap && cg.snap->ps.pm_type == PM_NORMAL &&
+		!(cg.snap->ps.pm_flags & PMF_FOLLOW) && cg.snap->ps.stats[STAT_HEALTH] > 0 &&
+		(cg.snap->ps.fd.forcePowersKnown & DESTRUCTION_KNOWN_FLAG) ? qtrue : qfalse;
+}
+
 /*
 ===============
 CG_BuildForceWheel
@@ -3453,13 +3463,16 @@ granted. Any pseudo-slot whose anchor power isn't owned is appended last.
 Returns the count and fills slots[] (must hold at least NUM_FORCE_POWERS+3 entries).
 ===============
 */
+// slots must have FORCE_WHEEL_CAPACITY entries. Destruction follows Lightning.
 int CG_BuildForceWheel( int *slots )
 {
 	qboolean stasis = CG_HasStasis();
 	qboolean repulse = CG_HasRepulse();
 	qboolean dash = CG_HasDash();
+	qboolean destruction = CG_HasDestruction();
 	qboolean placed = qfalse;		// stasis/repulse anchor (FP_SEE)
 	qboolean dashPlaced = qfalse;	// dash anchor (FP_SPEED)
+	qboolean destructionPlaced = qfalse;
 	int n = 0, i;
 
 	for ( i = 0; i < NUM_FORCE_POWERS; i++ )
@@ -3474,6 +3487,11 @@ int CG_BuildForceWheel( int *slots )
 			dashPlaced = qtrue;
 		}
 		slots[n++] = p;
+		if (destruction && p == FP_LIGHTNING && !destructionPlaced)
+		{
+			slots[n++] = DESTRUCTION_WHEEL_SLOT;
+			destructionPlaced = qtrue;
+		}
 		if ( (stasis || repulse) && p == FP_SEE && !placed )	// place pseudo-slots right after Force Sense
 		{
 			if ( stasis )  slots[n++] = STASIS_WHEEL_SLOT;
@@ -3491,6 +3509,8 @@ int CG_BuildForceWheel( int *slots )
 		if ( repulse ) slots[n++] = REPULSE_WHEEL_SLOT;
 	}
 
+	if (destruction && !destructionPlaced)
+		slots[n++] = DESTRUCTION_WHEEL_SLOT;
 	return n;
 }
 
@@ -3527,7 +3547,7 @@ void CG_NextForcePower_f( void )
 	// Walk our own wheel order so pseudo-slots (stasis=18, repulse=19, dash=20) can be cycled
 	// onto/off of without ever putting them into the networked forcePowerSelected (kept 0-17).
 	{
-		int slots[NUM_FORCE_POWERS + 3], n = CG_BuildForceWheel( slots ), cur = -1, i;
+		int slots[FORCE_WHEEL_CAPACITY], n = CG_BuildForceWheel( slots ), cur = -1, i;
 		for ( i = 0; i < n; i++ )
 		{
 			if ( slots[i] == cg.forceSelect ) { cur = i; break; }
@@ -3575,7 +3595,7 @@ void CG_PrevForcePower_f( void )
 
 	// Mirror of CG_NextForcePower_f, stepping the other way. See note there.
 	{
-		int slots[NUM_FORCE_POWERS + 3], n = CG_BuildForceWheel( slots ), cur = -1, i;
+		int slots[FORCE_WHEEL_CAPACITY], n = CG_BuildForceWheel( slots ), cur = -1, i;
 		for ( i = 0; i < n; i++ )
 		{
 			if ( slots[i] == cg.forceSelect ) { cur = i; break; }
