@@ -162,12 +162,13 @@ static void CheckGrantAndCast(void)
 	CHECK(castSound.s.eventParm == 1 && castSound.s.saberEntityNum == CHAN_BODY);
 	CHECK(castSound.s.weapon == WP_CONCUSSION && castSound.s.generic1 == DESTRUCTION_MISSILE_TAG);
 	CHECK(castSound.s.owner == self->s.number && castSound.s.bolt1 == self->s.bolt1);
-	CHECK(g_entities[MAX_CLIENTS].nextthink == 4000);
+	CHECK(g_entities[MAX_CLIENTS].nextthink == level.time + 15000);
 	self->client->ps.weaponTime = 0;
 	self->client->ps.forceHandExtend = HANDEXTEND_NONE;
 	ForceDestruction(self); CHECK(shots == 1);
 	level.time = 5000;
 	ForceDestruction(self); CHECK(shots == 2 && self->client->ps.fd.forcePower == 0);
+	CHECK(g_entities[MAX_CLIENTS].nextthink == level.time + 15000);
 	level.time = 10000;
 	self->client->ps.weaponTime = 0;
 	self->client->ps.forceHandExtend = HANDEXTEND_NONE;

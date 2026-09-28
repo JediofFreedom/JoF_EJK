@@ -40,7 +40,7 @@ Unsupported servers do not get the wheel entry or client-generated command.
 | `g_forceDestructionSpeed` | 900 units/second | 100–3000 |
 | `g_forceDestructionCooldown` | 4000 ms | 500–30000 |
 
-Out-of-range tuning values are clamped when casting. The orb expires after three
+Out-of-range tuning values are clamped when casting. The orb expires after 15
 seconds, does not home, and costs no ammunition. Casting has 650 ms of recovery
 and delays Force regeneration for one second. Successful casts end spawn protection.
 Damage/radius are captured at launch, so tuning changes cannot alter an in-flight blast.

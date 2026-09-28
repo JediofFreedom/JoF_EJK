@@ -7,7 +7,7 @@
 extern qboolean gSiegeRoundBegun;
 
 #define DESTRUCTION_RECOVERY 650
-#define DESTRUCTION_LIFETIME 3000
+#define DESTRUCTION_LIFETIME 15000
 
 static int DestructionClamp(int value, int low, int high)
 {
