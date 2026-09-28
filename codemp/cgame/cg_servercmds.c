@@ -223,6 +223,7 @@ void CG_ParseServerinfo( void ) {
 	}
 
 	cgs.fDisable = atoi( Info_ValueForKey( info, "g_forcePowerDisable" ) );
+	cgs.forceDestruction = atoi(Info_ValueForKey(info, "g_forceDestruction")) != 0;
 	cgs.dmflags = atoi( Info_ValueForKey( info, "dmflags" ) );
 	cgs.duel_fraglimit = atoi( Info_ValueForKey( info, "duel_fraglimit" ) );
 	cgs.capturelimit = atoi( Info_ValueForKey( info, "capturelimit" ) );

@@ -3741,6 +3741,17 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_MISSILE_MISS:
 		DEBUGNAME("EV_MISSILE_MISS");
+		if (es->weapon == WP_CONCUSSION && es->generic1 == DESTRUCTION_MISSILE_TAG)
+		{
+			// This is Force energy, not a gun impact: full-force duels must see it.
+			if (es->owner >= 0 && es->owner < MAX_GENTITIES &&
+				!CG_DuelCull(&cg_entities[es->owner]))
+			{
+				ByteToDir(es->eventParm, dir);
+				CG_PlayDestructionEffect(es, position, dir, qtrue);
+			}
+			break;
+		}
 		if (cgs.serverMod == SVMOD_JAPRO && cg.predictedPlayerState.stats[STAT_RACEMODE] && cg.predictedPlayerState.stats[STAT_MOVEMENTSTYLE] >= MV_COOP_JKA) {
 		}
 		else if (cg.predictedPlayerState.duelInProgress &&
@@ -4074,6 +4085,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				sfxHandle_t sfx;
 				if ( cgs.gameSounds[ es->eventParm ] ) {
 					sfx = CG_ForceOwnSaberSound( es, es->number, cgs.gameSounds[ es->eventParm ] );
+					sfx = CG_DestructionCastSound(es, sfx);
 				} else {
 					s = CG_ConfigString( CS_SOUNDS + es->eventParm );
 					if ( CG_ClassifyVoiceLine( s, &voiceLine ) && CG_VoiceLineThrottled( es->number, voiceLine ) )

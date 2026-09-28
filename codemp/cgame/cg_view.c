@@ -2995,13 +2995,16 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// Pseudo-slots (stasis=18, repulse=19, dash=20) must never reach the server as forcesel.
 	// Fall back to the last real networked selection when any is centered.
-	if ( cg.forceSelect == STASIS_WHEEL_SLOT || cg.forceSelect == REPULSE_WHEEL_SLOT || cg.forceSelect == DASH_WHEEL_SLOT )
+	if (cg.forceSelect == DESTRUCTION_WHEEL_SLOT && !CG_HasDestruction())
+		cg.forceSelect = cg.snap ? cg.snap->ps.fd.forcePowerSelected : 0;
+	if ( cg.forceSelect >= NUM_FORCE_POWERS || cg.forceSelect < 0 )
 		fpSel = cg.snap ? cg.snap->ps.fd.forcePowerSelected : 0;
 	else
 		fpSel = cg.forceSelect;
 	trap->Cvar_Set( "cl_stasisSelected",  (cg.forceSelect == STASIS_WHEEL_SLOT  && CG_HasStasis())  ? "1" : "0" );
 	trap->Cvar_Set( "cl_repulseSelected", (cg.forceSelect == REPULSE_WHEEL_SLOT && CG_HasRepulse()) ? "1" : "0" );
 	trap->Cvar_Set( "cl_dashSelected",    (cg.forceSelect == DASH_WHEEL_SLOT    && CG_HasDash())    ? "1" : "0" );
+	trap->Cvar_Set("cl_destructionSelected", (cg.forceSelect == DESTRUCTION_WHEEL_SLOT && CG_HasDestruction()) ? "1" : "0");
 
 	// let the client system know what our weapon and zoom settings are
 	if (cg.snap && cg.snap->ps.saberLockTime > cg.time)

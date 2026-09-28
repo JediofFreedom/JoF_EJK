@@ -103,7 +103,6 @@ function(add_zip_command output)
   string(REPLACE <ARCHIVE> "${output}" ZipCommand "${ZipCommand}")
   string(REPLACE <FILES> "${ARGS_FILES}" ZipCommand "${ZipCommand}")
   add_custom_command(OUTPUT ${output}
-    # Updating an existing archive leaves entries for files removed from the source tree.
     COMMAND ${CMAKE_COMMAND} -E remove -f "${output}"
     COMMAND ${ZipCommand}
     DEPENDS ${ARGS_DEPENDS})
