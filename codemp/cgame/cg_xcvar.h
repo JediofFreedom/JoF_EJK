@@ -251,7 +251,7 @@ XCVAR_DEF( cg_strafeTrailFPS,					"40",	NULL,					0 )
 XCVAR_DEF( cg_strafeTrailGhost,					"1",	NULL,					CVAR_ARCHIVE )
 
 XCVAR_DEF( cg_drainFX,							"1",	NULL,					CVAR_ARCHIVE )
-XCVAR_DEF( cg_lightningEnvironment,				"1",	NULL,					CVAR_ARCHIVE ) // 0: vanilla, 1: environmental nests, 2: reference lightning arcs
+XCVAR_DEF( cg_lightningEnvironment,				"2",	NULL,					CVAR_ARCHIVE ) // 0: vanilla, 1: environmental nests, 2: reference arcs with vanilla/JoF effects
 //Make maxpackets userinfo maybe idk
 
 #if 1

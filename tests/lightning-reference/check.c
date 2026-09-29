@@ -6,22 +6,32 @@
 typedef float vec3_t[3];
 typedef vec3_t matrix3_t[3];
 typedef int qboolean;
-enum { qfalse = 0, ROLL = 2, CHAN_AUTO = 0, MASK_SOLID = 0x1001 };
+enum { qfalse = 0, ROLL = 2, CHAN_AUTO = 0, MASK_SOLID = 0x1001,
+	SURF_SKY = 1, SURF_NOIMPACT = 2, SURF_NODRAW = 4 };
 typedef struct {
 	struct { int number; } currentState;
 	int lightningReferenceTime[5];
 	vec3_t lightningReferenceEnd[5];
 	int lightningReferenceSoundTime[5];
 } centity_t;
-typedef struct { float fraction; } trace_t;
+typedef struct {
+	float fraction;
+	int startsolid, allsolid, surfaceFlags;
+	vec3_t endpos;
+	struct { vec3_t normal; } plane;
+} trace_t;
 static struct { int time, frametime; } cg;
 static struct {
-	struct { int forceLightningReference, forceLightningReferenceWide, forceLightningReferenceArc; } effects;
+	struct { int forceLightning, forceLightningWide, forceLightningBranch, demp2WallImpactEffectSmall; } effects;
 	struct { int forceLightningImpactSounds[3]; } media;
-} cgs = { { 40, 41, 42 }, { { 11, 12, 13 } } };
+} cgs = { { 40, 41, 42, 43 }, { { 11, 12, 13 } } };
 
 static FILE *reference;
 static int frame, randomCount, irandomCount, traceCount, hitMask, mainCount, expectedMain;
+static trace_t lastTrace;
+static int impacts, expectedImpacts, totalImpacts;
+static vec3_t expectedOrigin;
+static matrix3_t expectedAxis;
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "Frame %d, line %d: %s\n", frame, __LINE__, #x); exit(1); } } while (0)
 #define VectorCopy(a,b) memcpy(b, a, sizeof(vec3_t))
 static void VectorMA(const vec3_t a, float s, const vec3_t b, vec3_t out) {
@@ -62,16 +72,40 @@ static void AngleVectors(const vec3_t angles, vec3_t forward, vec3_t right, vec3
 	forward[2] = -sinf(pitch);
 }
 static void CG_Trace(trace_t *tr, vec3_t start, void *mins, void *maxs, vec3_t end, int owner, int mask) {
+	vec3_t delta;
 	CHECK(!mins && !maxs && owner == -1 && mask == MASK_SOLID);
 	Tag("TRACE"); Vec(start); Vec(end);
+	memset(tr, 0, sizeof(*tr));
 	tr->fraction = hitMask & (1 << traceCount++) ? 0.25f : 1.0f;
+	VectorSubtract(end, start, delta);
+	VectorMA(start, tr->fraction, delta, tr->endpos);
+	tr->plane.normal[2] = 1.0f;
+	// Vary contact eligibility without changing the recorded trace fractions.
+	if (frame % 6 == 1) tr->surfaceFlags = SURF_SKY;
+	if (frame % 6 == 2) tr->surfaceFlags = SURF_NOIMPACT;
+	if (frame % 6 == 3) tr->surfaceFlags = SURF_NODRAW;
+	if (frame % 6 == 4) tr->startsolid = 1;
+	if (frame % 6 == 5) tr->allsolid = 1;
+	lastTrace = *tr;
 }
 static void PlayMain(int effect, vec3_t origin, matrix3_t axis, int a, int b, int c, int d) {
 	CHECK(effect == expectedMain && a == -1 && b == -1 && c == -1 && d == -1);
+	CHECK(!memcmp(origin, expectedOrigin, sizeof(vec3_t)));
+	CHECK(!memcmp(axis, expectedAxis, sizeof(matrix3_t)));
 	mainCount++;
 }
 static void PlayArc(int effect, vec3_t origin, vec3_t direction, int a, int b, qboolean portal) {
-	CHECK(effect == 42 && a == -1 && b == -1 && !portal);
+	CHECK(a == -1 && b == -1 && !portal);
+	if (effect == 43) {
+		CHECK(!lastTrace.startsolid && !lastTrace.allsolid && !lastTrace.surfaceFlags);
+		CHECK(!memcmp(origin, lastTrace.endpos, sizeof(vec3_t)));
+		CHECK(!memcmp(direction, lastTrace.plane.normal, sizeof(vec3_t)));
+		impacts++;
+		totalImpacts++;
+		return;
+	}
+	CHECK(effect == 42);
+	if (!lastTrace.startsolid && !lastTrace.allsolid && !lastTrace.surfaceFlags) expectedImpacts++;
 	Tag("FX"); Vec(origin); Vec(direction);
 }
 static void Sound(vec3_t origin, int entity, int channel, int sound) {
@@ -100,9 +134,13 @@ int main(int argc, char **argv) {
 			&origin[0], &origin[1], &origin[2], &axis[0][0], &axis[0][1], &axis[0][2]) == 11);
 		if (reset) { memset(&cent, 0, sizeof(cent)); cent.currentState.number = 7; randomCount = irandomCount = 0; }
 		traceCount = mainCount = 0;
+		impacts = expectedImpacts = 0;
 		expectedMain = wide ? 41 : 40;
+		VectorCopy(origin, expectedOrigin);
+		memcpy(expectedAxis, axis, sizeof(axis));
 		FX_ForceLightningReference(&cent, origin, axis, wide);
 		CHECK(mainCount == 1 && traceCount == (wide ? 5 : 2));
+		CHECK(impacts == expectedImpacts);
 		for (i = 0; i < 5; i++) {
 			Tag("STATE"); Int(i); Int(cent.lightningReferenceTime[i]);
 			Vec(cent.lightningReferenceEnd[i]); Int(cent.lightningReferenceSoundTime[i]);
@@ -110,7 +148,8 @@ int main(int argc, char **argv) {
 		Tag("RANDOM"); Int(randomCount); Int(irandomCount);
 	}
 	CHECK(frame == 14);
+	CHECK(totalImpacts > 0);
 	fclose(reference);
-	printf("%d reference frames matched the original x86 lightning routine.\n", frame);
+	printf("%d reference frames matched the original direction/timing logic; vanilla/JoF effect calls verified.\n", frame);
 	return 0;
 }

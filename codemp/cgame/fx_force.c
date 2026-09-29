@@ -29,6 +29,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // Its CG_Player always passes level 3: two arcs for the narrow effect, five
 // for the wide effect. Keep the original trace, direction and timing rules;
 // in particular, a cached endpoint is deliberately interpreted as angles.
+// Render with the existing vanilla hand spray and JoF branch/impact effects.
 static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t axis, qboolean wide) {
 	int i;
 	int arcs = wide ? 5 : 2;
@@ -36,7 +37,9 @@ static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t
 	vec3_t direction, end, angles;
 	trace_t tr;
 
-	trap->FX_PlayEntityEffectID(wide ? cgs.effects.forceLightningReferenceWide : cgs.effects.forceLightningReference,
+	// The stock wide effect supplies its full fan; the extra arcs below have
+	// independent directions and must each use a single-bolt effect.
+	trap->FX_PlayEntityEffectID(wide ? cgs.effects.forceLightningWide : cgs.effects.forceLightning,
 		origin, axis, -1, -1, -1, -1);
 
 	for (i = 0; i < arcs; i++) {
@@ -65,8 +68,13 @@ static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t
 			cent->lightningReferenceTime[i] = cg.time + Q_irand(500, 1500);
 		}
 		if (cg.frametime > 0 && (cg.frametime >= 50 || cg.time % 50 <= cg.frametime)) {
-			trap->FX_PlayEffectID(cgs.effects.forceLightningReferenceArc,
+			trap->FX_PlayEffectID(cgs.effects.forceLightningBranch,
 				origin, direction, -1, -1, qfalse);
+			if (!tr.startsolid && !tr.allsolid &&
+				!(tr.surfaceFlags & (SURF_SKY | SURF_NOIMPACT | SURF_NODRAW))) {
+				trap->FX_PlayEffectID(cgs.effects.demp2WallImpactEffectSmall,
+					tr.endpos, tr.plane.normal, -1, -1, qfalse);
+			}
 		}
 		if (cent->lightningReferenceSoundTime[i] < cg.time) {
 			cent->lightningReferenceSoundTime[i] = cg.time + Q_irand(500, 750);
