@@ -3616,7 +3616,8 @@ qboolean CG_HasDash( void )
 
 qboolean CG_HasDestruction( void )
 {
-	return cgs.forceDestruction && cg.snap && cg.snap->ps.pm_type == PM_NORMAL &&
+	return cgs.forceDestruction && cg.snap &&
+		cg.snap->ps.pm_type != PM_SPECTATOR && cg.snap->ps.pm_type != PM_DEAD &&
 		!(cg.snap->ps.pm_flags & PMF_FOLLOW) && cg.snap->ps.stats[STAT_HEALTH] > 0 &&
 		(cg.snap->ps.fd.forcePowersKnown & DESTRUCTION_KNOWN_FLAG) ? qtrue : qfalse;
 }
@@ -3628,9 +3629,8 @@ CG_BuildForceWheel
 Builds the ordered list of selectable force-wheel entries: the valid real powers in
 display order, with the stasis and repulse pseudo-slots inserted right after Force
 Sense (FP_SEE) and the dash pseudo-slot inserted right before Speed (FP_SPEED), if
-granted. Destruction follows Repulse, before Lightning's position even if Lightning
-isn't owned. If Sense isn't owned, its extras precede Destruction instead of being
-appended last. Other pseudo-slots without their anchor are appended last.
+granted. Destruction follows Repulse, before Lightning. All pseudo-slots use their
+anchor's position in forcePowerSorted even when the anchor power isn't owned.
 Returns the count and fills slots[] (must hold FORCE_WHEEL_CAPACITY entries).
 ===============
 */
@@ -3640,48 +3640,25 @@ int CG_BuildForceWheel( int *slots )
 	qboolean repulse = CG_HasRepulse();
 	qboolean dash = CG_HasDash();
 	qboolean destruction = CG_HasDestruction();
-	qboolean placed = qfalse;		// stasis/repulse anchor (FP_SEE)
-	qboolean dashPlaced = qfalse;	// dash anchor (FP_SPEED)
 	int n = 0, i;
 
 	for ( i = 0; i < NUM_FORCE_POWERS; i++ )
 	{
 		int p = forcePowerSorted[i];
-		if (destruction && p == FP_LIGHTNING)
-		{
-			// Keep Repulse -> Destruction -> Lightning even without Force Sense.
-			if (!placed)
-			{
-				if (stasis)  slots[n++] = STASIS_WHEEL_SLOT;
-				if (repulse) slots[n++] = REPULSE_WHEEL_SLOT;
-				placed = qtrue;
-			}
-			slots[n++] = DESTRUCTION_WHEEL_SLOT;
-		}
-		if ( !ForcePower_Valid( p ) )
-			continue;
-
-		if ( dash && p == FP_SPEED && !dashPlaced )	// place dash right before Speed
-		{
+		// Use the anchor's position whether or not its real power is owned.
+		if ( dash && p == FP_SPEED )
 			slots[n++] = DASH_WHEEL_SLOT;
-			dashPlaced = qtrue;
-		}
-		slots[n++] = p;
-		if ( (stasis || repulse) && p == FP_SEE && !placed )	// place pseudo-slots right after Force Sense
+		if ( destruction && p == FP_LIGHTNING )
+			slots[n++] = DESTRUCTION_WHEEL_SLOT;
+
+		if ( ForcePower_Valid( p ) )
+			slots[n++] = p;
+
+		if ( p == FP_SEE )
 		{
 			if ( stasis )  slots[n++] = STASIS_WHEEL_SLOT;
 			if ( repulse ) slots[n++] = REPULSE_WHEEL_SLOT;
-			placed = qtrue;
 		}
-	}
-
-	if ( dash && !dashPlaced )	// Force Speed not owned: fall back to the end
-		slots[n++] = DASH_WHEEL_SLOT;
-
-	if ( !placed )	// Force Sense not owned: fall back to the end
-	{
-		if ( stasis )  slots[n++] = STASIS_WHEEL_SLOT;
-		if ( repulse ) slots[n++] = REPULSE_WHEEL_SLOT;
 	}
 
 	return n;

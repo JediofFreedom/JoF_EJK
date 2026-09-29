@@ -1719,7 +1719,7 @@ void CL_CmdButtons( usercmd_t *cmd ) {
 		if (cl_destructionSelected->integer) {
 			cmd->buttons &= ~BUTTON_FORCEPOWER;
 			if (forceDown && !s_destructionWasDown && !Key_GetCatcher() &&
-				cl.snap.valid && cl.snap.ps.pm_type == PM_NORMAL &&
+				cl.snap.valid && cl.snap.ps.pm_type != PM_SPECTATOR && cl.snap.ps.pm_type != PM_DEAD &&
 				!(cl.snap.ps.pm_flags & PMF_FOLLOW) && cl.snap.ps.stats[STAT_HEALTH] > 0 &&
 				(cl.snap.ps.fd.forcePowersKnown & DESTRUCTION_KNOWN_FLAG))
 				Cbuf_AddText("force_destruction\n");
