@@ -27,20 +27,23 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 // Recovered from CG_DoLightningArcs in the supplied cgamei386.so (0x97dd0).
 // Its CG_Player always passes level 3: two arcs for the narrow effect, five
-// for the wide effect. Keep the original trace, direction and timing rules;
-// in particular, a cached endpoint is deliberately interpreted as angles.
-// Render with the existing vanilla hand spray and JoF branch/impact effects.
+// for the wide effect. Cached endpoints retain the reference's unusual angle
+// conversion, but directions outside the configured forward arc are redirected.
+// Use optional pack effects when installed, otherwise vanilla/JoF effects.
 static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t axis, qboolean wide) {
 	int i;
 	int arcs = wide ? 5 : 2;
 	float spread = wide ? 0.8f : 0.5f;
+	float arcAngle = Com_Clamp(0.0f, 360.0f, cg_lightningEnvironmentAngle.value);
+	float minForwardDot = cosf(DEG2RAD(arcAngle * 0.5f));
+	float traceDistance, directionLength;
+	fxHandle_t mainEffect = wide ? cgs.effects.forceLightningReferenceWide : cgs.effects.forceLightningReference;
 	vec3_t direction, end, angles;
 	trace_t tr;
 
-	// The stock wide effect supplies its full fan; the extra arcs below have
-	// independent directions and must each use a single-bolt effect.
-	trap->FX_PlayEntityEffectID(wide ? cgs.effects.forceLightningWide : cgs.effects.forceLightning,
-		origin, axis, -1, -1, -1, -1);
+	if (!mainEffect)
+		mainEffect = wide ? cgs.effects.forceLightningWide : cgs.effects.forceLightning;
+	trap->FX_PlayEntityEffectID(mainEffect, origin, axis, -1, -1, -1, -1);
 
 	for (i = 0; i < arcs; i++) {
 		if (cent->lightningReferenceTime[i] < cg.time) {
@@ -49,14 +52,25 @@ static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t
 			direction[1] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
 			direction[2] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
 			// The reference does not normalize the randomized direction.
-			VectorMA(origin, 350.0f, direction, end);
+			traceDistance = 350.0f;
 		} else {
 			VectorSubtract(origin, cent->lightningReferenceEnd[i], angles);
 			AngleVectors(angles, direction, NULL, NULL);
 			angles[ROLL] = 0.0f;
 			AngleVectors(angles, direction, NULL, NULL);
-			VectorMA(origin, 200.0f, direction, end);
+			traceDistance = 200.0f;
 		}
+
+		if (arcAngle < 360.0f) {
+			directionLength = VectorLength(direction);
+			// Redirect rearward/over-wide bolts toward the player's current aim.
+			// Preserve the reference vector length and therefore its trace reach.
+			if (directionLength < 0.0001f)
+				VectorCopy(axis[0], direction);
+			else if (DotProduct(direction, axis[0]) < minForwardDot * directionLength)
+				VectorScale(axis[0], directionLength, direction);
+		}
+		VectorMA(origin, traceDistance, direction, end);
 
 		CG_Trace(&tr, origin, NULL, NULL, end, -1, MASK_SOLID);
 		if (tr.fraction >= 1.0f)
@@ -68,9 +82,11 @@ static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t
 			cent->lightningReferenceTime[i] = cg.time + Q_irand(500, 1500);
 		}
 		if (cg.frametime > 0 && (cg.frametime >= 50 || cg.time % 50 <= cg.frametime)) {
-			trap->FX_PlayEffectID(cgs.effects.forceLightningBranch,
+			trap->FX_PlayEffectID(cgs.effects.forceLightningReferenceArc ?
+				cgs.effects.forceLightningReferenceArc : cgs.effects.forceLightningBranch,
 				origin, direction, -1, -1, qfalse);
-			if (!tr.startsolid && !tr.allsolid &&
+			// Pack arcs own their impact effect; only the fallback needs this one.
+			if (!cgs.effects.forceLightningReferenceArc && !tr.startsolid && !tr.allsolid &&
 				!(tr.surfaceFlags & (SURF_SKY | SURF_NOIMPACT | SURF_NODRAW))) {
 				trap->FX_PlayEffectID(cgs.effects.demp2WallImpactEffectSmall,
 					tr.endpos, tr.plane.normal, -1, -1, qfalse);

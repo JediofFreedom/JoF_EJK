@@ -6,6 +6,7 @@
 typedef float vec3_t[3];
 typedef vec3_t matrix3_t[3];
 typedef int qboolean;
+typedef int fxHandle_t;
 enum { qfalse = 0, ROLL = 2, CHAN_AUTO = 0, MASK_SOLID = 0x1001,
 	SURF_SKY = 1, SURF_NOIMPACT = 2, SURF_NODRAW = 4 };
 typedef struct {
@@ -21,8 +22,10 @@ typedef struct {
 	struct { vec3_t normal; } plane;
 } trace_t;
 static struct { int time, frametime; } cg;
+static struct { float value; } cg_lightningEnvironmentAngle = { 360.0f };
 static struct {
-	struct { int forceLightning, forceLightningWide, forceLightningBranch, demp2WallImpactEffectSmall; } effects;
+	struct { int forceLightning, forceLightningWide, forceLightningBranch, demp2WallImpactEffectSmall;
+		int forceLightningReference, forceLightningReferenceWide, forceLightningReferenceArc; } effects;
 	struct { int forceLightningImpactSounds[3]; } media;
 } cgs = { { 40, 41, 42, 43 }, { { 11, 12, 13 } } };
 
@@ -34,6 +37,15 @@ static vec3_t expectedOrigin;
 static matrix3_t expectedAxis;
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "Frame %d, line %d: %s\n", frame, __LINE__, #x); exit(1); } } while (0)
 #define VectorCopy(a,b) memcpy(b, a, sizeof(vec3_t))
+#define DEG2RAD(a) ((a) * (3.14159265358979323846f / 180.0f))
+#define DotProduct(a,b) ((a)[0]*(b)[0] + (a)[1]*(b)[1] + (a)[2]*(b)[2])
+static float Com_Clamp(float min, float max, float value) {
+	return value < min ? min : (value > max ? max : value);
+}
+static float VectorLength(const vec3_t v) { return sqrtf(DotProduct(v, v)); }
+static void VectorScale(const vec3_t v, float scale, vec3_t out) {
+	int i; for (i = 0; i < 3; i++) out[i] = v[i] * scale;
+}
 static void VectorMA(const vec3_t a, float s, const vec3_t b, vec3_t out) {
 	int i; for (i = 0; i < 3; i++) out[i] = a[i] + s * b[i];
 }
@@ -104,8 +116,8 @@ static void PlayArc(int effect, vec3_t origin, vec3_t direction, int a, int b, q
 		totalImpacts++;
 		return;
 	}
-	CHECK(effect == 42);
-	if (!lastTrace.startsolid && !lastTrace.allsolid && !lastTrace.surfaceFlags) expectedImpacts++;
+	CHECK(effect == (cgs.effects.forceLightningReferenceArc ? 46 : 42));
+	if (!cgs.effects.forceLightningReferenceArc && !lastTrace.startsolid && !lastTrace.allsolid && !lastTrace.surfaceFlags) expectedImpacts++;
 	Tag("FX"); Vec(origin); Vec(direction);
 }
 static void Sound(vec3_t origin, int entity, int channel, int sound) {
@@ -121,11 +133,16 @@ static struct {
 
 int main(int argc, char **argv) {
 	centity_t cent;
-	int reset, wide, i;
+	int reset, wide, i, packMask;
 	vec3_t origin;
 	matrix3_t axis = { { 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
 	char tag[32];
-	CHECK(argc == 2);
+	CHECK(argc == 2 || argc == 3);
+	packMask = argc == 3 ? atoi(argv[2]) : 0;
+	CHECK(packMask >= 0 && packMask <= 7);
+	cgs.effects.forceLightningReference = packMask & 1 ? 44 : 0;
+	cgs.effects.forceLightningReferenceWide = packMask & 2 ? 45 : 0;
+	cgs.effects.forceLightningReferenceArc = packMask & 4 ? 46 : 0;
 	reference = fopen(argv[1], "r"); CHECK(reference);
 	while (fscanf(reference, "%31s", tag) == 1) {
 		frame++;
@@ -135,7 +152,7 @@ int main(int argc, char **argv) {
 		if (reset) { memset(&cent, 0, sizeof(cent)); cent.currentState.number = 7; randomCount = irandomCount = 0; }
 		traceCount = mainCount = 0;
 		impacts = expectedImpacts = 0;
-		expectedMain = wide ? 41 : 40;
+		expectedMain = wide ? (packMask & 2 ? 45 : 41) : (packMask & 1 ? 44 : 40);
 		VectorCopy(origin, expectedOrigin);
 		memcpy(expectedAxis, axis, sizeof(axis));
 		FX_ForceLightningReference(&cent, origin, axis, wide);
@@ -148,8 +165,8 @@ int main(int argc, char **argv) {
 		Tag("RANDOM"); Int(randomCount); Int(irandomCount);
 	}
 	CHECK(frame == 14);
-	CHECK(totalImpacts > 0);
+	CHECK(cgs.effects.forceLightningReferenceArc ? totalImpacts == 0 : totalImpacts > 0);
 	fclose(reference);
-	printf("%d reference frames matched the original direction/timing logic; vanilla/JoF effect calls verified.\n", frame);
+	printf("%d reference frames matched at angle 360; effect selection and impacts verified for pack mask %d.\n", frame, packMask);
 	return 0;
 }

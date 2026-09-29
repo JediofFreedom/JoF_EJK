@@ -2065,6 +2065,9 @@ typedef struct cgEffects_s {
 	fxHandle_t forceLightningWide;
 	fxHandle_t demp2WallImpactEffectSmall;   
 	fxHandle_t forceLightningBranch;
+	fxHandle_t forceLightningReference;
+	fxHandle_t forceLightningReferenceWide;
+	fxHandle_t forceLightningReferenceArc;
 
 	fxHandle_t forceDrain;
 	fxHandle_t forceDrainWide;
