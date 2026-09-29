@@ -13114,7 +13114,7 @@ skipTrail:
 		else if (FX_ForceLightningEnvironment(cent, efOrg, axis,
 			cent->currentState.activeForcePass > FORCE_LEVEL_2))
 		{
-			// Traced lightning owns both the hand spray and surface response.
+			// The selected lightning mode owns the hand spray and environment arcs.
 		}
 		else if ( cent->currentState.activeForcePass > FORCE_LEVEL_2 )
 		{//arc

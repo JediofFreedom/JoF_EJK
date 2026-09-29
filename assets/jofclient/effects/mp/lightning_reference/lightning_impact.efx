@@ -1,0 +1,234 @@
+repeatDelay				250
+
+OrientedParticle
+{
+	name				radialsparks
+
+	flags				setShaderTime
+
+	count				1 3
+
+	life				250 100
+
+	delay				100 150
+
+	rotation			0 360
+
+	rotationDelta		-12 12
+
+	rgb
+	{
+		start			1 0.9843 0.9412 1 1 1
+	}
+
+	alpha
+	{
+		start			0.1 0.2
+		end				0
+		flags			linear
+	}
+
+	size
+	{
+		start			1 3
+		end				2 5
+		flags			linear
+	}
+
+	shaders
+	[
+		gfx/exp/demp2
+	]
+}
+
+Particle
+{
+	name				lightning_impact
+
+	flags				setShaderTime
+
+	life				80 50
+
+	rotation			0 360
+
+	rotationDelta		-20 20
+
+	alpha
+	{
+		start			0.5 0.7
+		end				0
+		parm			40
+		flags			linear
+	}
+
+	size
+	{
+		start			2 1
+		end				2 1
+		flags			random linear
+	}
+
+	shaders
+	[
+		gfx/jof/lightning_reference/lightningFlash
+	]
+}
+
+Line
+{
+	name				sparkbase
+
+	spawnFlags			org2isOffset
+
+	count				1 3
+
+	life				150 250
+
+	origin2				2 -5 -5 5 5 5
+
+	alpha
+	{
+		start			0.5 0.3
+		end				0
+		flags			linear
+	}
+
+	size
+	{
+		start			0.5 0.1
+	}
+
+	shaders
+	[
+		gfx/jof/lightning_reference/sparkblue
+		gfx/jof/lightning_reference/sparkblue
+	]
+}
+
+Tail
+{
+	name				sparks
+
+	flags				useBBox usePhysics
+
+	count				1 3
+
+	life				600 500
+
+	bounce				0.25 0.4
+
+	min					10 10 10
+
+	max					-10 -10 -10
+
+	velocity			80 -80 -80 150 80 80
+
+	gravity				-550 -350
+
+	size
+	{
+		start			0.3 0.2
+	}
+
+	length
+	{
+		start			1 2
+		end				0.1 0.5
+		flags			linear
+	}
+
+	shaders
+	[
+		gfx/jof/lightning_reference/sparkblue
+	]
+}
+
+Particle
+{
+	name				smoke
+
+	spawnFlags			evenDistribution
+
+	count				3 1
+
+	life				100 400
+
+	delay				100 200
+
+	rotation			360 0
+
+	rotationDelta		5 0
+
+	velocity			8 -12 -12 16 12 12
+
+	gravity				12 24
+
+	rgb
+	{
+		start			0.7255 0.7255 0.7255 0.5059 0.4941 0.4941
+	}
+
+	alpha
+	{
+		start			0.4 0.6
+		end				0
+		flags			linear
+	}
+
+	size
+	{
+		start			3 8
+		end				10 5
+		flags			linear
+	}
+
+	shaders
+	[
+		gfx/effects/alpha_smoke
+	]
+}
+
+Sound
+{
+	name				sparksound
+
+	sounds
+	[
+		sound/ambience/spark1.wav
+		sound/ambience/spark2.wav
+		sound/ambience/spark3.wav
+		sound/ambience/spark4.wav
+		sound/ambience/spark5.wav
+		sound/ambience/spark6.wav
+	]
+}
+
+Electricity
+{
+	name				lightningbeams
+
+	flags				useModel useBBox usePhysics useAlpha
+
+	count				0 1
+
+	life				120 100
+
+	bounce				5 8
+
+	origin2				5 -25 25 25 25 -25
+
+	alpha
+	{
+		start			0.4 0.7
+	}
+
+	size
+	{
+		start			0.1 0.5
+	}
+
+	shaders
+	[
+		gfx/jof/lightning_reference/blueLine
+	]
+}

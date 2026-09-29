@@ -649,6 +649,10 @@ typedef struct centity_s {
 	int				lightningEnvironmentTime;
 	int				lightningSurfaceTime;
 	int				lightningImpactSoundTime;
+	// Independent cached directions and timers used by cg_lightningEnvironment 2.
+	int				lightningReferenceTime[5];
+	vec3_t			lightningReferenceEnd[5];
+	int				lightningReferenceSoundTime[5];
 	unsigned int	flameThrowerHitTime;
 	qboolean		  flameThrowerSndActive;
 	qboolean	hasPlayedJetpackSounds;
@@ -2061,6 +2065,9 @@ typedef struct cgEffects_s {
 	fxHandle_t forceLightningWide;
 	fxHandle_t demp2WallImpactEffectSmall;   
 	fxHandle_t forceLightningBranch;
+	fxHandle_t forceLightningReference;
+	fxHandle_t forceLightningReferenceWide;
+	fxHandle_t forceLightningReferenceArc;
 
 	fxHandle_t forceDrain;
 	fxHandle_t forceDrainWide;

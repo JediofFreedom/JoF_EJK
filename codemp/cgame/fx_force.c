@@ -25,6 +25,57 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "cg_local.h"
 #include "fx_local.h"
 
+// Recovered from CG_DoLightningArcs in the supplied cgamei386.so (0x97dd0).
+// Its CG_Player always passes level 3: two arcs for the narrow effect, five
+// for the wide effect. Keep the original trace, direction and timing rules;
+// in particular, a cached endpoint is deliberately interpreted as angles.
+static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t axis, qboolean wide) {
+	int i;
+	int arcs = wide ? 5 : 2;
+	float spread = wide ? 0.8f : 0.5f;
+	vec3_t direction, end, angles;
+	trace_t tr;
+
+	trap->FX_PlayEntityEffectID(wide ? cgs.effects.forceLightningReferenceWide : cgs.effects.forceLightningReference,
+		origin, axis, -1, -1, -1, -1);
+
+	for (i = 0; i < arcs; i++) {
+		if (cent->lightningReferenceTime[i] < cg.time) {
+			VectorCopy(axis[0], direction);
+			direction[0] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
+			direction[1] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
+			direction[2] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
+			// The reference does not normalize the randomized direction.
+			VectorMA(origin, 350.0f, direction, end);
+		} else {
+			VectorSubtract(origin, cent->lightningReferenceEnd[i], angles);
+			AngleVectors(angles, direction, NULL, NULL);
+			angles[ROLL] = 0.0f;
+			AngleVectors(angles, direction, NULL, NULL);
+			VectorMA(origin, 200.0f, direction, end);
+		}
+
+		CG_Trace(&tr, origin, NULL, NULL, end, -1, MASK_SOLID);
+		if (tr.fraction >= 1.0f)
+			continue;
+
+		if (cent->lightningReferenceTime[i] < cg.time) {
+			// Cache the requested endpoint, not the trace's surface contact.
+			VectorCopy(end, cent->lightningReferenceEnd[i]);
+			cent->lightningReferenceTime[i] = cg.time + Q_irand(500, 1500);
+		}
+		if (cg.frametime > 0 && (cg.frametime >= 50 || cg.time % 50 <= cg.frametime)) {
+			trap->FX_PlayEffectID(cgs.effects.forceLightningReferenceArc,
+				origin, direction, -1, -1, qfalse);
+		}
+		if (cent->lightningReferenceSoundTime[i] < cg.time) {
+			cent->lightningReferenceSoundTime[i] = cg.time + Q_irand(500, 750);
+			trap->S_StartSound(end, cent->currentState.number, CHAN_AUTO,
+				cgs.media.forceLightningImpactSounds[Q_irand(0, 2)]);
+		}
+	}
+}
+
 // Shared per-window budget so trace/effect work stays bounded at high FPS.
 #define LIGHTNING_INTERVAL 40
 #define LIGHTNING_EMIT_INTERVAL 10
@@ -463,6 +514,10 @@ qboolean FX_ForceLightningEnvironment(centity_t *cent, vec3_t origin, matrix3_t 
 
 	if (!cg_lightningEnvironment.integer)
 		return qfalse;
+	if (cg_lightningEnvironment.integer == 2) {
+		FX_ForceLightningReference(cent, origin, axis, wide);
+		return qtrue;
+	}
 	if (cent->lightningEnvironmentTime > cg.time &&
 		cent->lightningEnvironmentTime <= cg.time + LIGHTNING_EMIT_INTERVAL)
 		return qtrue;
