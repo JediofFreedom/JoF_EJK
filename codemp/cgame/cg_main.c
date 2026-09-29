@@ -1297,6 +1297,17 @@ static void CG_RegisterEffects( void )
 extern char *forceHolocronModels[];
 int CG_HandleAppendedSkin(char *modelName);
 void CG_CacheG2AnimInfo(char *modelName);
+
+// The reference-lightning asset pack is optional and distributed separately.
+static fxHandle_t CG_RegisterOptionalLightningEffect(const char *path) {
+	fileHandle_t file = 0;
+	trap->FS_Open(path, &file, FS_READ);
+	if (!file)
+		return 0;
+	trap->FS_Close(file);
+	return trap->FX_RegisterEffect(path);
+}
+
 /*
 =================
 CG_RegisterGraphics
@@ -1443,6 +1454,9 @@ static void CG_RegisterGraphics( void )
 	cgs.effects.forceLightningWide	= trap->FX_RegisterEffect( "effects/force/lightningwide.efx" );
 	cgs.effects.demp2WallImpactEffectSmall = trap->FX_RegisterEffect( "effects/mp/wall_impact_small" );
 	cgs.effects.forceLightningBranch = trap->FX_RegisterEffect( "effects/mp/lightning_branch" );
+	cgs.effects.forceLightningReference = CG_RegisterOptionalLightningEffect("effects/mp/lightning_reference/lightning.efx");
+	cgs.effects.forceLightningReferenceWide = CG_RegisterOptionalLightningEffect("effects/mp/lightning_reference/lightningwide.efx");
+	cgs.effects.forceLightningReferenceArc = CG_RegisterOptionalLightningEffect("effects/mp/lightning_reference/lightning_arc.efx");
 
 	cgs.media.forceLightningArcShader = trap->R_RegisterShader("gfx/misc/blueLine");
 	cgs.media.forceLightningFlashShader = trap->R_RegisterShader("gfx/misc/lightningFlash");
