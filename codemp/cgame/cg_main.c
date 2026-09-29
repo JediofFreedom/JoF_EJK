@@ -1184,15 +1184,11 @@ static void CG_RegisterDestructionEffects(void)
 	// handles are local and do not replace the server's shared FX registrations.
 	cgs.effects.destructionProjectile = trap->FX_RegisterEffect("concussion/shot");
 	cgs.effects.destructionImpact = trap->FX_RegisterEffect("concussion/explosion");
-	cgs.effects.destructionCustomProjectile = qfalse;
 	cgs.effects.destructionCustomImpact = qfalse;
 
 	effect = trap->FX_RegisterEffect("forcedestruction/destruction");
 	if (effect)
-	{
 		cgs.effects.destructionProjectile = effect;
-		cgs.effects.destructionCustomProjectile = qtrue;
-	}
 	effect = trap->FX_RegisterEffect("forcedestruction/destruction_explode_enhanced2");
 	if (!effect)
 		effect = trap->FX_RegisterEffect("forcedestruction/destruction_explode");
@@ -1240,15 +1236,8 @@ qboolean CG_PlayDestructionEffect(const entityState_t *state, vec3_t origin,
 
 	if (VectorNormalize2(direction, forward) == 0.0f)
 		forward[2] = 1.0f;
-	if (impact)
-		trap->FX_PlayEffectID(cgs.effects.destructionImpact, origin, forward, -1, -1, qfalse);
-	else
-	{
-		int i;
-		// Stack the custom smoke, but keep the additive stock shot at one layer.
-		for (i = 0; i < (cgs.effects.destructionCustomProjectile ? DESTRUCTION_EFX_LAYERS : 1); i++)
-			trap->FX_PlayEffectID(cgs.effects.destructionProjectile, origin, forward, -1, -1, qfalse);
-	}
+	trap->FX_PlayEffectID(impact ? cgs.effects.destructionImpact : cgs.effects.destructionProjectile,
+		origin, forward, -1, -1, qfalse);
 	if (impact && cgs.effects.destructionCustomImpact && cgs.media.destructionImpactSounds[state->number & 1])
 		trap->S_StartSound(origin, state->number, CHAN_AUTO, cgs.media.destructionImpactSounds[state->number & 1]);
 	return qtrue;
