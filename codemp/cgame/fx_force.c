@@ -95,7 +95,7 @@ static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t
 		if (cent->lightningReferenceSoundTime[i] < cg.time) {
 			cent->lightningReferenceSoundTime[i] = cg.time + Q_irand(500, 750);
 			trap->S_StartSound(end, cent->currentState.number, CHAN_AUTO,
-				cgs.media.forceLightningEnvironmentSounds[Q_irand(0, ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds) - 1)]);
+				cgs.media.forceLightningImpactSounds[Q_irand(0, 2)]);
 		}
 	}
 }
@@ -414,7 +414,7 @@ static void FX_LightningNestImpactSound(vec3_t pos) {
 		return;
 	lightningSounds++;
 	trap->S_StartSound(pos, ENTITYNUM_WORLD, CHAN_AUTO,
-		cgs.media.forceLightningEnvironmentSounds[rand() % ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds)]);
+		cgs.media.forceLightningImpactSounds[rand() % 3]);
 }
 
 // Main beam impact sound - single variant, chosen by time+entity (matches
@@ -434,14 +434,14 @@ static void FX_LightningImpactSound(centity_t *cent, const trace_t *hit) {
 	if (lightningSounds >= LIGHTNING_SOUND_BUDGET)
 		return;
 
-	sound = (cg.time / LIGHTNING_INTERVAL + cent->currentState.number) % ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds);
-	cent->lightningImpactSoundTime = cg.time + LIGHTNING_SOUND_INTERVAL + (sound % 3) * 30;
-	if (!cgs.media.forceLightningEnvironmentSounds[sound])
+	sound = (cg.time / LIGHTNING_INTERVAL + cent->currentState.number) % 3;
+	cent->lightningImpactSoundTime = cg.time + LIGHTNING_SOUND_INTERVAL + sound * 30;
+	if (!cgs.media.forceLightningImpactSounds[sound])
 		return;
 
 	lightningSounds++;
 	VectorMA(hit->endpos, 2.0f, hit->plane.normal, contact);
-	trap->S_StartSound(contact, ENTITYNUM_WORLD, CHAN_AUTO, cgs.media.forceLightningEnvironmentSounds[sound]);
+	trap->S_StartSound(contact, ENTITYNUM_WORLD, CHAN_AUTO, cgs.media.forceLightningImpactSounds[sound]);
 }
 
 // Random point along the main beam's hand->tip segment to branch off from.

@@ -12,11 +12,6 @@ duplicate fallback impacts when a pack arc owns its impact effect. Fallback
 impacts skip sky/no-impact/nodraw and solid-start traces.
 Float comparisons allow 0.001 units for x87/SSE rounding differences.
 
-Audio deliberately differs from the binary: environment impacts select six
-stock spark samples (as in MB2's impact EFX), not three player-hit samples.
-The test verifies the six-way selection and maps it back to three variants only
-when comparing recorded sound IDs. Timing and random-call order still match.
-
 `lightning_forward_arc_check` exercises 3,853 cases of the same production helper:
 fresh and cached directions, left/right angle boundaries, backwards directions,
 player yaw/pitch, narrow/wide lightning, hits/misses and cvar bounds. It checks
