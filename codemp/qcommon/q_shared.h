@@ -427,6 +427,7 @@ typedef enum
 // Server-granted Force Destruction. Keep the stock force arrays/protocol intact.
 #define DESTRUCTION_KNOWN_BIT	(NUM_FORCE_POWERS + 3)
 #define DESTRUCTION_KNOWN_FLAG	(1u << DESTRUCTION_KNOWN_BIT)
+#define DESTRUCTION_HAND_FLAG	(1u << DESTRUCTION_KNOWN_BIT) // in forcePowersActive, not forcePowersKnown
 #define DESTRUCTION_WHEEL_SLOT	(NUM_FORCE_POWERS + 3)
 #define FORCE_WHEEL_CAPACITY		(NUM_FORCE_POWERS + 4)
 // Identifies our concussion-compatible missile/impact; generic1 is an 8-bit field.

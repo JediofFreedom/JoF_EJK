@@ -43,12 +43,23 @@ static void Press(bool down)
 
 static void CheckPartialWheelOrder()
 {
-	// Sense, Stasis, Repulse and Lightning may each be unavailable independently.
-	for (int grants = 0; grants < 16; ++grants)
+	// Every pseudo-slot and its real anchor may be unavailable independently.
+	for (int grants = 0; grants < 128; ++grants)
 	{
 		struct { int slots[FORCE_WHEEL_CAPACITY]; int guard; } wheel = {{0}, 12345};
 		int expected[FORCE_WHEEL_CAPACITY], count = 0;
-		snapshot.ps.fd.forcePowersKnown = DESTRUCTION_KNOWN_FLAG | (1 << FP_PUSH) | (1 << FP_DRAIN);
+		snapshot.ps.fd.forcePowersKnown = (1 << FP_HEAL) | (1 << FP_PUSH) | (1 << FP_DRAIN);
+		expected[count++] = FP_HEAL;
+		if (grants & 16)
+		{
+			snapshot.ps.fd.forcePowersKnown |= 1 << DASH_KNOWN_BIT;
+			expected[count++] = DASH_WHEEL_SLOT;
+		}
+		if (grants & 32)
+		{
+			snapshot.ps.fd.forcePowersKnown |= 1 << FP_SPEED;
+			expected[count++] = FP_SPEED;
+		}
 		expected[count++] = FP_PUSH;
 		if (grants & 1)
 		{
@@ -65,7 +76,11 @@ static void CheckPartialWheelOrder()
 			snapshot.ps.fd.forcePowersKnown |= 1 << REPULSE_KNOWN_BIT;
 			expected[count++] = REPULSE_WHEEL_SLOT;
 		}
-		expected[count++] = DESTRUCTION_WHEEL_SLOT;
+		if (grants & 64)
+		{
+			snapshot.ps.fd.forcePowersKnown |= DESTRUCTION_KNOWN_FLAG;
+			expected[count++] = DESTRUCTION_WHEEL_SLOT;
+		}
 		if (grants & 8)
 		{
 			snapshot.ps.fd.forcePowersKnown |= 1 << FP_LIGHTNING;
@@ -75,6 +90,29 @@ static void CheckPartialWheelOrder()
 		CHECK(CG_BuildForceWheel(wheel.slots) == count && wheel.guard == 12345);
 		for (int i = 0; i < count; ++i) CHECK(wheel.slots[i] == expected[i]);
 	}
+}
+
+static void CheckMovementEligibility()
+{
+	const int modes[] = { PM_NORMAL, PM_JETPACK, PM_FLOAT, PM_NOCLIP, PM_SPECTATOR, PM_DEAD };
+	cl.snap.valid = qtrue;
+	cl.snap.ps.stats[STAT_HEALTH] = 100;
+	cl.snap.ps.fd.forcePowersKnown = DESTRUCTION_KNOWN_FLAG;
+	destruction.integer = 1;
+	for (int mode : modes)
+	{
+		const int before = commands;
+		const bool allowed = mode != PM_SPECTATOR && mode != PM_DEAD;
+		snapshot.ps.pm_type = cl.snap.ps.pm_type = mode;
+		CHECK(CG_HasDestruction() == allowed);
+		Press(false); Press(true); Press(true);
+		CHECK(commands == before + (allowed ? 1 : 0));
+	}
+	Press(false);
+	snapshot.ps.pm_type = PM_NORMAL;
+	std::memset(&cl, 0, sizeof(cl));
+	destruction.integer = 0;
+	commands = 0;
 }
 
 int main()
@@ -89,6 +127,7 @@ int main()
 	cgs.forceDestruction = qfalse;
 	CHECK(CG_BuildForceWheel(wheel.slots) == 0); // unrelated servers may use the same spare bit
 	cgs.forceDestruction = qtrue;
+	CheckMovementEligibility();
 	CheckPartialWheelOrder();
 	snapshot.ps.fd.forcePowersKnown = (1 << FORCE_WHEEL_CAPACITY) - 1;
 	count = CG_BuildForceWheel(wheel.slots);

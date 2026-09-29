@@ -6316,6 +6316,52 @@ static void CG_ForceGripEffect( vec3_t org )
 	ex->refEntity.customShader = cgs.media.redSaberGlowShader;//trap->R_RegisterShader( "gfx/effects/forcePush" );
 }
 
+static void CG_ForceDestructionHandEffect( vec3_t org, const vec3_t fwd, float scale )
+{
+	localEntity_t *ex;
+	float wv = sin( cg.time * 0.003f ) * 0.08f + 0.1f;
+	int i;
+
+	// Short, forward-moving puffs hand off to the orb when the server clears the flag.
+	for ( i = 0; i < 2; i++ )
+	{
+		ex = CG_AllocLocalEntity();
+		ex->leType = LE_PUFF;
+		ex->refEntity.reType = RT_SPRITE;
+		ex->refEntity.rotation = Q_flrand( 0.0f, 360.0f );
+		ex->radius = ( 3.5f + Q_flrand( 0.0f, 1.5f ) ) * scale;
+		ex->startTime = cg.time;
+		ex->endTime = ex->startTime + 110 + Q_irand( 0, 40 );
+		VectorCopy( org, ex->pos.trBase );
+		ex->pos.trTime = cg.time;
+		ex->pos.trType = TR_LINEAR;
+		VectorScale( fwd, Q_flrand( 60, 110 ), ex->pos.trDelta );
+		ex->pos.trDelta[0] += Q_flrand( -10, 10 );
+		ex->pos.trDelta[1] += Q_flrand( -10, 10 );
+		ex->pos.trDelta[2] += Q_flrand( 0, 12 );
+		ex->color[0] = 110 + wv * 400;
+		if ( ex->color[0] > 170 )
+			ex->color[0] = 170;
+		ex->color[1] = ex->color[2] = 0;
+		ex->refEntity.customShader = trap->R_RegisterShader( "gfx/effects/forcePush" );
+	}
+
+	ex = CG_AllocLocalEntity();
+	ex->leType = LE_PUFF;
+	ex->refEntity.reType = RT_SPRITE;
+	ex->refEntity.rotation = 180.0f;
+	ex->radius = 3.0f * scale;
+	ex->startTime = cg.time;
+	ex->endTime = ex->startTime + 100;
+	VectorCopy( org, ex->pos.trBase );
+	ex->pos.trTime = cg.time;
+	ex->pos.trType = TR_LINEAR;
+	VectorScale( fwd, 70, ex->pos.trDelta );
+	ex->color[0] = 150;
+	ex->color[1] = ex->color[2] = 30;
+	ex->refEntity.customShader = cgs.media.redSaberGlowShader;
+}
+
 
 /*
 ===============
@@ -11497,10 +11543,11 @@ void CG_Player( centity_t *cent ) {
 	vec3_t			angles, dir, elevated, enang, seekorg;
 	int				iwantout = 0, successchange = 0;
 	int				team;
-	mdxaBone_t 		boltMatrix, lHandMatrix;
+	mdxaBone_t 		boltMatrix, lHandMatrix, rHandMatrix;
 	mdxaBone_t 		headMatrix; //fpls
 	int				doAlpha = 0;
 	qboolean		gotLHandMatrix = qfalse;
+	qboolean		gotRHandMatrix = qfalse;
 	qboolean		g2HasWeapon = qfalse;
 	qboolean		drawPlayerSaber = qfalse;
 	qboolean		checkDroidShields = qfalse;
@@ -13010,8 +13057,7 @@ skipTrail:
 		if ( cent->currentState.torsoAnim == BOTH_FORCE_2HANDEDLIGHTNING_HOLD
 			&& Q_irand( 0, 1 ) )
 		{//alternate back and forth between left and right
-			mdxaBone_t 	rHandMatrix;
-			trap->G2API_GetBoltMatrix(cent->ghoul2, 0, ci->bolt_rhand, &rHandMatrix, cent->turAngles, cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale);
+			gotRHandMatrix = trap->G2API_GetBoltMatrix(cent->ghoul2, 0, ci->bolt_rhand, &rHandMatrix, cent->turAngles, cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale);
 			efOrg[0] = rHandMatrix.matrix[0][3];
 			efOrg[1] = rHandMatrix.matrix[1][3];
 			efOrg[2] = rHandMatrix.matrix[2][3];
@@ -13246,7 +13292,39 @@ skipTrail:
 		efOrg[1] = lHandMatrix.matrix[1][3];
 		efOrg[2] = lHandMatrix.matrix[2][3];
 
-		if ( (cent->currentState.forcePowersActive & (1 << FP_GRIP)) &&
+		// Consume the marker even when hidden/first-person: never fall through to
+		// the vanilla Grip compatibility bit or the caster's stock Push blur.
+		if ( cent->currentState.forcePowersActive & DESTRUCTION_HAND_FLAG )
+		{
+			if ( (cg.renderingThirdPerson || cent->currentState.number != cg.snap->ps.clientNum) &&
+				forceFXVisible )
+			{
+				const qboolean super = (cent->currentState.weapon == WP_MELEE);
+				const float scale = super ? 1.15f : 1.0f;
+				vec3_t fwd;
+
+				AngleVectors( cent->lerpAngles, fwd, NULL, NULL );
+				CG_ForceDestructionHandEffect( efOrg, fwd, scale );
+				CG_ForceDestructionHandEffect( efOrg, fwd, scale );
+
+				if ( super && cent->ghoul2 && ci->bolt_rhand != -1 )
+				{
+					vec3_t rOrg;
+					if ( !gotRHandMatrix )
+						gotRHandMatrix = trap->G2API_GetBoltMatrix( cent->ghoul2, 0, ci->bolt_rhand,
+							&rHandMatrix, cent->turAngles, cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale );
+					if ( gotRHandMatrix )
+					{
+						rOrg[0] = rHandMatrix.matrix[0][3];
+						rOrg[1] = rHandMatrix.matrix[1][3];
+						rOrg[2] = rHandMatrix.matrix[2][3];
+						CG_ForceDestructionHandEffect( rOrg, fwd, scale );
+						CG_ForceDestructionHandEffect( rOrg, fwd, scale );
+					}
+				}
+			}
+		}
+		else if ( (cent->currentState.forcePowersActive & (1 << FP_GRIP)) &&
 			(cg.renderingThirdPerson || cent->currentState.number != cg.snap->ps.clientNum) &&
 			forceFXVisible )
 		{

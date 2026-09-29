@@ -25,6 +25,8 @@ bind x force_destruction
 
 The wheel places it after Repulse and before Lightning. Missing powers are
 skipped without moving Destruction to the end of the wheel.
+Dash stays before Speed's position, and Stasis/Repulse after Sense's position,
+even when those real powers are not owned.
 Holding Use Force does not repeat the cast. No Lightning rank is required.
 Turning the server setting off or changing to the light side removes the grant.
 Unsupported servers do not get the wheel entry or client-generated command.
@@ -74,6 +76,20 @@ on saber-only maps. Vanilla and older clients therefore see a normal concussion
 projectile and explosion without downloading custom assets. Damage and knockback
 remain server-authoritative; vanilla clients do not gain the new wheel entry.
 
+On JoF JA+ V123, the client keeps a server-granted Destruction entry and command
+available during jetpack flight, floating and noclip. Dead players, spectators
+and followers remain excluded. The server still decides whether a cast is allowed;
+keeping the noclip entry visible does not authorize a noclip cast.
+
+V123's hand charge uses `PW_DISINT_4` and bit 21 of `forcePowersActive`
+(`DESTRUCTION_HAND_FLAG`, distinct from the grant in `forcePowersKnown`). It takes
+precedence over the remote caster's vanilla Grip compatibility bit. Short crimson
+sprites drift forward from the left hand; Melee casts use both hands at 1.15x size.
+They are hidden in the caster's first-person view and when mind-tricked. The server
+ends emission after its 100 ms flag window; existing sprites expire within 150 ms
+without a client-side extension. The 650 ms pose and orb timing, origin and effects
+are unchanged. Both hand shaders are stock assets, so no download is needed.
+
 Updated clients recognize the marker and use stock concussion effects and their
 vanilla impact audio by default, with Force Push cast audio and Lightning's wheel
 icon. Custom Destruction effects, sounds and icons are not included in this repo
@@ -115,6 +131,10 @@ they are not an in-game test. Media checks cover all 128 combinations of
 missing/present trail, both impact effects, icon and three sound files, as well
 as unchanged ordinary weapon FX/sounds. The asset check ensures that custom
 Destruction media and its retired packaged credit are not bundled.
+Hand checks cover short lifetimes, forward movement, normal/Super sizes, both
+hands, matrix reuse, first-person/mind-trick hiding, and unchanged Push/Grip routing.
+Wheel checks include all 128 combinations of extra grants and their anchor powers,
+plus flying/noclip eligibility and protected spectator/dead input states.
 
 In-game checks before release:
 
