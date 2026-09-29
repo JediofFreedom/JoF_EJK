@@ -26,8 +26,8 @@ static struct { float value; } cg_lightningEnvironmentAngle = { 360.0f };
 static struct {
 	struct { int forceLightning, forceLightningWide, forceLightningBranch, demp2WallImpactEffectSmall;
 		int forceLightningReference, forceLightningReferenceWide, forceLightningReferenceArc; } effects;
-	struct { int forceLightningImpactSounds[3]; } media;
-} cgs = { { 40, 41, 42, 43 }, { { 11, 12, 13 } } };
+	struct { int forceLightningEnvironmentSounds[6]; } media;
+} cgs = { { 40, 41, 42, 43 }, { { 11, 12, 13, 14, 15, 16 } } };
 
 static FILE *reference;
 static int frame, randomCount, irandomCount, traceCount, hitMask, mainCount, expectedMain;
@@ -37,6 +37,7 @@ static vec3_t expectedOrigin;
 static matrix3_t expectedAxis;
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "Frame %d, line %d: %s\n", frame, __LINE__, #x); exit(1); } } while (0)
 #define VectorCopy(a,b) memcpy(b, a, sizeof(vec3_t))
+#define ARRAY_LEN(a) ((int)(sizeof(a) / sizeof((a)[0])))
 #define DEG2RAD(a) ((a) * (3.14159265358979323846f / 180.0f))
 #define DotProduct(a,b) ((a)[0]*(b)[0] + (a)[1]*(b)[1] + (a)[2]*(b)[2])
 static float Com_Clamp(float min, float max, float value) {
@@ -72,7 +73,14 @@ static int ReferenceRandom(void) {
 #define rand ReferenceRandom
 static int Q_irand(int min, int max) {
 	int result = min + (irandomCount++ * 137 + 73) % (max - min + 1);
-	Tag("IRAND"); Int(min); Int(max); Int(result);
+	Tag("IRAND"); Int(min);
+	// The port deliberately selects six environment sparks instead of the
+	// binary's three player-hit samples. Random-call order stays unchanged.
+	if (min == 0 && max == 5) {
+		Int(2); Int(result % 3);
+	} else {
+		Int(max); Int(result);
+	}
 	return result;
 }
 static void AngleVectors(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up) {
@@ -121,7 +129,9 @@ static void PlayArc(int effect, vec3_t origin, vec3_t direction, int a, int b, q
 	Tag("FX"); Vec(origin); Vec(direction);
 }
 static void Sound(vec3_t origin, int entity, int channel, int sound) {
-	Tag("SOUND"); Vec(origin); Int(entity); Int(channel); Int(sound);
+	CHECK(sound >= 11 && sound <= 16);
+	CHECK(sound == 11 + ((irandomCount - 1) * 137 + 73) % 6);
+	Tag("SOUND"); Vec(origin); Int(entity); Int(channel); Int(11 + (sound - 11) % 3);
 }
 static struct {
 	void (*FX_PlayEntityEffectID)(int, vec3_t, matrix3_t, int, int, int, int);

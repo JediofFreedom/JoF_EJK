@@ -826,9 +826,11 @@ static void CG_RegisterSounds( void ) {
 	trap->S_RegisterSound("sound/weapons/force/see.wav");
 	trap->S_RegisterSound("sound/weapons/force/rage.wav");
 	trap->S_RegisterSound("sound/weapons/force/lightning");
-	cgs.media.forceLightningImpactSounds[0] = trap->S_RegisterSound("sound/weapons/force/lightninghit1");
-	cgs.media.forceLightningImpactSounds[1] = trap->S_RegisterSound("sound/weapons/force/lightninghit2");
-	cgs.media.forceLightningImpactSounds[2] = trap->S_RegisterSound("sound/weapons/force/lightninghit3");
+	// Environment impacts use the spark sounds from MB2's lightning_impact EFX.
+	// lightninghit1-3 belong to player hits and must not be reused here.
+	for (i = 0; i < ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds); i++) {
+		cgs.media.forceLightningEnvironmentSounds[i] = trap->S_RegisterSound(va("sound/ambience/spark%i.wav", i + 1));
+	}
 	trap->S_RegisterSound("sound/weapons/force/drain.wav");
 	trap->S_RegisterSound("sound/weapons/force/jumpbuild.wav");
 	trap->S_RegisterSound("sound/weapons/force/distract.wav");
