@@ -23,10 +23,12 @@ solid-start contacts. Pack arcs own their impacts and do not receive an addition
 fallback impact. The main spray plays once per invocation with the hand axes.
 
 No additional EFX, textures, shaders, sound files or PK3s are included in this
-change. The tested wider spray and custom hand flash, ignition and impact sounds
-remain in the separate local asset pack. The usual sound paths are still used:
-`sound/weapons/force/lightning` and `sound/weapons/force/lightninghit1` through
-`lightninghit3`. An installed pack can override those sounds normally.
+change. The tested wider spray, custom hand flash and ignition sound remain in
+the separate local asset pack. Environment impacts in modes 1 and 2 use
+`sound/ambience/spark1.wav` through `spark6.wav`, the same stock samples named by
+MB2's `lightning_impact.efx`; no MB2 sound download is required. Player-hit sounds
+(`sound/weapons/force/lightninghit1` through `lightninghit3`) are not used for
+environment audio. The optional pack must not override those player-hit paths.
 
 ## Forward angle
 
@@ -61,7 +63,8 @@ environment arcs with spread 0.8. These are additional to the main hand spray.
 - Arcs emit when frame time is positive and either at least 50 ms or
   `cg.time % 50 <= cg.frametime`. Main lightning still plays on each invocation.
 - Each arc has an independent 500-750 ms sound timer. Sound plays at the
-  requested trace endpoint on the owner's `CHAN_AUTO`, with one of three hits.
+  requested trace endpoint on the owner's `CHAN_AUTO`, with one of six environment
+  sparks instead of the reference binary's three player-hit samples.
 - Timer comparisons are strict `<`, including the original time-reversal and
   zero-time behavior. Mode 1's budgets, nests and extra hand flash remain specific
   to mode 1.
@@ -80,7 +83,9 @@ It checks all eight combinations of optional effect handles, unchanged hand axes
 fallback surface-impact placement/filtering, and absence of duplicate impacts.
 Another 3,853 cases verify the angle limit, backward-bolt redirection, cvar bounds,
 fresh/cached directions, player turns, and trace/effect/sound consistency.
-The fixture requires no external binary or Python packages to run.
+The fixture requires no external binary or Python packages to run. Sound selection
+is explicitly checked against six spark handles; only its three-to-six variant
+mapping differs from the recorded binary, not sound timing or random-call order.
 
 Rendering uses the installed engine and asset pack; the automated checks cover
 the code's callback behavior rather than the visual appearance of those assets.
