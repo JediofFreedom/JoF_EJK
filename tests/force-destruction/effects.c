@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "qcommon/q_shared.h"
-#include "game/bg_public.h"
+#include "cgame/cg_local.h"
 
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL %d: %s\n", __LINE__, #x); exit(1); } } while (0)
 
@@ -12,16 +11,7 @@ enum { STOCK_PROJECTILE = 1, STOCK_IMPACT, CUSTOM_PROJECTILE, CUSTOM_IMPACT, ENH
 	STOCK_ICON, CUSTOM_ICON, STOCK_CAST, CUSTOM_CAST, STOCK_BOOM, CUSTOM_BOOM1, CUSTOM_BOOM2 };
 static int available, plays, playedEffect, sounds, playedSound;
 static vec3_t playedOrigin, playedDirection;
-static struct {
-	struct {
-		fxHandle_t destructionProjectile, destructionImpact;
-		qboolean destructionCustomImpact;
-	} effects;
-	struct {
-		qhandle_t destructionIcon, forcePowerIcons[NUM_FORCE_POWERS];
-		sfxHandle_t destructionCastSound, destructionImpactSounds[2];
-	} media;
-} cgs;
+cgs_t cgs;
 
 static void TestPrint(const char *fmt, ...) { (void)fmt; }
 static void NORETURN TestError(int code, const char *fmt, ...) { (void)code; (void)fmt; abort(); }
@@ -77,13 +67,8 @@ static void PlayEffect(int effect, vec3_t origin, vec3_t direction, int vol, int
 	VectorCopy(direction, playedDirection);
 }
 
-static struct {
-	fxHandle_t (*FX_RegisterEffect)(const char *);
-	qhandle_t (*R_RegisterShaderNoMip)(const char *);
-	void (*FX_PlayEffectID)(int, vec3_t, vec3_t, int, int, qboolean);
-	sfxHandle_t (*S_RegisterSound)(const char *);
-	void (*S_StartSound)(const vec3_t, int, int, sfxHandle_t);
-} imports = { RegisterEffect, RegisterShader, PlayEffect, RegisterSound, PlaySound }, *trap = &imports;
+static cgameImport_t imports;
+cgameImport_t *trap = &imports;
 
 #include "effects.h"
 
@@ -92,6 +77,7 @@ static void CheckEffects(int assets)
 	entityState_t missile = {0};
 	vec3_t origin = {3, 4, 5}, velocity = {0, 3, 4}, normal = {0, 0, 1}, stopped = {0};
 	int projectile = (assets & PROJECTILE_PRESENT) ? CUSTOM_PROJECTILE : STOCK_PROJECTILE;
+	int layers = (assets & PROJECTILE_PRESENT) ? 3 : 1;
 	int impact = (assets & ENHANCED_PRESENT) ? ENHANCED_IMPACT :
 		((assets & IMPACT_PRESENT) ? CUSTOM_IMPACT : STOCK_IMPACT);
 	int sound1 = (assets & SOUND1_PRESENT) ? CUSTOM_BOOM1 :
@@ -104,6 +90,7 @@ static void CheckEffects(int assets)
 	CG_RegisterDestructionEffects();
 	CHECK(cgs.effects.destructionProjectile == projectile);
 	CHECK(cgs.effects.destructionImpact == impact);
+	CHECK(cgs.effects.destructionCustomProjectile == (projectile != STOCK_PROJECTILE));
 	CHECK(cgs.effects.destructionCustomImpact == (impact != STOCK_IMPACT));
 	CHECK(cgs.media.destructionIcon == ((assets & ICON_PRESENT) ? CUSTOM_ICON : STOCK_ICON));
 	CHECK(cgs.media.destructionImpactSounds[0] == sound1 && cgs.media.destructionImpactSounds[1] == sound2);
@@ -114,21 +101,22 @@ static void CheckEffects(int assets)
 	// Rendering is local, even with old servers advertising unavailable FX.
 	missile.otherEntityNum2 = missile.emplacedOwner = MAX_FX;
 	CHECK(CG_PlayDestructionEffect(&missile, origin, velocity, qfalse));
-	CHECK(plays == 1 && playedEffect == projectile);
+	CHECK(plays == layers && playedEffect == projectile && sounds == 0);
 	CHECK(VectorCompare(origin, playedOrigin));
 	CHECK(playedDirection[0] == 0 && fabs(playedDirection[1] - 0.6f) < 0.0001f &&
 		fabs(playedDirection[2] - 0.8f) < 0.0001f);
 	CHECK(velocity[1] == 3 && velocity[2] == 4);
 	CHECK(CG_PlayDestructionEffect(&missile, origin, normal, qtrue));
-	CHECK(plays == 2 && playedEffect == impact && VectorCompare(normal, playedDirection));
+	CHECK(plays == layers + 1 && playedEffect == impact && VectorCompare(normal, playedDirection));
 	CHECK(sounds == (impact != STOCK_IMPACT));
 	if (sounds) CHECK(playedSound == sound1);
 	missile.number = 1;
 	CHECK(CG_PlayDestructionEffect(&missile, origin, normal, qtrue));
+	CHECK(plays == layers + 2 && playedEffect == impact);
 	CHECK(sounds == 2 * (impact != STOCK_IMPACT));
 	if (sounds) CHECK(playedSound == sound2);
 	CHECK(CG_PlayDestructionEffect(&missile, origin, stopped, qfalse));
-	CHECK(plays == 4 && playedEffect == projectile && VectorCompare(normal, playedDirection));
+	CHECK(plays == 2 * layers + 2 && playedEffect == projectile && VectorCompare(normal, playedDirection));
 
 	missile.generic1 = 0;
 	CHECK(!CG_PlayDestructionEffect(&missile, origin, velocity, qfalse));
@@ -139,14 +127,19 @@ static void CheckEffects(int assets)
 	CHECK(!CG_PlayDestructionEffect(&missile, origin, velocity, qfalse));
 	CHECK(!CG_PlayDestructionEffect(&missile, origin, normal, qtrue));
 	CHECK(CG_DestructionCastSound(&missile, 77) == 77);
-	CHECK(plays == 4 && sounds == 2 * (impact != STOCK_IMPACT));
+	CHECK(plays == 2 * layers + 2 && sounds == 2 * (impact != STOCK_IMPACT));
 }
 
 int main(void)
 {
 	int assets;
+	imports.FX_RegisterEffect = RegisterEffect;
+	imports.R_RegisterShaderNoMip = RegisterShader;
+	imports.FX_PlayEffectID = PlayEffect;
+	imports.S_RegisterSound = RegisterSound;
+	imports.S_StartSound = PlaySound;
 	for (assets = 0; assets < 128; ++assets) CheckEffects(assets);
 	CheckEffects(0); // reinitialization resets the previous complete asset set
-	puts("Destruction FX/icon/audio fallback, 128 partial-pack combinations, reload and normal-weapon checks passed.");
+	puts("Destruction projectile layering, single impacts, FX/icon/audio fallback, 128 partial-pack combinations, reload and normal-weapon checks passed.");
 	return 0;
 }

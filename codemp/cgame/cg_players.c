@@ -6316,7 +6316,7 @@ static void CG_ForceGripEffect( vec3_t org )
 	ex->refEntity.customShader = cgs.media.redSaberGlowShader;//trap->R_RegisterShader( "gfx/effects/forcePush" );
 }
 
-static void CG_ForceDestructionHandEffect( vec3_t org, const vec3_t fwd, float scale )
+static void CG_ForceDestructionHandSprites( vec3_t org, const vec3_t fwd, float scale )
 {
 	localEntity_t *ex;
 	float wv = sin( cg.time * 0.003f ) * 0.08f + 0.1f;
@@ -6360,6 +6360,20 @@ static void CG_ForceDestructionHandEffect( vec3_t org, const vec3_t fwd, float s
 	ex->color[0] = 150;
 	ex->color[1] = ex->color[2] = 30;
 	ex->refEntity.customShader = cgs.media.redSaberGlowShader;
+}
+
+static void CG_ForceDestructionHandEffect( vec3_t org, const vec3_t fwd, float scale )
+{
+	int i;
+
+	if ( !cgs.effects.destructionCustomProjectile )
+	{
+		CG_ForceDestructionHandSprites( org, fwd, scale );
+		return;
+	}
+	// The same smoke at the hand and orb makes the server's flag drop a hand-off.
+	for ( i = 0; i < DESTRUCTION_EFX_LAYERS; i++ )
+		trap->FX_PlayEffectID( cgs.effects.destructionProjectile, org, (float *)fwd, -1, -1, qfalse );
 }
 
 
@@ -13305,7 +13319,6 @@ skipTrail:
 
 				AngleVectors( cent->lerpAngles, fwd, NULL, NULL );
 				CG_ForceDestructionHandEffect( efOrg, fwd, scale );
-				CG_ForceDestructionHandEffect( efOrg, fwd, scale );
 
 				if ( super && cent->ghoul2 && ci->bolt_rhand != -1 )
 				{
@@ -13318,7 +13331,6 @@ skipTrail:
 						rOrg[0] = rHandMatrix.matrix[0][3];
 						rOrg[1] = rHandMatrix.matrix[1][3];
 						rOrg[2] = rHandMatrix.matrix[2][3];
-						CG_ForceDestructionHandEffect( rOrg, fwd, scale );
 						CG_ForceDestructionHandEffect( rOrg, fwd, scale );
 					}
 				}
