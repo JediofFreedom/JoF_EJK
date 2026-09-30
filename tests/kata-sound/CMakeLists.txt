@@ -20,9 +20,9 @@ configure_file("${repo}/codemp/versionfile/jofversion.h.in" "${CMAKE_CURRENT_BIN
 extract(codemp/game/bg_panimate.c "int BG_InGrappleMove(" "int BG_BrokenParryForAttack(")
 extract(codemp/game/bg_panimate.c "stringID_table_t animEventTypeTable[" "bgLoadedEvents_t bgAllEvents[")
 extract(codemp/cgame/cg_players.c "static sfxHandle_t CG_AnimEventSound(" "void CG_PlayerAnimEventDo(")
-extract(codemp/cgame/cg_predict.c "static qboolean CG_InMeleeGrappleVictimState(" "static void CG_PreserveMeleeKataFlightAnimation(")
-file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "static void PredictHold(void) { playerState_t oldPlayerState;\n")
-extract(codemp/cgame/cg_predict.c "\t// Grapple victims are positioned" "\t// prepare for pmove")
+extract(codemp/cgame/cg_predict.c "static qboolean CG_InMeleeGrappleVictimState(" "// JA+ locks the local view server-side")
+file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "static void PredictHold(void) { playerState_t oldPlayerState; const playerState_t *predictionPS = &cg.snap->ps;\n")
+extract(codemp/cgame/cg_predict.c "\t// Grapple victims are positioned" "\t// non-predicting local movement")
 file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "}\n")
 
 add_executable(kata_sound check.c "${repo}/codemp/qcommon/q_shared.c" "${repo}/shared/qcommon/q_string.c")

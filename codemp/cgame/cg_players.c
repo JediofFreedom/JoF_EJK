@@ -12353,23 +12353,13 @@ void CG_Player( centity_t *cent ) {
 					&& !cent->currentState.saberHolstered)
 				{ //switching away from the saber
 					//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberoffquick.wav" ));
-if (cg.time - cent->saberSoundOffDebounceTime >= 800
-						&& ci->saber[0].soundOff
-						&& !cent->currentState.saberHolstered
-						&& !CG_StaffSwapHoldShutdownSound( cent->currentState.number ))
-					{ //staff swap audio is handled with the blade update
-						trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, ci->saber[0].soundOff);
-					}
-
-					if (ci->saber[1].soundOff &&
-						ci->saber[1].model[0] &&
-						!cent->currentState.saberHolstered)
+					if (cg.time - cent->saberSoundOffDebounceTime >= 800)
 					{
 						cent->saberSoundOffDebounceTime = cg.time;
-						//a staff going onto a JA+ back was shut down as the blade went in, not here
+						// Staff shutdown is handled with the blade update.
 						if (ci->saber[0].soundOff
 							&& !cent->currentState.saberHolstered
-							&& !CG_StaffSwapShutdownSounded( cent->currentState.number ))
+							&& !CG_StaffSwapHoldShutdownSound( cent->currentState.number ))
 						{
 							trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, ci->saber[0].soundOff);
 						}

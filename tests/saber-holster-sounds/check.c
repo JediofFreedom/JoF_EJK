@@ -8,6 +8,7 @@
 #define DEBUGNAME(x) ((void)0)
 #define MAX_CLIENTS 4
 #define MAX_WEAPONS 8
+#define WP_NUM_WEAPONS MAX_WEAPONS
 #define CHAN_AUTO 0
 #define EF_DEAD 1
 #define PMF_FOLLOW 1
@@ -29,7 +30,7 @@ typedef int sfxHandle_t;
 typedef float vec3_t[3];
 typedef struct { float length, desiredLength; } blade_t;
 typedef struct { char model[16]; int type, numBlades, soundOn, soundOff; blade_t blade[2]; } saberInfo_t;
-typedef struct { int infoValid, team; saberInfo_t saber[2]; } clientInfo_t;
+typedef struct { int infoValid, team, serverSaberSoundOn[2]; saberInfo_t saber[2]; } clientInfo_t;
 typedef struct {
     int number, clientNum, eType, weapon, saberHolstered, saberInFlight, eFlags;
     int torsoAnim, torsoFlip, eventParm;
@@ -41,6 +42,7 @@ typedef struct {
 typedef struct {
     entityState_t currentState;
     int weapon, currentValid, torsoBolt, saberWasInFlight;
+    int saberSoundOffDebounceTime, saberSoundOnDebounceTime;
     void *ghoul2, *ghoul2weapon;
     vec3_t lerpOrigin;
     struct { struct { int animationNumber, animationTime, lastFlip; } torso; } pe;
@@ -155,6 +157,7 @@ static void TestCanceledWeaponSwitch(void) {
     Event(WP_SABER);
     Commit(WP_SABER);
     soundCount = 0;
+    cg.time += 800; //the first completed holster's debounce has elapsed
     Event(WP_MELEE); //lowering starts, but the player reselects saber before it finishes
     CHECK(Count(SHUTDOWN) == 0);
     Commit(WP_SABER); //the twirl keeps the same weapon and blade
@@ -195,6 +198,21 @@ static void TestStaffTiming(void) {
     Anim(BOTH_S7_S1_NEW, 90);
     Update(0); //another real holster within 2 seconds must not be suppressed
     CHECK(Count(SHUTDOWN) == 2);
+}
+static void TestDualShutdownDebounce(void) {
+    Reset(0);
+    strcpy(cgs.clientinfo[0].saber[1].model, "second");
+    cgs.clientinfo[0].saber[1].soundOff = SHUTDOWN + 10;
+    Commit(WP_MELEE);
+    CHECK(Count(SHUTDOWN) == 1 && Count(SHUTDOWN + 10) == 1);
+    cg.time += 100;
+    Commit(WP_SABER);
+    Commit(WP_MELEE);
+    CHECK(Count(SHUTDOWN) == 1 && Count(SHUTDOWN + 10) == 1);
+    cg.time += 800;
+    Commit(WP_SABER);
+    Commit(WP_MELEE);
+    CHECK(Count(SHUTDOWN) == 2 && Count(SHUTDOWN + 10) == 2);
 }
 static void TestMissedAnimationFrames(void) {
     Reset(1);
@@ -273,6 +291,7 @@ static void TestGatingAndReset(void) {
 int main(void) {
     TestCanceledWeaponSwitch();
     TestStaffTiming();
+    TestDualShutdownDebounce();
     TestMissedAnimationFrames();
     TestCanceledDraw();
     TestStaleTorsoFrames();

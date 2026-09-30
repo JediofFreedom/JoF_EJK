@@ -1126,13 +1126,8 @@ static qboolean CG_InMeleeGrappleVictimState( const playerState_t *ps )
 	// A channel can still contain the hold animation during the transition to the
 	// flight animation, so treat flight as the authoritative exit from the victim state.
 	if ( ps->stats[STAT_HEALTH] <= 0 ||
-		ps->legsAnim == BOTH_PLAYER_PA_3_FLY ||
-		ps->torsoAnim == BOTH_PLAYER_PA_3_FLY )
-	{
-		return qfalse;
-	}
-	return qtrue;
-}
+		(ps->legsAnim == BOTH_PLAYER_PA_3_FLY && ps->legsTimer > 0) ||
+		(ps->torsoAnim == BOTH_PLAYER_PA_3_FLY && ps->torsoTimer > 0) )
 	{
 		return qfalse;
 	}
@@ -1144,12 +1139,7 @@ static qboolean CG_InMeleeGrappleVictimState( const playerState_t *ps )
 static void CG_PreserveMeleeKataFlightAnimation( playerState_t *predicted,
 	const playerState_t *server )
 {
-	if ( server->stats[STAT_HEALTH] <= 0 ||
-		((server->legsAnim != BOTH_PLAYER_PA_3_FLY || server->legsTimer <= 0) &&
-		(server->torsoAnim != BOTH_PLAYER_PA_3_FLY || server->torsoTimer <= 0)) )
-	{
-		return;
-	}
+	if ( server->stats[STAT_HEALTH] <= 0 )
 	{
 		return;
 	}
@@ -1167,15 +1157,24 @@ static void CG_PreserveMeleeKataFlightAnimation( playerState_t *predicted,
 		predicted->torsoAnim = server->torsoAnim;
 		predicted->torsoFlip = server->torsoFlip;
 	}
-	// The paired throw's flight pose is server-authoritative while the local
-	// ballistic origin remains predicted.
-	if ( predicted->legsAnim == BOTH_PLAYER_PA_3_FLY || predicted->torsoAnim == BOTH_PLAYER_PA_3_FLY )
+}
+
+// JA+ locks the local view server-side (it rewrites delta_angles every server
+// frame) while we're being kicked down, getting up or kissing. Mirrors the anim
+// list bg_pmove's JA+ animation support locks for, plus the kick knockdown
+// window above.
+static qboolean CG_JAPlusViewLockedState( playerState_t *ps )
+{
+	if ( ps->legsAnim == BOTH_JUMP_BACKFLIP_ATCKEE || ps->torsoAnim == BOTH_JUMP_BACKFLIP_ATCKEE
+		|| ps->torsoAnim == BOTH_GETUP1 || ps->torsoAnim == BOTH_NEW_STABEE )
 	{
-		predicted->legsAnim = BOTH_PLAYER_PA_3_FLY;
-		predicted->torsoAnim = BOTH_PLAYER_PA_3_FLY;
-		predicted->legsFlip = server->legsFlip;
-		predicted->torsoFlip = server->torsoFlip;
+		return qtrue;
 	}
+	if ( ps->legsAnim >= BOTH_KISSEE && ps->legsAnim <= BOTH_KISSER1STOP )
+	{
+		return qtrue;
+	}
+	return CG_InKnockDownState( ps );
 }
 
 // JA+ marks victims of its added side/back kicks with forceDodgeAnim 4/5 and
@@ -1298,28 +1297,15 @@ void CG_PredictPlayerState( void ) {
 	// bg_pmove doesn't replicate, so while we're down every movement input mispredicts
 	// and the constant error corrections make the camera stutter. We can't actually
 	// move during the knockdown anyway, so prediction buys nothing there: fall back to
-// authoritative snapshot interpolation until we're back on our feet. Keep the
-// server angles as well because JA+ controls the victim's view during this state.
-if ( cgs.serverMod == SVMOD_JAPLUS && CG_InJAPlusSpecialKickState( &cg.snap->ps ) )
-
+	// authoritative snapshot interpolation until we're back on our feet. Keep the
+	// server angles as well because JA+ controls the victim's view during this state.
+	if ( cgs.serverMod == SVMOD_JAPLUS && CG_InJAPlusSpecialKickState( &cg.snap->ps ) )
 	{
 		CG_InterpolatePlayerState( qfalse );
 		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 		{
 			CG_InterpolateVehiclePlayerState(qtrue);
 		}
-		return;
-	}
-
-	// Grapple victims are positioned and animated by the server during the paired
-	// hold. Local command replay cannot reproduce the grappler's state there.
-	if ( CG_InMeleeGrappleVictimState( &cg.snap->ps ) )
-	{
-		oldPlayerState = cg.predictedPlayerState;
-		CG_InterpolatePlayerState( qfalse );
-		// Snapshot transitions still assume prediction is active here. Process
-		// damage, local sounds and events even though the hold skips Pmove.
-		CG_TransitionPlayerState( &cg.predictedPlayerState, &oldPlayerState );
 		return;
 	}
 
@@ -1914,8 +1900,6 @@ if ( cgs.serverMod == SVMOD_JAPLUS && CG_InJAPlusSpecialKickState( &cg.snap->ps 
 		}
 		goto revertES;
 	}
-
-	CG_PreserveMeleeKataFlightAnimation( &cg.predictedPlayerState, &cg.snap->ps );
 
 	if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 	{

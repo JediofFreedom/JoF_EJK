@@ -12,11 +12,17 @@ static testSnapshot_t serverSnapshot;
 static struct {
     playerState_t predictedPlayerState;
     testSnapshot_t *snap;
+    vec3_t predictedError;
+    int predictedErrorTime;
+    float predictedTimeFrac;
 } cg;
+static struct { int integer; } cg_noPredict, g_synchronousClients;
+static qboolean CG_UsingEWeb(void) { return qfalse; }
 
 void QDECL Com_Printf(const char *format, ...) { (void)format; }
 void QDECL Com_Error(int code, const char *format, ...) { (void)code; (void)format; exit(2); }
 void *BG_Alloc(int size) { void *p = calloc(1, size); CHECK(p); return p; }
+void VectorClear(vec3_t vec) { vec[0] = vec[1] = vec[2] = 0; }
 int Q_irand(int low, int high) { CHECK(high >= low); return randomChoice ? high : low; }
 
 static sfxHandle_t RegisterSound(const char *name) {
@@ -64,6 +70,7 @@ static void Parse(const char *text) {
 
 int main(void) {
     int i, calls;
+    playerState_t predicted, server;
     for (i = 0; i < MAX_TOTALANIMATIONS; i++) {
         animations[i].firstFrame = i;
         animations[i].numFrames = 200;
@@ -134,6 +141,52 @@ int main(void) {
     serverSnapshot.ps.legsAnim = BOTH_PLAYER_PA_3_FLY;
     PredictHold();
     CHECK(transitions == calls); // Flight resumes normal prediction.
+
+    // Ordinary movement and dead players must not enter the grapple path.
+    serverSnapshot.ps.legsAnim = BOTH_STAND1;
+    PredictHold();
+    CHECK(transitions == calls);
+    serverSnapshot.ps.legsAnim = BOTH_PLAYER_PA_2;
+    serverSnapshot.ps.stats[STAT_HEALTH] = 0;
+    PredictHold();
+    CHECK(transitions == calls);
+
+    // Torso-only holds still work, but non-predicting clients already dispatch
+    // transitions from snapshots and must not run them a second time here.
+    serverSnapshot.ps.stats[STAT_HEALTH] = 50;
+    serverSnapshot.ps.legsAnim = BOTH_STAND1;
+    serverSnapshot.ps.torsoAnim = BOTH_PLAYER_PA_3;
+    serverSnapshot.ps.torsoTimer = 2000;
+    CHECK(CG_InMeleeGrappleVictimState(&serverSnapshot.ps));
+    cg_noPredict.integer = 1;
+    PredictHold();
+    CHECK(transitions == calls);
+    cg_noPredict.integer = 0;
+    g_synchronousClients.integer = 1;
+    PredictHold();
+    CHECK(transitions == calls);
+
+    // Restore active flight channels only; keep movement, expired channels,
+    // and death animations as prediction/server updates selected them.
+    memset(&predicted, 0, sizeof(predicted));
+    memset(&server, 0, sizeof(server));
+    predicted.legsAnim = predicted.torsoAnim = BOTH_STAND1;
+    predicted.velocity[0] = 500;
+    server.stats[STAT_HEALTH] = 50;
+    server.legsAnim = server.torsoAnim = BOTH_PLAYER_PA_3_FLY;
+    server.legsTimer = 800;
+    server.legsFlip = server.torsoFlip = qtrue;
+    CG_PreserveMeleeKataFlightAnimation(&predicted, &server);
+    CHECK(predicted.legsAnim == BOTH_PLAYER_PA_3_FLY && predicted.legsFlip);
+    CHECK(predicted.torsoAnim == BOTH_STAND1 && !predicted.torsoFlip);
+    CHECK(predicted.velocity[0] == 500);
+    server.torsoTimer = 800;
+    CG_PreserveMeleeKataFlightAnimation(&predicted, &server);
+    CHECK(predicted.torsoAnim == BOTH_PLAYER_PA_3_FLY && predicted.torsoFlip);
+    server.stats[STAT_HEALTH] = 0;
+    predicted.legsAnim = predicted.torsoAnim = BOTH_DEATH1;
+    CG_PreserveMeleeKataFlightAnimation(&predicted, &server);
+    CHECK(predicted.legsAnim == BOTH_DEATH1 && predicted.torsoAnim == BOTH_DEATH1);
 
     puts("kata sound checks passed");
     return 0;
