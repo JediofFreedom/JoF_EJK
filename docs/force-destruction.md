@@ -83,16 +83,17 @@ keeping the noclip entry visible does not authorize a noclip cast.
 
 V123's hand charge uses `PW_DISINT_4` and bit 21 of `forcePowersActive`
 (`DESTRUCTION_HAND_FLAG`, distinct from the grant in `forcePowersKnown`). It takes
-precedence over the remote caster's vanilla Grip compatibility bit. When the custom
-projectile EFX is installed, the hand and travelling orb each emit three layers of
-that same effect per frame for the MB2-style smoky look. Melee casts emit from both
-hands. The hand effect is hidden in the caster's first-person view and when
-mind-tricked. The server keeps the hand flags on during its 250 ms charge, then
+precedence over the remote caster's vanilla Grip compatibility bit. The optional
+hand EFX plays once per hand per frame, independently of the projectile EFX;
+the hand file controls its appearance. The custom travelling orb emits three
+layers per frame. Melee casts emit from both hands. The hand effect is hidden in
+the caster's first-person view and when mind-tricked. The server keeps the hand
+flags on during its 250 ms charge, then
 clears them in the snapshot that introduces the orb during the 1000 ms cast pose.
 There is no client timer: emission stops as soon as the flags clear, including an
 interrupted charge, and existing EFX particles fade according to their own lifetime.
-Without the custom projectile EFX, short crimson sprites drift forward from the
-left hand (both hands at 1.15x size for Melee) and expire within 150 ms.
+Without the custom hand EFX, two passes of short crimson sprites drift forward
+from the left hand (both hands at 1.15x size for Melee) and expire within 150 ms.
 
 Updated clients recognize the marker and use stock concussion effects and their
 vanilla impact audio by default, with Force Push cast audio and Lightning's wheel
@@ -101,6 +102,7 @@ or `jofclient-assets.pk3`. Optional locally installed media can override these
 defaults independently at the following paths:
 
 - Trail: `effects/forcedestruction/destruction.efx`.
+- Hand charge: `effects/forcedestruction/destruction_hand.efx`.
 - Impact: `effects/forcedestruction/destruction_explode_enhanced2.efx`, falling
   back to `destruction_explode.efx` if the enhanced effect is unavailable.
 - Wheel icon: `gfx/forcedestruction/force_destruction.tga`.
@@ -114,9 +116,9 @@ allowing audio fallback. Custom WAV sound effects must be mono for engine
 compatibility.
 
 Only the custom projectile EFX is stacked; stock concussion shots and all impacts
-play once. `DESTRUCTION_EFX_LAYERS` in `cg_local.h` tunes both hand and orb density.
-Missing effects use stock concussion visuals. A missing icon uses Lightning's
-icon; missing cast audio uses Force Push; a missing impact sample uses the other
+play once. `DESTRUCTION_EFX_LAYERS` in `cg_local.h` tunes only orb density.
+Missing trail/impact effects use stock concussion visuals. A missing icon uses
+Lightning's icon; missing cast audio uses Force Push; a missing impact sample uses the other
 sample, or stock mine-impact audio if neither is available. Stock concussion
 effects retain their own audio. The server advertises only stock FX and a tagged
 stock Force-push sound event, so vanilla clients do not need custom downloads.
@@ -133,12 +135,13 @@ ctest --test-dir build/force-destruction-check -C Release --output-on-failure
 
 These compile the real ability, Force restriction/Absorb helpers, wheel builder,
 input routing and FX selection/playback code against mocked engine services;
-they are not an in-game test. Media checks cover all 128 combinations of
-missing/present trail, both impact effects, icon and three sound files, as well
-as unchanged ordinary weapon FX/sounds. The asset check ensures that custom
+they are not an in-game test. Media checks cover all 256 combinations of
+missing/present trail, hand effect, both impact effects, icon and three sound
+files, as well as unchanged ordinary weapon FX/sounds. The asset check ensures that custom
 Destruction media and its retired packaged credit are not bundled.
-Hand checks cover custom smoke layering, sprite fallback lifetimes and forward
-movement, normal/Super sizes, both hands, matrix reuse, first-person/mind-trick
+Hand checks cover single custom EFX playback independently of the projectile,
+two sprite fallback passes, lifetimes and forward movement, normal/Super sizes,
+both hands, matrix reuse, first-person/mind-trick
 hiding, stopping emission when flags clear, and unchanged Push/Grip routing.
 Wheel checks include all 128 combinations of extra grants and their anchor powers,
 plus flying/noclip eligibility and protected spectator/dead input states.

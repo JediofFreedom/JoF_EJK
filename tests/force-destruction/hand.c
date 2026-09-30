@@ -10,8 +10,8 @@ cgs_t cgs;
 static cgameImport_t imports;
 cgameImport_t *trap = &imports;
 static snapshot_t snapshot;
-static localEntity_t puffs[6];
-static struct { vec3_t origin, direction; } playedEffects[6];
+static localEntity_t puffs[12];
+static struct { vec3_t origin, direction; } playedEffects[2];
 static int puffCount, effectCount, grips, pushes, rightFetches, leftFetches;
 static qboolean rightValid = qtrue;
 static vec3_t leftOrigin = { 1, 2, 3 }, rightOrigin = { 4, 5, 6 };
@@ -34,7 +34,7 @@ static qhandle_t RegisterShader(const char *name)
 }
 static void PlayEffect(int effect, vec3_t origin, vec3_t direction, int vol, int rad, qboolean portal)
 {
-	CHECK(cgs.effects.destructionCustomProjectile && effect == cgs.effects.destructionProjectile);
+	CHECK(cgs.effects.destructionHand && effect == cgs.effects.destructionHand);
 	CHECK(vol == -1 && rad == -1 && !portal);
 	CHECK(effectCount < ARRAY_LEN(playedEffects));
 	VectorCopy(origin, playedEffects[effectCount].origin);
@@ -88,7 +88,7 @@ static void CheckPuffs(int count, float scale, const vec3_t forward)
 		CHECK(p->leType == LE_PUFF && p->refEntity.reType == RT_SPRITE);
 		CHECK(p->startTime == cg.time && life >= 100 && life <= 150);
 		CHECK(p->pos.trType == TR_LINEAR && p->pos.trTime == cg.time);
-		CHECK(VectorCompare(p->pos.trBase, i < 3 ? leftOrigin : rightOrigin));
+		CHECK(VectorCompare(p->pos.trBase, i < 6 ? leftOrigin : rightOrigin));
 		CHECK(DotProduct(p->pos.trDelta, forward) > 40); // including upward/downward throws
 		CHECK(p->color[0] >= 118 && p->color[0] <= 170);
 		if (i % 3 == 2)
@@ -108,26 +108,27 @@ static void CheckPuffs(int count, float scale, const vec3_t forward)
 static void CheckHandEmission(int hands, float scale, const vec3_t forward)
 {
 	int i;
-	if (!cgs.effects.destructionCustomProjectile)
+	if (!cgs.effects.destructionHand)
 	{
-		CheckPuffs(hands * 3, scale, forward);
+		CheckPuffs(hands * 6, scale, forward);
 		return;
 	}
-	CHECK(effectCount == hands * 3 && puffCount == 0 && grips == 0 && pushes == 0);
+	CHECK(effectCount == hands && puffCount == 0 && grips == 0 && pushes == 0);
 	for (i = 0; i < effectCount; ++i)
 	{
-		CHECK(VectorCompare(playedEffects[i].origin, i < 3 ? leftOrigin : rightOrigin));
+		CHECK(VectorCompare(playedEffects[i].origin, i == 0 ? leftOrigin : rightOrigin));
 		CHECK(VectorCompare(playedEffects[i].direction, forward));
 	}
 }
-static void CheckHand(qboolean custom)
+static void CheckHand(qboolean customProjectile, qboolean customHand)
 {
 	centity_t cent = {0};
 	clientInfo_t ci = {0};
 	vec3_t forward;
 	int pitch;
-	cgs.effects.destructionCustomProjectile = custom;
+	cgs.effects.destructionCustomProjectile = customProjectile;
 	cgs.effects.destructionProjectile = 3;
+	cgs.effects.destructionHand = customHand ? 4 : 0;
 	cg.renderingThirdPerson = qfalse;
 	cg.time = 1000;
 	cent.ghoul2 = &cent;
@@ -194,8 +195,10 @@ int main(void)
 	imports.FX_PlayEffectID = PlayEffect;
 	cgs.media.redSaberGlowShader = 2;
 	cg.snap = &snapshot;
-	CheckHand(qtrue);
-	CheckHand(qfalse);
-	puts("Destruction hand smoke layering, sprite fallback lifetime/direction/scale, marker priority, visibility, flag hand-off, matrix reuse and stock FX checks passed.");
+	CheckHand(qtrue, qtrue);
+	CheckHand(qtrue, qfalse);
+	CheckHand(qfalse, qtrue);
+	CheckHand(qfalse, qfalse);
+	puts("Destruction independent single hand FX, doubled sprite fallback lifetime/direction/scale, marker priority, visibility, flag hand-off, matrix reuse and stock FX checks passed.");
 	return 0;
 }

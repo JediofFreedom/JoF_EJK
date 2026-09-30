@@ -1190,6 +1190,8 @@ static void CG_RegisterDestructionEffects(void)
 		cgs.effects.destructionProjectile = effect;
 		cgs.effects.destructionCustomProjectile = qtrue;
 	}
+	// Optional hand effect (e.g. the orb effect without its white core). 0 = use the sprites.
+	cgs.effects.destructionHand = trap->FX_RegisterEffect("forcedestruction/destruction_hand");
 	effect = trap->FX_RegisterEffect("forcedestruction/destruction_explode_enhanced2");
 	if (!effect)
 		effect = trap->FX_RegisterEffect("forcedestruction/destruction_explode");
@@ -1242,7 +1244,7 @@ qboolean CG_PlayDestructionEffect(const entityState_t *state, vec3_t origin,
 	else
 	{
 		int i;
-		// Stack the custom smoke, but keep the additive stock shot at one layer.
+		// Stack the custom orb like MB2; keep the additive stock shot at one layer.
 		for (i = 0; i < (cgs.effects.destructionCustomProjectile ? DESTRUCTION_EFX_LAYERS : 1); i++)
 			trap->FX_PlayEffectID(cgs.effects.destructionProjectile, origin, forward, -1, -1, qfalse);
 	}

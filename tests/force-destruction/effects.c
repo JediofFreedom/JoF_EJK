@@ -6,9 +6,9 @@
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL %d: %s\n", __LINE__, #x); exit(1); } } while (0)
 
 enum { PROJECTILE_PRESENT = 1, IMPACT_PRESENT = 2, ENHANCED_PRESENT = 4,
-	ICON_PRESENT = 8, CAST_PRESENT = 16, SOUND1_PRESENT = 32, SOUND2_PRESENT = 64 };
+	ICON_PRESENT = 8, CAST_PRESENT = 16, SOUND1_PRESENT = 32, SOUND2_PRESENT = 64, HAND_PRESENT = 128 };
 enum { STOCK_PROJECTILE = 1, STOCK_IMPACT, CUSTOM_PROJECTILE, CUSTOM_IMPACT, ENHANCED_IMPACT,
-	STOCK_ICON, CUSTOM_ICON, STOCK_CAST, CUSTOM_CAST, STOCK_BOOM, CUSTOM_BOOM1, CUSTOM_BOOM2 };
+	STOCK_ICON, CUSTOM_ICON, STOCK_CAST, CUSTOM_CAST, STOCK_BOOM, CUSTOM_BOOM1, CUSTOM_BOOM2, CUSTOM_HAND };
 static int available, plays, playedEffect, sounds, playedSound;
 static vec3_t playedOrigin, playedDirection;
 cgs_t cgs;
@@ -30,6 +30,8 @@ static fxHandle_t RegisterEffect(const char *name)
 	if (!strcmp(name, "concussion/explosion")) return STOCK_IMPACT;
 	if (!strcmp(name, "forcedestruction/destruction"))
 		return (available & PROJECTILE_PRESENT) ? CUSTOM_PROJECTILE : 0;
+	if (!strcmp(name, "forcedestruction/destruction_hand"))
+		return (available & HAND_PRESENT) ? CUSTOM_HAND : 0;
 	if (!strcmp(name, "forcedestruction/destruction_explode_enhanced2"))
 		return (available & ENHANCED_PRESENT) ? ENHANCED_IMPACT : 0;
 	CHECK(!strcmp(name, "forcedestruction/destruction_explode"));
@@ -90,6 +92,7 @@ static void CheckEffects(int assets)
 	CG_RegisterDestructionEffects();
 	CHECK(cgs.effects.destructionProjectile == projectile);
 	CHECK(cgs.effects.destructionImpact == impact);
+	CHECK(cgs.effects.destructionHand == ((assets & HAND_PRESENT) ? CUSTOM_HAND : 0));
 	CHECK(cgs.effects.destructionCustomProjectile == (projectile != STOCK_PROJECTILE));
 	CHECK(cgs.effects.destructionCustomImpact == (impact != STOCK_IMPACT));
 	CHECK(cgs.media.destructionIcon == ((assets & ICON_PRESENT) ? CUSTOM_ICON : STOCK_ICON));
@@ -138,8 +141,8 @@ int main(void)
 	imports.FX_PlayEffectID = PlayEffect;
 	imports.S_RegisterSound = RegisterSound;
 	imports.S_StartSound = PlaySound;
-	for (assets = 0; assets < 128; ++assets) CheckEffects(assets);
+	for (assets = 0; assets < 256; ++assets) CheckEffects(assets);
 	CheckEffects(0); // reinitialization resets the previous complete asset set
-	puts("Destruction projectile layering, single impacts, FX/icon/audio fallback, 128 partial-pack combinations, reload and normal-weapon checks passed.");
+	puts("Destruction projectile layering, single impacts, optional hand FX, FX/icon/audio fallback, 256 partial-pack combinations, reload and normal-weapon checks passed.");
 	return 0;
 }

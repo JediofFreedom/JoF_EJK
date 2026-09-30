@@ -6362,18 +6362,17 @@ static void CG_ForceDestructionHandSprites( vec3_t org, const vec3_t fwd, float 
 	ex->refEntity.customShader = cgs.media.redSaberGlowShader;
 }
 
+// Hand effect during the server's 250 ms charge: destruction_hand.efx (played once per hand per
+// frame, so the file alone decides the look), or the current sprites when that file is missing.
 static void CG_ForceDestructionHandEffect( vec3_t org, const vec3_t fwd, float scale )
 {
-	int i;
-
-	if ( !cgs.effects.destructionCustomProjectile )
+	if ( !cgs.effects.destructionHand )
 	{
+		CG_ForceDestructionHandSprites( org, fwd, scale );
 		CG_ForceDestructionHandSprites( org, fwd, scale );
 		return;
 	}
-	// The same smoke at the hand and orb makes the server's flag drop a hand-off.
-	for ( i = 0; i < DESTRUCTION_EFX_LAYERS; i++ )
-		trap->FX_PlayEffectID( cgs.effects.destructionProjectile, org, (float *)fwd, -1, -1, qfalse );
+	trap->FX_PlayEffectID( cgs.effects.destructionHand, org, (float *)fwd, -1, -1, qfalse );
 }
 
 

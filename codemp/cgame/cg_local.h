@@ -2005,6 +2005,7 @@ typedef struct cgEffects_s {
 	// Force Destruction: locally selected custom FX or stock concussion fallbacks.
 	fxHandle_t	destructionProjectile;
 	fxHandle_t	destructionImpact;
+	fxHandle_t	destructionHand;			// forcedestruction/destruction_hand.efx (0 = not installed)
 	qboolean	destructionCustomProjectile;
 	qboolean	destructionCustomImpact;
 
@@ -2355,7 +2356,7 @@ void CG_PrevForcePower_f(void);
 qboolean ForcePower_Valid(int i);
 qboolean CG_HasStasis(void);
 qboolean CG_HasRepulse(void);
-#define DESTRUCTION_EFX_LAYERS 3 // MB2 layers the projectile by Destruction level; Jerec = 3.
+#define DESTRUCTION_EFX_LAYERS 3 // MB2 plays the projectile once per Destruction level; Jerec = 3.
 qboolean CG_HasDestruction(void);
 qboolean CG_PlayDestructionEffect(const entityState_t *state, vec3_t origin,
 	const vec3_t direction, qboolean impact);
