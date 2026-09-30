@@ -2906,11 +2906,6 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_SABER_BLOCK:
 		DEBUGNAME("EV_SABER_BLOCK");
-		if (es->eventParm == LIGHTNING_DEFLECT_EVENT_PARM && (es->eFlags2 & EF2_LIGHTNING_DEFLECT))
-		{
-			FX_RecordLightningDeflection(es->otherEntityNum2, es->otherEntityNum);
-			break;
-		}
 		{
 			// For Bucky
 			// NoVe: Duel Isolation: Saber Block Effects

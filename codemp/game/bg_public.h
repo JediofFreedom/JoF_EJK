@@ -813,7 +813,6 @@ typedef enum {
 #define	EF2_BRACKET_ENTITY		(1<<6)		// Draw as bracketed
 #define	EF2_SHIP_DEATH			(1<<7)		// "died in ship" mode
 #define	EF2_BOBAFIRED			(1<<8)		// not used
-#define EF2_LIGHTNING_DEFLECT		(1<<8)		// Uses the unused BOBAFIRED bit; keeps the wire format unchanged.
 
 #ifdef _CGAME
 #define EF2_GRAPPLE_OUT			(1<<9)
@@ -1866,8 +1865,6 @@ qboolean BG_SaberInAttack( int move );
 // A passive, interruptible saber guard. Shared with client prediction.
 #define LIGHTNING_DEFLECT_MIN_DOT 0.6427876f // +/- 50 degrees, including pitch.
 #define LIGHTNING_DEFLECT_HOLD_TIME 150
-#define LIGHTNING_DEFLECT_EVENT_INTERVAL 100
-#define LIGHTNING_DEFLECT_EVENT_PARM 2 // EV_SABER_BLOCK extension; older clients still understand the event.
 qboolean BG_CanDeflectLightning(const playerState_t *ps, const usercmd_t *cmd, int time);
 qboolean BG_LightningDeflectDirection(const playerState_t *ps, const vec3_t source, int *anim);
 void BG_EndLightningDeflect(playerState_t *ps);

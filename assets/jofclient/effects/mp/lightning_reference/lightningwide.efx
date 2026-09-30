@@ -1,0 +1,114 @@
+repeatDelay				50
+
+Electricity
+{
+	flags				useModel useBBox usePhysics
+
+	life				60 80
+
+	bounce				0.5 2
+
+	origin				3 0 0
+
+	origin2				500 -640 -2 524 640 2
+
+	alpha
+	{
+		start			1 0.8
+	}
+
+	size
+	{
+		start			5 6
+		end				4 1
+		flags			linear
+	}
+
+	shaders
+	[
+		gfx/jof/lightning_reference/blueLine
+	]
+}
+
+Light
+{
+	life				75
+
+	rgb
+	{
+		start			0 0.1961 1
+	}
+}
+
+Particle
+{
+    life                30
+    origin              6 0 0
+
+    alpha
+    {
+        start           0.18 0.30
+    }
+
+    size
+    {
+        start           22 36
+        flags           random
+    }
+
+    rotation            0 360
+
+    shaders
+    [
+        gfx/jof/lightning_reference/lightningFlash
+    ]
+}
+
+Particle
+{
+    life                30
+    origin              3 0 0
+
+    alpha
+    {
+        start           0.26 0.40
+    }
+
+    size
+    {
+        start           18 32
+        flags           random
+    }
+
+    rotation            0 360
+
+    shaders
+    [
+        gfx/jof/lightning_reference/lightningFlash
+    ]
+}
+
+Particle
+{
+    life                30
+    count 		35
+
+    size
+    {
+        start           18 30
+        flags           random
+    }
+
+    alpha
+    {
+        start   0.9 1.0
+        end     0.0
+    }
+
+    rotation            0 360
+
+    shaders
+    [
+        gfx/jof/lightning_reference/lightningFlash
+    ]
+}

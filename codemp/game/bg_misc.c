@@ -37,17 +37,23 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #if defined(_GAME) || defined(_CGAME)
 qboolean BG_CanDeflectLightning(const playerState_t *ps, const usercmd_t *cmd, int time)
 {
-	float walkSpeed = ps->speed * 0.6f;
+	float walkSpeed = ps->basespeed > 0 ? ps->basespeed * 0.6f : ps->speed * 0.6f;
 	if (ps->stats[STAT_HEALTH] <= 0 || ps->pm_type != PM_NORMAL ||
+#ifdef _GAME
+		// Saber Defense is not transmitted in player snapshots. The server
+		// authorizes the guard; prediction only validates its cancellation.
 		ps->fd.forcePowerLevel[FP_SABER_DEFENSE] < FORCE_LEVEL_3 ||
-		ps->weapon != WP_SABER || cmd->weapon != WP_SABER ||
+#endif
+		ps->weapon != WP_SABER ||
 		ps->saberHolstered == 2 || ps->saberInFlight || !ps->saberEntityNum ||
-		ps->weaponTime > 0 || ps->saberLockTime > time || ps->saberBlocked ||
-		(ps->saberMove != LS_READY && ps->saberMove != LS_NONE) ||
+		// Combat owns every non-idle move, including wind-up, chained swings,
+		// returns, parries, bounces and special attacks.
+		(ps->saberMove != LS_NONE && ps->saberMove != LS_READY) ||
+		ps->weaponTime > 0 || ps->saberLockTime > time ||
 		(ps->forceHandExtend != HANDEXTEND_NONE &&
 		 ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT) ||
 		ps->groundEntityNum == ENTITYNUM_NONE || ps->m_iVehicleNum ||
-		ps->emplacedIndex || ps->electrifyTime > time ||
+		ps->emplacedIndex ||
 		(ps->brokenLimbs & (1 << BROKENLIMB_RARM)) ||
 		BG_InRoll((playerState_t *)ps, ps->legsAnim) || BG_InSpecialJump(ps->legsAnim))
 		return qfalse;
@@ -77,13 +83,15 @@ qboolean BG_LightningDeflectDirection(const playerState_t *ps, const vec3_t sour
 
 void BG_EndLightningDeflect(playerState_t *ps)
 {
-	ps->eFlags2 &= ~EF2_LIGHTNING_DEFLECT;
 	if (ps->forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT)
 	{
 		ps->forceHandExtend = HANDEXTEND_NONE;
 		ps->forceHandExtendTime = 0;
 		ps->forceDodgeAnim = 0;
-		ps->torsoTimer = 0;
+		// A combat move may already have replaced the guard. Never shorten
+		// that move's animation when releasing our own hand extension.
+		if (ps->torsoAnim == BOTH_P1_S1_TL || ps->torsoAnim == BOTH_P1_S1_TR)
+			ps->torsoTimer = 0;
 	}
 }
 

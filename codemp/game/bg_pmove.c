@@ -8698,7 +8698,13 @@ Generates weapon events and modifes the weapon counter
 extern int PM_KickMoveForConditions(void);
 static void PM_UpdateLightningDeflect(void)
 {
-	if (pm->ps->forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT &&
+	if (pm->ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT)
+		return;
+
+	// Attack input has priority over the passive guard.  End it here without
+	// consuming either attack button, then let PM_Weapon process the saber swing
+	// during this same command.
+	if ((pm->cmd.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK)) ||
 		!BG_CanDeflectLightning(pm->ps, &pm->cmd, pm->cmd.serverTime))
 		BG_EndLightningDeflect(pm->ps);
 }

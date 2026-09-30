@@ -1163,7 +1163,6 @@ struct gclient_s {
 
 	int			noLightningTime;
 	int			lightningDeflectAttacker;
-	int			lightningDeflectEventTime[MAX_GENTITIES];
 
 	unsigned	mGameFlags;
 

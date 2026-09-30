@@ -1,0 +1,61 @@
+repeatDelay				51
+
+Electricity
+{
+	flags				useModel useBBox usePhysics
+
+	life				60 80
+
+	bounce				0.8 1
+
+	origin				3 0 0
+
+	origin2				370 -15 -5 380 15 5
+
+	alpha
+	{
+		start			1 0.8
+	}
+
+	size
+	{
+		start			4 5
+		end				3 2
+		flags			linear
+	}
+
+	shaders
+	[
+		gfx/jof/lightning_reference/blueLine
+	]
+}
+
+Particle
+{
+	life	30
+
+	size
+	{
+		start	14	26
+		flags	random
+	}
+
+	rotation	0 360
+
+	shaders
+	[
+		gfx/jof/lightning_reference/lightningFlash
+	]
+}
+
+Light
+{
+	life				75
+
+	origin				3 0 0
+
+	rgb
+	{
+		start			0 0.1961 1
+	}
+}

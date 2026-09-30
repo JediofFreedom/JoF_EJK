@@ -647,13 +647,11 @@ typedef struct centity_s {
 	
 	unsigned int	flameSndDebounceTime;
 	int				lightningEnvironmentTime;
+	int lightningReferenceTime[5];
+	vec3_t lightningReferenceEnd[5];
+	int lightningReferenceSoundTime[5];
 	int				lightningSurfaceTime;
 	int				lightningImpactSoundTime;
-	int				lightningDeflectVisualTime;
-	int				lightningDeflectSoundTime;
-	int				lightningDeflectContactTime;
-	vec3_t			lightningDeflectContact;
-	vec3_t			lightningDeflectOrigin;
 	unsigned int	flameThrowerHitTime;
 	qboolean		  flameThrowerSndActive;
 	qboolean	hasPlayedJetpackSounds;
@@ -1953,6 +1951,7 @@ typedef struct cgMedia_s {
 	qhandle_t	forceLightningArcShader;
 	qhandle_t	forceLightningFlashShader;
 	sfxHandle_t	forceLightningImpactSounds[3];
+	sfxHandle_t forceLightningEnvironmentSounds[6];
 
 	//japro gibs
 	qhandle_t	gibAbdomen;
@@ -2066,6 +2065,11 @@ typedef struct cgEffects_s {
 	fxHandle_t forceLightningWide;
 	fxHandle_t demp2WallImpactEffectSmall;   
 	fxHandle_t forceLightningBranch;
+	fxHandle_t forceLightningDeflectArc;
+	fxHandle_t forceLightningDeflectFlare;
+	fxHandle_t forceLightningReference;
+	fxHandle_t forceLightningReferenceWide;
+	fxHandle_t forceLightningReferenceArc;
 
 	fxHandle_t forceDrain;
 	fxHandle_t forceDrainWide;
@@ -2752,8 +2756,8 @@ void FX_BlasterWeaponHitPlayer( vec3_t origin, vec3_t normal, qboolean humanoid 
 
 void FX_ForceDrained(vec3_t origin, vec3_t dir);
 qboolean FX_ForceLightningEnvironment(centity_t *cent, vec3_t origin, matrix3_t axis, qboolean wide);
-qboolean FX_ForceLightningDeflection(centity_t *caster, vec3_t origin, matrix3_t axis, qboolean wide);
-void FX_RecordLightningDeflection(int defender, int caster);
+void FX_ForceLightningSaberContact(centity_t *guard, const vec3_t bladeBase,
+	const vec3_t bladeDir, float bladeLength, const vec3_t incomingDir);
 
 
 //-----------------------------

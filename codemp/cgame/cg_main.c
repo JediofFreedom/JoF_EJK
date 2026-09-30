@@ -828,6 +828,9 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.forceLightningImpactSounds[0] = trap->S_RegisterSound("sound/weapons/force/lightninghit1");
 	cgs.media.forceLightningImpactSounds[1] = trap->S_RegisterSound("sound/weapons/force/lightninghit2");
 	cgs.media.forceLightningImpactSounds[2] = trap->S_RegisterSound("sound/weapons/force/lightninghit3");
+	for (i = 0; i < ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds); i++) {
+		cgs.media.forceLightningEnvironmentSounds[i] = trap->S_RegisterSound(va("sound/ambience/spark%i.wav", i + 1));
+	}
 	trap->S_RegisterSound("sound/weapons/force/drain.wav");
 	trap->S_RegisterSound("sound/weapons/force/jumpbuild.wav");
 	trap->S_RegisterSound("sound/weapons/force/distract.wav");
@@ -1227,6 +1230,7 @@ static void CG_RegisterEffects( void )
 extern char *forceHolocronModels[];
 int CG_HandleAppendedSkin(char *modelName);
 void CG_CacheG2AnimInfo(char *modelName);
+
 /*
 =================
 CG_RegisterGraphics
@@ -1373,7 +1377,11 @@ static void CG_RegisterGraphics( void )
 	cgs.effects.forceLightningWide	= trap->FX_RegisterEffect( "effects/force/lightningwide.efx" );
 	cgs.effects.demp2WallImpactEffectSmall = trap->FX_RegisterEffect( "effects/mp/wall_impact_small" );
 	cgs.effects.forceLightningBranch = trap->FX_RegisterEffect( "effects/mp/lightning_branch" );
-
+	cgs.effects.forceLightningDeflectArc = trap->FX_RegisterEffect("effects/mp/lightning_deflect_mb2/lightning_arc.efx");
+	cgs.effects.forceLightningDeflectFlare = trap->FX_RegisterEffect("effects/mp/lightning_deflect_mb2/lightning_flare.efx");
+	cgs.effects.forceLightningReference = trap->FX_RegisterEffect("effects/mp/lightning_reference/lightning");
+	cgs.effects.forceLightningReferenceWide = trap->FX_RegisterEffect("effects/mp/lightning_reference/lightningwide");
+	cgs.effects.forceLightningReferenceArc = trap->FX_RegisterEffect("effects/mp/lightning_reference/lightning_arc");
 	cgs.media.forceLightningArcShader = trap->R_RegisterShader("gfx/misc/blueLine");
 	cgs.media.forceLightningFlashShader = trap->R_RegisterShader("gfx/misc/lightningFlash");
 	cgs.effects.forceDrain		= trap->FX_RegisterEffect( "effects/mp/drain.efx" );

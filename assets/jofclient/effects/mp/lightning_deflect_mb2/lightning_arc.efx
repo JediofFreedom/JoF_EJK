@@ -1,0 +1,36 @@
+repeatDelay				5
+
+Electricity
+{
+	flags				useModel useBBox usePhysics
+
+	spawnFlags			org2fromTrace traceImpactFx
+
+	life				20 60
+
+	bounce				2 5
+
+	origin				0 0 0
+
+	alpha
+	{
+		start			1 0.9
+	}
+
+	size
+	{
+		start			5 6
+		end			4 5
+		flags			linear
+	}
+
+	shaders
+	[
+		gfx/jof/lightning_deflect_mb2/blueLine
+	]
+
+	impactfx
+	[
+		effects/mp/lightning_deflect_mb2/lightning_impact
+	]
+}
