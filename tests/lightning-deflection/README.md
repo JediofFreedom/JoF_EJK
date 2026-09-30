@@ -38,3 +38,12 @@ Lightning, then plays namespaced MBII lightning arc and flare assets at the
 defender's blade. No custom entity event or borrowed effect flag is involved;
 the normal Lightning beam remains on its original rendering path. The new game,
 cgame, and asset modules must be used together.
+
+Install the separately distributed `jof-lightning-deflection-assets.pk3` in
+`GameData/EternalJK`. It supplies the `effects/mp/lightning_deflect_mb2` and
+`effects/mp/lightning_reference` effects, their namespaced textures and shaders,
+and original asset credits. These assets are maintained outside this repository;
+repository builds do not include them in `jofclient-assets.pk3`. The separate pack
+contains no DLLs and uses the standard Jedi Academy base materials and sounds.
+Avoid packaging the same paths in another PK3. Use `cg_lightningEnvironment 2`
+to enable the MBII lightning rendering mode.
