@@ -449,6 +449,232 @@ static void FX_LightningUpdateNests(vec3_t beamStart, vec3_t beamEnd, int owner)
 }
 // ---------------------------------------------------------------------------
 
+#define LIGHTNING_DEFLECT_EMIT_INTERVAL 30
+#define LIGHTNING_DEFLECT_MAX_CONTACTS 16
+#define LIGHTNING_DEFLECT_MAX_LINKS 64
+
+typedef struct {
+	int defender, caster, expireTime;
+} lightningDeflection_t;
+static lightningDeflection_t lightningDeflections[LIGHTNING_DEFLECT_MAX_LINKS];
+
+void FX_RecordLightningDeflection(int defender, int caster) {
+	int index, slot = 0;
+	if (defender < 0 || defender >= ENTITYNUM_WORLD || caster < 0 || caster >= ENTITYNUM_WORLD)
+		return;
+	for (index = 0; index < LIGHTNING_DEFLECT_MAX_LINKS; index++) {
+		if (lightningDeflections[index].defender == defender && lightningDeflections[index].caster == caster) {
+			slot = index;
+			break;
+		}
+		if (lightningDeflections[index].expireTime < lightningDeflections[slot].expireTime)
+			slot = index;
+	}
+	lightningDeflections[slot].defender = defender;
+	lightningDeflections[slot].caster = caster;
+	lightningDeflections[slot].expireTime = cg.time + LIGHTNING_DEFLECT_HOLD_TIME + 100;
+}
+
+static void FX_LightningResetBudget(void) {
+	if (cg.time < lightningBudgetTime || cg.time - lightningBudgetTime >= LIGHTNING_INTERVAL) {
+		lightningBudgetTime = cg.time;
+		lightningTraces = lightningEffects = 0;
+	}
+}
+
+static qboolean FX_LightningGuardVisible(centity_t *guard, int caster) {
+	if (!(guard->currentState.eFlags2 & EF2_LIGHTNING_DEFLECT) ||
+		(guard->currentState.eFlags & (EF_DEAD | EF_NODRAW)) ||
+		guard->currentState.weapon != WP_SABER || guard->currentState.saberHolstered == 2 ||
+		guard->currentState.saberInFlight)
+		return qfalse;
+	if (CG_IsMindTricked(guard->currentState.trickedentindex, guard->currentState.trickedentindex2,
+		guard->currentState.trickedentindex3, guard->currentState.trickedentindex4, cg.snap->ps.clientNum))
+		return qfalse;
+	if (cg.predictedPlayerState.duelInProgress &&
+		guard->currentState.number != cg.predictedPlayerState.clientNum &&
+		guard->currentState.number != cg.predictedPlayerState.duelIndex)
+		return qfalse;
+	if (guard->currentState.number == cg.predictedPlayerState.clientNum) {
+		vec3_t source;
+		// A local attack, sprint, or turn cancels visuals during prediction as well.
+		if (!(cg.predictedPlayerState.eFlags2 & EF2_LIGHTNING_DEFLECT))
+			return qfalse;
+		VectorCopy(cg_entities[caster].lerpOrigin, source);
+		source[2] += DEFAULT_VIEWHEIGHT;
+		if (!BG_LightningDeflectDirection(&cg.predictedPlayerState, source, NULL))
+			return qfalse;
+	}
+	return qtrue;
+}
+
+static qboolean FX_LightningSaberContact(centity_t *guard, vec3_t contact, vec3_t bladeDir, float *length) {
+	clientInfo_t *ci;
+	mdxaBone_t matrix;
+	vec3_t base;
+	int bolt;
+	if (guard->currentState.eType == ET_NPC)
+		ci = guard->npcClient;
+	else if (guard->currentState.clientNum >= 0 && guard->currentState.clientNum < MAX_CLIENTS)
+		ci = &cgs.clientinfo[guard->currentState.clientNum];
+	else
+		return qfalse;
+	if (!ci || !guard->ghoul2 || !trap->G2API_HasGhoul2ModelOnIndex(&guard->ghoul2, 1))
+		return qfalse;
+	bolt = trap->G2API_AddBolt(guard->ghoul2, 1, "*blade1");
+	if (bolt < 0)
+		bolt = trap->G2API_AddBolt(guard->ghoul2, 1, "*flash");
+	if (bolt < 0 || !trap->G2API_GetBoltMatrix(guard->ghoul2, 1, bolt, &matrix,
+		guard->turAngles, guard->lerpOrigin, cg.time, cgs.gameModels, guard->modelScale))
+		return qfalse;
+	BG_GiveMeVectorFromMatrix(&matrix, ORIGIN, base);
+	BG_GiveMeVectorFromMatrix(&matrix, NEGATIVE_Y, bladeDir);
+	VectorNormalize(bladeDir);
+	*length = ci->saber[0].blade[0].length;
+	if (*length <= 1.0f)
+		return qfalse;
+	if (guard->currentState.eType != ET_NPC && guard->modelScale[0] > 0.0f)
+		*length *= guard->modelScale[0];
+	// Drift along the middle of the blade, keeping the hilt and hands clear.
+	VectorMA(base, *length * (0.55f + 0.08f * sinf(cg.time * 0.013f + guard->currentState.number)), bladeDir, contact);
+	return qtrue;
+}
+
+static void FX_LightningSaberLight(centity_t *guard) {
+	vec3_t contact, movement;
+	float phase = cg.time * 0.021f + guard->currentState.number;
+	if (!guard->lightningDeflectContactTime || guard->lightningDeflectContactTime > cg.time ||
+		cg.time - guard->lightningDeflectContactTime > 45)
+		return;
+	VectorSubtract(guard->lerpOrigin, guard->lightningDeflectOrigin, movement);
+	VectorAdd(guard->lightningDeflectContact, movement, contact);
+	trap->R_AddLightToScene(contact, 85.0f + 12.0f * sinf(phase), 0.3f, 0.5f, 1.0f);
+}
+
+static void FX_LightningSaberCorona(centity_t *guard, vec3_t contact, vec3_t bladeDir, float length, vec3_t incoming) {
+	vec3_t start, end, outward, tangent, side;
+	addspriteArgStruct_t glow;
+	trace_t hit;
+	int arc;
+	float phase = cg.time * 0.021f + guard->currentState.number;
+	if (lightningEffects < LIGHTNING_EFFECT_BUDGET) {
+		lightningEffects++;
+		memset(&glow, 0, sizeof(glow));
+		VectorCopy(contact, glow.origin);
+		glow.scale = 9.0f + 2.0f * sinf(phase);
+		glow.dscale = 3.0f;
+		glow.sAlpha = 0.9f;
+		glow.eAlpha = 0.0f;
+		glow.life = 45;
+		glow.shader = cgs.media.forceLightningFlashShader;
+		glow.flags = FX_ALPHA_LINEAR | FX_SIZE_LINEAR;
+		trap->FX_AddSprite(&glow);
+	}
+	guard->lightningDeflectContactTime = cg.time;
+	VectorCopy(contact, guard->lightningDeflectContact);
+	VectorCopy(guard->lerpOrigin, guard->lightningDeflectOrigin);
+	FX_LightningSaberLight(guard);
+	VectorMA(contact, -length * 0.18f, bladeDir, start);
+	VectorMA(contact, length * 0.18f, bladeDir, end);
+	FX_LightningArc(start, end, 1.8f, 2.0f, qfalse);
+	VectorScale(incoming, -1.0f, outward);
+	PerpendicularVector(tangent, outward);
+	CrossProduct(outward, tangent, side);
+	for (arc = 0; arc < 3; arc++) {
+		vec3_t direction;
+		VectorMA(outward, Q_flrand(-0.9f, 0.9f), tangent, direction);
+		VectorMA(direction, Q_flrand(-0.8f, 0.8f), side, direction);
+		VectorNormalize(direction);
+		VectorMA(contact, Q_flrand(65.0f, 180.0f), direction, end);
+		if (!FX_LightningTrace(&hit, contact, end, guard->currentState.number))
+			continue;
+		FX_LightningArc(contact, hit.endpos, 1.8f, 3.0f, qfalse);
+		if (FX_LightningSurface(&hit))
+			FX_LightningFlash(hit.endpos, 5.0f);
+	}
+	if (guard->lightningDeflectSoundTime <= cg.time || guard->lightningDeflectSoundTime > cg.time + 300) {
+		guard->lightningDeflectSoundTime = cg.time + 180 + (guard->currentState.number % 3) * 30;
+		FX_LightningNestImpactSound(contact);
+	}
+}
+
+// Server-confirmed guards pull incoming lightning onto the animated blade.
+// This path also runs with cg_lightningEnvironment disabled.
+qboolean FX_ForceLightningDeflection(centity_t *caster, vec3_t origin, matrix3_t axis, qboolean wide) {
+	int index, count = 0;
+	int guards[LIGHTNING_DEFLECT_MAX_CONTACTS];
+	if (!cg.snap)
+		return qfalse;
+	for (index = 0; index < LIGHTNING_DEFLECT_MAX_LINKS && count < LIGHTNING_DEFLECT_MAX_CONTACTS; index++) {
+		lightningDeflection_t *link = &lightningDeflections[index];
+		int number = link->defender;
+		centity_t *guard;
+		if (link->caster != caster->currentState.number || link->expireTime <= cg.time ||
+			link->expireTime > cg.time + LIGHTNING_DEFLECT_HOLD_TIME + 100 ||
+			number < 0 || number >= ENTITYNUM_WORLD)
+			continue;
+		guard = &cg_entities[number];
+		if (!guard->currentValid && number != cg.predictedPlayerState.clientNum)
+			continue;
+		if (FX_LightningGuardVisible(guard, caster->currentState.number))
+			guards[count++] = number;
+	}
+	if (!count)
+		return qfalse;
+	if (caster->lightningDeflectVisualTime > cg.time &&
+		caster->lightningDeflectVisualTime <= cg.time + LIGHTNING_DEFLECT_EMIT_INTERVAL) {
+		// Dynamic lights are submitted every render frame, while bolts are emitted on a timer.
+		for (index = 0; index < count; index++)
+			FX_LightningSaberLight(&cg_entities[guards[index]]);
+		return qtrue;
+	}
+	caster->lightningDeflectVisualTime = cg.time + LIGHTNING_DEFLECT_EMIT_INTERVAL;
+	FX_LightningResetBudget();
+	for (index = 0; index < count; index++) {
+		vec3_t incoming, fringe, contact, bladeDir;
+		float length;
+		trace_t hit;
+		if (!FX_LightningSaberContact(&cg_entities[guards[index]], contact, bladeDir, &length) ||
+			!FX_LightningTrace(&hit, origin, contact, caster->currentState.number))
+			continue;
+		if (hit.fraction < 1.0f && hit.entityNum != guards[index]) {
+			FX_LightningArc(origin, hit.endpos, 3.5f, 3.0f, qtrue);
+			continue;
+		}
+		VectorSubtract(contact, origin, incoming);
+		VectorNormalize(incoming);
+		FX_LightningArc(origin, contact, 4.5f, 3.5f, qtrue);
+		VectorMA(contact, Q_flrand(-4.0f, 4.0f), bladeDir, fringe);
+		FX_LightningArc(origin, fringe, 2.2f, 4.5f, qfalse);
+		FX_LightningSaberCorona(&cg_entities[guards[index]], contact, bladeDir, length, incoming);
+	}
+	FX_LightningFlash(origin, 14.0f);
+	if (wide) {
+		// Keep the rest of level-3's fan alive without drawing through a guard's body.
+		int ray;
+		for (ray = 0; ray < 4; ray++) {
+			vec3_t direction, end;
+			trace_t hit;
+			VectorMA(axis[0], (ray / 3.0f - 0.5f) * 1.4f, axis[1], direction);
+			VectorMA(direction, Q_flrand(-0.08f, 0.08f), axis[2], direction);
+			VectorNormalize(direction);
+			VectorMA(origin, 512.0f, direction, end);
+			if (!FX_LightningTrace(&hit, origin, end, caster->currentState.number))
+				continue;
+			if (hit.entityNum >= 0 && hit.entityNum < ENTITYNUM_WORLD &&
+				FX_LightningGuardVisible(&cg_entities[hit.entityNum], caster->currentState.number))
+				continue;
+			FX_LightningArc(origin, hit.endpos, 2.8f, 3.5f, qtrue);
+			if (FX_LightningSurface(&hit)) {
+				FX_LightningFlash(hit.endpos, 8.0f);
+				if (cg_lightningEnvironment.integer)
+					FX_LightningImpactSound(caster, &hit);
+			}
+		}
+	}
+	return qtrue;
+}
+
 // Traces the main beam for hit detection, draws it via the native
 // forceLightning/forceLightningWide effect, and drives the nest system.
 // If the shared trace/effect budget is exhausted, the caller falls back

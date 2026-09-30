@@ -13119,6 +13119,11 @@ skipTrail:
 
 			stopFlameThrowerSnd = qfalse;
 		}
+		else if (FX_ForceLightningDeflection(cent, efOrg, axis,
+			cent->currentState.activeForcePass > FORCE_LEVEL_2))
+		{
+			// Authoritative saber contacts intercept the beam before environmental effects.
+		}
 		else if (FX_ForceLightningEnvironment(cent, efOrg, axis,
 			cent->currentState.activeForcePass > FORCE_LEVEL_2))
 		{
