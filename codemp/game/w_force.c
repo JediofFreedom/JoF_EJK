@@ -1772,6 +1772,72 @@ void ForceLightning( gentity_t *self )
 	WP_ForcePowerStart( self, FP_LIGHTNING, 500 );
 }
 
+static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
+{
+	playerState_t *ps = &defender->client->ps;
+	vec3_t source;
+	int anim;
+	qboolean starting = ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT;
+	if (!BG_CanDeflectLightning(ps, &defender->client->pers.cmd, level.time))
+		return qfalse;
+	VectorCopy(attacker->client->ps.origin, source);
+	source[2] += attacker->client->ps.viewheight;
+	if (!BG_LightningDeflectDirection(ps, source, &anim))
+		return qfalse;
+	ps->forceHandExtend = HANDEXTEND_LIGHTNING_DEFLECT;
+	ps->forceHandExtendTime = level.time + LIGHTNING_DEFLECT_HOLD_TIME;
+	ps->forceDodgeAnim = anim;
+	ps->eFlags2 |= EF2_LIGHTNING_DEFLECT;
+	G_SetAnim(defender, &defender->client->pers.cmd, SETANIM_TORSO, anim,
+		SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD, 100);
+	ps->torsoTimer = 1;
+	defender->client->dangerTime = level.time;
+	// Refresh the source occasionally; the persistent flag carries immediate cancellation.
+	if (starting || defender->client->lightningDeflectEventTime[attacker->s.number] <= level.time ||
+		defender->client->lightningDeflectEventTime[attacker->s.number] > level.time + LIGHTNING_DEFLECT_EVENT_INTERVAL)
+	{
+		gentity_t *event = G_TempEntity(ps->origin, EV_SABER_BLOCK);
+		event->s.eventParm = LIGHTNING_DEFLECT_EVENT_PARM;
+		event->s.eFlags2 |= EF2_LIGHTNING_DEFLECT;
+		event->s.otherEntityNum = attacker->s.number;
+		event->s.otherEntityNum2 = defender->s.number;
+		VectorCopy(ps->origin, event->s.origin);
+		event->s.origin[2] += ps->viewheight;
+		defender->client->lightningDeflectEventTime[attacker->s.number] = level.time + LIGHTNING_DEFLECT_EVENT_INTERVAL;
+	}
+	defender->client->lightningDeflectAttacker = attacker->s.number;
+	return qtrue;
+}
+
+static void WP_UpdateLightningDeflect(gentity_t *self, const usercmd_t *cmd)
+{
+	playerState_t *ps = &self->client->ps;
+	int sourceNum = self->client->lightningDeflectAttacker;
+	gentity_t *attacker;
+	vec3_t source;
+	if (!(ps->eFlags2 & EF2_LIGHTNING_DEFLECT))
+		return;
+	if (ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT ||
+		ps->forceHandExtendTime <= level.time ||
+		!BG_CanDeflectLightning(ps, cmd, level.time) ||
+		sourceNum < 0 || sourceNum >= ENTITYNUM_WORLD)
+	{
+		BG_EndLightningDeflect(ps);
+		return;
+	}
+	attacker = &g_entities[sourceNum];
+	if (!attacker->inuse || !attacker->client || attacker->health <= 0 ||
+		!(attacker->client->ps.fd.forcePowersActive & (1 << FP_LIGHTNING)))
+	{
+		BG_EndLightningDeflect(ps);
+		return;
+	}
+	VectorCopy(attacker->client->ps.origin, source);
+	source[2] += attacker->client->ps.viewheight;
+	if (!BG_LightningDeflectDirection(ps, source, NULL))
+		BG_EndLightningDeflect(ps);
+}
+
 void ForceLightningDamage( gentity_t *self, gentity_t *traceEnt, vec3_t dir, vec3_t impactPoint )
 {
 	self->client->dangerTime = level.time;
@@ -1800,6 +1866,9 @@ void ForceLightningDamage( gentity_t *self, gentity_t *traceEnt, vec3_t dir, vec
 			}
 			if (ForcePowerUsableOn(self, traceEnt, FP_LIGHTNING))
 			{
+				if (WP_TryLightningDeflect(self, traceEnt))
+					return;
+				BG_EndLightningDeflect(&traceEnt->client->ps);
 //[JAPRO - Serverside - Saber - Tweak force lightning - Start]
 				int	dmg;
 				int modPowerLevel = -1;
@@ -5319,6 +5388,8 @@ void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd )
 	{
 		return;
 	}
+
+	WP_UpdateLightningDeflect(self, ucmd);
 
 	if (self->client->ps.pm_flags & PMF_FOLLOW)
 	{ //not a "real" game client, it's a spectator following someone

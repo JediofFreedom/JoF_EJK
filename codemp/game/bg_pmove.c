@@ -8711,6 +8711,13 @@ Generates weapon events and modifes the weapon counter
 ==============
 */
 extern int PM_KickMoveForConditions(void);
+static void PM_UpdateLightningDeflect(void)
+{
+	if (pm->ps->forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT &&
+		!BG_CanDeflectLightning(pm->ps, &pm->cmd, pm->cmd.serverTime))
+		BG_EndLightningDeflect(pm->ps);
+}
+
 static void PM_Weapon( void )
 {
 	int		addTime;
@@ -8718,6 +8725,7 @@ static void PM_Weapon( void )
 	int		killAfterItem = 0;
 	bgEntity_t *veh = NULL;
 	qboolean vehicleRocketLock = qfalse;
+	PM_UpdateLightningDeflect();
 
 	// westar dual-pistol: mirror the server's cmd.weapon rewrite so local prediction
 	// doesn't snap-back when the ack for weapon 19 (rendered only, never wire-selectable) arrives.
@@ -8869,6 +8877,9 @@ static void PM_Weapon( void )
 
 		switch(pm->ps->forceHandExtend)
 		{
+		case HANDEXTEND_LIGHTNING_DEFLECT:
+			desiredAnim = pm->ps->forceDodgeAnim == BOTH_P1_S1_TL ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
+			break;
 		case HANDEXTEND_FORCEPUSH:
 			desiredAnim = BOTH_FORCEPUSH;
 			break;
