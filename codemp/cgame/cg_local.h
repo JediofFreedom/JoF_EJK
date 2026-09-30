@@ -1055,6 +1055,7 @@ typedef struct chatBoxItem_s
 	char			string[MAX_STRING_CHARS];
 	int				time;
 	int				lines;
+	qboolean		isPrivate;
 	chatBoxEmoji_t emoji[MAX_CHATBOX_ITEM_EMOJIS];
 } chatBoxItem_t;
 
@@ -1434,6 +1435,7 @@ Ghoul2 Insert End
 	short				numJumps;
 	int					userinfoUpdateDebounce;
 	char				lastChatMsg[MAX_SAY_TEXT + MAX_NETNAME + 32];
+	qboolean			pmOnlyChat;
 
 	int					drawingStrafeTrails;//optimization i guess
 	qboolean			loggingStrafeTrail;
@@ -2425,6 +2427,7 @@ void CG_AddSpeedGraphFrameInfo( void );
 void CG_AddLagometerSnapshotInfo( snapshot_t *snap );
 void CG_CenterPrint( const char *str, int y, int charWidth );
 void CG_CenterPrintMultiKill(const char *str, int y, int charWidth);
+void CG_ChatBox_AddString(char *chatStr, qboolean isPrivate);
 void CG_DrawHead( float x, float y, float w, float h, int clientNum, vec3_t headAngles );
 void CG_DrawActive( stereoFrame_t stereoView );
 void CG_DrawFlagModel( float x, float y, float w, float h, int team, qboolean force2D );

@@ -10095,11 +10095,14 @@ char *Q_strtokm(char *str, const char *delim)
 }
 
 //add chatbox string
-void CG_ChatBox_AddString(char *chatStr)
+void CG_ChatBox_AddString(char *chatStr, qboolean isPrivate)
 {
 	chatBoxItem_t *chat = &cg.chatItems[cg.chatItemActive];
 	char tempChatStr[MAX_SAY_TEXT+MAX_NETNAME] = { 0 }, *r = chatStr, *w = tempChatStr;
 	float chatLen;
+
+	if (cg.pmOnlyChat && !isPrivate)
+		return;
 
 	if (cg_logChat.integer & JAPRO_CHATLOG_ENABLE) {
 		CG_LogPrintf(cg.log.file, "%s\n", chatStr);
@@ -10143,6 +10146,7 @@ void CG_ChatBox_AddString(char *chatStr)
 	}
 
 	Com_Memset(chat, 0, sizeof(chatBoxItem_t));
+	chat->isPrivate = isPrivate;
 
 	if (strlen(chatStr) > sizeof(chat->string))
 	{ //too long, terminate at proper len.
@@ -10467,7 +10471,8 @@ static QINLINE void CG_ChatBox_DrawStrings(void)
 
 	while (i < cg_chatBoxLines.integer)
 	{
-		if (cg.chatItems[i].time >= cg.time || drawAnyway)
+		if ((!cg.pmOnlyChat || cg.chatItems[i].isPrivate) &&
+			(cg.chatItems[i].time >= cg.time || drawAnyway))
 		{
 			int check = numToDraw;
 			int insertionPoint = numToDraw;
