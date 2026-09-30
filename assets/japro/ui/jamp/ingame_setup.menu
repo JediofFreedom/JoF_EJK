@@ -3135,7 +3135,7 @@
 			rect				260 323 200 20
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			100
-			textaligny			0
+			textaligny			2
 			font 				4
 			textscale 			1
 			forecolor			1 .682 0 1
@@ -3222,7 +3222,7 @@
 			rect				260 323 200 20
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			100
-			textaligny			0
+			textaligny			2
 			font				4
 			textscale			1
 			forecolor			1 .682 0 1
