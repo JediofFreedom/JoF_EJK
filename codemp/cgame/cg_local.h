@@ -1918,6 +1918,9 @@ typedef struct cgMedia_s {
 	qhandle_t forcePowerIcons[NUM_FORCE_POWERS];
 	qhandle_t repulseIcon;		// JoF: custom Force Repulse wheel icon
 	qhandle_t dashIcon;			// JoF: custom Force Dash wheel icon
+	qhandle_t destructionIcon;
+	sfxHandle_t destructionCastSound;
+	sfxHandle_t destructionImpactSounds[2];
 	qhandle_t flamethrowerIcon;	// JoF: JA+ merc-mode replacement for Force Lightning
 
 	qhandle_t rageRecShader;
@@ -1998,6 +2001,13 @@ typedef struct cgEffects_s {
 	//concussion
 	fxHandle_t	concussionShotEffect;
 	fxHandle_t	concussionImpactEffect;
+
+	// Force Destruction: locally selected custom FX or stock concussion fallbacks.
+	fxHandle_t	destructionProjectile;
+	fxHandle_t	destructionImpact;
+	fxHandle_t	destructionHand;			// forcedestruction/destruction_hand.efx (0 = not installed)
+	qboolean	destructionCustomProjectile;
+	qboolean	destructionCustomImpact;
 
 	// BRYAR PISTOL
 	fxHandle_t	bryarShotEffect;
@@ -2183,6 +2193,7 @@ typedef struct cgs_s {
 	qboolean		jediVmerc;
 	int				wDisable;
 	int				fDisable;
+	qboolean		forceDestruction; // explicit server support, in addition to the per-player grant
 
 	char			mapname[MAX_QPATH];
 	char			rawmapname[MAX_QPATH];
@@ -2345,6 +2356,11 @@ void CG_PrevForcePower_f(void);
 qboolean ForcePower_Valid(int i);
 qboolean CG_HasStasis(void);
 qboolean CG_HasRepulse(void);
+#define DESTRUCTION_EFX_LAYERS 3 // MB2 plays the projectile once per Destruction level; Jerec = 3.
+qboolean CG_HasDestruction(void);
+qboolean CG_PlayDestructionEffect(const entityState_t *state, vec3_t origin,
+	const vec3_t direction, qboolean impact);
+sfxHandle_t CG_DestructionCastSound(const entityState_t *state, sfxHandle_t fallback);
 qboolean CG_HasDash(void);
 int CG_BuildForceWheel(int *slots);
 

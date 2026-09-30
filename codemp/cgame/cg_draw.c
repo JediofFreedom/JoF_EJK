@@ -2590,12 +2590,18 @@ void CG_DrawHUD(centity_t	*cent)
 
 qboolean ForcePower_Valid(int i)
 {
+	if (!cg.snap)
+		return qfalse;
 	if (i == STASIS_WHEEL_SLOT)		// display-only pseudo-slot (18)
 		return CG_HasStasis();
 	if (i == REPULSE_WHEEL_SLOT)	// display-only pseudo-slot (19)
 		return CG_HasRepulse();
 	if (i == DASH_WHEEL_SLOT)		// display-only pseudo-slot (20)
 		return CG_HasDash();
+	if (i == DESTRUCTION_WHEEL_SLOT)
+		return CG_HasDestruction();
+	if (i < 0 || i >= NUM_FORCE_POWERS)
+		return qfalse;
 
 	if (i == FP_LEVITATION ||
 		i == FP_SABER_OFFENSE ||
@@ -2630,6 +2636,8 @@ static qboolean CG_ForceSelectUsesFlamethrower( int power )
 
 static qhandle_t CG_ForceSelectIcon( int power )
 {
+	if (power == DESTRUCTION_WHEEL_SLOT)
+		return cgs.media.destructionIcon;
 	if ( power == REPULSE_WHEEL_SLOT )
 	{
 		return cgs.media.repulseIcon;
@@ -2656,7 +2664,7 @@ void CG_DrawForceSelect( void )
 	int		sideLeftIconCnt,sideRightIconCnt;
 	int		sideMax,holdCount;
 	int		yOffset = 0;
-	int		wheel[NUM_FORCE_POWERS + 3];
+	int		wheel[FORCE_WHEEL_CAPACITY];
 	int		wheelCount, cur = -1, idx, drawn, power;
 	qhandle_t icon;
 
@@ -2672,7 +2680,8 @@ void CG_DrawForceSelect( void )
 		// networked home, so keep them selected after the wheel fades unless revoked.
 		if ( !((cg.forceSelect == STASIS_WHEEL_SLOT && CG_HasStasis()) ||
 		        (cg.forceSelect == REPULSE_WHEEL_SLOT && CG_HasRepulse()) ||
-		        (cg.forceSelect == DASH_WHEEL_SLOT && CG_HasDash())) )
+		        (cg.forceSelect == DASH_WHEEL_SLOT && CG_HasDash()) ||
+		        (cg.forceSelect == DESTRUCTION_WHEEL_SLOT && CG_HasDestruction())) )
 			cg.forceSelect = cg.snap->ps.fd.forcePowerSelected;
 		return;
 	}
@@ -2791,6 +2800,10 @@ void CG_DrawForceSelect( void )
 	else if ( cg.forceSelect == DASH_WHEEL_SLOT )
 	{
 		CG_DrawProportionalString(SCREEN_WIDTH / 2, y + 30 + yOffset, "Dash", UI_CENTER | UI_SMALLFONT, colorTable[CT_ICON_BLUE]);
+	}
+	else if (cg.forceSelect == DESTRUCTION_WHEEL_SLOT)
+	{
+		CG_DrawProportionalString(SCREEN_WIDTH / 2, y + 30 + yOffset, "Destruction", UI_CENTER | UI_SMALLFONT, colorTable[CT_ICON_BLUE]);
 	}
 	else if ( CG_ForceSelectUsesFlamethrower( cg.forceSelect ) )
 	{
