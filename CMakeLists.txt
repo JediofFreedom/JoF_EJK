@@ -207,6 +207,9 @@ if(MSVC)
 	set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /Zi /D_DEBUG")
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Zi /D_DEBUG")
 
+	# Release .pdb generation is scoped to just the engine targets
+	# (MPEngine/MPDed), not project-wide - see codemp/CMakeLists.txt.
+
 	#flags for EDIT AND CONTINUE
 	set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /ZI /Gy")
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /ZI /Gy")
@@ -242,6 +245,9 @@ elseif (("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU") OR ("${CMAKE_C_COMPILER_ID}" S
 	# additional flags for debug configuration
 	set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -ggdb")
 	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb")
+
+	# Release debug info generation is scoped to just the engine targets
+	# (MPEngine/MPDed), not project-wide - see codemp/CMakeLists.txt.
 
 	if (X86)
 		#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -msse2")
