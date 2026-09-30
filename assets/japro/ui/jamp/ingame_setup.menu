@@ -37,6 +37,8 @@
 			hide			visuals3
 			hide			hud
 			hide			sound
+			hide			moresound
+			hide			soundpage_glow
 			hide			options
 			hide			network
 			hide			mods
@@ -55,6 +57,7 @@
 
 			defer				VideoSetup	videowarningMenu
 			hide				highlights
+			hide				soundpage_glow
 			close				ingame_setup
 		}
 
@@ -150,6 +153,8 @@
 				hide			visuals3
 				hide			hud
 				hide			sound
+				hide			moresound
+				hide			soundpage_glow
 				hide			options
 				hide			network
 				hide			mods
@@ -218,6 +223,8 @@
 				hide			visuals3
 				hide			hud
 				hide			sound
+				hide			moresound
+				hide			soundpage_glow
 				hide			options
 				hide			network
 				hide			mods
@@ -286,6 +293,8 @@
 				hide			visuals3
 				hide			hud
 				hide			sound
+				hide			moresound
+				hide			soundpage_glow
 				hide			options
 				hide			network
 				hide			mods
@@ -354,6 +363,8 @@
 				hide			visuals3
 				show			hud
 				hide			sound
+				hide			moresound
+				hide			soundpage_glow
 				hide			options
 				hide			network
 				hide			mods
@@ -422,6 +433,8 @@
 				hide			visuals3
 				hide			hud
 				show			sound
+				hide			moresound
+				hide			soundpage_glow
 				hide			langapply
 				hide			options
 				hide			network
@@ -491,6 +504,8 @@
 				hide			visuals3
 				hide			hud
 				hide			sound
+				hide			moresound
+				hide			soundpage_glow
 				show			options
 				hide			network
 				hide			mods
@@ -559,6 +574,8 @@
 				hide			visuals3
 				hide			hud
 				hide			sound
+				hide			moresound
+				hide			soundpage_glow
 				hide			options
 				hide			network
 				hide			mods
@@ -627,6 +644,8 @@
 				hide			visuals3
 				hide			hud
 				hide			sound
+				hide			moresound
+				hide			soundpage_glow
 				hide			options
 				hide			langapply
 				show			network
@@ -697,6 +716,8 @@
 				hide			visuals3
 				hide			hud
 				hide			sound
+				hide			moresound
+				hide			soundpage_glow
 				hide			options
 				hide			network
 				hide			mods
@@ -913,7 +934,7 @@
 			name				highlightApplyButton
 			group				highlights
 			style				WINDOW_STYLE_SHADER
-			rect			365 343 120 32
+			rect			365 143 120 32
 			background			"gfx/menus/menu_blendbox"
 			forecolor			1 1 1 1
 			visible			0
@@ -4336,14 +4357,82 @@
 
 		itemDef
 		{
-			name				text
+			name				moresoundbutton_glow
+			group				soundpage_glow
+			style				WINDOW_STYLE_SHADER
+			rect				260 305 200 16
+			background			"gfx/menus/menu_blendbox"
+			forecolor			1 0.5 0.5 1
+			visible				0
+			decoration
+		}
+
+		itemDef
+		{
+			name				moresoundbutton
 			group				sound
+			type				ITEM_TYPE_BUTTON
+			text				"More Sound Settings"
+			rect				260 303 200 20
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			100
+			textaligny			0
+			font 				4
+			textscale 			1
+			forecolor			1 .682 0 1
+			visible				0
+			descText			"Configure saber hum and language settings."
+			action
+			{
+				play 			"sound/interface/button1"
+				hide			sound
+				hide			soundpage_glow
+				hide			highlights
+				show			moresound
+				hide			langapply
+			}
+			mouseenter			{ show moresoundbutton_glow }
+			mouseexit			{ hide moresoundbutton_glow }
+		}
+
+		//----------------------------------------------------------------------------------------------
+		//
+		//	MORE SOUND SETTINGS
+		//
+		//----------------------------------------------------------------------------------------------
+
+		itemDef
+		{
+			name				saber_hum
+			group				moresound
+			type				ITEM_TYPE_MULTI
+			text				"Saber Hum:"
+			cvar				"cg_saberHum"
+			cvarFloatList		{ "Random (Default)" 0 "Hum 1" 1 "Hum 2" 2 "Hum 3" 3 "Hum 4" 4 "Hum 5" 5 "Hilt default" 6 }
+			rect				220 63 300 20
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			120
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			.615 .615 .956 1
+			visible				0
+			descText			"Changes immediately. Custom hilt hums are always preserved; Hilt default disables randomization."
+			action				{ play "sound/interface/button1" }
+			mouseenter			{ show highlight2 }
+			mouseexit			{ hide highlight2 }
+		}
+
+		itemDef
+		{
+			name				text
+			group				moresound
 		  	type				ITEM_TYPE_MULTI
 			text				@MENUS_TEXT
 			cvar				"se_language"
 			feeder				40
 			cvarStrList			feeder
-			rect				220 283 300 20
+			rect				220 83 300 20
 				textalign			ITEM_ALIGN_RIGHT
 			textalignx			120
 			textaligny			0
@@ -4358,14 +4447,14 @@
 				show			langapply
 			}
 
-			mouseenter			{ show	highlight13 }
-			mouseexit			{ hide	highlight13 }
+			mouseenter			{ show	highlight3 }
+			mouseexit			{ hide	highlight3 }
 		}
 
 		itemDef
 		{
 			name				voice
-			group				sound
+			group				moresound
 		  	type				ITEM_TYPE_MULTI
 			text				@MENUS_VOICE
 			cvar				"s_language"
@@ -4376,7 +4465,7 @@
 				Deutsch				deutsch
 				"Espa�ol" 			espanol
 			}
-			rect				220 303 300 20
+			rect				220 103 300 20
 				textalign			ITEM_ALIGN_RIGHT
 			textalignx			120
 			textaligny			0
@@ -4393,46 +4482,23 @@
 			}
 			mouseenter
 			{
-				show			highlight14
+				show			highlight4
 			}
 			mouseexit
 			{
-				hide			highlight14
+				hide			highlight4
 			}
 		}
-
-		itemDef
-		{
-			name				saber_hum
-			group				sound
-			type				ITEM_TYPE_MULTI
-			text				"Saber Hum:"
-			cvar				"cg_saberHum"
-			cvarFloatList		{ "Random (Default)" 0 "Hum 1" 1 "Hum 2" 2 "Hum 3" 3 "Hum 4" 4 "Hum 5" 5 "Hilt default" 6 }
-			rect				220 323 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			120
-			textaligny			0
-			font				4
-			textscale			1
-			forecolor			.615 .615 .956 1
-			visible				0
-			descText			"Changes immediately. Custom hilt hums are always preserved; Hilt default disables randomization."
-			action				{ play "sound/interface/button1" }
-			mouseenter			{ show highlight15 }
-			mouseexit			{ hide highlight15 }
-		}
-
 
 		// APPLY CHANGES button
 		itemDef
 		{
 			name				langapply
-			group				sound
+			group				moresound
 			text				@MENUS_SET_LANGUAGE
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_EMPTY
-			rect			365 343 120 32
+			rect			365 143 120 32
 			font				2
 			textscale			1
 			textalign			ITEM_ALIGN_CENTER
@@ -4448,6 +4514,7 @@
 				play		"sound/interface/button1"
 				exec		"ui_load ; snd_restart"
 				hide			langapply
+				hide			highlightApplyButton
 			}
 			mouseEnter
 			{
@@ -4457,6 +4524,45 @@
 			{
 				hide			highlightApplyButton
 			}
+		}
+
+		itemDef
+		{
+			name				sounddonebutton_glow
+			group				soundpage_glow
+			style				WINDOW_STYLE_SHADER
+			rect				260 305 200 16
+			background			"gfx/menus/menu_blendbox"
+			forecolor			1 0.5 0.5 1
+			visible				0
+			decoration
+		}
+
+		itemDef
+		{
+			name				sounddonebutton
+			group				moresound
+			type				ITEM_TYPE_BUTTON
+			text				"Done"
+			rect				260 303 200 20
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			100
+			textaligny			0
+			font 				4
+			textscale 			1
+			forecolor			1 .682 0 1
+			visible				0
+			descText			"Return to sound settings."
+			action
+			{
+				play 			"sound/interface/button1"
+				hide			moresound
+				hide			soundpage_glow
+				hide			highlights
+				show			sound
+			}
+			mouseenter			{ show sounddonebutton_glow }
+			mouseexit			{ hide sounddonebutton_glow }
 		}
 
 		//----------------------------------------------------------------------------------------------
