@@ -1691,22 +1691,23 @@ static void CG_Print_f( void ) {
 		CG_LogPrintf(cg.log.file, "%s\n", strEd); //Log server console prints?
 }
 
-void CG_ChatBox_AddString(char *chatStr);
 static void CG_Chat_f( void ) {
 	char cmd[MAX_STRING_CHARS] = {0}, text[MAX_NETNAME+MAX_SAY_TEXT] = {0}, logtext[MAX_NETNAME+MAX_SAY_TEXT] = {0};
+	qboolean isPrivate;
 
 	trap->Cmd_Argv( 0, cmd, sizeof( cmd ) );
 
 	if (cmd[0] != 'l') { // normal chat ?/}
 
 		trap->Cmd_Argv( 1, text, sizeof( text ) );
-		// Normalize server PM formatting before filtering, including sent-message echoes.
-		CG_RemoveChatEscapeChar( text );
-		if ( cg.pmOnlyChat &&
-			(Q_stricmp( cmd, "chat" ) || !Q_stristr( text, "^7]: ^6" )) )
+		// The server marks both received tells and sent-message echoes before the name.
+		// Check before stripping escape characters; message text/colors can be faked.
+		isPrivate = !Q_stricmp( cmd, "chat" ) && text[0] == '\x19' && text[1] == '[';
+		if ( cg.pmOnlyChat && !isPrivate )
 		{
 			return;
 		}
+		CG_RemoveChatEscapeChar( text );
 
 		if ( !Q_stricmp( cmd, "chat" ) &&
 			(!cg_teamChatsOnly.integer || cg.pmOnlyChat) )
@@ -1732,7 +1733,7 @@ static void CG_Chat_f( void ) {
 			//New msg
 			//JAPRO - Clientside - Chatsounds options
 			if (cg_chatSounds.integer == 2) {
-				if (Q_stristr(text, "^7]: ^6")) //pm
+				if (isPrivate)
 					trap->S_StartLocalSound(cgs.media.privateChatSound, CHAN_LOCAL_SOUND);
 				else //all chat
 					trap->S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
@@ -1741,7 +1742,7 @@ static void CG_Chat_f( void ) {
 				trap->S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
 			}
 
-			CG_ChatBox_AddString(text);
+			CG_ChatBox_AddString(text, isPrivate);
 			Q_strncpyz(cg.lastChatMsg, text, sizeof(cg.lastChatMsg));
 		}
 		else if ( !Q_stricmp( cmd, "tchat" ) )
@@ -1754,7 +1755,7 @@ static void CG_Chat_f( void ) {
 				trap->S_StartLocalSound(cgs.media.teamChatSound, CHAN_LOCAL_SOUND);
 			else if (cg_chatSounds.integer)
 				trap->S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
-			CG_ChatBox_AddString(text);
+			CG_ChatBox_AddString(text, qfalse);
 		}
 	}
 	else
@@ -1762,16 +1763,15 @@ static void CG_Chat_f( void ) {
 		char	name[MAX_NETNAME]={0},	loc[MAX_STRING_CHARS]={0},
 				color[8]={0},			message[MAX_STRING_CHARS]={0};
 
-		if ( trap->Cmd_Argc() < 4 )
+		if ( trap->Cmd_Argc() < 5 )
 			return;
 
 		trap->Cmd_Argv( 1, name, sizeof( name ) );
 		trap->Cmd_Argv( 2, loc, sizeof( loc ) );
 		trap->Cmd_Argv( 3, color, sizeof( color ) );
 		trap->Cmd_Argv( 4, message, sizeof( message ) );
-		if ( cg.pmOnlyChat &&
-			(Q_stricmp( cmd, "lchat" ) || color[0] != COLOR_MAGENTA ||
-			(name[0] != '\x19' || name[1] != '[')) )
+		isPrivate = !Q_stricmp( cmd, "lchat" ) && name[0] == '\x19' && name[1] == '[';
+		if ( cg.pmOnlyChat && !isPrivate )
 		{
 			return;
 		}
@@ -1787,12 +1787,12 @@ static void CG_Chat_f( void ) {
 			(!cg_teamChatsOnly.integer || cg.pmOnlyChat) ) {
 			Com_sprintf( text, sizeof( text ), "%s" S_COLOR_WHITE "<%s> ^%s%s", name, loc, color, message );
 			CG_RemoveChatEscapeChar( text );
-			CG_ChatBox_AddString( text );
+			CG_ChatBox_AddString( text, isPrivate );
 		}
 		else if ( !Q_stricmp( cmd, "ltchat" ) ) {
 			Com_sprintf( text, sizeof( text ), "%s" S_COLOR_WHITE "<%s> ^%s%s", name, loc, color, message );
 			CG_RemoveChatEscapeChar( text );
-			CG_ChatBox_AddString( text );
+			CG_ChatBox_AddString( text, qfalse );
 		}
 	}
 }
