@@ -431,6 +431,7 @@ void WP_SaberSetDefaults( saberInfo_t *saber ) {
 	saber->skin					= 0;
 	saber->soundOn				= BG_SoundIndex( "sound/weapons/saber/enemy_saber_on.wav" );
 	saber->soundLoop			= BG_SoundIndex( "sound/weapons/saber/saberhum3.wav" );
+	saber->soundLoopCustom		= qfalse;
 	saber->soundOff				= BG_SoundIndex( "sound/weapons/saber/enemy_saber_off.wav" );
 	saber->numBlades			= 1;
 	saber->type					= SABER_SINGLE;
@@ -582,6 +583,7 @@ static void Saber_ParseSoundLoop( saberInfo_t *saber, const char **p ) {
 	if ( COM_ParseString( p, &value ) )
 		return;
 	saber->soundLoop = BG_SoundIndex( value );
+	saber->soundLoopCustom = qtrue;
 }
 static void Saber_ParseSoundOff( saberInfo_t *saber, const char **p ) {
 	const char *value;
