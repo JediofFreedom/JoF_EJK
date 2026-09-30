@@ -703,6 +703,7 @@ int BG_InGrappleMove(int anim)
 	case BOTH_PLAYER_PA_2:
 	case BOTH_PLAYER_PA_FLY:
 	case BOTH_PLAYER_PA_3:
+	case BOTH_PLAYER_PA_3_FLY:
 		return 3; //getting the shit beaten out of you
 		break;
 	}
@@ -1904,7 +1905,22 @@ void ParseAnimationEvtBlock(const char *aeb_filename, animevent_t *animEvents, a
 			{
 				break;
 			}
-			strcpy(stringData, token);
+			Q_strncpyz( stringData, token, sizeof( stringData ) );
+			// Kata voices belong to the actor playing the animation. Keep the
+			// custom name until playback instead of discarding it as sound 0.
+			// Other animations already get their voices from gameplay events.
+			if ( stringData[0] == '*' && BG_InGrappleMove( animNum ) )
+			{
+				if ( !animEvents[curAnimEvent].stringData )
+				{
+					animEvents[curAnimEvent].stringData = (char *)BG_Alloc( MAX_QPATH );
+				}
+				Q_strncpyz( animEvents[curAnimEvent].stringData, stringData, MAX_QPATH );
+			}
+			else
+			{
+				animEvents[curAnimEvent].stringData = NULL;
+			}
 			//get lowest value
 			token = COM_Parse( text_p );
 			if ( !token )
@@ -1933,8 +1949,8 @@ void ParseAnimationEvtBlock(const char *aeb_filename, animevent_t *animEvents, a
 				for ( n = lowestVal, num = AED_SOUNDINDEX_START; n <= highestVal && num <= AED_SOUNDINDEX_END; n++, num++ )
 				{
 					if (stringData[0] == '*')
-					{ //FIXME? Would be nice to make custom sounds work with animEvents.
-						animEvents[curAnimEvent].eventData[num] = 0;
+					{ //Custom sounds store variant numbers, resolved per actor at playback.
+						animEvents[curAnimEvent].eventData[num] = animEvents[curAnimEvent].stringData ? n : 0;
 					}
 					else
 					{
@@ -1946,7 +1962,7 @@ void ParseAnimationEvtBlock(const char *aeb_filename, animevent_t *animEvents, a
 			else
 			{
 				if (stringData[0] == '*')
-				{ //FIXME? Would be nice to make custom sounds work with animEvents.
+				{ //A fixed custom name needs no variant number.
 					animEvents[curAnimEvent].eventData[AED_SOUNDINDEX_START] = 0;
 				}
 				else

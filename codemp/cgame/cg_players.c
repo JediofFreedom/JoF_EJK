@@ -3134,6 +3134,23 @@ static void CG_PlayerFootsteps( centity_t *cent, footstepType_t footStepType )
 	}
 }
 
+static sfxHandle_t CG_AnimEventSound( int entityNum, const animevent_t *animEvent )
+{
+	int sound = animEvent->eventData[AED_SOUNDINDEX_START +
+		Q_irand( 0, animEvent->eventData[AED_SOUND_NUMRANDOMSNDS] )];
+
+	if ( animEvent->stringData && animEvent->stringData[0] == '*' )
+	{
+		const char *name = animEvent->stringData;
+		if ( sound > 0 )
+		{
+			name = va( name, sound );
+		}
+		return CG_CustomSound( entityNum, name );
+	}
+	return sound;
+}
+
 void CG_PlayerAnimEventDo( centity_t *cent, animevent_t *animEvent )
 {
 	soundChannel_t channel = CHAN_AUTO;
@@ -3152,7 +3169,7 @@ void CG_PlayerAnimEventDo( centity_t *cent, animevent_t *animEvent )
 		channel = (soundChannel_t)animEvent->eventData[AED_SOUNDCHANNEL];
 	case AEV_SOUND:
 		{	// are there variations on the sound?
-			const int holdSnd = animEvent->eventData[ AED_SOUNDINDEX_START+Q_irand( 0, animEvent->eventData[AED_SOUND_NUMRANDOMSNDS] ) ];
+			const sfxHandle_t holdSnd = CG_AnimEventSound( cent->currentState.number, animEvent );
 			if ( holdSnd > 0 )
 			{
 				trap->S_StartSound( NULL, cent->currentState.number, channel, holdSnd );

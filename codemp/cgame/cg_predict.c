@@ -1120,11 +1120,19 @@ static qboolean CG_InKnockDownState( playerState_t *ps )
 
 static qboolean CG_InMeleeGrappleVictimState( const playerState_t *ps )
 {
-	// The side kata's throw is ballistic once released. A channel can still
-	// contain the hold animation during the transition to the flight animation.
+	// The paired hold is positioned directly by the server and cannot be
+	// reconstructed locally. Once the throw animation starts, its velocity and
+	// knockback time are predictable, so resume prediction for a smooth launch.
+	// A channel can still contain the hold animation during the transition to the
+	// flight animation, so treat flight as the authoritative exit from the victim state.
 	if ( ps->stats[STAT_HEALTH] <= 0 ||
-		(ps->legsAnim == BOTH_PLAYER_PA_3_FLY && ps->legsTimer > 0) ||
-		(ps->torsoAnim == BOTH_PLAYER_PA_3_FLY && ps->torsoTimer > 0) )
+		ps->legsAnim == BOTH_PLAYER_PA_3_FLY ||
+		ps->torsoAnim == BOTH_PLAYER_PA_3_FLY )
+	{
+		return qfalse;
+	}
+	return qtrue;
+}
 	{
 		return qfalse;
 	}
@@ -1136,14 +1144,19 @@ static qboolean CG_InMeleeGrappleVictimState( const playerState_t *ps )
 static void CG_PreserveMeleeKataFlightAnimation( playerState_t *predicted,
 	const playerState_t *server )
 {
-	if ( server->stats[STAT_HEALTH] <= 0 )
+	if ( server->stats[STAT_HEALTH] <= 0 ||
+		((server->legsAnim != BOTH_PLAYER_PA_3_FLY || server->legsTimer <= 0) &&
+		(server->torsoAnim != BOTH_PLAYER_PA_3_FLY || server->torsoTimer <= 0)) )
+	{
+		return;
+	}
 	{
 		return;
 	}
 
-	// Predict the throw's movement, but keep the server's flight animation.
-	// Replayed movement/weapon commands can otherwise replace it with an idle
-	// or air animation. Only restore channels still marked as flight by the server.
+	// Predict the throw's movement, but keep the server-selected flight animation.
+	// Replayed movement/weapon commands can otherwise replace it with an idle or
+	// air animation. Only restore channels still marked as flight by the server.
 	if ( server->legsAnim == BOTH_PLAYER_PA_3_FLY && server->legsTimer > 0 )
 	{
 		predicted->legsAnim = server->legsAnim;
@@ -1154,24 +1167,15 @@ static void CG_PreserveMeleeKataFlightAnimation( playerState_t *predicted,
 		predicted->torsoAnim = server->torsoAnim;
 		predicted->torsoFlip = server->torsoFlip;
 	}
-}
-
-// JA+ locks the local view server-side (it rewrites delta_angles every server
-// frame) while we're being kicked down, getting up or kissing. Mirrors the anim
-// list bg_pmove's JA+ animation support locks for, plus the kick knockdown
-// window above.
-static qboolean CG_JAPlusViewLockedState( playerState_t *ps )
-{
-	if ( ps->legsAnim == BOTH_JUMP_BACKFLIP_ATCKEE || ps->torsoAnim == BOTH_JUMP_BACKFLIP_ATCKEE
-		|| ps->torsoAnim == BOTH_GETUP1 || ps->torsoAnim == BOTH_NEW_STABEE )
+	// The paired throw's flight pose is server-authoritative while the local
+	// ballistic origin remains predicted.
+	if ( predicted->legsAnim == BOTH_PLAYER_PA_3_FLY || predicted->torsoAnim == BOTH_PLAYER_PA_3_FLY )
 	{
-		return qtrue;
+		predicted->legsAnim = BOTH_PLAYER_PA_3_FLY;
+		predicted->torsoAnim = BOTH_PLAYER_PA_3_FLY;
+		predicted->legsFlip = server->legsFlip;
+		predicted->torsoFlip = server->torsoFlip;
 	}
-	if ( ps->legsAnim >= BOTH_KISSEE && ps->legsAnim <= BOTH_KISSER1STOP )
-	{
-		return qtrue;
-	}
-	return CG_InKnockDownState( ps );
 }
 
 // JA+ marks victims of its added side/back kicks with forceDodgeAnim 4/5 and
@@ -1304,6 +1308,18 @@ if ( cgs.serverMod == SVMOD_JAPLUS && CG_InJAPlusSpecialKickState( &cg.snap->ps 
 		{
 			CG_InterpolateVehiclePlayerState(qtrue);
 		}
+		return;
+	}
+
+	// Grapple victims are positioned and animated by the server during the paired
+	// hold. Local command replay cannot reproduce the grappler's state there.
+	if ( CG_InMeleeGrappleVictimState( &cg.snap->ps ) )
+	{
+		oldPlayerState = cg.predictedPlayerState;
+		CG_InterpolatePlayerState( qfalse );
+		// Snapshot transitions still assume prediction is active here. Process
+		// damage, local sounds and events even though the hold skips Pmove.
+		CG_TransitionPlayerState( &cg.predictedPlayerState, &oldPlayerState );
 		return;
 	}
 
@@ -1898,6 +1914,8 @@ if ( cgs.serverMod == SVMOD_JAPLUS && CG_InJAPlusSpecialKickState( &cg.snap->ps 
 		}
 		goto revertES;
 	}
+
+	CG_PreserveMeleeKataFlightAnimation( &cg.predictedPlayerState, &cg.snap->ps );
 
 	if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 	{

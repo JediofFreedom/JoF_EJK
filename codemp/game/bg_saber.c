@@ -2886,6 +2886,12 @@ qboolean PM_SaberMoveOkayForKata( void )
 
 qboolean PM_CanDoKata( void )
 {
+	if ( BG_InGrappleMove( pm->ps->legsAnim )
+		|| BG_InGrappleMove( pm->ps->torsoAnim ) )
+	{
+		return qfalse;
+	}
+
 	if ( PM_InSecondaryStyle() )
 	{
 		return qfalse;
