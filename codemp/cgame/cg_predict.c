@@ -1236,7 +1236,11 @@ void CG_PredictPlayerState( void ) {
 	// hold. Local command replay cannot reproduce the grappler's state there.
 	if ( CG_InMeleeGrappleVictimState( &cg.snap->ps ) )
 	{
+		oldPlayerState = cg.predictedPlayerState;
 		CG_InterpolatePlayerState( qfalse );
+		// Snapshot transitions still assume prediction is active here. Process
+		// damage, local sounds and events even though the hold skips Pmove.
+		CG_TransitionPlayerState( &cg.predictedPlayerState, &oldPlayerState );
 		return;
 	}
 
