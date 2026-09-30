@@ -10280,6 +10280,8 @@ static void CG_VehicleHeatEffect( vec3_t org, centity_t *cent )
 
 static int lastFlyBySound[MAX_GENTITIES] = {0};
 #define	FLYBYSOUNDTIME 2000
+static int lastEngineStartSound[MAX_GENTITIES] = {0};
+#define	ENGINESTARTSOUNDTIME 3000
 int	cg_lastHyperSpaceEffectTime = 0;
 static QINLINE void CG_VehicleEffects(centity_t *cent)
 {
@@ -10352,9 +10354,11 @@ static QINLINE void CG_VehicleEffects(centity_t *cent)
 
 	if ( !cent->currentState.speed//was stopped
 		&& cent->nextState.speed > 0//now moving forward
-		&& cent->m_pVehicle->m_pVehicleInfo->soundEngineStart )
+		&& cent->m_pVehicle->m_pVehicleInfo->soundEngineStart
+		&& lastEngineStartSound[cent->currentState.clientNum]+ENGINESTARTSOUNDTIME < cg.time )//not spammed by tapping forward
 	{//engines rev up for the first time
 		trap->S_StartSound(NULL, cent->currentState.clientNum, CHAN_LESS_ATTEN, cent->m_pVehicle->m_pVehicleInfo->soundEngineStart );
+		lastEngineStartSound[cent->currentState.clientNum] = cg.time;
 	}
 	// Animals don't exude any effects...
 	if ( pVehNPC->m_pVehicleInfo->type != VH_ANIMAL )
