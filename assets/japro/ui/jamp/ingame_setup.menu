@@ -3833,7 +3833,7 @@
 			cvarStrList			feeder
 			rect				220 263 300 20
 				textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
+			textalignx			120
 			textaligny			0
 			font 				4
 			textscale 			1
@@ -3866,7 +3866,7 @@
 			}
 			rect				220 283 300 20
 				textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
+			textalignx			120
 			textaligny			0
 			font 				4
 			textscale 			1
@@ -3899,7 +3899,7 @@
 			cvarFloatList		{ "Random (Default)" 0 "Hum 1" 1 "Hum 2" 2 "Hum 3" 3 "Hum 4" 4 "Hum 5" 5 "Hilt default" 6 }
 			rect				220 303 300 20
 			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
+			textalignx			120
 			textaligny			0
 			font				4
 			textscale			1
