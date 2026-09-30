@@ -34,6 +34,61 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 	#include "ui/ui_local.h"
 #endif
 
+#if defined(_GAME) || defined(_CGAME)
+qboolean BG_CanDeflectLightning(const playerState_t *ps, const usercmd_t *cmd, int time)
+{
+	float walkSpeed = ps->speed * 0.6f;
+	if (ps->stats[STAT_HEALTH] <= 0 || ps->pm_type != PM_NORMAL ||
+		ps->fd.forcePowerLevel[FP_SABER_DEFENSE] < FORCE_LEVEL_3 ||
+		ps->weapon != WP_SABER || cmd->weapon != WP_SABER ||
+		ps->saberHolstered == 2 || ps->saberInFlight || !ps->saberEntityNum ||
+		ps->weaponTime > 0 || ps->saberLockTime > time || ps->saberBlocked ||
+		(ps->saberMove != LS_READY && ps->saberMove != LS_NONE) ||
+		(ps->forceHandExtend != HANDEXTEND_NONE &&
+		 ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT) ||
+		ps->groundEntityNum == ENTITYNUM_NONE || ps->m_iVehicleNum ||
+		ps->emplacedIndex || ps->electrifyTime > time ||
+		(ps->brokenLimbs & (1 << BROKENLIMB_RARM)) ||
+		BG_InRoll((playerState_t *)ps, ps->legsAnim) || BG_InSpecialJump(ps->legsAnim))
+		return qfalse;
+	if (cmd->upmove > 0 ||
+		abs(cmd->forwardmove) > 64 || abs(cmd->rightmove) > 64 ||
+		(cmd->buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK | BUTTON_USE_HOLDABLE | BUTTON_GESTURE)) ||
+		((cmd->forwardmove || cmd->rightmove) && !(cmd->buttons & BUTTON_WALKING)))
+		return qfalse;
+	// Switching to walk must actually slow the player before the first hit.
+	return ps->velocity[0] * ps->velocity[0] + ps->velocity[1] * ps->velocity[1] <= walkSpeed * walkSpeed;
+}
+
+qboolean BG_LightningDeflectDirection(const playerState_t *ps, const vec3_t source, int *anim)
+{
+	vec3_t incoming, forward, right;
+	VectorSubtract(source, ps->origin, incoming);
+	incoming[2] -= ps->viewheight;
+	if (VectorNormalize(incoming) < 1.0f)
+		return qfalse;
+	AngleVectors(ps->viewangles, forward, right, NULL);
+	if (DotProduct(incoming, forward) < LIGHTNING_DEFLECT_MIN_DOT)
+		return qfalse;
+	if (anim)
+		*anim = DotProduct(incoming, right) < -0.1f ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
+	return qtrue;
+}
+
+void BG_EndLightningDeflect(playerState_t *ps)
+{
+	ps->eFlags2 &= ~EF2_LIGHTNING_DEFLECT;
+	if (ps->forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT)
+	{
+		ps->forceHandExtend = HANDEXTEND_NONE;
+		ps->forceHandExtendTime = 0;
+		ps->forceDodgeAnim = 0;
+		ps->torsoTimer = 0;
+	}
+}
+
+#endif // Game/cgame lightning guard.
+
 const char *bgToggleableSurfaces[BG_NUM_TOGGLEABLE_SURFACES] =
 {
 	"l_arm_key",					//0

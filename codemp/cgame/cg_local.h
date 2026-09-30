@@ -653,6 +653,11 @@ typedef struct centity_s {
 	int				lightningReferenceTime[5];
 	vec3_t			lightningReferenceEnd[5];
 	int				lightningReferenceSoundTime[5];
+	int				lightningDeflectVisualTime;
+	int				lightningDeflectSoundTime;
+	int				lightningDeflectContactTime;
+	vec3_t			lightningDeflectContact;
+	vec3_t			lightningDeflectOrigin;
 	unsigned int	flameThrowerHitTime;
 	qboolean		  flameThrowerSndActive;
 	qboolean	hasPlayedJetpackSounds;
@@ -2784,6 +2789,8 @@ void FX_BlasterWeaponHitPlayer( vec3_t origin, vec3_t normal, qboolean humanoid 
 
 void FX_ForceDrained(vec3_t origin, vec3_t dir);
 qboolean FX_ForceLightningEnvironment(centity_t *cent, vec3_t origin, matrix3_t axis, qboolean wide);
+qboolean FX_ForceLightningDeflection(centity_t *caster, vec3_t origin, matrix3_t axis, qboolean wide);
+void FX_RecordLightningDeflection(int defender, int caster);
 
 
 //-----------------------------
