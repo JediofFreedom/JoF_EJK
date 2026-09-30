@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 #
-# rend2-sync.sh — port new rend2 commits from SomaZ/OpenJK (rend2-unified-wip)
+# rend2-sync.sh — port new rend2 commits from SomaZ/OpenJK (rend2)
 # into this repo.
 #
-# Upstream moved the renderer core to shared/rd-rend2 (unified SP/MP); this
-# repo keeps the full renderer in codemp/rd-rend2. A plain cherry-pick can
-# never apply, so this script rewrites patch paths before applying:
-#
-#   shared/rd-rend2/**  ->  codemp/rd-rend2/**
-#   codemp/rd-rend2/**  ->  codemp/rd-rend2/** (upstream MP wrapper, as-is)
-#   code/rd-rend2/**    ->  dropped (SP-only)
+# This repo uses upstream's MP renderer in codemp/rd-rend2, with local
+# customizations. The separate rend2-unified-wip branch has different APIs
+# and SP/MP state; remapping its shared/rd-rend2 paths does not make it
+# compatible. Only import codemp/rd-rend2 from the matching rend2 branch.
+# The initial rend2 baseline is 1dd147b0f: its renderer was imported by local
+# commit 3605a226a, with only the build include path and font/ratio additions.
 #
 # State: scripts/rend2-sync/last-synced-commit holds the last upstream commit
 # that was processed. Commits are applied oldest-first; the script stops at
@@ -24,7 +23,7 @@
 set -euo pipefail
 
 UPSTREAM_URL="${UPSTREAM_URL:-https://github.com/SomaZ/OpenJK.git}"
-UPSTREAM_BRANCH="${UPSTREAM_BRANCH:-rend2-unified-wip}"
+UPSTREAM_BRANCH="${UPSTREAM_BRANCH:-rend2}"
 STATE_FILE="scripts/rend2-sync/last-synced-commit"
 SUMMARY_FILE="${SUMMARY_FILE:-}"
 
@@ -39,7 +38,7 @@ echo "Fetching $UPSTREAM_URL $UPSTREAM_BRANCH ..."
 git fetch --quiet "$UPSTREAM_URL" "$UPSTREAM_BRANCH"
 UPSTREAM_HEAD=$(git rev-parse FETCH_HEAD)
 
-LAST=$(tr -d ' \n' < "$STATE_FILE")
+LAST=$(tr -d ' \r\n' < "$STATE_FILE")
 if [ -z "$LAST" ]; then
     echo "error: $STATE_FILE is empty; seed it with an upstream commit hash" >&2
     exit 1
@@ -51,15 +50,15 @@ if ! git merge-base --is-ancestor "$LAST" "$UPSTREAM_HEAD"; then
     exit 1
 fi
 
-COMMITS=$(git rev-list --reverse "$LAST..$UPSTREAM_HEAD" -- shared/rd-rend2 codemp/rd-rend2)
+# Follow the branch's integration order. Diff merge commits against their
+# first parent so fixes merged from other branches are imported exactly once.
+COMMITS=$(git rev-list --first-parent --reverse "$LAST..$UPSTREAM_HEAD" -- codemp/rd-rend2)
 
 if [ -z "$COMMITS" ]; then
     echo "Up to date with upstream ($UPSTREAM_HEAD); nothing to do."
-    exit 0
 fi
 
 applied=()
-sp_only=()
 already_present=()
 conflict=""
 new_state="$LAST"
@@ -67,20 +66,19 @@ new_state="$LAST"
 for c in $COMMITS; do
     subject=$(git log -1 --format='%h %s' "$c")
 
-    # Patch limited to the paths we port, with upstream's shared/ layout
-    # rewritten to this repo's codemp/ layout. The global replace also fixes
-    # any shared/rd-rend2 references inside patch content (e.g. CMake paths).
-    patch=$(git show --binary "$c" -- shared/rd-rend2 codemp/rd-rend2 \
-        | sed 's|shared/rd-rend2|codemp/rd-rend2|g')
+    patch=$(git diff --binary "$c^" "$c" -- codemp/rd-rend2)
 
-    if ! printf '%s\n' "$patch" | grep -q '^diff --git'; then
-        echo "SKIP (SP-only)  $subject"
-        sp_only+=("$subject")
-        new_state="$c"
-        continue
-    fi
-
-    if printf '%s\n' "$patch" | git apply --3way --binary --quiet 2>/dev/null; then
+    # A here-string avoids SIGPIPE/pipefail false failures when git apply
+    # exits before reading the entire patch.
+    if apply_log=$(git apply --3way --binary <<< "$patch" 2>&1); then
+        # A three-way merge can succeed without changing anything when the
+        # upstream fix has already been ported manually.
+        if git diff --cached --quiet; then
+            echo "SKIP (present)  $subject"
+            already_present+=("$subject")
+            new_state="$c"
+            continue
+        fi
         git add -A codemp/rd-rend2
         git commit --quiet \
             --author "$(git log -1 --format='%an <%ae>' "$c")" \
@@ -92,15 +90,15 @@ for c in $COMMITS; do
     else
         git reset --hard --quiet HEAD
         # If the patch reverse-applies, the tree already contains this
-        # commit's end state (e.g. upstream removing REND2_SP scaffolding
-        # this repo never had) — skip it instead of reporting a conflict.
-        if printf '%s\n' "$patch" | git apply --reverse --check --binary 2>/dev/null; then
+        # commit's end state — skip it instead of reporting a conflict.
+        if git apply --reverse --check --binary <<< "$patch" 2>/dev/null; then
             echo "SKIP (present)  $subject"
             already_present+=("$subject")
             new_state="$c"
             continue
         fi
         echo "CONFLICT        $subject"
+        printf '%s\n' "$apply_log" >&2
         conflict="$subject"
         break
     fi
@@ -114,13 +112,12 @@ fi
 
 remaining=0
 if [ -n "$conflict" ]; then
-    remaining=$(git rev-list --count "$new_state..$UPSTREAM_HEAD" -- shared/rd-rend2 codemp/rd-rend2)
+    remaining=$(git rev-list --first-parent --count "$new_state..$UPSTREAM_HEAD" -- codemp/rd-rend2)
 fi
 
 echo
 echo "=== rend2-sync summary ==="
 echo "applied:  ${#applied[@]}"
-echo "sp-only:  ${#sp_only[@]}"
 echo "present:  ${#already_present[@]}"
 if [ -n "$conflict" ]; then
     echo "stopped at conflict: $conflict ($remaining upstream commit(s) still pending)"
@@ -130,16 +127,11 @@ fi
 if [ -n "$SUMMARY_FILE" ]; then
     {
         echo "Automated port of rend2 commits from [SomaZ/OpenJK \`$UPSTREAM_BRANCH\`](https://github.com/SomaZ/OpenJK/tree/$UPSTREAM_BRANCH)."
-        echo "Paths are remapped \`shared/rd-rend2\` -> \`codemp/rd-rend2\`; SP-only changes are dropped."
+        echo "Only \`codemp/rd-rend2\` changes are imported; local renderer customizations are preserved."
         echo
         if [ ${#applied[@]} -gt 0 ]; then
             echo "### Applied"
             for s in "${applied[@]}"; do echo "- $s"; done
-            echo
-        fi
-        if [ ${#sp_only[@]} -gt 0 ]; then
-            echo "### Skipped (SP-only)"
-            for s in "${sp_only[@]}"; do echo "- $s"; done
             echo
         fi
         if [ ${#already_present[@]} -gt 0 ]; then
@@ -151,7 +143,7 @@ if [ -n "$SUMMARY_FILE" ]; then
             echo "### :warning: Stopped at conflict"
             echo "- $conflict"
             echo
-            echo "$remaining upstream commit(s) remain after this one. Port it manually,"
+            echo "$remaining upstream commit(s) remain, including this one. Port it manually,"
             echo "update \`$STATE_FILE\` to its full hash, commit, and re-run the workflow."
         fi
     } > "$SUMMARY_FILE"

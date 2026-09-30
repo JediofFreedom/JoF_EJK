@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   sync:
-    name: Port new rend2 commits from SomaZ/OpenJK
+    name: Port new rend2 commits from SomaZ/OpenJK (rend2)
     runs-on: ubuntu-latest
     env:
       SYNC_BRANCH: automation/rend2-sync
@@ -57,20 +57,32 @@ jobs:
           SUMMARY_FILE=/tmp/rend2-sync-summary.md bash scripts/rend2-sync/rend2-sync.sh
           echo "changes=$(git rev-list --count origin/master..HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Fail visibly if blocked on a conflict with nothing applied
-        if: steps.guard.outputs.proceed == 'true' && steps.sync.outputs.changes == '0' && steps.sync.outputs.conflict != ''
+      - name: Show sync summary
+        if: always() && steps.guard.outputs.proceed == 'true'
         shell: bash
         run: |
-          echo "::error::rend2-sync is blocked: '${{ steps.sync.outputs.conflict }}' conflicts and nothing could be applied. Port it manually and update scripts/rend2-sync/last-synced-commit."
+          if [ -f /tmp/rend2-sync-summary.md ]; then
+            cat /tmp/rend2-sync-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Fail visibly if blocked on a conflict with nothing applied
+        if: steps.guard.outputs.proceed == 'true' && steps.sync.outputs.changes == '0' && steps.sync.outputs.conflict != ''
+        env:
+          CONFLICT: ${{ steps.sync.outputs.conflict }}
+        shell: bash
+        run: |
+          echo "::error::rend2-sync is blocked: '$CONFLICT' conflicts and nothing could be applied. Port it manually and update scripts/rend2-sync/last-synced-commit."
           exit 1
 
       - name: Open pull request
         if: steps.guard.outputs.proceed == 'true' && steps.sync.outputs.changes != '0'
+        env:
+          CONFLICT: ${{ steps.sync.outputs.conflict }}
         shell: bash
         run: |
           git push -f origin "$SYNC_BRANCH"
           title="Sync rend2 with SomaZ/OpenJK"
-          if [ -n "${{ steps.sync.outputs.conflict }}" ]; then
+          if [ -n "$CONFLICT" ]; then
             title="$title (stopped at conflict)"
           fi
           gh pr create \
