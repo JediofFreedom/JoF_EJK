@@ -274,7 +274,7 @@ extern void BG_VehicleAdjustBBoxForOrientation( Vehicle_t *veh, vec3_t origin, v
 										int clientNum, int tracemask,
 										void (*localTrace)(trace_t *results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentMask)); // bg_pmove.c
 static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end,
-							int skipNumber, int mask, trace_t *tr, qboolean g2Check, qboolean crosshairTrace ) {
+							int skipNumber, int skipNumber2, int mask, trace_t *tr, qboolean g2Check, qboolean crosshairTrace ) {
 	int			i, x, zd, zu;
 	trace_t		trace, oldTrace;
 	entityState_t	*ent;
@@ -293,7 +293,7 @@ static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const
 		cent = cg_solidEntities[ i ];
 		ent = &cent->currentState;
 
-		if ( ent->number == skipNumber ) {
+		if ( ent->number == skipNumber || ent->number == skipNumber2 ) {
 			continue;
 		}
 
@@ -468,8 +468,18 @@ void	CG_Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec
 	trap->CM_Trace ( &t, start, end, mins, maxs, 0, mask, 0);
 	t.entityNum = t.fraction != 1.0 ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	// check all other solid models
-	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, mask, &t, qfalse, qfalse);
+	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, ENTITYNUM_NONE, mask, &t, qfalse, qfalse);
 
+	*result = t;
+}
+
+void CG_TraceSkipEntity( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs,
+		const vec3_t end, int skipNumber, int skipNumber2, int mask ) {
+	trace_t t;
+
+	trap->CM_Trace( &t, start, end, mins, maxs, 0, mask, 0 );
+	t.entityNum = t.fraction != 1.0f ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
+	CG_ClipMoveToEntities( start, mins, maxs, end, skipNumber, skipNumber2, mask, &t, qfalse, qfalse );
 	*result = t;
 }
 
@@ -485,7 +495,7 @@ void	CG_G2Trace( trace_t *result, const vec3_t start, const vec3_t mins, const v
 	trap->CM_Trace ( &t, start, end, mins, maxs, 0, mask, 0);
 	t.entityNum = t.fraction != 1.0 ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	// check all other solid models
-	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, mask, &t, qtrue, qfalse);
+	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, ENTITYNUM_NONE, mask, &t, qtrue, qfalse);
 
 	*result = t;
 }
@@ -497,7 +507,7 @@ void CG_CrosshairTrace( trace_t *result, const vec3_t start, const vec3_t mins, 
 	trap->CM_Trace ( &t, start, end, mins, maxs, 0, CONTENTS_SOLID|CONTENTS_BODY, 0);
 	t.entityNum = t.fraction != 1.0 ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	// check all other solid models
-	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, CONTENTS_SOLID|CONTENTS_BODY, &t, g2Check, qtrue);
+	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, ENTITYNUM_NONE, CONTENTS_SOLID|CONTENTS_BODY, &t, g2Check, qtrue);
 
 	*result = t;
 }
