@@ -25,7 +25,7 @@ void G_SetAnim(gentity_t *ent, usercmd_t *cmd, int parts, int anim, int flags, i
   ent->client->ps.torsoAnim = anim; ent->client->ps.torsoTimer = 100;
 }
 gentity_t *G_TempEntity(vec3_t origin, int event) {
-  CHECK(event == EV_SABER_BLOCK); ++events; memset(&eventEntity, 0, sizeof(eventEntity)); return &eventEntity;
+  CHECK(event == EV_SABER_BLOCK); ++events; memset(&eventEntity, 0, sizeof(eventEntity)); eventEntity.s.event = event; return &eventEntity;
 }
 int G_SoundIndex(const char *name) { return 1; }
 void G_Sound(gentity_t *ent, int channel, int sound) {}
@@ -48,15 +48,17 @@ static void Reset(void) {
     g_entities[i].takedamage = qtrue; g_entities[i].health = 100; g_entities[i].s.number = i;
     ps->clientNum = i; ps->pm_type = PM_NORMAL; ps->stats[STAT_HEALTH] = 100;
     ps->weapon = WP_SABER; ps->saberEntityNum = 10; ps->saberMove = LS_READY;
-    ps->groundEntityNum = ENTITYNUM_WORLD; ps->speed = 250; ps->viewheight = DEFAULT_VIEWHEIGHT;
+    ps->groundEntityNum = ENTITYNUM_WORLD; ps->speed = ps->basespeed = 250; ps->viewheight = DEFAULT_VIEWHEIGHT;
     ps->fd.forcePowerLevel[FP_SABER_DEFENSE] = FORCE_LEVEL_3;
     ps->fd.forcePowerMax = 100;
     clients[i].pers.cmd.weapon = WP_SABER; clients[i].pers.cmd.serverTime = level.time;
   }
   clients[0].ps.origin[0] = 100;
+  clients[0].ps.viewangles[YAW] = 180;
   clients[0].ps.fd.forcePowerLevel[FP_LIGHTNING] = FORCE_LEVEL_3;
   clients[0].ps.fd.forcePowersActive = 1 << FP_LIGHTNING;
   clients[2].ps.origin[0] = 100; clients[2].ps.origin[1] = 20;
+  clients[2].ps.viewangles[YAW] = 180;
   clients[2].ps.fd.forcePowersActive = 1 << FP_LIGHTNING;
   movement.ps = &clients[1].ps; movement.cmd = clients[1].pers.cmd;
 }
@@ -83,6 +85,12 @@ static void Requirements(void) {
   ps->groundEntityNum = ENTITYNUM_WORLD; ps->saberMove = LS_A_T2B; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
   ps->saberMove = LS_READY; ps->m_iVehicleNum = 1; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
   ps->m_iVehicleNum = 0; ps->forceHandExtend = HANDEXTEND_KNOCKDOWN; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
+  ps->groundEntityNum = ENTITYNUM_WORLD; ps->saberMove = LS_A_T2B; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
+  ps->saberMove = LS_READY; ps->m_iVehicleNum = 1; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
+  ps->m_iVehicleNum = 0; ps->forceHandExtend = HANDEXTEND_KNOCKDOWN; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
+  ps->forceHandExtend = HANDEXTEND_NONE; ps->weaponTime = 100; ps->saberBlocked = BLOCKED_UPPER_RIGHT;
+  cmd->weapon = WP_MELEE; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time)); // Wait for combat recovery to finish.
+  ps->weaponTime = 0; CHECK(BG_CanDeflectLightning(ps, cmd, level.time)); // Stale input/block state alone is harmless.
 }
 static void Aiming(void) {
   playerState_t *ps = &clients[1].ps; vec3_t source = {100, 0, DEFAULT_VIEWHEIGHT}; int anim;
@@ -103,11 +111,36 @@ static void Interruption(void) {
     CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
     CHECK(!(clients[1].ps.eFlags2 & EF2_LIGHTNING_DEFLECT));
     CHECK(clients[1].ps.torsoTimer == 0 && clients[1].ps.weaponTime == 0);
+    CHECK(movement.cmd.buttons == buttons[i]);
   }
   Reset(); Hit(0); movement.cmd.forwardmove = 127; PM_UpdateLightningDeflect();
   CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
   Reset(); Hit(0); movement.cmd.upmove = 127; PM_UpdateLightningDeflect();
   CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+}
+static void Combat(void) {
+  int i;
+  // No combat move may acquire/reacquire the guard, even with attack released.
+  for (i = LS_NONE; i < LS_MOVE_MAX; ++i) {
+    if (i == LS_NONE || i == LS_READY) continue;
+    Reset(); clients[1].ps.saberMove = i;
+    clients[1].ps.torsoAnim = BOTH_A1_T__B_; clients[1].ps.torsoTimer = 250;
+    clients[1].ps.weaponTime = 0;
+    Hit(0);
+    CHECK(damages == 1 && clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+    CHECK(clients[1].ps.torsoAnim == BOTH_A1_T__B_ && clients[1].ps.torsoTimer == 250);
+    CHECK(clients[1].ps.weaponTime == 0 && clients[1].ps.saberMove == i);
+    Reset(); Hit(0);
+    clients[1].ps.saberMove = i; clients[1].ps.torsoAnim = BOTH_A1_T__B_;
+    clients[1].ps.torsoTimer = 250; clients[1].ps.weaponTime = 250;
+    PM_UpdateLightningDeflect();
+    CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+    CHECK(clients[1].ps.torsoTimer == 250 && clients[1].ps.weaponTime == 250);
+  }
+  Reset(); clients[1].ps.weaponTime = 100; Hit(0);
+  CHECK(damages == 1 && clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+  Reset(); clients[1].ps.saberLockTime = level.time + 100; Hit(0);
+  CHECK(damages == 1 && clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
 }
 static void Damage(void) {
   Hit(0); CHECK(damages == 0 && absorbCalls == 0); CHECK(g_entities[1].health == 100);
@@ -120,6 +153,10 @@ static void Damage(void) {
   CHECK(damages == 1 && g_entities[1].health == 99); CHECK(clients[1].ps.electrifyTime > level.time);
   CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE && !(clients[1].ps.eFlags2 & EF2_LIGHTNING_DEFLECT));
   clients[1].pers.cmd.buttons = 0; Hit(0); CHECK(damages == 2); // Cannot enter guard during an existing shock.
+  Reset(); clients[1].ps.viewangles[YAW] = 90; Hit(0); CHECK(damages == 1);
+  Reset(); clients[1].pers.cmd.forwardmove = 127; Hit(0); CHECK(damages == 1);
+  CHECK(g_entities[0].health == 100); // Scattered lightning never reflects damage.
+}
   Reset(); clients[1].ps.viewangles[YAW] = 90; Hit(0); CHECK(damages == 1);
   Reset(); clients[1].pers.cmd.forwardmove = 127; Hit(0); CHECK(damages == 1);
   CHECK(g_entities[0].health == 100); // Scattered lightning never reflects damage.
@@ -141,6 +178,11 @@ static void Sources(void) {
   Hit(0); Hit(2); CHECK(damages == 0 && events == 2);
   CHECK(clients[1].ps.torsoAnim == BOTH_P1_S1_TL);
   level.time += 50; Hit(0); Hit(2); CHECK(events == 2 && damages == 0);
+  Reset(); clients[1].ps.origin[1] = 20; Hit(0);
+  CHECK(clients[1].ps.torsoAnim == BOTH_P1_S1_TR);
+  Reset(); clients[1].ps.origin[1] = -20; Hit(0);
+  CHECK(clients[1].ps.torsoAnim == BOTH_P1_S1_TL);
+  Reset(); Hit(0);
   clients[2].ps.origin[0] = 0; clients[2].ps.origin[1] = 100; Hit(2);
   CHECK(damages == 1 && !(clients[1].ps.eFlags2 & EF2_LIGHTNING_DEFLECT));
 }
@@ -155,6 +197,7 @@ int main(int argc, char **argv) {
   if (!strcmp(argv[1], "requirements")) Requirements();
   else if (!strcmp(argv[1], "aiming")) Aiming();
   else if (!strcmp(argv[1], "interruption")) Interruption();
+  else if (!strcmp(argv[1], "combat")) Combat();
   else if (!strcmp(argv[1], "damage")) Damage();
   else if (!strcmp(argv[1], "lifecycle")) Lifecycle();
   else if (!strcmp(argv[1], "sources")) Sources();

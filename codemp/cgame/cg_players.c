@@ -2180,6 +2180,8 @@ static void CG_LoadCosmeticOffsets( const char *settingsPath, const cosmeticItem
 //whatever this client's staff was part way through, it belongs to the old saber
 static void CG_StaffSwapForgetClient( int clientNum );
 
+	return BG_ModelInList( modelName, cg_modelBlacklist.string );
+}
 void CG_CleanHolsteredSabers( clientInfo_t *ci ) {
 	if ( !ci ) {
 		return;
@@ -2195,7 +2197,6 @@ void CG_CleanHolsteredSabers( clientInfo_t *ci ) {
 	}
 	ci->holsterGhoul2_2 = NULL;
 }
-
 //whatever this client's staff was part way through, it belongs to the old saber
 static void CG_StaffSwapForgetClient( int clientNum );
 
@@ -2705,7 +2706,6 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 		trap->G2API_CleanGhoul2Models(&ci->ghoul2Model);
 	}
 	CG_CleanHolsteredSabers( ci );
-
 	//newInfo is about to take these over as NULL, so let go of the holstered hilt instances rather
 	//than losing the only pointers to them. They get rebuilt from whatever saber he has now.
 	if (ci->holsterGhoul2 && trap->G2_HaveWeGhoul2Models(ci->holsterGhoul2))
@@ -4221,6 +4221,90 @@ CG_PlayerAnimation
 ===============
 */
 qboolean PM_WalkingAnim( int anim );
+qboolean BG_SaberInTransitionAny( int move );
+
+static int CG_LightningDeflectionCaster(const centity_t *guard)
+{
+	int index, best = ENTITYNUM_NONE;
+	float bestDistance = 1024.0f * 1024.0f;
+	for (index = 0; index < MAX_GENTITIES; index++)
+	{
+		// The viewing player's own entity comes from prediction, not the
+		// snapshot entity list. Include it when that player is the caster.
+		centity_t *caster = &cg_entities[index];
+		qboolean localCaster = index == cg.predictedPlayerState.clientNum;
+		int activePass = localCaster ? cg.predictedPlayerState.activeForcePass : caster->currentState.activeForcePass;
+		int activePowers = localCaster ? cg.predictedPlayerState.fd.forcePowersActive : caster->currentState.forcePowersActive;
+		int flags = localCaster ? cg.predictedPlayerState.eFlags : caster->currentState.eFlags;
+		vec3_t delta;
+		float distance;
+		if (index == guard->currentState.number ||
+			(!localCaster && !caster->currentValid) ||
+			(flags & (EF_DEAD | EF_NODRAW)) ||
+			activePass <= 0 || activePass > FORCE_LEVEL_3 ||
+			!(activePowers & (1 << FP_LIGHTNING)))
+			continue;
+		VectorSubtract(guard->lerpOrigin,
+			localCaster ? cg.predictedPlayerState.origin : caster->lerpOrigin, delta);
+		distance = VectorLengthSquared(delta);
+		if (distance < bestDistance)
+		{
+			bestDistance = distance;
+			best = index;
+		}
+	}
+	return best;
+}
+
+static qboolean CG_LightningDeflectionActive(const centity_t *cent)
+{
+	int number = cent->currentState.number;
+#ifdef _DEBUG
+	{
+		static int nextReport[MAX_GENTITIES];
+		int caster = CG_LightningDeflectionCaster(cent);
+		if (caster != ENTITYNUM_NONE && nextReport[number] <= cg.time)
+		{
+			nextReport[number] = cg.time + 1000;
+			trap->Print("LD VIEW local=%d defender=%d caster=%d torso=%d TL=%d TR=%d saberMove=%d predictedHand=%d snapshotHand=%d\n",
+				cg.predictedPlayerState.clientNum, number, caster, cent->currentState.torsoAnim,
+				BOTH_P1_S1_TL, BOTH_P1_S1_TR, cent->currentState.saberMove,
+				cg.predictedPlayerState.forceHandExtend, cg.snap ? cg.snap->ps.forceHandExtend : -1);
+		}
+	}
+#endif
+	if (number == cg.predictedPlayerState.clientNum)
+	{
+		usercmd_t cmd;
+		if (trap->GetUserCmd(trap->GetCurrentCmdNumber(), &cmd) &&
+			!BG_CanDeflectLightning(&cg.predictedPlayerState, &cmd, cmd.serverTime))
+			return qfalse;
+		if (cg.predictedPlayerState.forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT)
+			return qtrue;
+	}
+	if (cent->currentState.saberMove != LS_NONE && cent->currentState.saberMove != LS_READY)
+		return qfalse;
+	return (cent->currentState.torsoAnim == BOTH_P1_S1_TL ||
+		cent->currentState.torsoAnim == BOTH_P1_S1_TR) &&
+		CG_LightningDeflectionCaster(cent) != ENTITYNUM_NONE;
+}
+
+static int CG_LightningDeflectionAnim(const centity_t *cent)
+{
+	int number = cent->currentState.number;
+	if (number == cg.predictedPlayerState.clientNum)
+	{
+		if (cg.predictedPlayerState.forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT)
+			return cg.predictedPlayerState.forceDodgeAnim == BOTH_P1_S1_TL ?
+				BOTH_P1_S1_TL : BOTH_P1_S1_TR;
+		if (cg.snap && cg.snap->ps.clientNum == number &&
+			cg.snap->ps.forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT)
+			return cg.snap->ps.forceDodgeAnim == BOTH_P1_S1_TL ?
+				BOTH_P1_S1_TL : BOTH_P1_S1_TR;
+	}
+	return cent->currentState.torsoAnim == BOTH_P1_S1_TL ?
+		BOTH_P1_S1_TL : BOTH_P1_S1_TR;
+}
 
 static void CG_PlayerAnimation( centity_t *cent, int *legsOld, int *legs, float *legsBackLerp,
 						int *torsoOld, int *torso, float *torsoBackLerp ) {
@@ -4281,7 +4365,13 @@ static void CG_PlayerAnimation( centity_t *cent, int *legsOld, int *legs, float 
 	// If this is not a vehicle, you may lerm the frame (since vehicles never have a torso anim). -AReis
 	if ( cent->currentState.NPC_class != CLASS_VEHICLE )
 	{
-		CG_RunLerpFrame( cent, ci, &cent->pe.torso, cent->currentState.torsoFlip, cent->currentState.torsoAnim, speedScale, qtrue );
+		int torsoAnim = cent->currentState.torsoAnim;
+		qboolean torsoFlip = cent->currentState.torsoFlip;
+		if (CG_LightningDeflectionActive(cent))
+		{
+			torsoAnim = CG_LightningDeflectionAnim(cent);
+		}
+		CG_RunLerpFrame( cent, ci, &cent->pe.torso, torsoFlip, torsoAnim, speedScale, qtrue );
 
 		*torsoOld = cent->pe.torso.oldFrame;
 		*torso = cent->pe.torso.frame;
@@ -8084,6 +8174,25 @@ void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, in
 	VectorMA( org_, saberLen, axis_[0], end );
 
 	VectorMA( end, saberScale, axis_[0], end );
+
+	if (!dontDraw && saberNum == 0 && bladeNum == 0 &&
+		CG_LightningDeflectionActive(cent))
+	{
+		vec3_t incoming;
+		int caster = CG_LightningDeflectionCaster(cent);
+		if (caster >= 0 && caster < ENTITYNUM_WORLD)
+		{
+			VectorSubtract(org_, caster == cg.predictedPlayerState.clientNum ?
+				cg.predictedPlayerState.origin : cg_entities[caster].lerpOrigin, incoming);
+			if (VectorNormalize(incoming) <= 0.0f)
+				VectorScale(axis_[0], -1.0f, incoming);
+		}
+		else
+		{
+			VectorScale(axis_[0], -1.0f, incoming);
+		}
+		FX_ForceLightningSaberContact(cent, org_, axis_[0], saberLen, incoming);
+	}
 
 	if (cent->currentState.eType == ET_NPC)
 	{
@@ -15164,7 +15273,8 @@ stillDoSaber:
 
 	// Electricity
 	//------------------------------------------------
-	if ( cent->currentState.emplacedOwner > cg.time )
+	if ( cent->currentState.emplacedOwner > cg.time &&
+		!CG_LightningDeflectionActive(cent) )
 	{
 		int	dif = cent->currentState.emplacedOwner - cg.time;
 		vec3_t tempAngles;

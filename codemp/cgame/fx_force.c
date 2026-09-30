@@ -132,7 +132,7 @@ static qboolean FX_LightningSurface(const trace_t *tr) {
 
 // Draws a thin electricity arc between two points. Only used for the nest
 // link now; the main beam and nest strikes use native engine effects.
-static void FX_LightningArc(vec3_t start, vec3_t end, float width, float chaos, qboolean mainBolt) {
+static void FX_LightningArc(const vec3_t start, const vec3_t end, float width, float chaos, qboolean mainBolt) {
 	addElectricityArgStruct_t arc;
 	vec3_t delta;
 	VectorSubtract(end, start, delta);
@@ -525,6 +525,7 @@ static void FX_LightningUpdateNests(vec3_t beamStart, vec3_t beamEnd, int owner)
 // ---------------------------------------------------------------------------
 
 #define LIGHTNING_DEFLECT_EMIT_INTERVAL 30
+#define LIGHTNING_DEFLECT_ARC_INTERVAL 50
 #define LIGHTNING_DEFLECT_MAX_CONTACTS 16
 #define LIGHTNING_DEFLECT_MAX_LINKS 64
 
@@ -532,6 +533,8 @@ typedef struct {
 	int defender, caster, expireTime;
 } lightningDeflection_t;
 static lightningDeflection_t lightningDeflections[LIGHTNING_DEFLECT_MAX_LINKS];
+static int lightningSaberArcTime[MAX_GENTITIES];
+static int lightningSaberSoundTime[MAX_GENTITIES];
 
 void FX_RecordLightningDeflection(int defender, int caster) {
 	int index, slot = 0;
@@ -572,7 +575,6 @@ static qboolean FX_LightningGuardVisible(centity_t *guard, int caster) {
 		return qfalse;
 	if (guard->currentState.number == cg.predictedPlayerState.clientNum) {
 		vec3_t source;
-		// A local attack, sprint, or turn cancels visuals during prediction as well.
 		if (!(cg.predictedPlayerState.eFlags2 & EF2_LIGHTNING_DEFLECT))
 			return qfalse;
 		VectorCopy(cg_entities[caster].lerpOrigin, source);
@@ -610,7 +612,6 @@ static qboolean FX_LightningSaberContact(centity_t *guard, vec3_t contact, vec3_
 		return qfalse;
 	if (guard->currentState.eType != ET_NPC && guard->modelScale[0] > 0.0f)
 		*length *= guard->modelScale[0];
-	// Drift along the middle of the blade, keeping the hilt and hands clear.
 	VectorMA(base, *length * (0.55f + 0.08f * sinf(cg.time * 0.013f + guard->currentState.number)), bladeDir, contact);
 	return qtrue;
 }
@@ -673,6 +674,53 @@ static void FX_LightningSaberCorona(centity_t *guard, vec3_t contact, vec3_t bla
 	}
 }
 
+void FX_ForceLightningSaberContact(centity_t *guard, const vec3_t bladeBase,
+	const vec3_t bladeDir, float bladeLength, const vec3_t incomingDir) {
+	vec3_t contact, reflected, tangent, side;
+	float phase;
+	int number, index;
+	number = guard->currentState.number;
+	if (number < 0 || number >= MAX_GENTITIES || bladeLength <= 1.0f ||
+		guard->currentState.weapon != WP_SABER || guard->currentState.saberHolstered == 2 ||
+		guard->currentState.saberInFlight)
+		return;
+	phase = cg.time * 0.025f + number;
+	VectorMA(bladeBase, bladeLength * (0.58f + 0.055f * sinf(phase)), bladeDir, contact);
+	trap->R_AddLightToScene(contact, 150.0f + 30.0f * sinf(phase * 1.7f), 0.32f, 0.52f, 1.0f);
+	VectorScale(incomingDir, -1.0f, reflected);
+	if (VectorNormalize(reflected) <= 0.0f)
+		PerpendicularVector(reflected, bladeDir);
+	PerpendicularVector(tangent, reflected);
+	CrossProduct(reflected, tangent, side);
+
+	if (lightningSaberArcTime[number] <= cg.time ||
+		lightningSaberArcTime[number] > cg.time + LIGHTNING_DEFLECT_ARC_INTERVAL)
+	{
+		vec3_t flareDirection;
+		lightningSaberArcTime[number] = cg.time + LIGHTNING_DEFLECT_ARC_INTERVAL;
+		VectorCopy(bladeDir, flareDirection);
+		trap->FX_PlayEffectID(cgs.effects.forceLightningDeflectFlare,
+			contact, flareDirection, -1, -1, qfalse);
+		for (index = 0; index < 3; index++)
+		{
+			vec3_t direction;
+			VectorCopy(reflected, direction);
+			VectorMA(direction, Q_flrand(-0.38f, 0.38f), tangent, direction);
+			VectorMA(direction, Q_flrand(-0.30f, 0.30f), side, direction);
+			VectorNormalize(direction);
+			trap->FX_PlayEffectID(cgs.effects.forceLightningDeflectArc,
+				contact, direction, -1, -1, qfalse);
+		}
+	}
+	if (lightningSaberSoundTime[number] <= cg.time || lightningSaberSoundTime[number] > cg.time + 300) {
+		lightningSaberSoundTime[number] = cg.time + 210 + (number % 3) * 25;
+		FX_LightningNestImpactSound(contact);
+	}
+}
+		FX_LightningNestImpactSound(contact);
+	}
+}
+
 // Server-confirmed guards pull incoming lightning onto the animated blade.
 // This path also runs with cg_lightningEnvironment disabled.
 qboolean FX_ForceLightningDeflection(centity_t *caster, vec3_t origin, matrix3_t axis, qboolean wide) {
@@ -698,7 +746,6 @@ qboolean FX_ForceLightningDeflection(centity_t *caster, vec3_t origin, matrix3_t
 		return qfalse;
 	if (caster->lightningDeflectVisualTime > cg.time &&
 		caster->lightningDeflectVisualTime <= cg.time + LIGHTNING_DEFLECT_EMIT_INTERVAL) {
-		// Dynamic lights are submitted every render frame, while bolts are emitted on a timer.
 		for (index = 0; index < count; index++)
 			FX_LightningSaberLight(&cg_entities[guards[index]]);
 		return qtrue;
@@ -725,7 +772,6 @@ qboolean FX_ForceLightningDeflection(centity_t *caster, vec3_t origin, matrix3_t
 	}
 	FX_LightningFlash(origin, 14.0f);
 	if (wide) {
-		// Keep the rest of level-3's fan alive without drawing through a guard's body.
 		int ray;
 		for (ray = 0; ray < 4; ray++) {
 			vec3_t direction, end;
@@ -749,7 +795,6 @@ qboolean FX_ForceLightningDeflection(centity_t *caster, vec3_t origin, matrix3_t
 	}
 	return qtrue;
 }
-
 // Traces the main beam for hit detection, draws it via the native
 // forceLightning/forceLightningWide effect, and drives the nest system.
 // If the shared trace/effect budget is exhausted, the caller falls back

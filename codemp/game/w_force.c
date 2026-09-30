@@ -1775,22 +1775,52 @@ void ForceLightning( gentity_t *self )
 static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 {
 	playerState_t *ps = &defender->client->ps;
-	vec3_t source;
+	vec3_t source, attackerRight, toDefender;
 	int anim;
 	qboolean starting = ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT;
+#if defined(_DEBUG) && !defined(LIGHTNING_DEFLECTION_TEST)
+	{
+		static int nextReport[MAX_GENTITIES];
+		if (nextReport[defender->s.number] <= level.time)
+		{
+			const usercmd_t *cmd = &defender->client->pers.cmd;
+			nextReport[defender->s.number] = level.time + 1000;
+			VectorCopy(attacker->client->ps.origin, source);
+			source[2] += attacker->client->ps.viewheight;
+			trap->Print("LD HIT caster=%d defender=%d eligible=%d facing=%d health=%d pm=%d defense=%d weapon=%d holster=%d saber=%d flight=%d move=%d hand=%d ground=%d buttons=%d input=%d,%d,%d velocity=%.1f,%.1f anim=%d\n",
+				attacker->s.number, defender->s.number,
+				BG_CanDeflectLightning(ps, cmd, level.time), BG_LightningDeflectDirection(ps, source, NULL),
+				ps->stats[STAT_HEALTH], ps->pm_type, ps->fd.forcePowerLevel[FP_SABER_DEFENSE],
+				ps->weapon, ps->saberHolstered, ps->saberEntityNum, ps->saberInFlight,
+				ps->saberMove, ps->forceHandExtend, ps->groundEntityNum, cmd->buttons,
+				cmd->forwardmove, cmd->rightmove, cmd->upmove, ps->velocity[0], ps->velocity[1], ps->torsoAnim);
+		}
+	}
+#endif
 	if (!BG_CanDeflectLightning(ps, &defender->client->pers.cmd, level.time))
 		return qfalse;
 	VectorCopy(attacker->client->ps.origin, source);
 	source[2] += attacker->client->ps.viewheight;
 	if (!BG_LightningDeflectDirection(ps, source, &anim))
 		return qfalse;
+	// Pick the guard from the attacker's view. This makes moving across the
+	// caster's left/right sides visibly select opposite deflections while the
+	// defender's own view remains responsible only for the frontal guard cone.
+	AngleVectors(attacker->client->ps.viewangles, NULL, attackerRight, NULL);
+	VectorSubtract(ps->origin, attacker->client->ps.origin, toDefender);
+	toDefender[2] = attackerRight[2] = 0.0f;
+	anim = DotProduct(toDefender, attackerRight) < 0.0f ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
 	ps->forceHandExtend = HANDEXTEND_LIGHTNING_DEFLECT;
 	ps->forceHandExtendTime = level.time + LIGHTNING_DEFLECT_HOLD_TIME;
 	ps->forceDodgeAnim = anim;
 	ps->eFlags2 |= EF2_LIGHTNING_DEFLECT;
+	// A successful guard never leaves the normal full-body shock shell behind.
+	ps->electrifyTime = 0;
 	G_SetAnim(defender, &defender->client->pers.cmd, SETANIM_TORSO, anim,
 		SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD, 100);
-	ps->torsoTimer = 1;
+	// Keep the pose in ordinary replicated player state. Attack cancellation
+	// clears this timer before PM_Weapon processes the swing in the same command.
+	ps->torsoTimer = LIGHTNING_DEFLECT_HOLD_TIME;
 	defender->client->dangerTime = level.time;
 	// Refresh the source occasionally; the persistent flag carries immediate cancellation.
 	if (starting || defender->client->lightningDeflectEventTime[attacker->s.number] <= level.time ||
@@ -1806,6 +1836,7 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 		defender->client->lightningDeflectEventTime[attacker->s.number] = level.time + LIGHTNING_DEFLECT_EVENT_INTERVAL;
 	}
 	defender->client->lightningDeflectAttacker = attacker->s.number;
+	defender->client->lightningDeflectAttacker = attacker->s.number;
 	return qtrue;
 }
 
@@ -1815,7 +1846,9 @@ static void WP_UpdateLightningDeflect(gentity_t *self, const usercmd_t *cmd)
 	int sourceNum = self->client->lightningDeflectAttacker;
 	gentity_t *attacker;
 	vec3_t source;
-	if (!(ps->eFlags2 & EF2_LIGHTNING_DEFLECT))
+	if (!(ps->eFlags2 & EF2_LIGHTNING_DEFLECT) &&
+		ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT)
+		return;
 		return;
 	if (ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT ||
 		ps->forceHandExtendTime <= level.time ||
