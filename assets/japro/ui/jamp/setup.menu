@@ -2172,10 +2172,32 @@
 
 		itemDef
 		{
+			name				soundantispam
+			group				sound
+			type				ITEM_TYPE_MULTI
+			text				"Sound Anti-Spam:"
+			cvar				"s_soundAntiSpam"
+			cvarFloatList		{ @MENUS_OFF 0 @MENUS_ON 1 }
+			rect				260 356 340 14
+			textalign			ITEM_ALIGN_RIGHT
+			textalignx			174
+			textaligny			0
+			font				4
+			textscale			1
+			forecolor			0.65 0.65 1 1
+			visible				0
+			descText			"Limit repeated sound effects to prevent sound spam."
+			mouseenter			{ show highlight13 }
+			mouseexit			{ hide highlight13 }
+			action				{ play "sound/interface/button1.wav" }
+		}
+
+		itemDef
+		{
 			name				eax_icon
 			group				sound
 			style				WINDOW_STYLE_SHADER
-			rect				380 348 128 64
+			rect				404 372 80 40
 			background			"gfx/menus/eax"
 			forecolor			1 1 1 1
 			visible				1

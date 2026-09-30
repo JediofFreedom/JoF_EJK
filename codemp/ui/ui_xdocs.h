@@ -85,6 +85,12 @@ XDOCS_CVAR_DEF("cg_tauntAntiSpam", "Throttle repeated model voice lines per play
 	SETTING("1", "On, one taunt per player every 5 seconds and no line layered over itself (default)")
 )
 
+XDOCS_CVAR_DEF("s_soundAntiSpam", "Limit repeated sound effects",
+	"Use the s_maxSounds rate limit for repeated sounds. This is separate from Taunt Anti-Spam and does not change the configured limit." NL
+	SETTING("0", "Off, bypass the sound rate limit") NL
+	SETTING("1", "On, limit repeated sounds (default)")
+)
+
 //XDOCS_CVAR_DEF("cg_", "Description",
 	//"More somethings if needed." NL
 	//SETTING("0", "something something probably (Base behavior)") NL
