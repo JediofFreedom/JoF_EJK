@@ -10840,30 +10840,6 @@ static qboolean CG_StaffHolsteredOnBack( clientInfo_t *ci, const char **why )
 	return qtrue;
 }
 
-// EV_CHANGE_WEAPON arrives when the saber starts lowering. Sound its shutdown
-// then, rather than waiting for the weapon model to change after the drop time.
-void CG_PlayEarlySaberHolsterSound( centity_t *cent )
-{
-	int clientNum = cent->currentState.clientNum;
-	clientInfo_t *ci;
-	const char *why = "";
-
-	if (clientNum < 0 || clientNum >= MAX_CLIENTS || cent->weapon != WP_SABER ||
-		cent->currentState.saberHolstered || cent->saberHolsterSoundPlayed)
-		return;
-
-	ci = &cgs.clientinfo[clientNum];
-	// JA+ staff shutdown is already synchronized to the back-holster animation.
-	if (cg_holsteredStaffSound.integer && CG_StaffHolsteredOnBack(ci, &why))
-		return;
-
-	if (ci->saber[0].soundOff && !CG_StaffSwapShutdownSounded(clientNum))
-		trap->S_StartSound(cent->lerpOrigin, clientNum, CHAN_AUTO, ci->saber[0].soundOff);
-	if (ci->saber[1].soundOff && ci->saber[1].model[0])
-		trap->S_StartSound(cent->lerpOrigin, clientNum, CHAN_AUTO, ci->saber[1].soundOff);
-	cent->saberHolsterSoundPlayed = qtrue;
-}
-
 static staffSwapPhase_t CG_StaffSwapPhaseReal( centity_t *cent, clientInfo_t *ci, const char **why, float *fracOut )
 {
 	int					anim = cent->currentState.torsoAnim;
@@ -10898,6 +10874,15 @@ static staffSwapPhase_t CG_StaffSwapPhaseReal( centity_t *cent, clientInfo_t *ci
 	  //blades in, otherwise it flickers into his hand before he has even reached for it.
 		*why = "waiting on the JA+ draw";
 		return STAFFSWAP_ONBACK;
+	}
+
+	// Some callers run before CG_PlayerAnimation installs this frame's torso animation.
+	// Do not latch a handoff using the outgoing animation's bone frames.
+	if (cent->pe.torso.animationNumber != anim ||
+		cent->pe.torso.lastFlip != cent->currentState.torsoFlip)
+	{
+		*why = "waiting on the torso animation";
+		return drawing ? STAFFSWAP_ONBACK : STAFFSWAP_INHAND;
 	}
 
 	afterSwap = drawing ? STAFFSWAP_INHAND : STAFFSWAP_ONBACK;
@@ -10965,12 +10950,11 @@ static qboolean CG_StaffSwapBladesIn( centity_t *cent, clientInfo_t *ci );
 typedef struct {
 	sfxHandle_t	sound;			//what to play once his hand is on the hilt
 	int			time;			//when it was held, so a swap that never comes cannot swallow it
-	qboolean	sawOnBack;		//whether the hilt has actually been seen waiting on his back
 	int			holstered;		//what his saber was doing last frame
 	int			unholsterTime;	//and when it last came on, which is when JA+ sounds the ignition
-	int			offAnim;		//the put-away whose shutdown has already been sounded
-	int			offAnimTime;	//and which playing of it
-	int			offTime;		//when that went out, so the late copy of it can be dropped
+	qboolean	ignitionPlayed;	//consume later ignition events for this draw
+	qboolean	shutdownPending; //a completed weapon change is waiting for the blade update
+	qboolean	shutdownPlayed; //reset when the blade is allowed out again
 } staffSwapSound_t;
 
 static staffSwapSound_t staffSwapSound[MAX_CLIENTS];
@@ -10985,22 +10969,33 @@ static void CG_StaffSwapForgetClient( int clientNum )
 	memset( &staffSwapLatch[clientNum], 0, sizeof( staffSwapLatch[clientNum] ) );
 }
 
-#define STAFFSWAP_SOUND_WAIT	150		//how long to let the swap animation show up before giving up
-#define STAFFSWAP_SOUND_HOLD	2000	//and the longest the sound is ever held back
+#define STAFFSWAP_SOUND_WAIT	150		//match anonymous server ignition events to a recent activation
+#define STAFFSWAP_SOUND_HOLD	2000	//discard stale queued ignition events
 
-//Play the ignition as soon as the hilt is out of his hand's way, which is the same moment the blade
-//is allowed to come out. Called for every saber carrier each frame, so a held sound always gets out,
-//and it is also where the moment his saber comes on is noticed - that is the one instant a JA+
-//server sounds an ignition, and it is what tells a stray sound apart from his.
-static void CG_StaffSwapIgnitionSound( centity_t *cent, staffSwapPhase_t phase )
+static qboolean CG_StaffSwapDrawAnim( int anim );
+
+//Run once with the final blade targets, before changing their lengths. Phase queries also run
+//before the torso animation is installed and must not play sounds or consume pending events.
+static void CG_StaffSwapUpdateSounds( centity_t *cent, clientInfo_t *ci )
 {
 	int					cl = cent->currentState.clientNum;
+	int					anim = cent->currentState.torsoAnim;
+	const char			*why = "";
+	float				frac = 0.0f;
+	qboolean			puttingAway, bladesOut;
+	staffSwapPhase_t	phase;
 	staffSwapSound_t	*held;
 
-	if (cl < 0 || cl >= MAX_CLIENTS)
+	if (cent->currentState.eType != ET_PLAYER || cl < 0 || cl >= MAX_CLIENTS)
 		return;
 
 	held = &staffSwapSound[cl];
+	if (!cg_holsteredStaffSound.integer || !CG_StaffHolsteredOnBack(ci, &why) ||
+		(cent->currentState.eFlags & EF_DEAD) || cent->currentState.saberInFlight)
+	{
+		memset(held, 0, sizeof(*held));
+		return;
+	}
 
 	if (held->holstered != cent->currentState.saberHolstered)
 	{
@@ -11009,72 +11004,56 @@ static void CG_StaffSwapIgnitionSound( centity_t *cent, staffSwapPhase_t phase )
 		held->holstered = cent->currentState.saberHolstered;
 	}
 
-	if (!held->sound)
-		return;
+	if (cg.time < held->time || cg.time - held->time >= STAFFSWAP_SOUND_HOLD)
+		held->sound = 0;
 
-	if (cg.time - held->time < STAFFSWAP_SOUND_HOLD)
+	phase = CG_StaffSwapPhaseReal(cent, ci, &why, &frac);
+	puttingAway = (qboolean)(phase != STAFFSWAP_NONE &&
+		(anim == BOTH_S7_S1_NEW || anim == BOTH_STAND2TO1_NEW));
+	bladesOut = (qboolean)(cent->currentState.weapon == WP_SABER &&
+		cent->currentState.saberHolstered < 2 && ci->saber[0].blade[0].desiredLength != 0);
+
+	if (!bladesOut)
 	{
-		if (phase == STAFFSWAP_ONBACK)
-		{ //his hand is not there yet
-			held->sawOnBack = qtrue;
-			return;
+		if (held->shutdownPending || puttingAway)
+		{
+			if (!held->shutdownPlayed && ci->saber[0].blade[0].length > 0 && ci->saber[0].soundOff)
+				trap->S_StartSound(cent->lerpOrigin, cl, CHAN_AUTO, ci->saber[0].soundOff);
+			held->shutdownPlayed = qtrue;
+			held->shutdownPending = qfalse;
 		}
-
-		if (!held->sawOnBack && cg.time - held->time < STAFFSWAP_SOUND_WAIT)
-			return;	//the swap animation has not come through yet, give it a moment first
+		if (cent->currentState.weapon != WP_SABER || cent->currentState.saberHolstered >= 2 || puttingAway)
+			held->sound = 0; //the draw was canceled; a timeout must not ignite a stowed saber
+		held->ignitionPlayed = qfalse;
+		return;
 	}
 
-	trap->S_StartSound( cent->lerpOrigin, cl, CHAN_AUTO, held->sound );
+	held->shutdownPlayed = qfalse;
+	held->shutdownPending = qfalse;
+	if (!held->ignitionPlayed && (held->sound ||
+		(CG_StaffSwapDrawAnim(anim) && phase == STAFFSWAP_INHAND && !ci->saber[0].blade[0].length)))
+	{
+		sfxHandle_t sound = held->sound ? held->sound : ci->saber[0].soundOn;
+		if (sound)
+			trap->S_StartSound(cent->lerpOrigin, cl, CHAN_AUTO, sound);
+		held->ignitionPlayed = qtrue;
+	}
 	held->sound = 0;
-	held->sawOnBack = qfalse;
 }
 
-//The other half of the swap. Putting a staff away is a weapon change, and the sound for that does
-//not come until the change finishes - well after the blade has started going in, which begins with
-//the reach. Sound the shutdown where the blade actually goes out and drop the late one.
-#define STAFFSWAP_SOUND_OFF		2000	//how long the late copy stays unwelcome
-
-static void CG_StaffSwapShutdownSound( centity_t *cent, clientInfo_t *ci, staffSwapPhase_t phase )
+//A weapon change has committed. Defer staff shutdown to the same update that retracts the blade.
+//If the reach already shut it down, this consumes the weapon-change copy without another sound.
+qboolean CG_StaffSwapHoldShutdownSound( int clientNum )
 {
-	int					cl = cent->currentState.clientNum;
-	int					anim = cent->currentState.torsoAnim;
-	staffSwapSound_t	*held;
-
-	if (phase == STAFFSWAP_NONE || !cg_holsteredStaffSound.integer)
-		return;
-
-	if (anim != BOTH_S7_S1_NEW && anim != BOTH_STAND2TO1_NEW)
-		return;	//he is drawing it, not putting it away
-
-	if (cl < 0 || cl >= MAX_CLIENTS || !ci->saber[0].soundOff)
-		return;
-
-	if (!ci->saber[0].blade[0].length)
-		return;	//it is already out, so there is nothing to shut down
-
-	held = &staffSwapSound[cl];
-
-	if (held->offAnim == anim && held->offAnimTime == cent->pe.torso.animationTime)
-		return;	//this put-away has had its sound
-
-	held->offAnim = anim;
-	held->offAnimTime = cent->pe.torso.animationTime;
-	held->offTime = cg.time;
-
-	trap->S_StartSound( cent->lerpOrigin, cl, CHAN_AUTO, ci->saber[0].soundOff );
-}
-
-//Whether this client's staff has just been shut down where the blade went out, which is the one the
-//player heard - the weapon change's own copy is the late one and belongs nowhere.
-qboolean CG_StaffSwapShutdownSounded( int clientNum )
-{
-	if (clientNum < 0 || clientNum >= MAX_CLIENTS)
+	const char *why = "";
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS || !cg_holsteredStaffSound.integer)
 		return qfalse;
 
-	if (!staffSwapSound[clientNum].offTime)
+	if (!cgs.clientinfo[clientNum].infoValid || !CG_StaffHolsteredOnBack(&cgs.clientinfo[clientNum], &why))
 		return qfalse;
 
-	return (qboolean)(cg.time - staffSwapSound[clientNum].offTime < STAFFSWAP_SOUND_OFF);
+	staffSwapSound[clientNum].shutdownPending = qtrue;
+	return qtrue;
 }
 
 //The draw animations, the plain ones and the JA+ reaches alike. Asked of the sound rather than the
@@ -11092,7 +11071,7 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 	const char		*why = "";
 	clientInfo_t	*ci;
 	centity_t		*cent;
-	int				anim;
+	int				anim, weapon, holstered;
 
 	if (clientNum < 0 || clientNum >= MAX_CLIENTS || !sound)
 		return qfalse;
@@ -11100,29 +11079,35 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 	if (!cg_holsteredStaffSound.integer)
 		return qfalse;
 
-	if (staffSwapSound[clientNum].sound)
-		return qtrue;	//already holding one for him, and a staff only has the one hilt to light
-
 	ci = &cgs.clientinfo[clientNum];
 	cent = &cg_entities[clientNum];
 
 	if (!ci->infoValid || !CG_StaffHolsteredOnBack( ci, &why ))
 		return qfalse;
 
-	if (cent->currentState.weapon != WP_SABER)
-		return qfalse;
+	//The weapon and animation must both come from prediction for the local player: this runs
+	//before BG_PlayerStateToEntityState copies the newly selected saber to the entity.
+	if (clientNum == cg.predictedPlayerState.clientNum)
+	{
+		anim = cg.predictedPlayerState.torsoAnim;
+		weapon = cg.predictedPlayerState.weapon;
+		holstered = cg.predictedPlayerState.saberHolstered;
+	}
+	else
+	{
+		anim = cent->currentState.torsoAnim;
+		weapon = cent->currentState.weapon;
+		holstered = cent->currentState.saberHolstered;
+	}
 
-	//The local player draws off his own prediction, where the animation is a snapshot ahead of the
-	//one on his entity.
-	anim = (clientNum == cg.predictedPlayerState.clientNum)
-		? cg.predictedPlayerState.torsoAnim : cent->currentState.torsoAnim;
-
-	if (!CG_StaffSwapDrawAnim( anim ))
+	if (weapon != WP_SABER || holstered >= 2 || !CG_StaffSwapDrawAnim( anim ))
 		return qfalse;	//nothing is being drawn, so nothing is waiting on a hand
+
+	if (staffSwapSound[clientNum].sound || staffSwapSound[clientNum].ignitionPlayed)
+		return qtrue; //one ignition per draw, including later server copies
 
 	staffSwapSound[clientNum].sound = sound;
 	staffSwapSound[clientNum].time = cg.time;
-	staffSwapSound[clientNum].sawOnBack = qfalse;
 
 	return qtrue;
 }
@@ -11153,8 +11138,9 @@ qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound )
 
 		//and it has to be the ignition for that, not some later sound of his that happens to share
 		//the handle - JA+ sounds one the instant the saber comes on and at no other time
-		if (!staffSwapSound[i].unholsterTime
-			|| cg.time - staffSwapSound[i].unholsterTime > STAFFSWAP_SOUND_WAIT)
+		if (!staffSwapSound[i].sound && !staffSwapSound[i].ignitionPlayed &&
+			!staffSwapSound[i].holstered && (!staffSwapSound[i].unholsterTime ||
+			cg.time - staffSwapSound[i].unholsterTime > STAFFSWAP_SOUND_WAIT))
 			continue;
 
 		if (DistanceSquared( origin, cent->lerpOrigin ) > 64.0f * 64.0f)
@@ -11195,9 +11181,6 @@ static staffSwapPhase_t CG_StaffSwapPhase( centity_t *cent, clientInfo_t *ci )
 				why, frac, ci->saber[0].blade[0].length, cent->currentState.saberHolstered );
 		}
 	}
-
-	CG_StaffSwapIgnitionSound( cent, phase );
-	CG_StaffSwapShutdownSound( cent, ci, phase );
 
 	return phase;
 }
@@ -12350,11 +12333,20 @@ void CG_Player( centity_t *cent ) {
 			{
 				if (cent->weapon == WP_SABER
 					&& cent->weapon != cent->currentState.weapon
-					&& !cent->currentState.saberHolstered
-					&& !cent->saberHolsterSoundPlayed)
+					&& !cent->currentState.saberHolstered)
 				{ //switching away from the saber
 					//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberoffquick.wav" ));
-					if (cg.time - cent->saberSoundOffDebounceTime >= 800)
+if (cg.time - cent->saberSoundOffDebounceTime >= 800
+						&& ci->saber[0].soundOff
+						&& !cent->currentState.saberHolstered
+						&& !CG_StaffSwapHoldShutdownSound( cent->currentState.number ))
+					{ //staff swap audio is handled with the blade update
+						trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, ci->saber[0].soundOff);
+					}
+
+					if (ci->saber[1].soundOff &&
+						ci->saber[1].model[0] &&
+						!cent->currentState.saberHolstered)
 					{
 						cent->saberSoundOffDebounceTime = cg.time;
 						//a staff going onto a JA+ back was shut down as the blade went in, not here
@@ -12401,7 +12393,6 @@ void CG_Player( centity_t *cent ) {
 			}
 
 			cent->weapon = cent->currentState.weapon;
-			cent->saberHolsterSoundPlayed = qfalse;
 			cent->ghoul2weapon = CG_G2WeaponInstance(cent, cent->currentState.weapon);
 		}
 	}
@@ -14260,10 +14251,9 @@ stillDoSaber:
 		//cent->saberLength = 0;
 		BG_SI_SetDesiredLength(&ci->saber[0], 0, -1);
 		BG_SI_SetDesiredLength(&ci->saber[1], 0, -1);
-
-		BG_SI_SetLength(&ci->saber[0], 0);
-		BG_SI_SetLength(&ci->saber[1], 0);
 	}
+
+	CG_StaffSwapUpdateSounds(cent, ci);
 
 #ifdef _RAG_BOLT_TESTING
 	if (cent->currentState.eFlags & EF_RAG)
@@ -14276,6 +14266,11 @@ stillDoSaber:
 	{
 		BG_SI_SetLengthGradual(&ci->saber[0], cg.time);
 		BG_SI_SetLengthGradual(&ci->saber[1], cg.time);
+	}
+	else
+	{
+		BG_SI_SetLength(&ci->saber[0], 0);
+		BG_SI_SetLength(&ci->saber[1], 0);
 	}
 
 	if (drawPlayerSaber)

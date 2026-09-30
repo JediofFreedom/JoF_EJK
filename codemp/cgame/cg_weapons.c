@@ -3306,11 +3306,19 @@ void CG_CheckPlayerG2Weapons(playerState_t *ps, centity_t *cent)
 	{
 		CG_CopyG2WeaponInstance(cent, ps->weapon, cent->ghoul2);
 		cent->ghoul2weapon = CG_G2WeaponInstance(cent, ps->weapon);
-		if (cent->weapon == WP_SABER && cent->weapon != ps->weapon &&
-			!ps->saberHolstered && !cent->saberHolsterSoundPlayed)
+		if (cent->weapon == WP_SABER && cent->weapon != ps->weapon && !ps->saberHolstered)
 		{ //switching away from the saber
 			//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberoffquick.wav" ));
-			if (cg.time - cent->saberSoundOffDebounceTime >= 800)
+if (cg.time - cent->saberSoundOffDebounceTime >= 800
+			&& cgs.clientinfo[ps->clientNum].saber[0].soundOff && !ps->saberHolstered
+			&& !CG_StaffSwapHoldShutdownSound( ps->clientNum ))
+			{ //staff swap audio is handled with the blade update
+				trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, cgs.clientinfo[ps->clientNum].saber[0].soundOff);
+			}
+
+			if (cgs.clientinfo[ps->clientNum].saber[1].soundOff &&
+				cgs.clientinfo[ps->clientNum].saber[1].model[0] &&
+				!ps->saberHolstered)
 			{
 				cent->saberSoundOffDebounceTime = cg.time;
 				//a staff going onto a JA+ back was shut down as the blade went in, not here
@@ -3351,7 +3359,6 @@ void CG_CheckPlayerG2Weapons(playerState_t *ps, centity_t *cent)
 			BG_SI_SetDesiredLength(&cgs.clientinfo[ps->clientNum].saber[1], 0, -1);
 		}
 		cent->weapon = ps->weapon;
-		cent->saberHolsterSoundPlayed = qfalse;
 	}
 }
 

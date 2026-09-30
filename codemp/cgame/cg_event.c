@@ -2692,8 +2692,6 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			weaponInfo = &cg_weapons[weapon];
 
 			assert(weaponInfo);
-			if (weapon == WP_MELEE)
-				CG_PlayEarlySaberHolsterSound(cent);
 
 			if (weaponInfo->selectSound)
 			{
