@@ -1700,6 +1700,8 @@ static void CG_Chat_f( void ) {
 	if (cmd[0] != 'l') { // normal chat ?/}
 
 		trap->Cmd_Argv( 1, text, sizeof( text ) );
+		// Normalize server PM formatting before filtering, including sent-message echoes.
+		CG_RemoveChatEscapeChar( text );
 		if ( cg.pmOnlyChat &&
 			(Q_stricmp( cmd, "chat" ) || !Q_stristr( text, "^7]: ^6" )) )
 		{
@@ -1709,8 +1711,6 @@ static void CG_Chat_f( void ) {
 		if ( !Q_stricmp( cmd, "chat" ) &&
 			(!cg_teamChatsOnly.integer || cg.pmOnlyChat) )
 		{
-			CG_RemoveChatEscapeChar( text );
-
 			if (cg_cleanChatbox.integer) {
 				char cleanMsg[MAX_NETNAME + MAX_SAY_TEXT];
 
@@ -1746,8 +1746,6 @@ static void CG_Chat_f( void ) {
 		}
 		else if ( !Q_stricmp( cmd, "tchat" ) )
 		{
-			CG_RemoveChatEscapeChar( text );
-
 			if (cg_cleanChatbox.integer && !Q_strncmp(text, cg.lastChatMsg, strlen(text))) {//Same exact msg/sender as previous //replace this with q_strcmp in entire function..?
 				return;
 			}
