@@ -754,7 +754,8 @@ static qboolean CG_EndDuelCameraActive( void ) {
 		cg.endDuelCameraTime > 0 &&
 		cg.time >= cg.endDuelCameraTime &&
 		cg.time - cg.endDuelCameraTime < END_DUEL_CAMERA_DURATION &&
-		!cg.predictedPlayerState.duelInProgress &&
+		cg.predictedPlayerState.clientNum == cg.clientNum &&
+		cg.predictedPlayerState.persistant[PERS_TEAM] != TEAM_SPECTATOR &&
 		cg.predictedPlayerState.stats[STAT_HEALTH] > 0 &&
 		cg.predictedPlayerState.persistant[PERS_SPAWN_COUNT] == cg.endDuelCameraSpawnCount &&
 		!(cg.predictedPlayerState.pm_flags & PMF_FOLLOW);
