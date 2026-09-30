@@ -8722,8 +8722,6 @@ static void PM_UpdateLightningDeflect(void)
 	if ((pm->cmd.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK)) ||
 		!BG_CanDeflectLightning(pm->ps, &pm->cmd, pm->cmd.serverTime))
 		BG_EndLightningDeflect(pm->ps);
-		!BG_CanDeflectLightning(pm->ps, &pm->cmd, pm->cmd.serverTime))
-		BG_EndLightningDeflect(pm->ps);
 }
 
 static void PM_Weapon( void )

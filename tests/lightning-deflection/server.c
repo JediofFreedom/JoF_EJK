@@ -85,12 +85,11 @@ static void Requirements(void) {
   ps->groundEntityNum = ENTITYNUM_WORLD; ps->saberMove = LS_A_T2B; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
   ps->saberMove = LS_READY; ps->m_iVehicleNum = 1; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
   ps->m_iVehicleNum = 0; ps->forceHandExtend = HANDEXTEND_KNOCKDOWN; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
-  ps->groundEntityNum = ENTITYNUM_WORLD; ps->saberMove = LS_A_T2B; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
-  ps->saberMove = LS_READY; ps->m_iVehicleNum = 1; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
-  ps->m_iVehicleNum = 0; ps->forceHandExtend = HANDEXTEND_KNOCKDOWN; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
   ps->forceHandExtend = HANDEXTEND_NONE; ps->weaponTime = 100; ps->saberBlocked = BLOCKED_UPPER_RIGHT;
   cmd->weapon = WP_MELEE; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time)); // Wait for combat recovery to finish.
-  ps->weaponTime = 0; CHECK(BG_CanDeflectLightning(ps, cmd, level.time)); // Stale input/block state alone is harmless.
+  ps->weaponTime = 0; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
+  cmd->weapon = WP_SABER; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
+  ps->saberBlocked = 0; CHECK(BG_CanDeflectLightning(ps, cmd, level.time));
 }
 static void Aiming(void) {
   playerState_t *ps = &clients[1].ps; vec3_t source = {100, 0, DEFAULT_VIEWHEIGHT}; int anim;
@@ -153,10 +152,6 @@ static void Damage(void) {
   CHECK(damages == 1 && g_entities[1].health == 99); CHECK(clients[1].ps.electrifyTime > level.time);
   CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE && !(clients[1].ps.eFlags2 & EF2_LIGHTNING_DEFLECT));
   clients[1].pers.cmd.buttons = 0; Hit(0); CHECK(damages == 2); // Cannot enter guard during an existing shock.
-  Reset(); clients[1].ps.viewangles[YAW] = 90; Hit(0); CHECK(damages == 1);
-  Reset(); clients[1].pers.cmd.forwardmove = 127; Hit(0); CHECK(damages == 1);
-  CHECK(g_entities[0].health == 100); // Scattered lightning never reflects damage.
-}
   Reset(); clients[1].ps.viewangles[YAW] = 90; Hit(0); CHECK(damages == 1);
   Reset(); clients[1].pers.cmd.forwardmove = 127; Hit(0); CHECK(damages == 1);
   CHECK(g_entities[0].health == 100); // Scattered lightning never reflects damage.

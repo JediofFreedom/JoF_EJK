@@ -1836,7 +1836,6 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 		defender->client->lightningDeflectEventTime[attacker->s.number] = level.time + LIGHTNING_DEFLECT_EVENT_INTERVAL;
 	}
 	defender->client->lightningDeflectAttacker = attacker->s.number;
-	defender->client->lightningDeflectAttacker = attacker->s.number;
 	return qtrue;
 }
 
@@ -1848,7 +1847,6 @@ static void WP_UpdateLightningDeflect(gentity_t *self, const usercmd_t *cmd)
 	vec3_t source;
 	if (!(ps->eFlags2 & EF2_LIGHTNING_DEFLECT) &&
 		ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT)
-		return;
 		return;
 	if (ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT ||
 		ps->forceHandExtendTime <= level.time ||

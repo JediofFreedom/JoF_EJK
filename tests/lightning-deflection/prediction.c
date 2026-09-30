@@ -13,6 +13,7 @@ int main(void) {
   ps.stats[STAT_HEALTH] = 100;
   ps.pm_type = PM_NORMAL;
   ps.weapon = WP_SABER;
+  cmd.weapon = WP_SABER;
   ps.saberEntityNum = 10;
   ps.saberMove = LS_READY;
   ps.groundEntityNum = ENTITYNUM_WORLD;

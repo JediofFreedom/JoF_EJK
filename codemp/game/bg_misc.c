@@ -57,9 +57,6 @@ qboolean BG_CanDeflectLightning(const playerState_t *ps, const usercmd_t *cmd, i
 		(ps->brokenLimbs & (1 << BROKENLIMB_RARM)) ||
 		BG_InRoll((playerState_t *)ps, ps->legsAnim) || BG_InSpecialJump(ps->legsAnim))
 		return qfalse;
-		(ps->brokenLimbs & (1 << BROKENLIMB_RARM)) ||
-		BG_InRoll((playerState_t *)ps, ps->legsAnim) || BG_InSpecialJump(ps->legsAnim))
-		return qfalse;
 	if (cmd->upmove > 0 ||
 		abs(cmd->forwardmove) > 64 || abs(cmd->rightmove) > 64 ||
 		(cmd->buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK | BUTTON_USE_HOLDABLE | BUTTON_GESTURE)) ||

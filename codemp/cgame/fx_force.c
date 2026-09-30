@@ -717,9 +717,6 @@ void FX_ForceLightningSaberContact(centity_t *guard, const vec3_t bladeBase,
 		FX_LightningNestImpactSound(contact);
 	}
 }
-		FX_LightningNestImpactSound(contact);
-	}
-}
 
 // Server-confirmed guards pull incoming lightning onto the animated blade.
 // This path also runs with cg_lightningEnvironment disabled.

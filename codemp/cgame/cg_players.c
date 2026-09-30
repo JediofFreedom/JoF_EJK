@@ -2177,11 +2177,6 @@ static void CG_LoadCosmeticOffsets( const char *settingsPath, const cosmeticItem
 	cJSON_Delete( json );
 }
 
-//whatever this client's staff was part way through, it belongs to the old saber
-static void CG_StaffSwapForgetClient( int clientNum );
-
-	return BG_ModelInList( modelName, cg_modelBlacklist.string );
-}
 void CG_CleanHolsteredSabers( clientInfo_t *ci ) {
 	if ( !ci ) {
 		return;
