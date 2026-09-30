@@ -1285,6 +1285,36 @@ static void CG_RemoveChatEscapeChar( char *text ) {
 	text[l] = '\0';
 }
 
+/*
+=================
+CG_RecolorFakeTell
+
+Private messages (tells) are the only chat drawn in ^6, so players fake them by typing
+^6 into public or team chat. The server wraps a real tell's sender as "\x19[name^7\x19]\x19: ".
+Names are stripped of control characters, so no player can forge that "\x19[" opener.
+For anything else, repaint every ^6 in the message body with the channel's own color.
+Must run before CG_RemoveChatEscapeChar, which deletes the \x19 markers.
+=================
+*/
+static void CG_RecolorFakeTell( char *sender, char *body, char channelColor ) {
+	if ( !cg_noFakeTells.integer || !body )
+		return;
+	if ( sender[0] == '\x19' && sender[1] == '[' )
+		return; // a genuine tell
+
+	for ( ; *body; body++ ) {
+		if ( body[0] == Q_COLOR_ESCAPE && body[1] == COLOR_MAGENTA )
+			body[1] = channelColor;
+	}
+}
+
+// chat/tchat carry sender and message in one string; the body starts after the
+// server's "\x19: " separator.
+static void CG_RecolorFakeTellInLine( char *text, char channelColor ) {
+	char *body = strstr( text, "\x19: " );
+	CG_RecolorFakeTell( text, body ? body + 3 : NULL, channelColor );
+}
+
 #define MAX_STRINGED_SV_STRING 1024	// this is an quake-engine limit, not a StringEd limit
 
 void CG_CheckSVStringEdRef(char *buf, const char *str)
@@ -1703,6 +1733,7 @@ static void CG_Chat_f( void ) {
 
 		if ( !Q_stricmp( cmd, "chat" ) && !cg_teamChatsOnly.integer )
 		{
+			CG_RecolorFakeTellInLine( text, COLOR_GREEN );
 			CG_RemoveChatEscapeChar( text );
 
 			if (cg_cleanChatbox.integer) {
@@ -1740,6 +1771,7 @@ static void CG_Chat_f( void ) {
 		}
 		else if ( !Q_stricmp( cmd, "tchat" ) )
 		{
+			CG_RecolorFakeTellInLine( text, COLOR_CYAN );
 			CG_RemoveChatEscapeChar( text );
 
 			if (cg_cleanChatbox.integer && !Q_strncmp(text, cg.lastChatMsg, strlen(text))) {//Same exact msg/sender as previous //replace this with q_strcmp in entire function..?
@@ -1765,6 +1797,9 @@ static void CG_Chat_f( void ) {
 		trap->Cmd_Argv( 2, loc, sizeof( loc ) );
 		trap->Cmd_Argv( 3, color, sizeof( color ) );
 		trap->Cmd_Argv( 4, message, sizeof( message ) );
+
+		// a teammate's tell arrives as lchat too, with the "\x19[" sender marker
+		CG_RecolorFakeTell( name, message, !Q_stricmp( cmd, "ltchat" ) ? COLOR_CYAN : COLOR_GREEN );
 
 		//get localized text
 		if (loc[0] == '@')

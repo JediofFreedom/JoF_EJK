@@ -78,6 +78,7 @@ XCVAR_DEF( cg_chatBoxHeight,		"350",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_chatBoxX,				"30",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_chatBoxCutOffLength,	"350",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_chatBoxEmojis,		"0",	NULL,					CVAR_ARCHIVE_ND )
+XCVAR_DEF( cg_noFakeTells,		"1",	NULL,					CVAR_ARCHIVE ) //recolor pink (^6) text in non-tell chat so it can't pass for a private message
 XCVAR_DEF( cg_chatBoxShowCutoff,	"0",	NULL,					CVAR_ARCHIVE_ND )
 XCVAR_DEF( cg_hudColors,			"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_tintHud,				"1",	NULL,					CVAR_ARCHIVE )
