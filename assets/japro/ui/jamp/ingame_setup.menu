@@ -4333,7 +4333,7 @@
 			cvarStrList			feeder
 			rect				220 283 300 20
 				textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
+			textalignx			120
 			textaligny			0
 			font 				4
 			textscale 			1
@@ -4366,7 +4366,7 @@
 			}
 			rect				220 303 300 20
 				textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
+			textalignx			120
 			textaligny			0
 			font 				4
 			textscale 			1
