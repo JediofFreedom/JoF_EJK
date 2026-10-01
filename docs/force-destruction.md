@@ -88,9 +88,14 @@ The hand charge uses `PW_DISINT_4` and bit 21 of `forcePowersActive`
 precedence over the remote caster's vanilla Grip compatibility bit. The hand plays
 the Drain hand effect `effects/force/drain_hand.efx`, regardless of
 `cp_pluginDisable` and `cg_drainFX` (nothing is drawn if the file is missing).
-It plays at the left hand with the Drain axis (torso pitch/yaw); Super
+It plays at the left hand; Super
 Destruction (melee or the two-handed lightning pose) plays it on both hands
-every frame. The hand effect is hidden in the caster's first-person view and when
+every frame. Each hand bolt resolves the current position when delayed particles
+spawn; existing particles stay in world space to preserve the intentional trail.
+If attachment fails, the effect falls back to the hand position with the Drain
+axis (torso pitch/yaw). The engine recognizes attachment ID zero as the valid
+entity 0/model 0/right-hand bolt 0, preventing null-axis playback.
+The hand effect is hidden in the caster's first-person view and when
 mind-tricked. Emission stops as soon as the server clears the flags; existing particles finish
 their lifetime. This repo's server sends the hand flags for a 250 ms charge, clears them when
 launching the orb, and keeps its 650 ms total recovery. Interrupted charges

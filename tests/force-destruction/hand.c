@@ -14,6 +14,8 @@ static snapshot_t snapshot;
 static int effectCount, lastEffect, leftHits, rightHits, grips, pushes, rightFetches, leftFetches;
 static vec3_t leftOrigin = { 1, 2, 3 }, rightOrigin = { 4, 5, 6 };
 static matrix3_t expectAxis;
+static int boltedCalls, unboltedCalls;
+static qboolean boltedOk = qtrue;
 enum { DRAIN = 11, DRAIN_WIDE, DRAIN_WIDE_JAPRO, DRAIN_HAND };
 
 static void TestPrint(const char *fmt, ...) { (void)fmt; }
@@ -33,9 +35,9 @@ static qboolean GetBoltMatrix(void *g2, const int model, const int bolt, mdxaBon
 {
 	(void)g2; (void)angles; (void)position; (void)models; (void)scale;
 	CHECK(model == 0 && time == cg.time);
-	CHECK(bolt == 1 || bolt == 2);
-	if (bolt == 2) ++rightFetches; else ++leftFetches;
-	SetMatrix(matrix, bolt == 2 ? rightOrigin : leftOrigin);
+	CHECK(bolt == 1 || bolt == 0);
+	if (bolt == 0) ++rightFetches; else ++leftFetches;
+	SetMatrix(matrix, bolt == 0 ? rightOrigin : leftOrigin);
 	return qtrue;
 }
 static void PlayEntityEffect(int id, vec3_t org, matrix3_t axis, const int boltInfo, const int entNum, int vol, int rad)
@@ -46,6 +48,20 @@ static void PlayEntityEffect(int id, vec3_t org, matrix3_t axis, const int boltI
 	else { CHECK(VectorCompare(org, rightOrigin)); ++rightHits; }
 	lastEffect = id;
 	++effectCount;
+	++unboltedCalls;
+}
+static qboolean PlayBoltedEffect(int id, vec3_t org, void *g2, const int bolt, const int entNum, const int modelNum, int loop, qboolean relative)
+{
+	CHECK(g2 != NULL && modelNum == 0 && loop == 0 && !relative);
+	CHECK(bolt == 1 || bolt == 0);
+	if (!boltedOk) return qfalse;
+	CHECK(VectorCompare(org, bolt == 0 ? rightOrigin : leftOrigin));
+	CHECK(entNum == 0 || entNum == 1);
+	if (bolt == 0) ++rightHits; else ++leftHits;
+	lastEffect = id;
+	++effectCount;
+	++boltedCalls;
+	return qtrue;
 }
 void BG_GiveMeVectorFromMatrix(mdxaBone_t *matrix, int flags, vec3_t out)
 {
@@ -102,7 +118,7 @@ static void CheckHand(void)
 	cg.time = 1000;
 	cent.ghoul2 = &cent;
 	ci.bolt_lhand = 1;
-	ci.bolt_rhand = 2;
+	ci.bolt_rhand = 0;
 	cent.pe.torso.pitchAngle = 20;
 	cent.pe.torso.yawAngle = 135;
 	cent.currentState.number = 1;
@@ -138,9 +154,19 @@ static void CheckHand(void)
 	ci.bolt_rhand = -1;
 	Draw(&cent, &ci, qtrue);
 	CHECK(effectCount == 1 && rightFetches == 0);
-	ci.bolt_rhand = 2;
+	ci.bolt_rhand = 0;
 	cent.currentState.torsoAnim = 0;
 	cent.currentState.weapon = WP_MELEE;
+
+	// Bolts resolve delayed spawn positions; particles stay in world space to preserve trails.
+	boltedCalls = unboltedCalls = 0;
+	Draw(&cent, &ci, qtrue);
+	CHECK(effectCount == 2 && boltedCalls == 2 && unboltedCalls == 0);
+	boltedOk = qfalse;
+	boltedCalls = unboltedCalls = 0;
+	Draw(&cent, &ci, qtrue);
+	CHECK(effectCount == 2 && boltedCalls == 0 && unboltedCalls == 2);
+	boltedOk = qtrue;
 
 	// Hidden (mind trick) or own first person: nothing, and no Grip/Push fallthrough.
 	Draw(&cent, &ci, qfalse);
@@ -171,9 +197,10 @@ int main(void)
 {
 	imports.G2API_GetBoltMatrix = GetBoltMatrix;
 	imports.FX_PlayEntityEffectID = PlayEntityEffect;
+	imports.FX_PlayBoltedEffectID = PlayBoltedEffect;
 	cg.snap = &snapshot;
 	srand(1);
 	CheckHand();
-	puts("Destruction charge plays force/drain_hand.efx, Super plays both hands every frame, visibility, marker priority and stock Grip/Push checks passed.");
+	puts("Destruction charge plays force/drain_hand.efx bolted to the hands, Super plays both hands every frame, visibility, marker priority and stock Grip/Push checks passed.");
 	return 0;
 }
