@@ -90,7 +90,9 @@ the Drain hand effect `effects/force/drain_hand.efx`, regardless of
 `cp_pluginDisable` and `cg_drainFX` (nothing is drawn if the file is missing).
 It plays at the left hand with the Drain axis (torso pitch/yaw); Super
 Destruction (melee or the two-handed lightning pose) plays it on both hands
-every frame. The hand effect is hidden in the caster's first-person view and when
+every frame. The effect is attached to the hand bolt (relative, like single
+player's Drain) because `drain_hand.efx` spawns most particles 0-400 ms late; it
+falls back to a plain play at the hand when the bolt cannot be used. The hand effect is hidden in the caster's first-person view and when
 mind-tricked. Emission stops as soon as the server clears the flags; existing particles finish
 their lifetime. This repo's server sends the hand flags for a 250 ms charge, clears them when
 launching the orb, and keeps its 650 ms total recovery. Interrupted charges
