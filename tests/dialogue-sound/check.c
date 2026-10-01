@@ -14,12 +14,15 @@ static const char *fileText;
 static char args[8][MAX_TOKEN_CHARS], scratch[MAX_TOKEN_CHARS];
 static int argc, catcher, played, muted, registered, targetUses, sent;
 static int soundEntity;
+static int soundChannel, loadWarnings;
 static qboolean missingSound;
 static char soundPath[MAX_QPATH];
 static char commands[64][MAX_STRING_CHARS];
 static int recipients[64];
 
-void QDECL Com_Printf(const char *fmt, ...) { (void)fmt; }
+void QDECL Com_Printf(const char *fmt, ...) {
+  if (strstr(fmt, "Dialogue: could not load sound")) ++loadWarnings;
+}
 void QDECL Com_Error(int level, const char *fmt, ...) {
   va_list ap;
   (void)level;
@@ -68,12 +71,13 @@ static sfxHandle_t RegisterSound(const char *path) {
   return missingSound ? 0 : 42;
 }
 static void StartSound(const vec3_t origin, int entity, int channel, sfxHandle_t sound) {
-  CHECK(!origin && entity == cg.clientNum && channel == CHAN_LOCAL && sound == 42);
+  CHECK(!origin && entity == ENTITYNUM_NONE && channel == CHAN_VOICE_GLOBAL && sound == 42);
   soundEntity = entity;
+  soundChannel = channel;
   ++played;
 }
 static void MuteSound(int entity, int channel) {
-  CHECK(entity == soundEntity && channel == CHAN_LOCAL);
+  CHECK(entity == soundEntity && channel == soundChannel);
   ++muted;
 }
 static void G_UseTargets(gentity_t *source, gentity_t *player) { (void)source; (void)player; ++targetUses; }
@@ -102,6 +106,18 @@ static struct {
 #include "server.h"
 #include "client.h"
 
+// Exercise the engine's actual attenuation function, rather than assuming
+// that a channel named LOCAL is independent of the player's position.
+#define SOUND_FULLVOLUME 256
+#define SOUND_ATTENUATE 0.0008f
+#define VOICE_ATTENUATE 0.004f
+static const float SOUND_FMAXVOL = 0.75f;
+static vec3_t listener_origin, listener_axis[3];
+static struct { int channels; } dma = {2};
+static cvar_t separation = {0};
+static cvar_t *s_separation = &separation;
+#include "spatialize.h"
+
 static void Receive(const char *command) { SetArgs(command); CG_DialogueServerCommand(); }
 static void Deliver(int client) {
   int i;
@@ -127,6 +143,13 @@ int main(void) {
   gentity_t *player = &g_entities[3];
   char longPath[MAX_QPATH + 1], malformed[256];
   unsigned int firstSerial;
+  int left, right;
+  vec3_t distantSource = {10000, 0, 0};
+  separation.value = 0.5f;
+  S_SpatializeOrigin(distantSource, 255, &left, &right, CHAN_LOCAL);
+  CHECK(left == 0 && right == 0); // Reproduce the old channel's attenuation.
+  S_SpatializeOrigin(distantSource, 255, &left, &right, CG_DLG_SOUND_CHANNEL);
+  CHECK(left > 0 && right > 0); // Voice-over survives a different view entity.
   player->client = &client;
   player->inuse = qtrue;
   cg.clientNum = 3;
@@ -169,6 +192,7 @@ int main(void) {
   CHECK(G_DialogueStart(player, "test", NULL));
   Deliver(3);
   CHECK(CG_DialogueIsActive() && played == 4);
+  CHECK(loadWarnings == 1);
   CG_DialogueCancel();
   CHECK(muted == 4);
   missingSound = qfalse;
