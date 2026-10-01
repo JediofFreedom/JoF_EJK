@@ -825,12 +825,8 @@ static void CG_RegisterSounds( void ) {
 	trap->S_RegisterSound("sound/weapons/force/see.wav");
 	trap->S_RegisterSound("sound/weapons/force/rage.wav");
 	trap->S_RegisterSound("sound/weapons/force/lightning");
-	// Environment impacts use the spark sounds from MB2's lightning_impact EFX.
-	// MB2 also plays lightninghit1-3 from CG_DoLightningArcs on environment hits.
-	// Separate asset names preserve player-hit audio.
-	for (i = 0; i < ARRAY_LEN(cgs.media.forceLightningEnvironmentArcSounds); i++) {
-		cgs.media.forceLightningEnvironmentArcSounds[i] = trap->S_RegisterSound(va("sound/weapons/force/lightningenv%i.mp3", i + 1));
-	}
+	// Environment impacts use the stock spark sounds.
+	// lightninghit1-3 belong to player hits and must not be reused here.
 	for (i = 0; i < ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds); i++) {
 		cgs.media.forceLightningEnvironmentSounds[i] = trap->S_RegisterSound(va("sound/ambience/spark%i.wav", i + 1));
 	}
@@ -1388,7 +1384,6 @@ static void CG_RegisterGraphics( void )
 
 	cgs.effects.forceLightning		= trap->FX_RegisterEffect( "effects/force/lightning.efx" );
 	cgs.effects.forceLightningWide	= trap->FX_RegisterEffect( "effects/force/lightningwide.efx" );
-	cgs.effects.forceLightningEnvironmentImpact = trap->FX_RegisterEffect("effects/mp/lightning_environment_impact");
 	cgs.effects.demp2WallImpactEffectSmall = trap->FX_RegisterEffect( "effects/mp/wall_impact_small" );
 	cgs.effects.forceLightningBranch = trap->FX_RegisterEffect( "effects/mp/lightning_branch" );
 	cgs.effects.forceLightningReference = CG_RegisterOptionalLightningEffect("effects/mp/lightning_reference/lightning.efx");
