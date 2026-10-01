@@ -25,10 +25,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "cg_local.h"
 #include "fx_local.h"
 
-// Recovered from CG_DoLightningArcs in the supplied cgamei386.so (0x97dd0).
-// Its CG_Player always passes level 3: two arcs for the narrow effect, five
-// for the wide effect. Cached endpoints retain the reference's unusual angle
-// conversion, but directions outside the configured forward arc are redirected.
+// Emit two environmental arcs for narrow lightning and five for wide lightning.
+// Cache endpoints between direction updates and constrain bolts to the aim cone.
 // Use optional pack effects when installed, otherwise vanilla/JoF effects.
 static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t axis, qboolean wide) {
 	int i;
@@ -51,7 +49,7 @@ static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t
 			direction[0] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
 			direction[1] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
 			direction[2] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
-			// The reference does not normalize the randomized direction.
+			// Keep randomized direction length to vary trace reach.
 			traceDistance = 350.0f;
 		} else {
 			VectorSubtract(origin, cent->lightningReferenceEnd[i], angles);
@@ -64,7 +62,7 @@ static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t
 		if (arcAngle < 360.0f) {
 			directionLength = VectorLength(direction);
 			// Redirect rearward/over-wide bolts toward the player's current aim.
-			// Preserve the reference vector length and therefore its trace reach.
+			// Preserve vector length and therefore trace reach.
 			if (directionLength < 0.0001f)
 				VectorCopy(axis[0], direction);
 			else if (DotProduct(direction, axis[0]) < minForwardDot * directionLength)
@@ -417,8 +415,7 @@ static void FX_LightningNestImpactSound(vec3_t pos) {
 		cgs.media.forceLightningEnvironmentSounds[rand() % ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds)]);
 }
 
-// Main beam impact sound - single variant, chosen by time+entity (matches
-// the reference implementation this was ported from).
+// Main beam impact sound - single variant, chosen by time and entity.
 static void FX_LightningImpactSound(centity_t *cent, const trace_t *hit) {
 	vec3_t contact;
 	int sound;
