@@ -8911,7 +8911,8 @@ static void CG_DrawSpectator(void)
 	s = CG_GetStringEdString("MP_INGAME", "SPECTATOR");
 	if ((cgs.gametype == GT_DUEL || cgs.gametype == GT_POWERDUEL) &&
 		cgs.duelist1 != -1 &&
-		cgs.duelist2 != -1)
+		cgs.duelist2 != -1 &&
+		cg.snap->ps.clientNum != cg.clientNum)
 	{
 		char text[1024];
 		int size = 64;
