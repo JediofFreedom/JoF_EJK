@@ -8,6 +8,8 @@ if(custom_media)
   message(FATAL_ERROR "Custom Destruction media must not be bundled: ${custom_media}")
 endif()
 foreach(path IN ITEMS
+    effects/force/destruction.efx effects/force/destruction_explode.efx
+    gfx/mp/force_destruction.tga sound/weapons/force/destruction.wav
     credits/force-destruction.txt
     effects/destruction/projectile.efx effects/destruction/impact.efx
     effects/jof/destruction/projectile.efx effects/jof/destruction/impact.efx

@@ -6,6 +6,7 @@
 
 extern qboolean gSiegeRoundBegun;
 
+#define DESTRUCTION_CHARGE 250
 #define DESTRUCTION_RECOVERY 650
 #define DESTRUCTION_LIFETIME 15000
 
@@ -37,60 +38,71 @@ static qboolean DestructionGranted(gentity_t *self)
 		(disabled & realPowers) != realPowers;
 }
 
-void G_UpdateForceDestruction(gentity_t *self)
-{
-	if (!self || !self->client)
-		return;
-	if (DestructionGranted(self))
-		self->client->ps.fd.forcePowersKnown |= DESTRUCTION_KNOWN_FLAG;
-	else
-		self->client->ps.fd.forcePowersKnown &= ~DESTRUCTION_KNOWN_FLAG;
-}
-
-void ForceDestruction(gentity_t *self)
+static qboolean DestructionCanCast(gentity_t *self, qboolean charging)
 {
 	playerState_t *ps;
-	gentity_t *missile, *sound;
-	trace_t trace;
-	vec3_t start, forward;
-	vec3_t mins = {-5, -5, -5}, maxs = {5, 5, 5};
 	int cost = DestructionClamp(g_forceDestructionCost.integer, 1, 100);
-	int cooldown = DestructionClamp(g_forceDestructionCooldown.integer, 500, 30000);
-
 	// Recheck entitlement here: neither a stale snapshot nor a forged command is authority.
 	if (!DestructionGranted(self) || level.intermissiontime || level.intermissionQueued ||
 		level.pause.state != PAUSE_NONE || (level.gametype == GT_SIEGE && !gSiegeRoundBegun))
-		return;
+		return qfalse;
 
 	ps = &self->client->ps;
 	// Borrow only the shared offensive-power restrictions, not Lightning's rank/cost.
 	if (!BG_CanUseFPNow(level.gametype, ps, level.time, FP_LIGHTNING) ||
 		ps->fd.forceDeactivateAll || ps->fd.forceGripCripple ||
-		ps->forceHandExtend != HANDEXTEND_NONE || ps->weaponTime > 0 ||
+		ps->forceHandExtend != (charging ? HANDEXTEND_FORCEPUSH : HANDEXTEND_NONE) ||
+		(!charging && ps->weaponTime > 0) ||
 		(ps->pm_flags & PMF_STUCK_TO_WALL) || ps->heldByClient ||
 		BG_InGrappleMove(ps->legsAnim) || BG_InGrappleMove(ps->torsoAnim) ||
 		(ps->fd.forcePowersActive & ((1 << FP_GRIP) | (1 << FP_LIGHTNING) | (1 << FP_DRAIN))) ||
-		self->client->forceDestructionCooldown > level.time || ps->fd.forcePower < cost)
-		return;
+		(!charging && (self->client->forceDestructionCooldown > level.time || ps->fd.forcePower < cost)))
+		return qfalse;
 
 	if (!ps->saberHolstered &&
 		((g_saberRestrictForce.integer &&
 			((self->client->saber[0].saberFlags & SFL_TWO_HANDED) || self->client->saber[1].model[0])) ||
 		((self->client->saber[0].forceRestrictions | self->client->saber[1].forceRestrictions) & (1 << FP_LIGHTNING))))
-		return;
+		return qfalse;
 
+	return qtrue;
+}
+
+static qboolean DestructionLaunchOrigin(gentity_t *self, vec3_t start, vec3_t forward)
+{
+	trace_t trace;
+	vec3_t mins = {-5, -5, -5}, maxs = {5, 5, 5};
+	playerState_t *ps = &self->client->ps;
 	AngleVectors(ps->viewangles, forward, NULL, NULL);
 	VectorCopy(ps->origin, start);
 	start[2] += ps->viewheight;
-	// Trace the entire spawn offset; never create an orb beyond a wall or low ceiling.
+	// Trace again at release: the caster may have moved during the charge.
 	JP_Trace(&trace, ps->origin, mins, maxs, start, self->s.number,
 		MASK_SOLID | CONTENTS_SHOTCLIP, qfalse, 0, 0);
 	if (trace.startsolid || trace.allsolid)
-		return;
+		return qfalse;
 	VectorCopy(trace.endpos, start);
+	return qtrue;
+}
 
+static void DestructionClearCharge(gentity_t *self)
+{
+	// Do not erase a newer Push/Grip effect that interrupted this charge.
+	if (self->client->ps.powerups[PW_DISINT_4] == self->client->forceDestructionChargeTime + 1)
+		self->client->ps.powerups[PW_DISINT_4] = 0;
+	self->client->forceDestructionChargeTime = 0;
+	self->client->ps.fd.forcePowersActive &= ~DESTRUCTION_HAND_FLAG;
+}
+
+static void DestructionLaunch(gentity_t *self)
+{
+	gentity_t *missile;
+	vec3_t start, forward;
+	vec3_t mins = {-5, -5, -5}, maxs = {5, 5, 5};
+	if (!DestructionLaunchOrigin(self, start, forward))
+		return;
 	missile = CreateMissileNew(start, forward,
-		DestructionClamp(g_forceDestructionSpeed.integer, 100, 3000),
+		self->client->forceDestructionSpeed,
 		DESTRUCTION_LIFETIME, self, qfalse, qfalse, qfalse);
 	missile->classname = "force_destruction";
 	missile->s.weapon = WP_CONCUSSION; // compatible fallback for older clients
@@ -102,19 +114,64 @@ void ForceDestruction(gentity_t *self)
 	// vanilla clients can render the attack even on maps without concussion items.
 	missile->s.otherEntityNum2 = G_EffectIndex("concussion/shot");
 	missile->s.emplacedOwner = G_EffectIndex("concussion/explosion");
-	missile->damage = DestructionClamp(g_forceDestructionDamage.integer, 1, 500);
+	missile->damage = self->client->forceDestructionDamage;
 	missile->splashDamage = missile->damage;
-	missile->splashRadius = DestructionClamp(g_forceDestructionRadius.integer, 16, 512);
+	missile->splashRadius = self->client->forceDestructionRadius;
 	missile->methodOfDeath = missile->splashMethodOfDeath = MOD_FORCE_DARK;
 	missile->clipmask = MASK_SHOT; // an energy blast is not a saber-deflectable blaster bolt
-	missile->count = cost; // snapshot the spent energy for Absorb, even if cvars change in flight
+	missile->count = self->client->forceDestructionCost; // snapshot the spent energy for Absorb, even if cvars change in flight
 	VectorCopy(mins, missile->r.mins);
 	VectorCopy(maxs, missile->r.maxs);
 	trap->LinkEntity((sharedEntity_t *)missile);
+}
+
+void G_UpdateForceDestruction(gentity_t *self)
+{
+	if (!self || !self->client)
+		return;
+	if (DestructionGranted(self))
+		self->client->ps.fd.forcePowersKnown |= DESTRUCTION_KNOWN_FLAG;
+	else
+		self->client->ps.fd.forcePowersKnown &= ~DESTRUCTION_KNOWN_FLAG;
+	if (!self->client->forceDestructionChargeTime)
+		return;
+	if (!DestructionCanCast(self, qtrue) ||
+		self->s.bolt1 != self->client->forceDestructionDimension ||
+		!(self->client->ps.fd.forcePowersActive & DESTRUCTION_HAND_FLAG))
+	{
+		DestructionClearCharge(self);
+		return;
+	}
+	if (level.time >= self->client->forceDestructionChargeTime)
+	{
+		DestructionClearCharge(self);
+		DestructionLaunch(self);
+	}
+}
+
+void ForceDestruction(gentity_t *self)
+{
+	playerState_t *ps;
+	gentity_t *sound;
+	vec3_t start, forward;
+	int cost = DestructionClamp(g_forceDestructionCost.integer, 1, 100);
+	int cooldown = DestructionClamp(g_forceDestructionCooldown.integer, 500, 30000);
+	if (!DestructionCanCast(self, qfalse) || self->client->forceDestructionChargeTime ||
+		!DestructionLaunchOrigin(self, start, forward))
+		return;
+	ps = &self->client->ps;
 
 	ps->fd.forcePower -= cost;
 	ps->fd.forcePowerRegenDebounceTime = level.time + 1000;
 	self->client->forceDestructionCooldown = level.time + cooldown;
+	self->client->forceDestructionChargeTime = level.time + DESTRUCTION_CHARGE;
+	self->client->forceDestructionCost = cost;
+	self->client->forceDestructionDamage = DestructionClamp(g_forceDestructionDamage.integer, 1, 500);
+	self->client->forceDestructionRadius = DestructionClamp(g_forceDestructionRadius.integer, 16, 512);
+	self->client->forceDestructionSpeed = DestructionClamp(g_forceDestructionSpeed.integer, 100, 3000);
+	self->client->forceDestructionDimension = self->s.bolt1;
+	ps->fd.forcePowersActive |= DESTRUCTION_HAND_FLAG;
+	ps->powerups[PW_DISINT_4] = self->client->forceDestructionChargeTime + 1;
 	ps->forceHandExtend = HANDEXTEND_FORCEPUSH;
 	ps->forceHandExtendTime = level.time + DESTRUCTION_RECOVERY;
 	ps->weaponTime = DESTRUCTION_RECOVERY;

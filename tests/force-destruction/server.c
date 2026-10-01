@@ -135,6 +135,78 @@ static gentity_t *Reset(void)
 	return &g_entities[0];
 }
 
+static void CastAndRelease(gentity_t *self)
+{
+	ForceDestruction(self);
+	if (self->client->forceDestructionChargeTime)
+	{
+		level.time = self->client->forceDestructionChargeTime;
+		G_UpdateForceDestruction(self);
+	}
+}
+
+static void CheckCharge(void)
+{
+	gentity_t *self = Reset();
+	int expiry;
+	self->client->ps.fd.forcePowersActive = 1 << FP_SPEED;
+	ForceDestruction(self);
+	expiry = self->client->forceDestructionChargeTime;
+	CHECK(expiry == 1250 && shots == 0);
+	CHECK(self->client->ps.fd.forcePower == 50);
+	CHECK(self->client->ps.powerups[PW_DISINT_4] > expiry);
+	CHECK(self->client->ps.fd.forcePowersActive == ((1 << FP_SPEED) | DESTRUCTION_HAND_FLAG));
+	ForceDestruction(self);
+	CHECK(shots == 0 && self->client->ps.fd.forcePower == 50);
+	level.time = expiry - 1;
+	G_UpdateForceDestruction(self);
+	CHECK(shots == 0 && (self->client->ps.fd.forcePowersActive & DESTRUCTION_HAND_FLAG));
+	// Launch with the current origin/aim and the tuning captured when charging began.
+	self->client->ps.origin[0] = 40;
+	g_forceDestructionDamage.integer = 1;
+	g_forceDestructionRadius.integer = 16;
+	g_forceDestructionSpeed.integer = 100;
+	level.time = expiry;
+	G_UpdateForceDestruction(self);
+	CHECK(shots == 1 && self->client->ps.fd.forcePowersActive == (1 << FP_SPEED));
+	CHECK(self->client->ps.powerups[PW_DISINT_4] == 0 && self->client->forceDestructionChargeTime == 0);
+	CHECK(g_entities[MAX_CLIENTS].r.currentOrigin[0] == 40);
+	CHECK(g_entities[MAX_CLIENTS].damage == 90 && g_entities[MAX_CLIENTS].splashRadius == 160);
+	CHECK(VectorLength(g_entities[MAX_CLIENTS].s.pos.trDelta) == 900);
+	G_UpdateForceDestruction(self);
+	CHECK(shots == 1);
+}
+
+#define CANCEL(change) do { gentity_t *self = Reset(); ForceDestruction(self); change; level.time = 1250; G_UpdateForceDestruction(self); CHECK(shots == 0 && self->client->forceDestructionChargeTime == 0 && !(self->client->ps.fd.forcePowersActive & DESTRUCTION_HAND_FLAG) && self->client->ps.powerups[PW_DISINT_4] == 0); } while (0)
+static void CheckChargeCancellation(void)
+{
+	CANCEL(self->health = 0);
+	CANCEL(g_forceDestruction.integer = 0);
+	CANCEL(self->client->ps.fd.forceSide = FORCE_LIGHTSIDE);
+	CANCEL(self->client->pers.connected = CON_DISCONNECTED);
+	CANCEL(self->client->sess.sessionTeam = TEAM_SPECTATOR);
+	CANCEL(self->client->noclip = qtrue);
+	CANCEL(self->client->ps.forceHandExtend = HANDEXTEND_KNOCKDOWN);
+	CANCEL(self->client->ps.fd.forceDeactivateAll = qtrue);
+	CANCEL(self->client->ps.powerups[PW_YSALAMIRI] = 2000);
+	CANCEL(self->s.bolt1 = 1);
+	CANCEL(level.pause.state = PAUSE_PAUSED);
+	CANCEL(level.intermissionQueued = 1);
+	CANCEL(blocked = 1);
+	{
+		gentity_t *self = Reset();
+		ForceDestruction(self);
+		self->client->ps.forceHandExtend = HANDEXTEND_FORCE_HOLD;
+		self->client->ps.powerups[PW_DISINT_4] = 4000;
+		self->client->ps.fd.forcePowersActive |= 1 << FP_GRIP;
+		G_UpdateForceDestruction(self);
+		CHECK(shots == 0 && self->client->forceDestructionChargeTime == 0);
+		CHECK(self->client->ps.powerups[PW_DISINT_4] == 4000);
+		CHECK(self->client->ps.fd.forcePowersActive == (1 << FP_GRIP));
+	}
+
+}
+
 static void CheckGrantAndCast(void)
 {
 	gentity_t *self = Reset();
@@ -145,12 +217,12 @@ static void CheckGrantAndCast(void)
 	g_forceDestruction.integer = 0;
 	G_UpdateForceDestruction(self);
 	CHECK((unsigned int)self->client->ps.fd.forcePowersKnown == preserved);
-	ForceDestruction(self); CHECK(shots == 0);
+	CastAndRelease(self); CHECK(shots == 0);
 	g_forceDestruction.integer = 1;
 	self->client->ps.fd.forceSide = FORCE_LIGHTSIDE;
-	ForceDestruction(self); CHECK(shots == 0);
+	CastAndRelease(self); CHECK(shots == 0);
 	self->client->ps.fd.forceSide = FORCE_DARKSIDE;
-	ForceDestruction(self);
+	CastAndRelease(self);
 	CHECK(shots == 1 && self->client->ps.fd.forcePower == 50);
 	CHECK(self->client->forceDestructionCooldown == 5000);
 	CHECK(self->client->ps.forceHandExtend == HANDEXTEND_FORCEPUSH);
@@ -165,17 +237,17 @@ static void CheckGrantAndCast(void)
 	CHECK(g_entities[MAX_CLIENTS].nextthink == level.time + 15000);
 	self->client->ps.weaponTime = 0;
 	self->client->ps.forceHandExtend = HANDEXTEND_NONE;
-	ForceDestruction(self); CHECK(shots == 1);
+	CastAndRelease(self); CHECK(shots == 1);
 	level.time = 5000;
-	ForceDestruction(self); CHECK(shots == 2 && self->client->ps.fd.forcePower == 0);
+	CastAndRelease(self); CHECK(shots == 2 && self->client->ps.fd.forcePower == 0);
 	CHECK(g_entities[MAX_CLIENTS].nextthink == level.time + 15000);
 	level.time = 10000;
 	self->client->ps.weaponTime = 0;
 	self->client->ps.forceHandExtend = HANDEXTEND_NONE;
-	ForceDestruction(self); CHECK(shots == 2);
+	CastAndRelease(self); CHECK(shots == 2);
 }
 
-#define REJECT(change) do { gentity_t *self = Reset(); change; ForceDestruction(self); CHECK(shots == 0 && self->client->ps.fd.forcePower == 100); } while (0)
+#define REJECT(change) do { gentity_t *self = Reset(); change; CastAndRelease(self); CHECK(shots == 0 && self->client->ps.fd.forcePower == 100); } while (0)
 static void CheckRestrictions(void)
 {
 	REJECT(self->health = 0);
@@ -210,7 +282,7 @@ static void CheckDamage(void)
 	gentity_t *self = Reset(), *missile = &g_entities[MAX_CLIENTS], *target = &g_entities[1];
 	trace_t impact = {0};
 	vec3_t origin = {0}, direction = {1, 0, 0};
-	ForceDestruction(self);
+	CastAndRelease(self);
 	impact.entityNum = 1;
 	impact.plane.normal[2] = 1;
 	VectorSet(g_entities[2].r.absmin, 80, 0, 0);
@@ -263,7 +335,7 @@ static void CheckTuningAndFullForceDuel(void)
 	g_forceDestructionRadius.integer = 1000;
 	g_forceDestructionSpeed.integer = 10000;
 	g_forceDestructionCooldown.integer = 0;
-	ForceDestruction(self);
+	CastAndRelease(self);
 	CHECK(shots == 1 && self->client->ps.fd.forcePower == 99);
 	CHECK(self->client->forceDestructionCooldown == 1500);
 	CHECK(missile->damage == 500 && missile->splashRadius == 512);
@@ -275,6 +347,8 @@ static void CheckTuningAndFullForceDuel(void)
 
 int main(void)
 {
+	CheckCharge();
+	CheckChargeCancellation();
 	CheckGrantAndCast();
 	CheckRestrictions();
 	CheckDamage();

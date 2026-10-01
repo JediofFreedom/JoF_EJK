@@ -43,9 +43,11 @@ Unsupported servers do not get the wheel entry or client-generated command.
 | `g_forceDestructionCooldown` | 4000 ms | 500–30000 |
 
 Out-of-range tuning values are clamped when casting. The orb expires after 15
-seconds, does not home, and costs no ammunition. Casting has 650 ms of recovery
+seconds, does not home, and costs no ammunition. Casting has a 250 ms hand charge before launch and
+650 ms of total recovery
 and delays Force regeneration for one second. Successful casts end spawn protection.
-Damage/radius are captured at launch, so tuning changes cannot alter an in-flight blast.
+Damage/radius/speed are captured when charging begins, so tuning changes cannot
+alter an in-flight blast.
 
 Direct hits use the full configured damage. Splash falls off with distance from
 the target's bounds and requires line of sight; the direct target is not hit twice.
@@ -81,49 +83,56 @@ available during jetpack flight, floating and noclip. Dead players, spectators
 and followers remain excluded. The server still decides whether a cast is allowed;
 keeping the noclip entry visible does not authorize a noclip cast.
 
-V123's hand charge uses `PW_DISINT_4` and bit 21 of `forcePowersActive`
+The hand charge uses `PW_DISINT_4` and bit 21 of `forcePowersActive`
 (`DESTRUCTION_HAND_FLAG`, distinct from the grant in `forcePowersKnown`). It takes
-precedence over the remote caster's vanilla Grip compatibility bit. The optional
-hand EFX plays once per hand per frame, independently of the projectile EFX;
-the hand file controls its appearance. The custom travelling orb emits three
-layers per frame. Melee casts emit from both hands. The hand effect is hidden in
-the caster's first-person view and when mind-tricked. The server keeps the hand
-flags on during its 250 ms charge, then
-clears them in the snapshot that introduces the orb during the 1000 ms cast pose.
-There is no client timer: emission stops as soon as the flags clear, including an
-interrupted charge, and existing EFX particles fade according to their own lifetime.
-Without the custom hand EFX, two passes of short crimson sprites drift forward
-from the left hand (both hands at 1.15x size for Melee) and expire within 150 ms.
+precedence over the remote caster's vanilla Grip compatibility bit. The renderer
+matches the default hand sprites decompiled from the reference `cgamei386.so`:
+two passes at the left hand, each emitting a bright pulsing red Force Push sprite
+and a white sprite using the red saber-glow shader. Both have radius 2 and a
+120 ms lifetime; they drift in opposite directions along the camera's right
+vector at 55 units/second. The red pulse uses `sin(cg.time * 0.004)`, amplitude
+0.08, offset 0.1, and red intensity `min(255, 200 + pulse * 255)`. Melee uses the
+same left-hand emission without extra scaling or right-hand particles. The hand
+effect is hidden in the caster's first-person view and when mind-tricked.
+Emission stops as soon as the server clears the flags; existing particles finish
+their lifetime. This repo's server sends the hand flags for a 250 ms charge, clears them when
+launching the orb, and keeps its 650 ms total recovery. Interrupted charges
+clear the flags without launching; Force cost and cooldown are spent at charge
+start. Death, losing the grant, restricted states, pause/intermission, dimension
+changes, and blocked launch positions cancel the cast. V123 controls its own
+charge flags and cast timing.
 
-Updated clients recognize the marker and use stock concussion effects and their
-vanilla impact audio by default, with Force Push cast audio and Lightning's wheel
-icon. Custom Destruction effects, sounds and icons are not included in this repo
-or `jofclient-assets.pk3`. Optional locally installed media can override these
-defaults independently at the following paths:
+Updated clients recognize the missile marker and use the original local media paths:
 
 - Trail: `effects/forcedestruction/destruction.efx`.
-- Hand charge: `effects/forcedestruction/destruction_hand.efx`.
 - Impact: `effects/forcedestruction/destruction_explode_enhanced2.efx`, falling
-  back to `destruction_explode.efx` if the enhanced effect is unavailable.
+  back to `effects/forcedestruction/destruction_explode.efx`.
 - Wheel icon: `gfx/forcedestruction/force_destruction.tga`.
 - Cast sound: `sound/forcedestruction/destruction.mp3`.
 - Impact sounds: `sound/forcedestruction/forcedestruct01.wav` and
   `forcedestruct02.wav`, alternating by missile entity number.
 
-Optional custom impact EFX must not contain their own `Sound` blocks: cgame
-selects and plays impact audio independently, preventing doubled sounds and
-allowing audio fallback. Custom WAV sound effects must be mono for engine
-compatibility.
+The custom travelling orb emits three layers per rendered frame, controlled by
+`DESTRUCTION_EFX_LAYERS`. Stock concussion trails and all impacts play once.
+Custom impact EFX must not contain `Sound` blocks: cgame selects impact audio
+independently to avoid doubled sounds. Custom WAV samples must be mono.
+The optional `effects/forcedestruction/destruction_hand.efx` is still registered,
+but hand rendering always uses the reference sprites described above.
 
-Only the custom projectile EFX is stacked; stock concussion shots and all impacts
-play once. `DESTRUCTION_EFX_LAYERS` in `cg_local.h` tunes only orb density.
-Missing trail/impact effects use stock concussion visuals. A missing icon uses
-Lightning's icon; missing cast audio uses Force Push; a missing impact sample uses the other
-sample, or stock mine-impact audio if neither is available. Stock concussion
-effects retain their own audio. The server advertises only stock FX and a tagged
-stock Force-push sound event, so vanilla clients do not need custom downloads.
-Normal weapon visuals and sounds are unchanged. Gameplay/damage does not depend
-on which assets a client has installed.
+Custom media are not bundled in this repo or `jofclient-assets.pk3`. Install the
+custom EFX and all their texture/shader dependencies locally. Missing trail/impact
+effects retain stock concussion visuals and their embedded audio. A missing icon
+uses Lightning's icon; a missing cast sound uses Force Push. Missing impact
+samples use the other sample, or stock mine-impact audio if neither is available.
+The server advertises stock FX and a tagged stock Force Push sound event so
+vanilla clients require no custom media. Normal weapon visuals and sounds are
+unchanged.
+
+This adapts the reference rendering to this branch's protocol: it retains
+Destruction bit 21 and the tagged concussion missile instead of the reference's
+active bit and missile table. The reference's file/model/class override system
+and fractional client clock are not ported. Gameplay/damage and server charge
+timing remain independent of the installed media.
 
 Run the focused regression checks (add `-A x64` or `-A Win32` when using Visual Studio):
 
@@ -136,13 +145,13 @@ ctest --test-dir build/force-destruction-check -C Release --output-on-failure
 These compile the real ability, Force restriction/Absorb helpers, wheel builder,
 input routing and FX selection/playback code against mocked engine services;
 they are not an in-game test. Media checks cover all 256 combinations of
-missing/present trail, hand effect, both impact effects, icon and three sound
-files, as well as unchanged ordinary weapon FX/sounds. The asset check ensures that custom
-Destruction media and its retired packaged credit are not bundled.
-Hand checks cover single custom EFX playback independently of the projectile,
-two sprite fallback passes, lifetimes and forward movement, normal/Super sizes,
-both hands, matrix reuse, first-person/mind-trick
-hiding, stopping emission when flags clear, and unchanged Push/Grip routing.
+missing/present trail, registered hand effect, both impact effects, icon and three
+sound files, unchanged ordinary weapon handling, and custom impact audio.
+The asset check ensures custom media are not bundled.
+Hand checks cover four left-hand sprites with reference size, lifetime, colors,
+rotation and camera-relative opposing movement, unchanged appearance for Melee,
+matrix reuse, first-person/mind-trick hiding, stopping emission when flags clear,
+and unchanged Push/Grip routing.
 Wheel checks include all 128 combinations of extra grants and their anchor powers,
 plus flying/noclip eligibility and protected spectator/dead input states.
 
