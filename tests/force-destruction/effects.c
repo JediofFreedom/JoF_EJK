@@ -6,9 +6,9 @@
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL %d: %s\n", __LINE__, #x); exit(1); } } while (0)
 
 enum { PROJECTILE_PRESENT = 1, IMPACT_PRESENT = 2, ENHANCED_PRESENT = 4,
-	ICON_PRESENT = 8, CAST_PRESENT = 16, SOUND1_PRESENT = 32, SOUND2_PRESENT = 64, HAND_PRESENT = 128 };
+	ICON_PRESENT = 8, CAST_PRESENT = 16, SOUND1_PRESENT = 32, SOUND2_PRESENT = 64, SUPER_PRESENT = 128 };
 enum { STOCK_PROJECTILE = 1, STOCK_IMPACT, CUSTOM_PROJECTILE, CUSTOM_IMPACT, ENHANCED_IMPACT,
-	STOCK_ICON, CUSTOM_ICON, STOCK_CAST, CUSTOM_CAST, STOCK_BOOM, CUSTOM_BOOM1, CUSTOM_BOOM2, CUSTOM_HAND };
+	STOCK_ICON, CUSTOM_ICON, STOCK_CAST, CUSTOM_CAST, STOCK_BOOM, CUSTOM_BOOM1, CUSTOM_BOOM2, CUSTOM_SUPER };
 static int available, plays, playedEffect, sounds, playedSound;
 static vec3_t playedOrigin, playedDirection;
 cgs_t cgs;
@@ -30,8 +30,10 @@ static fxHandle_t RegisterEffect(const char *name)
 	if (!strcmp(name, "concussion/explosion")) return STOCK_IMPACT;
 	if (!strcmp(name, "forcedestruction/destruction"))
 		return (available & PROJECTILE_PRESENT) ? CUSTOM_PROJECTILE : 0;
-	if (!strcmp(name, "forcedestruction/destruction_hand"))
-		return (available & HAND_PRESENT) ? CUSTOM_HAND : 0;
+	if (!strcmp(name, "force/drain_hand"))
+		return 99;
+	if (!strcmp(name, "forcedestruction/destruction_super"))
+		return (available & SUPER_PRESENT) ? CUSTOM_SUPER : 0;
 	if (!strcmp(name, "forcedestruction/destruction_explode_enhanced2"))
 		return (available & ENHANCED_PRESENT) ? ENHANCED_IMPACT : 0;
 	CHECK(!strcmp(name, "forcedestruction/destruction_explode"));
@@ -61,7 +63,7 @@ static void PlaySound(const vec3_t origin, int entity, int channel, sfxHandle_t 
 
 static void PlayEffect(int effect, vec3_t origin, vec3_t direction, int vol, int rad, qboolean portal)
 {
-	CHECK(effect >= STOCK_PROJECTILE && effect <= ENHANCED_IMPACT);
+	CHECK((effect >= STOCK_PROJECTILE && effect <= ENHANCED_IMPACT) || effect == CUSTOM_SUPER);
 	CHECK(vol == -1 && rad == -1 && !portal);
 	++plays;
 	playedEffect = effect;
@@ -92,7 +94,8 @@ static void CheckEffects(int assets)
 	CG_RegisterDestructionEffects();
 	CHECK(cgs.effects.destructionProjectile == projectile);
 	CHECK(cgs.effects.destructionImpact == impact);
-	CHECK(cgs.effects.destructionHand == ((assets & HAND_PRESENT) ? CUSTOM_HAND : 0));
+	CHECK(cgs.effects.destructionDrainHand == 99);
+	CHECK(cgs.effects.destructionSuper == ((assets & SUPER_PRESENT) ? CUSTOM_SUPER : 0));
 	CHECK(cgs.effects.destructionCustomProjectile == (projectile != STOCK_PROJECTILE));
 	CHECK(cgs.effects.destructionCustomImpact == (impact != STOCK_IMPACT));
 	CHECK(cgs.media.destructionIcon == ((assets & ICON_PRESENT) ? CUSTOM_ICON : STOCK_ICON));
@@ -121,6 +124,16 @@ static void CheckEffects(int assets)
 	CHECK(CG_PlayDestructionEffect(&missile, origin, stopped, qfalse));
 	CHECK(plays == 2 * layers + 2 && playedEffect == projectile && VectorCompare(normal, playedDirection));
 
+	// Super Destruction (melee): the server marks the orb with iModelScale 115.
+	missile.iModelScale = 115;
+	CHECK(CG_PlayDestructionEffect(&missile, origin, velocity, qfalse));
+	CHECK(plays == 3 * layers + 2 && playedEffect ==
+		(((assets & (PROJECTILE_PRESENT | SUPER_PRESENT)) == (PROJECTILE_PRESENT | SUPER_PRESENT)) ? CUSTOM_SUPER : projectile));
+	CHECK(CG_PlayDestructionEffect(&missile, origin, normal, qtrue));
+	CHECK(plays == 3 * layers + 3 && playedEffect == impact);
+	sounds -= (impact != STOCK_IMPACT);
+	missile.iModelScale = 0;
+	plays -= layers + 1;
 	missile.generic1 = 0;
 	CHECK(!CG_PlayDestructionEffect(&missile, origin, velocity, qfalse));
 	CHECK(!CG_PlayDestructionEffect(&missile, origin, normal, qtrue));
@@ -143,6 +156,6 @@ int main(void)
 	imports.S_StartSound = PlaySound;
 	for (assets = 0; assets < 256; ++assets) CheckEffects(assets);
 	CheckEffects(0); // reinitialization resets the previous complete asset set
-	puts("Destruction projectile layering, single impacts, optional hand FX, FX/icon/audio fallback, 256 partial-pack combinations, reload and normal-weapon checks passed.");
+	puts("Destruction projectile layering, single impacts, optional Super orb FX, FX/icon/audio fallback, 256 partial-pack combinations, reload and normal-weapon checks passed.");
 	return 0;
 }

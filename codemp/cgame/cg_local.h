@@ -2005,7 +2005,8 @@ typedef struct cgEffects_s {
 	// Force Destruction: locally selected custom FX or stock concussion fallbacks.
 	fxHandle_t	destructionProjectile;
 	fxHandle_t	destructionImpact;
-	fxHandle_t	destructionHand;			// forcedestruction/destruction_hand.efx (0 = not installed)
+	fxHandle_t	destructionSuper;			// forcedestruction/destruction_super.efx (0 = normal orb)
+	fxHandle_t	destructionDrainHand;	// force/drain_hand.efx (Drain hand effect)
 	qboolean	destructionCustomProjectile;
 	qboolean	destructionCustomImpact;
 

@@ -85,16 +85,13 @@ keeping the noclip entry visible does not authorize a noclip cast.
 
 The hand charge uses `PW_DISINT_4` and bit 21 of `forcePowersActive`
 (`DESTRUCTION_HAND_FLAG`, distinct from the grant in `forcePowersKnown`). It takes
-precedence over the remote caster's vanilla Grip compatibility bit. The renderer
-matches the default hand sprites decompiled from the reference `cgamei386.so`:
-two passes at the left hand, each emitting a bright pulsing red Force Push sprite
-and a white sprite using the red saber-glow shader. Both have radius 2 and a
-120 ms lifetime; they drift in opposite directions along the camera's right
-vector at 55 units/second. The red pulse uses `sin(cg.time * 0.004)`, amplitude
-0.08, offset 0.1, and red intensity `min(255, 200 + pulse * 255)`. Melee uses the
-same left-hand emission without extra scaling or right-hand particles. The hand
-effect is hidden in the caster's first-person view and when mind-tricked.
-Emission stops as soon as the server clears the flags; existing particles finish
+precedence over the remote caster's vanilla Grip compatibility bit. The hand plays
+the Drain hand effect `effects/force/drain_hand.efx`, regardless of
+`cp_pluginDisable` and `cg_drainFX` (nothing is drawn if the file is missing).
+It plays at the left hand with the Drain axis (torso pitch/yaw); Super
+Destruction (melee) alternates between both hands per frame like two-handed
+Drain. The hand effect is hidden in the caster's first-person view and when
+mind-tricked. Emission stops as soon as the server clears the flags; existing particles finish
 their lifetime. This repo's server sends the hand flags for a 250 ms charge, clears them when
 launching the orb, and keeps its 650 ms total recovery. Interrupted charges
 clear the flags without launching; Force cost and cooldown are spent at charge
@@ -116,8 +113,11 @@ The custom travelling orb emits three layers per rendered frame, controlled by
 `DESTRUCTION_EFX_LAYERS`. Stock concussion trails and all impacts play once.
 Custom impact EFX must not contain `Sound` blocks: cgame selects impact audio
 independently to avoid doubled sounds. Custom WAV samples must be mono.
-The optional `effects/forcedestruction/destruction_hand.efx` is still registered,
-but hand rendering always uses the reference sprites described above.
+Super Destruction (cast with melee) is marked by the server with `iModelScale` 115
+on the orb (and a 1.15x hitbox). When both `destruction.efx` and the optional
+`effects/forcedestruction/destruction_super.efx` (the same orb with sizes x1.15)
+are installed, the Super orb plays `destruction_super.efx` with the same layering;
+otherwise it uses the normal orb.
 
 Custom media are not bundled in this repo or `jofclient-assets.pk3`. Install the
 custom EFX and all their texture/shader dependencies locally. Missing trail/impact
@@ -145,11 +145,11 @@ ctest --test-dir build/force-destruction-check -C Release --output-on-failure
 These compile the real ability, Force restriction/Absorb helpers, wheel builder,
 input routing and FX selection/playback code against mocked engine services;
 they are not an in-game test. Media checks cover all 256 combinations of
-missing/present trail, registered hand effect, both impact effects, icon and three
+missing/present trail, Super trail, both impact effects, icon and three
 sound files, unchanged ordinary weapon handling, and custom impact audio.
 The asset check ensures custom media are not bundled.
-Hand checks cover four left-hand sprites with reference size, lifetime, colors,
-rotation and camera-relative opposing movement, unchanged appearance for Melee,
+Hand checks cover drain_hand.efx under every Drain setting and when missing, the
+Drain axis, left hand only for normal casts and alternating hands for Melee,
 matrix reuse, first-person/mind-trick hiding, stopping emission when flags clear,
 and unchanged Push/Grip routing.
 Wheel checks include all 128 combinations of extra grants and their anchor powers,
