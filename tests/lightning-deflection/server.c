@@ -143,6 +143,8 @@ static void Combat(void) {
 }
 static void Damage(void) {
   Hit(0); CHECK(damages == 0 && absorbCalls == 0); CHECK(g_entities[1].health == 100);
+  CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_TAUNT);
+  CHECK(BG_IsLightningDeflect(&clients[1].ps));
   CHECK(clients[1].ps.electrifyTime == 0 && clients[1].ps.fd.forcePower == 0);
   CHECK(clients[1].ps.torsoAnim == BOTH_P1_S1_TR); CHECK(clients[1].ps.legsAnim == 0);
   CHECK(eventEntity.s.eventParm == LIGHTNING_DEFLECT_EVENT_PARM);
@@ -181,6 +183,32 @@ static void Sources(void) {
   clients[2].ps.origin[0] = 0; clients[2].ps.origin[1] = 100; Hit(2);
   CHECK(damages == 1 && !(clients[1].ps.eFlags2 & EF2_LIGHTNING_DEFLECT));
 }
+static void PositionPose(void) {
+  int yaw, pitch;
+  playerState_t *defender = &clients[1].ps;
+  playerState_t *caster = &clients[0].ps;
+  caster->origin[1] = 50;
+  // The damage callback already establishes a hit. Changing caster aim must
+  // not flip the guard while both players remain in the same places.
+  for (yaw = 0; yaw < 360; yaw += 5) {
+    for (pitch = -80; pitch <= 80; pitch += 20) {
+      caster->viewangles[YAW] = yaw;
+      caster->viewangles[PITCH] = pitch;
+      Hit(0);
+      CHECK(damages == 0 && defender->forceDodgeAnim == BOTH_P1_S1_TL);
+      CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
+    }
+  }
+  // Crossing the defender's facing direction changes the side naturally.
+  caster->origin[1] = -50; Hit(0);
+  CHECK(defender->forceDodgeAnim == BOTH_P1_S1_TR);
+  caster->origin[1] = 50; Hit(0);
+  CHECK(defender->forceDodgeAnim == BOTH_P1_S1_TL);
+  // Turning the defender changes which shoulder faces the caster.
+  defender->viewangles[YAW] = 40; Hit(0);
+  CHECK(defender->forceDodgeAnim == BOTH_P1_S1_TR);
+  CHECK(damages == 0);
+}
 static void Absorption(void) {
   forceAllowed = 0; Hit(0); CHECK(damages == 0 && events == 0);
   forceAllowed = 1; clients[1].ps.fd.forcePowerLevel[FP_SABER_DEFENSE] = FORCE_LEVEL_2;
@@ -196,6 +224,7 @@ int main(int argc, char **argv) {
   else if (!strcmp(argv[1], "damage")) Damage();
   else if (!strcmp(argv[1], "lifecycle")) Lifecycle();
   else if (!strcmp(argv[1], "sources")) Sources();
+  else if (!strcmp(argv[1], "position_pose")) PositionPose();
   else if (!strcmp(argv[1], "absorption")) Absorption();
   else CHECK(0);
   puts("Passed"); return 0;

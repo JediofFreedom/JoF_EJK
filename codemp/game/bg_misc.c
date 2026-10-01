@@ -35,6 +35,15 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #endif
 
 #if defined(_GAME) || defined(_CGAME)
+qboolean BG_IsLightningDeflect(const playerState_t *ps)
+{
+	// Keep accepting the first client's private state, but send stock TAUNT
+	// with a guard animation so older prediction never falls back to Force Push.
+	return ps->forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT ||
+		(ps->forceHandExtend == HANDEXTEND_TAUNT && ps->weapon == WP_SABER &&
+		 (ps->forceDodgeAnim == BOTH_P1_S1_TL || ps->forceDodgeAnim == BOTH_P1_S1_TR));
+}
+
 qboolean BG_CanDeflectLightning(const playerState_t *ps, const usercmd_t *cmd, int time)
 {
 	float walkSpeed = ps->basespeed > 0 ? ps->basespeed * 0.6f : ps->speed * 0.6f;
@@ -51,7 +60,7 @@ qboolean BG_CanDeflectLightning(const playerState_t *ps, const usercmd_t *cmd, i
 		(ps->saberMove != LS_NONE && ps->saberMove != LS_READY) ||
 		ps->weaponTime > 0 || ps->saberLockTime > time || ps->saberBlocked ||
 		(ps->forceHandExtend != HANDEXTEND_NONE &&
-		 ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT) ||
+		 !BG_IsLightningDeflect(ps)) ||
 		ps->groundEntityNum == ENTITYNUM_NONE || ps->m_iVehicleNum ||
 		ps->emplacedIndex || ps->electrifyTime > time ||
 		(ps->brokenLimbs & (1 << BROKENLIMB_RARM)) ||
@@ -84,7 +93,8 @@ qboolean BG_LightningDeflectDirection(const playerState_t *ps, const vec3_t sour
 void BG_EndLightningDeflect(playerState_t *ps)
 {
 	ps->eFlags2 &= ~EF2_LIGHTNING_DEFLECT;
-	if (ps->forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT)
+	if (ps->forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT || BG_IsLightningDeflect(ps))
+	{
 	{
 		ps->forceHandExtend = HANDEXTEND_NONE;
 		ps->forceHandExtendTime = 0;

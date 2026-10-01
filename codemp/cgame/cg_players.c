@@ -4274,7 +4274,7 @@ static qboolean CG_LightningDeflectionActive(const centity_t *cent)
 		if (trap->GetUserCmd(trap->GetCurrentCmdNumber(), &cmd) &&
 			!BG_CanDeflectLightning(&cg.predictedPlayerState, &cmd, cmd.serverTime))
 			return qfalse;
-		if (cg.predictedPlayerState.forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT)
+		if (BG_IsLightningDeflect(&cg.predictedPlayerState))
 			return qtrue;
 	}
 	if (cent->currentState.saberMove != LS_NONE && cent->currentState.saberMove != LS_READY)
@@ -4289,11 +4289,11 @@ static int CG_LightningDeflectionAnim(const centity_t *cent)
 	int number = cent->currentState.number;
 	if (number == cg.predictedPlayerState.clientNum)
 	{
-		if (cg.predictedPlayerState.forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT)
+		if (BG_IsLightningDeflect(&cg.predictedPlayerState))
 			return cg.predictedPlayerState.forceDodgeAnim == BOTH_P1_S1_TL ?
 				BOTH_P1_S1_TL : BOTH_P1_S1_TR;
 		if (cg.snap && cg.snap->ps.clientNum == number &&
-			cg.snap->ps.forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT)
+			BG_IsLightningDeflect(&cg.snap->ps))
 			return cg.snap->ps.forceDodgeAnim == BOTH_P1_S1_TL ?
 				BOTH_P1_S1_TL : BOTH_P1_S1_TR;
 	}

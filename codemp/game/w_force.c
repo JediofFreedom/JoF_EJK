@@ -1775,7 +1775,7 @@ void ForceLightning( gentity_t *self )
 static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 {
 	playerState_t *ps = &defender->client->ps;
-	vec3_t source, attackerRight, toDefender;
+	vec3_t source;
 	int anim;
 	qboolean starting = ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT;
 #if defined(_DEBUG) && !defined(LIGHTNING_DEFLECTION_TEST)
@@ -1803,14 +1803,9 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 	source[2] += attacker->client->ps.viewheight;
 	if (!BG_LightningDeflectDirection(ps, source, &anim))
 		return qfalse;
-	// Pick the guard from the attacker's view. This makes moving across the
-	// caster's left/right sides visibly select opposite deflections while the
-	// defender's own view remains responsible only for the frontal guard cone.
-	AngleVectors(attacker->client->ps.viewangles, NULL, attackerRight, NULL);
-	VectorSubtract(ps->origin, attacker->client->ps.origin, toDefender);
-	toDefender[2] = attackerRight[2] = 0.0f;
-	anim = DotProduct(toDefender, attackerRight) < 0.0f ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
-	ps->forceHandExtend = HANDEXTEND_LIGHTNING_DEFLECT;
+	// Guard toward the caster's position in the defender's facing frame.
+	// Caster aim changes may affect whether lightning hits, but never the pose.
+	ps->forceHandExtend = HANDEXTEND_TAUNT;
 	ps->forceHandExtendTime = level.time + LIGHTNING_DEFLECT_HOLD_TIME;
 	ps->forceDodgeAnim = anim;
 	ps->eFlags2 |= EF2_LIGHTNING_DEFLECT;
@@ -1845,11 +1840,11 @@ static void WP_UpdateLightningDeflect(gentity_t *self, const usercmd_t *cmd)
 	int sourceNum = self->client->lightningDeflectAttacker;
 	gentity_t *attacker;
 	vec3_t source;
-	if (!(ps->eFlags2 & EF2_LIGHTNING_DEFLECT) &&
+	if (!BG_IsLightningDeflect(ps) &&
+		!(ps->eFlags2 & EF2_LIGHTNING_DEFLECT) &&
 		ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT)
 		return;
-	if (ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT ||
-		ps->forceHandExtendTime <= level.time ||
+	if (ps->forceHandExtendTime <= level.time ||
 		!BG_CanDeflectLightning(ps, cmd, level.time) ||
 		sourceNum < 0 || sourceNum >= ENTITYNUM_WORLD)
 	{

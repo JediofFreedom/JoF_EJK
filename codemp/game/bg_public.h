@@ -221,7 +221,7 @@ typedef enum {
 	HANDEXTEND_DRAGGING,
 
 	HANDEXTEND_JEDITAUNT,
-	HANDEXTEND_LIGHTNING_DEFLECT,
+	HANDEXTEND_LIGHTNING_DEFLECT, // Legacy upgraded-server state; new servers send TAUNT + guard anim.
 } forceHandAnims_t;
 
 typedef enum
@@ -1876,6 +1876,7 @@ qboolean BG_SaberInAttack( int move );
 #define LIGHTNING_DEFLECT_HOLD_TIME 150
 #define LIGHTNING_DEFLECT_EVENT_INTERVAL 100
 #define LIGHTNING_DEFLECT_EVENT_PARM 2 // EV_SABER_BLOCK extension; older clients still understand the event.
+qboolean BG_IsLightningDeflect(const playerState_t *ps);
 qboolean BG_CanDeflectLightning(const playerState_t *ps, const usercmd_t *cmd, int time);
 qboolean BG_LightningDeflectDirection(const playerState_t *ps, const vec3_t source, int *anim);
 void BG_EndLightningDeflect(playerState_t *ps);

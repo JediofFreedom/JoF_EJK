@@ -8713,7 +8713,7 @@ Generates weapon events and modifes the weapon counter
 extern int PM_KickMoveForConditions(void);
 static void PM_UpdateLightningDeflect(void)
 {
-	if (pm->ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT)
+	if (!BG_IsLightningDeflect(pm->ps))
 		return;
 
 	// Attack input has priority over the passive guard. End it here without
@@ -8973,7 +8973,7 @@ static void PM_Weapon( void )
 			break;
 		case HANDEXTEND_TAUNT:
 			desiredAnim = pm->ps->forceDodgeAnim;
-			if ( desiredAnim != BOTH_ENGAGETAUNT
+			if ( !BG_IsLightningDeflect(pm->ps) && desiredAnim != BOTH_ENGAGETAUNT
 				&& VectorCompare( pm->ps->velocity, vec3_origin )
 				&& pm->ps->groundEntityNum != ENTITYNUM_NONE )
 			{

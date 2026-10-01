@@ -9,10 +9,17 @@ ctest --test-dir build/lightning-deflection-check -C Release --output-on-failure
 ```
 
 Coverage includes Saber Defense 3 without learned Lightning or Force points,
-standing and walking, the 100-degree aiming cone and left/right poses, immediate
-attack/run/jump cancellation, damage and electrification, guard expiry, multiple
-casters, existing Absorb behavior, and the binary-reference saber shock checks
-described below.
+Coverage includes Saber Defense 3 without learned Lightning or Force points,
+client prediction retaining a server-confirmed guard when the untransmitted
+Saber Defense level is zero in the snapshot,
+standing and walking, the 100-degree aiming cone and caster-position left/right poses
+relative to the defender's facing direction, pose stability through caster aim changes,
+immediate attack/run/jump cancellation, damage and electrification, guard expiry,
+multiple casters, every non-idle saber move and combat recovery preserving their
+animation timers, existing Absorb behavior, the replicated deflection animation state,
+and the binary-reference saber shock checks described below.
+The compatibility check runs the unchanged stock hand-animation branch captured
+before the feature was added, alongside the current prediction branch.
 
 For an in-game check, run a server with the new game module and clients with the
 new cgame module. With an ignited saber and Defense 3, stand or walk while aiming
@@ -32,6 +39,17 @@ The update reuses the unused EF2 bit 8 and extends `EV_SABER_BLOCK` with paramet
 2, leaving the engine's network field layout and event numbers unchanged. Older
 clients can process the block event, but the new cgame is needed for the held
 pose's immediate local cancellation and the blade-attached visuals.
+The server sends stock `HANDEXTEND_TAUNT` with the selected guard animation in
+`forceDodgeAnim`, alongside the normal replicated torso animation. Stock clients
+can predict the guard without falling back to Force Push. Their stock taunt path
+also applies the guard to the legs while standing still; updated clients preserve
+the torso-only guard. Ordinary taunts remain separate, and updated clients still
+accept the original private deflection state from older upgraded servers.
+Cgame recognizes that animation while a nearby player is actively casting
+Lightning, then plays namespaced MBII lightning arc and flare assets at the
+defender's blade. No custom entity event or borrowed effect flag is involved;
+the normal Lightning beam remains on its original rendering path. The new game,
+cgame, and asset modules must be used together.
 
 Install the separately distributed `jof-lightning-deflection-assets.pk3` in
 `GameData/EternalJK`. It supplies the `effects/mp/lightning_deflect_mb2` and
