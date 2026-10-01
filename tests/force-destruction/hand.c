@@ -11,7 +11,7 @@ static cgameImport_t imports;
 cgameImport_t *trap = &imports;
 static snapshot_t snapshot;
 static localEntity_t puffs[12];
-static int puffCount, grips, pushes, rightFetches, leftFetches;
+static int puffCount, effectCount, grips, pushes, rightFetches, leftFetches;
 static qboolean rightValid = qtrue;
 static vec3_t leftOrigin = { 1, 2, 3 }, rightOrigin = { 4, 5, 6 };
 
@@ -63,48 +63,39 @@ static void Draw(centity_t *cent, clientInfo_t *ci, qboolean visible, qboolean c
 	mdxaBone_t left, right;
 	SetMatrix(&left, leftOrigin);
 	SetMatrix(&right, rightOrigin);
-	puffCount = grips = pushes = rightFetches = leftFetches = 0;
+	puffCount = effectCount = grips = pushes = rightFetches = leftFetches = 0;
 	DrawHandBlock(cent, ci, visible, qtrue, cachedRight, left, right);
 	CHECK(leftFetches == 0); // preserve the existing left-hand matrix cache
 }
-static void CheckPuffs(int count, float scale, const vec3_t forward)
+static void CheckHandEmission(void)
 {
 	int i;
-	CHECK(puffCount == count && grips == 0 && pushes == 0);
-	for (i = 0; i < count; ++i)
+	float red = 200 + (sin(cg.time * 0.004f) * 0.08f + 0.1f) * 255;
+	CHECK(puffCount == 4 && effectCount == 0 && grips == 0 && pushes == 0);
+	for (i = 0; i < 4; ++i)
 	{
 		localEntity_t *p = &puffs[i];
-		int life = p->endTime - p->startTime;
+		vec3_t velocity;
+		VectorScale(cg.refdef.viewaxis[1], i % 2 ? -55 : 55, velocity);
 		CHECK(p->leType == LE_PUFF && p->refEntity.reType == RT_SPRITE);
-		CHECK(p->startTime == cg.time && life >= 100 && life <= 150);
+		CHECK(p->radius == 2 && p->startTime == cg.time && p->endTime == cg.time + 120);
 		CHECK(p->pos.trType == TR_LINEAR && p->pos.trTime == cg.time);
-		CHECK(VectorCompare(p->pos.trBase, i < 6 ? leftOrigin : rightOrigin));
-		CHECK(DotProduct(p->pos.trDelta, forward) > 40); // including upward/downward throws
-		CHECK(p->color[0] >= 118 && p->color[0] <= 170);
-		if (i % 3 == 2)
-		{
-			CHECK(p->refEntity.customShader == 2 && life == 100);
-			CHECK(fabs(p->radius - 3.0f * scale) < 0.001f);
-			CHECK(p->color[1] == 30 && p->color[2] == 30);
-		}
-		else
-		{
-			CHECK(p->refEntity.customShader == 1 && life >= 110);
-			CHECK(p->radius >= 3.5f * scale && p->radius <= 5.0f * scale);
-			CHECK(p->color[1] == 0 && p->color[2] == 0);
-		}
+		CHECK(VectorCompare(p->pos.trBase, leftOrigin));
+		CHECK(VectorCompare(p->pos.trDelta, velocity));
+		CHECK(p->refEntity.rotation == (i % 2 ? 180 : 0));
+		CHECK(p->refEntity.customShader == (i % 2 ? 2 : 1));
+		CHECK(fabs(p->color[0] - (i % 2 ? 255 : red)) < 0.001f);
+		CHECK(p->color[1] == (i % 2 ? 255 : 0) && p->color[2] == p->color[1]);
 	}
 }
-int main(void)
+static void CheckHand(void)
 {
 	centity_t cent = {0};
 	clientInfo_t ci = {0};
 	vec3_t forward;
 	int pitch;
-	imports.R_RegisterShader = RegisterShader;
-	imports.G2API_GetBoltMatrix = GetBoltMatrix;
-	cgs.media.redSaberGlowShader = 2;
-	cg.snap = &snapshot;
+	cgs.effects.destructionProjectile = 3;
+	cg.renderingThirdPerson = qfalse;
 	cg.time = 1000;
 	cent.ghoul2 = &cent;
 	ci.bolt_lhand = 1;
@@ -114,50 +105,63 @@ int main(void)
 	cent.currentState.forcePowersActive = DESTRUCTION_HAND_FLAG | (1 << FP_GRIP);
 	for (pitch = -90; pitch <= 90; pitch += 45)
 	{
+		cg.time += 16;
 		cent.lerpAngles[PITCH] = pitch;
 		cent.lerpAngles[YAW] = 135;
 		AngleVectors(cent.lerpAngles, forward, NULL, NULL);
+		VectorSet(cg.refdef.viewaxis[1], 0.6f, 0, 0.8f);
 		cent.currentState.weapon = WP_SABER;
 		Draw(&cent, &ci, qtrue, qfalse);
-		CheckPuffs(6, 1.0f, forward);
+		CheckHandEmission();
 		CHECK(rightFetches == 0);
 		cent.currentState.weapon = WP_MELEE;
 		Draw(&cent, &ci, qtrue, qfalse);
-		CheckPuffs(12, 1.15f, forward);
-		CHECK(rightFetches == 1);
+		CheckHandEmission();
+		CHECK(rightFetches == 0);
 		Draw(&cent, &ci, qtrue, qtrue);
-		CheckPuffs(12, 1.15f, forward);
+		CheckHandEmission();
 		CHECK(rightFetches == 0);
 	}
 	ci.bolt_rhand = -1;
 	Draw(&cent, &ci, qtrue, qfalse);
-	CheckPuffs(6, 1.15f, forward);
+	CheckHandEmission();
 	CHECK(rightFetches == 0);
 	ci.bolt_rhand = 2;
 	rightValid = qfalse;
 	Draw(&cent, &ci, qtrue, qfalse);
-	CheckPuffs(6, 1.15f, forward);
+	CheckHandEmission();
 	rightValid = qtrue;
 	Draw(&cent, &ci, qfalse, qfalse);
-	CHECK(puffCount == 0 && grips == 0 && pushes == 0);
+	CHECK(puffCount == 0 && effectCount == 0 && grips == 0 && pushes == 0);
 	cent.currentState.number = snapshot.ps.clientNum;
 	cent.currentState.forcePowersActive = DESTRUCTION_HAND_FLAG; // own predicted state has no Grip
 	Draw(&cent, &ci, qtrue, qfalse);
-	CHECK(puffCount == 0 && grips == 0 && pushes == 0);
+	CHECK(puffCount == 0 && effectCount == 0 && grips == 0 && pushes == 0);
 	cg.renderingThirdPerson = qtrue;
 	Draw(&cent, &ci, qtrue, qfalse);
-	CheckPuffs(12, 1.15f, forward);
+	CheckHandEmission();
+	// The next snapshot ends emission immediately, even after an interrupted charge.
+	++cg.time;
 	cent.currentState.powerups = 0;
+	cent.currentState.forcePowersActive = 0;
 	cent.bodyFadeTime = 1;
 	Draw(&cent, &ci, qtrue, qfalse);
-	CHECK(puffCount == 0 && grips == 0 && pushes == 0 && cent.bodyFadeTime == 0);
+	CHECK(puffCount == 0 && effectCount == 0 && grips == 0 && pushes == 0 && cent.bodyFadeTime == 0);
 	cent.currentState.powerups = 1 << PW_DISINT_4;
 	cent.currentState.forcePowersActive = 1 << FP_GRIP;
 	Draw(&cent, &ci, qtrue, qfalse);
-	CHECK(puffCount == 0 && grips == 2 && pushes == 0);
+	CHECK(puffCount == 0 && effectCount == 0 && grips == 2 && pushes == 0);
 	cent.currentState.forcePowersActive = 0;
 	Draw(&cent, &ci, qtrue, qfalse);
-	CHECK(puffCount == 0 && grips == 0 && pushes == 1);
-	puts("Destruction hand lifetime/direction/scale, marker priority, visibility, matrix reuse and stock FX checks passed.");
+	CHECK(puffCount == 0 && effectCount == 0 && grips == 0 && pushes == 1);
+}
+int main(void)
+{
+	imports.R_RegisterShader = RegisterShader;
+	imports.G2API_GetBoltMatrix = GetBoltMatrix;
+	cgs.media.redSaberGlowShader = 2;
+	cg.snap = &snapshot;
+	CheckHand();
+	puts("Reference Destruction four left-hand sprites, radius/lifetime/color/opposing view-right movement, visibility, marker priority and stock FX checks passed.");
 	return 0;
 }
