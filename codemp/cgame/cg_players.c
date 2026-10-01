@@ -6316,29 +6316,34 @@ static void CG_ForceGripEffect( vec3_t org )
 	ex->refEntity.customShader = cgs.media.redSaberGlowShader;//trap->R_RegisterShader( "gfx/effects/forcePush" );
 }
 
-// Force Destruction charge (250 ms): the hand plays force/drain_hand.efx at the left hand;
-// Super (melee) alternates between both hands like two-handed Drain.
+// Force Destruction charge (250 ms): the hand plays force/drain_hand.efx at the left hand.
+// Super Destruction (melee, two-handed lightning pose) plays it on BOTH hands every frame.
 static void CG_ForceDestructionDrainHand( centity_t *cent, clientInfo_t *ci, const vec3_t lHandOrg )
 {
 	matrix3_t axis;
 	mdxaBone_t rHandMatrix;
-	vec3_t fAng, efOrg;
+	vec3_t fAng, lOrg, rOrg;
+	qboolean super = ( cent->currentState.weapon == WP_MELEE ||
+		cent->currentState.torsoAnim == BOTH_FORCE_2HANDEDLIGHTNING );
 
-	VectorCopy( lHandOrg, efOrg );
-	if ( cent->currentState.weapon == WP_MELEE && Q_irand( 0, 1 ) &&
-		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, ci->bolt_rhand, &rHandMatrix, cent->turAngles,
-			cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale ) )
-	{
-		efOrg[0] = rHandMatrix.matrix[0][3];
-		efOrg[1] = rHandMatrix.matrix[1][3];
-		efOrg[2] = rHandMatrix.matrix[2][3];
-	}
+	if ( !cgs.effects.destructionDrainHand )
+		return;
 
 	VectorSet( fAng, cent->pe.torso.pitchAngle, cent->pe.torso.yawAngle, 0 );
 	AnglesToAxis( fAng, axis );
 
-	if ( cgs.effects.destructionDrainHand )
-		trap->FX_PlayEntityEffectID( cgs.effects.destructionDrainHand, efOrg, axis, -1, -1, -1, -1 );
+	VectorCopy( lHandOrg, lOrg );
+	trap->FX_PlayEntityEffectID( cgs.effects.destructionDrainHand, lOrg, axis, -1, -1, -1, -1 );
+
+	if ( super && ci->bolt_rhand >= 0 &&
+		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, ci->bolt_rhand, &rHandMatrix, cent->turAngles,
+			cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale ) )
+	{
+		rOrg[0] = rHandMatrix.matrix[0][3];
+		rOrg[1] = rHandMatrix.matrix[1][3];
+		rOrg[2] = rHandMatrix.matrix[2][3];
+		trap->FX_PlayEntityEffectID( cgs.effects.destructionDrainHand, rOrg, axis, -1, -1, -1, -1 );
+	}
 }
 
 
