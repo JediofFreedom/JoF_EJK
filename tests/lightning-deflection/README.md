@@ -13,7 +13,8 @@ ctest --test-dir build/lightning-deflection-check -C Release --output-on-failure
 Coverage includes Saber Defense 3 without learned Lightning or Force points,
 client prediction retaining a server-confirmed guard when the untransmitted
 Saber Defense level is zero in the snapshot,
-standing and walking, the 100-degree aiming cone and shooter-relative left/right poses, immediate
+standing and walking, the 100-degree aiming cone and caster-position left/right poses
+relative to the defender's facing direction, pose stability through caster aim changes, immediate
 attack/run/jump cancellation, damage and electrification, guard expiry, multiple
 casters, every non-idle saber move and combat recovery preserving their animation timers,
 existing Absorb behavior, and the replicated deflection animation state.

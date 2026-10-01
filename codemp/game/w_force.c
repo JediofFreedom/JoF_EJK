@@ -1775,7 +1775,7 @@ void ForceLightning( gentity_t *self )
 static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 {
 	playerState_t *ps = &defender->client->ps;
-	vec3_t source, attackerRight, toDefender;
+	vec3_t source;
 	int anim;
 #if defined(_DEBUG) && !defined(LIGHTNING_DEFLECTION_TEST)
 	{
@@ -1800,15 +1800,10 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 		return qfalse;
 	VectorCopy(attacker->client->ps.origin, source);
 	source[2] += attacker->client->ps.viewheight;
-	if (!BG_LightningDeflectDirection(ps, source, NULL))
+	if (!BG_LightningDeflectDirection(ps, source, &anim))
 		return qfalse;
-	// Pick the guard from the attacker's view. This makes moving across the
-	// caster's left/right sides visibly select opposite deflections while the
-	// defender's own view remains responsible only for the frontal guard cone.
-	AngleVectors(attacker->client->ps.viewangles, NULL, attackerRight, NULL);
-	VectorSubtract(ps->origin, attacker->client->ps.origin, toDefender);
-	toDefender[2] = attackerRight[2] = 0.0f;
-	anim = DotProduct(toDefender, attackerRight) < 0.0f ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
+	// Guard toward the caster's position in the defender's facing frame.
+	// Caster aim changes may affect whether lightning hits, but never the pose.
 	ps->forceHandExtend = HANDEXTEND_LIGHTNING_DEFLECT;
 	ps->forceHandExtendTime = level.time + LIGHTNING_DEFLECT_HOLD_TIME;
 	ps->forceDodgeAnim = anim;
