@@ -22,6 +22,7 @@ endfunction()
 
 extract(codemp/game/g_dialogue.c "#define DLG_MAX_FILES" "EOF" server.h)
 extract(codemp/cgame/cg_dialogue.c "#define CG_DLG_MAX_CHOICES" "qboolean CG_DialogueKeyEvent(" client.h)
+extract(codemp/client/snd_dma.cpp "void S_SpatializeOrigin (" "// Start a sound effect" spatialize.h)
 add_executable(dialogue_sound_check check.c
   "${repo}/codemp/qcommon/q_shared.c"
   "${repo}/shared/qcommon/q_color.c"
