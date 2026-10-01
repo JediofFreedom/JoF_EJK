@@ -95,7 +95,6 @@ void BG_EndLightningDeflect(playerState_t *ps)
 	ps->eFlags2 &= ~EF2_LIGHTNING_DEFLECT;
 	if (ps->forceHandExtend == HANDEXTEND_LIGHTNING_DEFLECT || BG_IsLightningDeflect(ps))
 	{
-	{
 		ps->forceHandExtend = HANDEXTEND_NONE;
 		ps->forceHandExtendTime = 0;
 		ps->forceDodgeAnim = 0;
