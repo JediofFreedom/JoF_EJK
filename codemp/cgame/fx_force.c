@@ -88,14 +88,14 @@ static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t
 			// Pack arcs own their impact effect; only the fallback needs this one.
 			if (!cgs.effects.forceLightningReferenceArc && !tr.startsolid && !tr.allsolid &&
 				!(tr.surfaceFlags & (SURF_SKY | SURF_NOIMPACT | SURF_NODRAW))) {
-				trap->FX_PlayEffectID(cgs.effects.demp2WallImpactEffectSmall,
+				trap->FX_PlayEffectID(cgs.effects.forceLightningEnvironmentImpact,
 					tr.endpos, tr.plane.normal, -1, -1, qfalse);
 			}
 		}
 		if (cent->lightningReferenceSoundTime[i] < cg.time) {
 			cent->lightningReferenceSoundTime[i] = cg.time + Q_irand(500, 750);
 			trap->S_StartSound(end, cent->currentState.number, CHAN_AUTO,
-				cgs.media.forceLightningEnvironmentSounds[Q_irand(0, ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds) - 1)]);
+				cgs.media.forceLightningEnvironmentArcSounds[Q_irand(0, ARRAY_LEN(cgs.media.forceLightningEnvironmentArcSounds) - 1)]);
 		}
 	}
 }

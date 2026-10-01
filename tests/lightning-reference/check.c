@@ -24,10 +24,10 @@ typedef struct {
 static struct { int time, frametime; } cg;
 static struct { float value; } cg_lightningEnvironmentAngle = { 360.0f };
 static struct {
-	struct { int forceLightning, forceLightningWide, forceLightningBranch, demp2WallImpactEffectSmall;
+	struct { int forceLightning, forceLightningWide, forceLightningBranch, forceLightningEnvironmentImpact;
 		int forceLightningReference, forceLightningReferenceWide, forceLightningReferenceArc; } effects;
-	struct { int forceLightningEnvironmentSounds[6]; } media;
-} cgs = { { 40, 41, 42, 43 }, { { 11, 12, 13, 14, 15, 16 } } };
+	struct { int forceLightningEnvironmentArcSounds[3]; } media;
+} cgs = { { 40, 41, 42, 43 }, { { 11, 12, 13 } } };
 
 static FILE *reference;
 static int frame, randomCount, irandomCount, traceCount, hitMask, mainCount, expectedMain;
@@ -74,13 +74,7 @@ static int ReferenceRandom(void) {
 static int Q_irand(int min, int max) {
 	int result = min + (irandomCount++ * 137 + 73) % (max - min + 1);
 	Tag("IRAND"); Int(min);
-	// The port deliberately selects six environment sparks instead of the
-	// binary's three player-hit samples. Random-call order stays unchanged.
-	if (min == 0 && max == 5) {
-		Int(2); Int(result % 3);
-	} else {
-		Int(max); Int(result);
-	}
+	Int(max); Int(result);
 	return result;
 }
 static void AngleVectors(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up) {
@@ -101,11 +95,11 @@ static void CG_Trace(trace_t *tr, vec3_t start, void *mins, void *maxs, vec3_t e
 	VectorMA(start, tr->fraction, delta, tr->endpos);
 	tr->plane.normal[2] = 1.0f;
 	// Vary contact eligibility without changing the recorded trace fractions.
-	if (frame % 6 == 1) tr->surfaceFlags = SURF_SKY;
-	if (frame % 6 == 2) tr->surfaceFlags = SURF_NOIMPACT;
-	if (frame % 6 == 3) tr->surfaceFlags = SURF_NODRAW;
-	if (frame % 6 == 4) tr->startsolid = 1;
-	if (frame % 6 == 5) tr->allsolid = 1;
+	if (frame % 3 == 1) tr->surfaceFlags = SURF_SKY;
+	if (frame % 3 == 2) tr->surfaceFlags = SURF_NOIMPACT;
+	if (frame % 3 == 3) tr->surfaceFlags = SURF_NODRAW;
+	if (frame % 3 == 4) tr->startsolid = 1;
+	if (frame % 3 == 5) tr->allsolid = 1;
 	lastTrace = *tr;
 }
 static void PlayMain(int effect, vec3_t origin, matrix3_t axis, int a, int b, int c, int d) {
@@ -129,9 +123,9 @@ static void PlayArc(int effect, vec3_t origin, vec3_t direction, int a, int b, q
 	Tag("FX"); Vec(origin); Vec(direction);
 }
 static void Sound(vec3_t origin, int entity, int channel, int sound) {
-	CHECK(sound >= 11 && sound <= 16);
-	CHECK(sound == 11 + ((irandomCount - 1) * 137 + 73) % 6);
-	Tag("SOUND"); Vec(origin); Int(entity); Int(channel); Int(11 + (sound - 11) % 3);
+	CHECK(sound >= 11 && sound <= 13);
+	CHECK(sound == 11 + ((irandomCount - 1) * 137 + 73) % 3);
+	Tag("SOUND"); Vec(origin); Int(entity); Int(channel); Int(sound);
 }
 static struct {
 	void (*FX_PlayEntityEffectID)(int, vec3_t, matrix3_t, int, int, int, int);
