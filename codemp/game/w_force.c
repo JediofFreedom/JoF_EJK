@@ -1804,7 +1804,7 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 		return qfalse;
 	// Guard toward the caster's position in the defender's facing frame.
 	// Caster aim changes may affect whether lightning hits, but never the pose.
-	ps->forceHandExtend = HANDEXTEND_TAUNT;
+	ps->forceHandExtend = HANDEXTEND_LIGHTNING_DEFLECT;
 	ps->forceHandExtendTime = level.time + LIGHTNING_DEFLECT_HOLD_TIME;
 	ps->forceDodgeAnim = anim;
 	// A successful guard never leaves the normal full-body shock shell behind.
@@ -1826,9 +1826,10 @@ static void WP_UpdateLightningDeflect(gentity_t *self, const usercmd_t *cmd)
 	int sourceNum = self->client->lightningDeflectAttacker;
 	gentity_t *attacker;
 	vec3_t source;
-	if (!BG_IsLightningDeflect(ps))
+	if (ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT)
 		return;
-	if (ps->forceHandExtendTime <= level.time ||
+	if (ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT ||
+		ps->forceHandExtendTime <= level.time ||
 		!BG_CanDeflectLightning(ps, cmd, level.time) ||
 		sourceNum < 0 || sourceNum >= ENTITYNUM_WORLD)
 	{

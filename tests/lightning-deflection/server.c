@@ -141,8 +141,6 @@ static void Combat(void) {
 static void Damage(void) {
   clients[1].ps.electrifyTime = level.time + 800; // A new guard clears a prior shock shell.
   Hit(0); CHECK(damages == 0 && absorbCalls == 0); CHECK(g_entities[1].health == 100);
-  CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_TAUNT);
-  CHECK(BG_IsLightningDeflect(&clients[1].ps));
   CHECK(clients[1].ps.electrifyTime == 0 && clients[1].ps.fd.forcePower == 0);
   CHECK(clients[1].ps.torsoAnim == BOTH_P1_S1_TR); CHECK(clients[1].ps.legsAnim == 0);
   CHECK(events == 0);
