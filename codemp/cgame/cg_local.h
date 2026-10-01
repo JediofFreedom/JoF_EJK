@@ -489,6 +489,11 @@ typedef struct cgLoopSound_s {
 	sfxHandle_t sfx;
 } cgLoopSound_t;
 
+typedef struct {
+	int endpointTime[5];
+	vec3_t endpoint[5];
+} lightningSaberShock_t;
+
 // centity_t have a direct corespondence with gentity_t in the game, but
 // only the entityState_t is directly communicated to the cgame
 typedef struct centity_s {
@@ -647,17 +652,13 @@ typedef struct centity_s {
 	
 	unsigned int	flameSndDebounceTime;
 	int				lightningEnvironmentTime;
+	lightningSaberShock_t lightningSaberShock[MAX_SABERS][MAX_BLADES];
 	int				lightningSurfaceTime;
 	int				lightningImpactSoundTime;
 	// Independent cached directions and timers used by cg_lightningEnvironment 2.
 	int				lightningReferenceTime[5];
 	vec3_t			lightningReferenceEnd[5];
 	int				lightningReferenceSoundTime[5];
-	int				lightningDeflectVisualTime;
-	int				lightningDeflectSoundTime;
-	int				lightningDeflectContactTime;
-	vec3_t			lightningDeflectContact;
-	vec3_t			lightningDeflectOrigin;
 	unsigned int	flameThrowerHitTime;
 	qboolean		  flameThrowerSndActive;
 	qboolean	hasPlayedJetpackSounds;
@@ -2796,10 +2797,8 @@ void FX_BlasterWeaponHitPlayer( vec3_t origin, vec3_t normal, qboolean humanoid 
 
 void FX_ForceDrained(vec3_t origin, vec3_t dir);
 qboolean FX_ForceLightningEnvironment(centity_t *cent, vec3_t origin, matrix3_t axis, qboolean wide);
-qboolean FX_ForceLightningDeflection(centity_t *caster, vec3_t origin, matrix3_t axis, qboolean wide);
-void FX_RecordLightningDeflection(int defender, int caster);
-void FX_ForceLightningSaberContact(centity_t *guard, const vec3_t bladeBase,
-	const vec3_t bladeDir, float bladeLength, const vec3_t incomingDir);
+void FX_ForceLightningSaberContact(centity_t *guard, int saberNum, int bladeNum,
+	const vec3_t bladeBase, const vec3_t bladeEnd, const vec3_t bladeDir);
 
 
 //-----------------------------

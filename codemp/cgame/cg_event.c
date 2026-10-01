@@ -2996,7 +2996,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		DEBUGNAME("EV_SABER_BLOCK");
 		if (es->eventParm == LIGHTNING_DEFLECT_EVENT_PARM && (es->eFlags2 & EF2_LIGHTNING_DEFLECT))
 		{
-			FX_RecordLightningDeflection(es->otherEntityNum2, es->otherEntityNum);
+			// The blade renderer owns lightning VFX; suppress ordinary block sound/sparks.
 			break;
 		}
 		{
