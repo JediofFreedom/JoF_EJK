@@ -12,10 +12,10 @@ duplicate fallback impacts when a pack arc owns its impact effect. Fallback
 impacts skip sky/no-impact/nodraw and solid-start traces.
 Float comparisons allow 0.001 units for x87/SSE rounding differences.
 
-Audio deliberately differs from the binary: environment impacts select six
-stock spark samples (as in MB2's impact EFX), not three player-hit samples.
-The test verifies the six-way selection and maps it back to three variants only
-when comparing recorded sound IDs. Timing and random-call order still match.
+Audio selection matches the binary directly: three environmental arc samples,
+with identical timing, positions, channel and random-call order. The assets use
+`lightningenv1.mp3` through `lightningenv3.mp3` names to preserve player-hit audio.
+Impact EFX supply their independent six-way stock spark layer.
 
 `lightning_forward_arc_check` exercises 3,853 cases of the same production helper:
 fresh and cached directions, left/right angle boundaries, backwards directions,

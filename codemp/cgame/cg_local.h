@@ -1952,6 +1952,7 @@ typedef struct cgMedia_s {
 	qhandle_t	forceLightningArcShader;
 	qhandle_t	forceLightningFlashShader;
 	sfxHandle_t	forceLightningEnvironmentSounds[6];
+	sfxHandle_t	forceLightningEnvironmentArcSounds[3];
 
 	//japro gibs
 	qhandle_t	gibAbdomen;
@@ -2063,6 +2064,7 @@ typedef struct cgEffects_s {
 	//FORCE
 	fxHandle_t forceLightning;
 	fxHandle_t forceLightningWide;
+	fxHandle_t forceLightningEnvironmentImpact;
 	fxHandle_t demp2WallImpactEffectSmall;   
 	fxHandle_t forceLightningBranch;
 	fxHandle_t forceLightningReference;
