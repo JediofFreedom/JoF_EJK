@@ -792,7 +792,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 		fade = 1.0;
 		fadeColor = colorWhite;
 	} else {
-		fadeColor = CG_FadeColor( cg.scoreFadeTime, FADE_TIME );
+		fadeColor = CG_FadeColor( cg.scoreFadeTime, SCOREBOARD_FADE_TIME );
 
 		if ( !fadeColor ) {
 			// next time scoreboard comes up, don't print killer

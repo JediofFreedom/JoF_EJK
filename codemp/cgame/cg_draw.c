@@ -10441,9 +10441,9 @@ static QINLINE void CG_ChatBox_DrawStrings(void)
 	int numToDraw = 0;
 	int linesToDraw = 0;
 	int i = 0;
-	float x = (cg.scoreBoardShowing ? 8 : cg_chatBoxX.value) * cgs.widthRatioCoef;
+	float x = (cg.showScores ? 8 : cg_chatBoxX.value) * cgs.widthRatioCoef;
 	float y = cg_chatBoxHeight.value;
-	if (cg.scoreBoardShowing)
+	if (cg.showScores)
 	{
 		if (cg.pressingScoreBoard && cgs.numClients > 25)
 			y = 10000;
