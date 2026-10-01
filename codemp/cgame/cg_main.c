@@ -1196,8 +1196,10 @@ static void CG_RegisterDestructionEffects(void)
 		cgs.effects.destructionProjectile = effect;
 		cgs.effects.destructionCustomProjectile = qtrue;
 	}
-	// Optional hand effect (e.g. the orb effect without its white core). 0 = use the sprites.
-	cgs.effects.destructionHand = trap->FX_RegisterEffect("forcedestruction/destruction_hand");
+	// Optional bigger orb for Super Destruction (server marks it with iModelScale 115). 0 = normal orb.
+	cgs.effects.destructionSuper = trap->FX_RegisterEffect("forcedestruction/destruction_super");
+	// Charge hand: the Drain hand effect.
+	cgs.effects.destructionDrainHand = trap->FX_RegisterEffect("force/drain_hand");
 	effect = trap->FX_RegisterEffect("forcedestruction/destruction_explode_enhanced2");
 	if (!effect)
 		effect = trap->FX_RegisterEffect("forcedestruction/destruction_explode");
@@ -1251,8 +1253,13 @@ qboolean CG_PlayDestructionEffect(const entityState_t *state, vec3_t origin,
 	{
 		int i;
 		// Stack the custom orb like MB2; keep the additive stock shot at one layer.
+		fxHandle_t fx = cgs.effects.destructionProjectile;
+
+		// Super Destruction (cast with melee): the server sends iModelScale 115 on the orb.
+		if (state->iModelScale > 100 && cgs.effects.destructionSuper && cgs.effects.destructionCustomProjectile)
+			fx = cgs.effects.destructionSuper;
 		for (i = 0; i < (cgs.effects.destructionCustomProjectile ? DESTRUCTION_EFX_LAYERS : 1); i++)
-			trap->FX_PlayEffectID(cgs.effects.destructionProjectile, origin, forward, -1, -1, qfalse);
+			trap->FX_PlayEffectID(fx, origin, forward, -1, -1, qfalse);
 	}
 	if (impact && cgs.effects.destructionCustomImpact && cgs.media.destructionImpactSounds[state->number & 1])
 		trap->S_StartSound(origin, state->number, CHAN_AUTO, cgs.media.destructionImpactSounds[state->number & 1]);

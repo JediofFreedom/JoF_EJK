@@ -6430,48 +6430,29 @@ static void CG_ForceGripEffect( vec3_t org )
 	ex->refEntity.customShader = cgs.media.redSaberGlowShader;//trap->R_RegisterShader( "gfx/effects/forcePush" );
 }
 
-// Reference Destruction hand sprites: red/white, radius 2, 120 ms, opposing view-right motion.
-static void CG_ForceDestructionHandSprites( vec3_t org )
+// Force Destruction charge (250 ms): the hand plays force/drain_hand.efx at the left hand;
+// Super (melee) alternates between both hands like two-handed Drain.
+static void CG_ForceDestructionDrainHand( centity_t *cent, clientInfo_t *ci, const vec3_t lHandOrg )
 {
-	localEntity_t	*ex;
-	float wv = sin( cg.time * 0.004f ) * 0.08f + 0.1f;
+	matrix3_t axis;
+	mdxaBone_t rHandMatrix;
+	vec3_t fAng, efOrg;
 
-	ex = CG_AllocLocalEntity();
-	ex->leType = LE_PUFF;
-	ex->refEntity.reType = RT_SPRITE;
-	ex->radius = 2.0f;
-	ex->startTime = cg.time;
-	ex->endTime = ex->startTime + 120;
-	VectorCopy( org, ex->pos.trBase );
-	ex->pos.trTime = cg.time;
-	ex->pos.trType = TR_LINEAR;
-	VectorScale( cg.refdef.viewaxis[1], 55, ex->pos.trDelta );
-
-	ex->color[0] = 200 + wv * 255;
-	if (ex->color[0] > 255)
+	VectorCopy( lHandOrg, efOrg );
+	if ( cent->currentState.weapon == WP_MELEE && Q_irand( 0, 1 ) &&
+		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, ci->bolt_rhand, &rHandMatrix, cent->turAngles,
+			cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale ) )
 	{
-		ex->color[0] = 255;
+		efOrg[0] = rHandMatrix.matrix[0][3];
+		efOrg[1] = rHandMatrix.matrix[1][3];
+		efOrg[2] = rHandMatrix.matrix[2][3];
 	}
-	ex->color[1] = 0;
-	ex->color[2] = 0;
-	ex->refEntity.customShader = trap->R_RegisterShader( "gfx/effects/forcePush" );
 
-	ex = CG_AllocLocalEntity();
-	ex->leType = LE_PUFF;
-	ex->refEntity.reType = RT_SPRITE;
-	ex->refEntity.rotation = 180.0f;
-	ex->radius = 2.0f;
-	ex->startTime = cg.time;
-	ex->endTime = ex->startTime + 120;
-	VectorCopy( org, ex->pos.trBase );
-	ex->pos.trTime = cg.time;
-	ex->pos.trType = TR_LINEAR;
-	VectorScale( cg.refdef.viewaxis[1], -55, ex->pos.trDelta );
+	VectorSet( fAng, cent->pe.torso.pitchAngle, cent->pe.torso.yawAngle, 0 );
+	AnglesToAxis( fAng, axis );
 
-	ex->color[0] = 255;
-	ex->color[1] = 255;
-	ex->color[2] = 255;
-	ex->refEntity.customShader = cgs.media.redSaberGlowShader;
+	if ( cgs.effects.destructionDrainHand )
+		trap->FX_PlayEntityEffectID( cgs.effects.destructionDrainHand, efOrg, axis, -1, -1, -1, -1 );
 }
 
 
@@ -13456,8 +13437,7 @@ skipTrail:
 			if ( (cg.renderingThirdPerson || cent->currentState.number != cg.snap->ps.clientNum) &&
 				forceFXVisible )
 			{
-				CG_ForceDestructionHandSprites( efOrg );
-				CG_ForceDestructionHandSprites( efOrg );
+				CG_ForceDestructionDrainHand( cent, ci, efOrg );
 			}
 		}
 		else if ( (cent->currentState.forcePowersActive & (1 << FP_GRIP)) &&
