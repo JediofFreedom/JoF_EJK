@@ -6316,21 +6316,8 @@ static void CG_ForceGripEffect( vec3_t org )
 	ex->refEntity.customShader = cgs.media.redSaberGlowShader;//trap->R_RegisterShader( "gfx/effects/forcePush" );
 }
 
-// Force Destruction charge (250 ms): the hand plays force/drain_hand.efx at the left hand;
+// Force Destruction charge (250 ms): the hand plays force/drain_hand.efx at the left hand.
 // Super Destruction (melee, two-handed lightning pose) plays it on BOTH hands every frame.
-// drain_hand.efx spawns most particles 0-400 ms after it is played, so it is attached to the
-// hand bolt (relative), as single player's Drain does: delayed particles appear at the hand's
-// current position and follow it, instead of where the hand was when the effect was started.
-static void CG_ForceDestructionHandFX( centity_t *cent, int bolt, vec3_t handOrg, matrix3_t axis )
-{
-	if ( bolt >= 0 && cent->ghoul2 &&
-		trap->FX_PlayBoltedEffectID( cgs.effects.destructionDrainHand, handOrg, cent->ghoul2, bolt,
-			cent->currentState.number, 0, 0, qtrue ) )
-		return;
-	// no usable bolt: play it at the hand position
-	trap->FX_PlayEntityEffectID( cgs.effects.destructionDrainHand, handOrg, axis, -1, -1, -1, -1 );
-}
-
 static void CG_ForceDestructionDrainHand( centity_t *cent, clientInfo_t *ci, const vec3_t lHandOrg )
 {
 	matrix3_t axis;
@@ -6346,7 +6333,7 @@ static void CG_ForceDestructionDrainHand( centity_t *cent, clientInfo_t *ci, con
 	AnglesToAxis( fAng, axis );
 
 	VectorCopy( lHandOrg, lOrg );
-	CG_ForceDestructionHandFX( cent, ci->bolt_lhand, lOrg, axis );
+	trap->FX_PlayEntityEffectID( cgs.effects.destructionDrainHand, lOrg, axis, -1, -1, -1, -1 );
 
 	if ( super && ci->bolt_rhand >= 0 &&
 		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, ci->bolt_rhand, &rHandMatrix, cent->turAngles,
@@ -6355,7 +6342,7 @@ static void CG_ForceDestructionDrainHand( centity_t *cent, clientInfo_t *ci, con
 		rOrg[0] = rHandMatrix.matrix[0][3];
 		rOrg[1] = rHandMatrix.matrix[1][3];
 		rOrg[2] = rHandMatrix.matrix[2][3];
-		CG_ForceDestructionHandFX( cent, ci->bolt_rhand, rOrg, axis );
+		trap->FX_PlayEntityEffectID( cgs.effects.destructionDrainHand, rOrg, axis, -1, -1, -1, -1 );
 	}
 }
 
