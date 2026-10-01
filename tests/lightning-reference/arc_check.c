@@ -26,9 +26,9 @@ static struct { int time, frametime; } cg = { 1000, 16 };
 static struct { float value; } cg_lightningEnvironmentAngle;
 static struct {
 	struct { int forceLightningReference, forceLightningReferenceWide, forceLightningReferenceArc;
-		int forceLightning, forceLightningWide, forceLightningBranch, demp2WallImpactEffectSmall; } effects;
-	struct { int forceLightningEnvironmentSounds[6]; } media;
-} cgs = { { 40, 41, 42 }, { { 11, 12, 13, 14, 15, 16 } } };
+		int forceLightning, forceLightningWide, forceLightningBranch, forceLightningEnvironmentImpact; } effects;
+	struct { int forceLightningEnvironmentArcSounds[3]; } media;
+} cgs = { { 40, 41, 42 }, { { 11, 12, 13 } } };
 
 static int cases, traces, arcs, sounds, mains, randoms, hits, forceZeroRandom;
 static uint32_t randomState = 17;
@@ -109,7 +109,7 @@ static void PlayArc(int effect, vec3_t origin, vec3_t direction, int a, int b, q
 	arcs++;
 }
 static void Sound(vec3_t origin, int entity, int channel, int sound) {
-	CHECK(entity == 7 && channel == CHAN_AUTO && sound == 13 && sounds < traces);
+	CHECK(entity == 7 && channel == CHAN_AUTO && sound == 12 && sounds < traces);
 	Equal(origin, endpoints[sounds++]);
 }
 static struct {

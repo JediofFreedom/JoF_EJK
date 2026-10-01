@@ -15,18 +15,19 @@ Mode 2 uses these optional effect files when an external asset pack supplies the
 
 Each missing or unregistered handle falls back independently. Main sprays use
 the existing vanilla `forceLightning` / `forceLightningWide` effects. Environmental
-bolts use JoF's `effects/mp/lightning_branch`, with `effects/mp/wall_impact_small`
+bolts use JoF's `effects/mp/lightning_branch`, with `effects/mp/lightning_environment_impact`
 at valid traced surfaces. Fallback impacts skip sky, no-impact, nodraw and
 solid-start contacts. Pack arcs own their impacts and do not receive an additional
 fallback impact. The main spray plays once per invocation with the hand axes.
 
-No additional EFX, textures, shaders, sound files or PK3s are included in this
-change. The tested wider spray, custom hand flash and ignition sound remain in
-the separate local asset pack. Environment impacts in modes 1 and 2 use
-`sound/ambience/spark1.wav` through `spark6.wav`. No additional sound assets are
-required. Player-hit sounds
-(`sound/weapons/force/lightninghit1` through `lightninghit3`) are not used for
-environment audio. The optional pack must not override those player-hit paths.
+Mode 2 uses three dedicated environmental arc samples:
+`sound/weapons/force/lightningenv1.mp3` through `lightningenv3.mp3`.
+These files ship in `assets/jofclient` and leave player-hit audio unchanged.
+
+Impact effects independently select stock `sound/ambience/spark1.wav` through
+`spark6.wav`. The fallback impact supplies this spark layer; pack arcs own their
+impact effect and receive no extra fallback impact. No stock spark files are
+bundled. Mode 1 retains its existing six-spark audio and timing.
 
 ## Forward angle
 
@@ -59,8 +60,8 @@ environment arcs with spread 0.8, in addition to the main hand spray.
 - Arcs emit when frame time is positive and either at least 50 ms or
   `cg.time % 50 <= cg.frametime`. Main lightning still plays on each invocation.
 - Each arc has an independent 500-750 ms sound timer. Sound plays at the
-  requested trace endpoint on the owner's `CHAN_AUTO`, with one of six environment
-  sparks.
+  requested trace endpoint on the owner's `CHAN_AUTO`, with one of three dedicated
+  environmental samples.
 - Timer comparisons are strict `<`, including the original time-reversal and
   zero-time behavior. Mode 1's budgets, nests and extra hand flash remain specific
   to mode 1.
@@ -75,10 +76,9 @@ It checks all eight combinations of optional effect handles, unchanged hand axes
 fallback surface-impact placement/filtering, and absence of duplicate impacts.
 Another 3,853 cases verify the angle limit, backward-bolt redirection, cvar bounds,
 fresh/cached directions, player turns, and trace/effect/sound consistency.
-The fixture requires no external binary or Python packages to run. Sound selection
-is explicitly checked against six spark handles; only its three-to-six variant
-mapping is grouped for fixture comparison; timing and random-call order are
-checked directly.
+The fixture requires no external binary or Python packages to run. Sound
+selection, timing, placement, channel and random-call order are checked directly.
+Registration checks cover three arc handles and six stock spark handles.
 
 Rendering uses the installed engine and asset pack; the automated checks cover
 the code's callback behavior rather than the visual appearance of those assets.

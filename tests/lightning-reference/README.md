@@ -10,9 +10,10 @@ They check hand axes, fallback surface placement and filtering, and the absence
 of duplicate fallback impacts when a pack arc owns its impact effect.
 Float comparisons allow 0.001 units for platform rounding differences.
 
-Environment audio selects six stock spark samples. Sound IDs are grouped into
-three variants for fixture comparison; timing and random-call order are checked
-directly. Registration checks cover all six stock paths.
+Environmental arcs select three dedicated sound samples with sound IDs, timing,
+positions, channels and random-call order checked directly against the fixture.
+Impact effects supply an independent six-way stock spark layer. Registration
+checks cover all three arc paths and six stock spark paths.
 
 `lightning_forward_arc_check` exercises 3,853 cases of the same production helper:
 fresh and cached directions, left/right angle boundaries, backwards directions,
