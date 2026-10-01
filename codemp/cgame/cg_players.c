@@ -8108,25 +8108,6 @@ void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, in
 
 	VectorMA( end, saberScale, axis_[0], end );
 
-	if (!dontDraw && saberNum == 0 && bladeNum == 0 &&
-		CG_LightningDeflectionActive(cent))
-	{
-		vec3_t incoming;
-		int caster = CG_LightningDeflectionCaster(cent);
-		if (caster >= 0 && caster < ENTITYNUM_WORLD)
-		{
-			VectorSubtract(org_, caster == cg.predictedPlayerState.clientNum ?
-				cg.predictedPlayerState.origin : cg_entities[caster].lerpOrigin, incoming);
-			if (VectorNormalize(incoming) <= 0.0f)
-				VectorScale(axis_[0], -1.0f, incoming);
-		}
-		else
-		{
-			VectorScale(axis_[0], -1.0f, incoming);
-		}
-		FX_ForceLightningSaberContact(cent, org_, axis_[0], saberLen, incoming);
-	}
-
 	if (cent->currentState.eType == ET_NPC)
 	{
 		if (cent->currentState.boltToPlayer)
@@ -8327,6 +8308,13 @@ void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, in
 		}
 	}
 CheckTrail:
+	if (!dontDraw && CG_LightningDeflectionActive(cent) &&
+		!(client->saber[saberNum].saberFlags2 &
+			(WP_SaberBladeUseSecondBladeStyle(&client->saber[saberNum], bladeNum) ?
+				SFL2_NO_BLADE2 : SFL2_NO_BLADE)))
+	{
+		FX_ForceLightningSaberContact(cent, saberNum, bladeNum, org_, end, axis_[0]);
+	}
 
 	if (!cg_saberTrail.integer && !sfxSabers)
 	{ //don't do the trail in this case

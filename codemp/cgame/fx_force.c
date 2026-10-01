@@ -524,54 +524,69 @@ static void FX_LightningUpdateNests(vec3_t beamStart, vec3_t beamEnd, int owner)
 }
 // ---------------------------------------------------------------------------
 
-#define LIGHTNING_DEFLECT_ARC_INTERVAL 50
-static int lightningSaberArcTime[MAX_GENTITIES];
-static int lightningSaberSoundTime[MAX_GENTITIES];
+// CG_DoSaberShockEffects in the supplied MBII cgamei386.so, 0x872a0.
+// Keep its unnormalized spread, requested-endpoint cache, angle conversion,
+// surface test and frame gate. The impact EFX owns the spark sound.
+static void FX_LightningSaberShock(lightningSaberShock_t *shock, int index,
+	const vec3_t origin, const vec3_t bladeDir) {
+	vec3_t direction, end, angles;
+	trace_t tr;
+	int i;
 
-// Reproduce MBII's lightning arc/flare presentation at the saber contact while
-// keeping JoF's eventless, replicated guard detection and unchanged main beam.
-void FX_ForceLightningSaberContact(centity_t *guard, const vec3_t bladeBase,
-	const vec3_t bladeDir, float bladeLength, const vec3_t incomingDir) {
-	vec3_t contact, reflected, tangent, side;
-	float phase;
-	int number, index;
-	number = guard->currentState.number;
-	if (number < 0 || number >= MAX_GENTITIES || bladeLength <= 1.0f ||
+	if (shock->endpointTime[index] < cg.time) {
+		VectorCopy(bladeDir, direction);
+		for (i = 0; i < 3; i++)
+			direction[i] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * 4.0f;
+		VectorMA(origin, 350.0f, direction, end);
+	} else {
+		VectorSubtract(origin, shock->endpoint[index], angles);
+		AngleVectors(angles, direction, NULL, NULL);
+		angles[ROLL] = 0.0f;
+		AngleVectors(angles, direction, NULL, NULL);
+		VectorMA(origin, 200.0f, direction, end);
+	}
+
+	CG_Trace(&tr, origin, NULL, NULL, end, -1, MASK_SOLID);
+	if (tr.fraction >= 1.0f)
+		return;
+	if (shock->endpointTime[index] < cg.time) {
+		VectorCopy(end, shock->endpoint[index]);
+		shock->endpointTime[index] = cg.time + Q_irand(250, 750);
+	}
+	if (cg.frametime > 0 && (cg.frametime >= 50 || cg.time % 50 <= cg.frametime)) {
+		trap->FX_PlayEffectID(cgs.effects.forceLightningDeflectFlare,
+			(vec_t *)origin, direction, -1, -1, qfalse);
+		trap->FX_PlayEffectID(cgs.effects.forceLightningDeflectArc,
+			(vec_t *)origin, direction, -1, -1, qfalse);
+	}
+}
+
+// CG_AddSaberBlade calls the shock routine in this order: base (1), quarter
+// (3), middle (4), 90% (0), three-quarter (2). Each blade has five caches.
+void FX_ForceLightningSaberContact(centity_t *guard, int saberNum, int bladeNum,
+	const vec3_t bladeBase, const vec3_t bladeEnd, const vec3_t bladeDir) {
+	lightningSaberShock_t *shock;
+	vec3_t origin, delta;
+
+	if (saberNum < 0 || saberNum >= MAX_SABERS || bladeNum < 0 || bladeNum >= MAX_BLADES ||
 		guard->currentState.weapon != WP_SABER || guard->currentState.saberHolstered == 2 ||
 		guard->currentState.saberInFlight)
 		return;
-	phase = cg.time * 0.025f + number;
-	VectorMA(bladeBase, bladeLength * (0.58f + 0.055f * sinf(phase)), bladeDir, contact);
-	trap->R_AddLightToScene(contact, 150.0f + 30.0f * sinf(phase * 1.7f), 0.32f, 0.52f, 1.0f);
-	VectorScale(incomingDir, -1.0f, reflected);
-	if (VectorNormalize(reflected) <= 0.0f)
-		PerpendicularVector(reflected, bladeDir);
-	PerpendicularVector(tangent, reflected);
-	CrossProduct(reflected, tangent, side);
-
-	if (lightningSaberArcTime[number] <= cg.time ||
-		lightningSaberArcTime[number] > cg.time + LIGHTNING_DEFLECT_ARC_INTERVAL)
-	{
-		vec3_t flareDirection;
-		lightningSaberArcTime[number] = cg.time + LIGHTNING_DEFLECT_ARC_INTERVAL;
-		VectorCopy(bladeDir, flareDirection);
-		trap->FX_PlayEffectID(cgs.effects.forceLightningDeflectFlare,
-			contact, flareDirection, -1, -1, qfalse);
-		for (index = 0; index < 3; index++)
-		{
-			vec3_t direction;
-			VectorCopy(reflected, direction);
-			VectorMA(direction, Q_flrand(-0.38f, 0.38f), tangent, direction);
-			VectorMA(direction, Q_flrand(-0.30f, 0.30f), side, direction);
-			VectorNormalize(direction);
-			trap->FX_PlayEffectID(cgs.effects.forceLightningDeflectArc,
-				contact, direction, -1, -1, qfalse);
-		}
-	}
-	if (lightningSaberSoundTime[number] <= cg.time || lightningSaberSoundTime[number] > cg.time + 300) {
-		lightningSaberSoundTime[number] = cg.time + 210 + (number % 3) * 25;
-		FX_LightningNestImpactSound(contact);
-	}
+	shock = &guard->lightningSaberShock[saberNum][bladeNum];
+	VectorSubtract(bladeEnd, bladeBase, delta);
+	FX_LightningSaberShock(shock, 1, bladeBase, bladeDir);
+	VectorMA(bladeBase, 0.25f, delta, origin);
+	FX_LightningSaberShock(shock, 3, origin, bladeDir);
+	VectorMA(bladeBase, 0.5f, delta, origin);
+	FX_LightningSaberShock(shock, 4, origin, bladeDir);
+	// MBII evaluates this interpolation with a double-precision 0.1 constant.
+	origin[0] = (float)(bladeEnd[0] + (bladeBase[0] - bladeEnd[0]) * 0.1);
+	origin[1] = (float)(bladeEnd[1] + (bladeBase[1] - bladeEnd[1]) * 0.1);
+	origin[2] = (float)(bladeEnd[2] + (bladeBase[2] - bladeEnd[2]) * 0.1);
+	FX_LightningSaberShock(shock, 0, origin, bladeDir);
+	VectorScale(delta, -1.0f, delta);
+	VectorMA(bladeEnd, 0.25f, delta, origin);
+	FX_LightningSaberShock(shock, 2, origin, bladeDir);
 }
 
 // Traces the main beam for hit detection, draws it via the native
