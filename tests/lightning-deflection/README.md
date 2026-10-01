@@ -18,6 +18,8 @@ relative to the defender's facing direction, pose stability through caster aim c
 attack/run/jump cancellation, damage and electrification, guard expiry, multiple
 casters, every non-idle saber move and combat recovery preserving their animation timers,
 existing Absorb behavior, and the replicated deflection animation state.
+The compatibility check runs the unchanged stock hand-animation branch captured
+before the feature was added, alongside the current prediction branch.
 
 For an in-game check, run a server with the new game module and clients with the
 new cgame module. With an ignited saber and Defense 3, stand or walk while aiming
@@ -33,7 +35,12 @@ hit while running or swinging can still acquire the guard after settling down,
 even while the beam continues. Deflection has no Force cost and does not damage
 the caster.
 
-The server uses the normal replicated torso animation to communicate the guard.
+The server sends stock `HANDEXTEND_TAUNT` with the selected guard animation in
+`forceDodgeAnim`, alongside the normal replicated torso animation. Stock clients
+can predict the guard without falling back to Force Push. Their stock taunt path
+also applies the guard to the legs while standing still; updated clients preserve
+the torso-only guard. Ordinary taunts remain separate, and updated clients still
+accept the original private deflection state from older upgraded servers.
 Cgame recognizes that animation while a nearby player is actively casting
 Lightning, then plays namespaced MBII lightning arc and flare assets at the
 defender's blade. No custom entity event or borrowed effect flag is involved;

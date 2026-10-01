@@ -17,7 +17,18 @@ int main(void) {
   ps.saberMove = LS_READY;
   ps.groundEntityNum = ENTITYNUM_WORLD;
   ps.basespeed = ps.speed = 250;
+  ps.forceHandExtend = HANDEXTEND_TAUNT;
+  ps.forceDodgeAnim = BOTH_P1_S1_TL;
+  CHECK(BG_IsLightningDeflect(&ps));
+  // Ordinary taunts must keep their own animation and hand-extension state.
+  ps.forceDodgeAnim = BOTH_GESTURE1;
+  CHECK(!BG_IsLightningDeflect(&ps));
+  BG_EndLightningDeflect(&ps);
+  CHECK(ps.forceHandExtend == HANDEXTEND_TAUNT && ps.forceDodgeAnim == BOTH_GESTURE1);
   ps.forceHandExtend = HANDEXTEND_LIGHTNING_DEFLECT;
+  CHECK(BG_IsLightningDeflect(&ps)); // Older upgraded servers remain supported.
+  ps.forceHandExtend = HANDEXTEND_TAUNT;
+  ps.forceDodgeAnim = BOTH_P1_S1_TL;
   /* Defense stays zero in decoded snapshots: only the server knows its level. */
   CHECK(ps.fd.forcePowerLevel[FP_SABER_DEFENSE] == 0);
   CHECK(BG_CanDeflectLightning(&ps, &cmd, 1000));
