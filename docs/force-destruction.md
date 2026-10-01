@@ -89,8 +89,8 @@ precedence over the remote caster's vanilla Grip compatibility bit. The hand pla
 the Drain hand effect `effects/force/drain_hand.efx`, regardless of
 `cp_pluginDisable` and `cg_drainFX` (nothing is drawn if the file is missing).
 It plays at the left hand with the Drain axis (torso pitch/yaw); Super
-Destruction (melee) alternates between both hands per frame like two-handed
-Drain. The hand effect is hidden in the caster's first-person view and when
+Destruction (melee or the two-handed lightning pose) plays it on both hands
+every frame. The hand effect is hidden in the caster's first-person view and when
 mind-tricked. Emission stops as soon as the server clears the flags; existing particles finish
 their lifetime. This repo's server sends the hand flags for a 250 ms charge, clears them when
 launching the orb, and keeps its 650 ms total recovery. Interrupted charges
@@ -149,7 +149,7 @@ missing/present trail, Super trail, both impact effects, icon and three
 sound files, unchanged ordinary weapon handling, and custom impact audio.
 The asset check ensures custom media are not bundled.
 Hand checks cover drain_hand.efx under every Drain setting and when missing, the
-Drain axis, left hand only for normal casts and alternating hands for Melee,
+Drain axis, left hand only for normal casts and both hands every frame for Melee,
 matrix reuse, first-person/mind-trick hiding, stopping emission when flags clear,
 and unchanged Push/Grip routing.
 Wheel checks include all 128 combinations of extra grants and their anchor powers,

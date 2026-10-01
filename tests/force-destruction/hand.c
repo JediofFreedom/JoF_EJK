@@ -120,15 +120,27 @@ static void CheckHand(void)
 	}
 	CHECK(leftHits == 200 && rightHits == 0);
 
-	// Super (melee): alternates between the hands like two-handed Drain.
+	// Super (melee): both hands every frame.
 	cent.currentState.weapon = WP_MELEE;
 	leftHits = rightHits = 0;
 	for (i = 0; i < 200; ++i)
 	{
 		Draw(&cent, &ci, qtrue);
-		CHECK(effectCount == 1 && grips == 0 && pushes == 0 && rightFetches <= 1);
+		CHECK(effectCount == 2 && grips == 0 && pushes == 0 && rightFetches == 1);
 	}
-	CHECK(leftHits > 50 && rightHits > 50);
+	CHECK(leftHits == 200 && rightHits == 200);
+	// Super detected from the two-handed pose too, even if the weapon field isn't melee.
+	cent.currentState.weapon = WP_SABER;
+	cent.currentState.torsoAnim = BOTH_FORCE_2HANDEDLIGHTNING;
+	Draw(&cent, &ci, qtrue);
+	CHECK(effectCount == 2 && rightFetches == 1);
+	// No right-hand bolt: left hand only.
+	ci.bolt_rhand = -1;
+	Draw(&cent, &ci, qtrue);
+	CHECK(effectCount == 1 && rightFetches == 0);
+	ci.bolt_rhand = 2;
+	cent.currentState.torsoAnim = 0;
+	cent.currentState.weapon = WP_MELEE;
 
 	// Hidden (mind trick) or own first person: nothing, and no Grip/Push fallthrough.
 	Draw(&cent, &ci, qfalse);
@@ -139,7 +151,7 @@ static void CheckHand(void)
 	CHECK(effectCount == 0 && grips == 0 && pushes == 0);
 	cg.renderingThirdPerson = qtrue;
 	Draw(&cent, &ci, qtrue);
-	CHECK(effectCount == 1);
+	CHECK(effectCount == 2);
 
 	// Marker cleared: stops at once; Grip and Push are unchanged.
 	cent.currentState.powerups = 0;
@@ -162,6 +174,6 @@ int main(void)
 	cg.snap = &snapshot;
 	srand(1);
 	CheckHand();
-	puts("Destruction charge plays force/drain_hand.efx, Super alternates hands, visibility, marker priority and stock Grip/Push checks passed.");
+	puts("Destruction charge plays force/drain_hand.efx, Super plays both hands every frame, visibility, marker priority and stock Grip/Push checks passed.");
 	return 0;
 }
