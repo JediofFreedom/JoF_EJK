@@ -33,7 +33,7 @@ file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/input.h" "}\n")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/effects.h" "")
 extract(effects.h codemp/cgame/cg_main.c "static void CG_RegisterDestructionEffects(" "static void CG_RegisterEffects( void )")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/hand.h" "")
-extract(hand.h codemp/cgame/cg_players.c "static void CG_ForceDestructionDrainHand(" "void CG_AddRefEntityWithPowerups(")
+extract(hand.h codemp/cgame/cg_players.c "static void CG_ForceDestructionHandFX(" "void CG_AddRefEntityWithPowerups(")
 file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/hand.h"
   "static void DrawHandBlock(centity_t *cent, clientInfo_t *ci, qboolean forceFXVisible, qboolean gotLHandMatrix, qboolean gotRHandMatrix, mdxaBone_t lHandMatrix, mdxaBone_t rHandMatrix) {\n")
 extract(hand.h codemp/cgame/cg_players.c "\tif ( cent->currentState.powerups & (1 << PW_DISINT_4) )" "\tif (cent->currentState.weapon == WP_STUN_BATON && cent->currentState.number == cg.snap->ps.clientNum)")

@@ -14,6 +14,8 @@ static snapshot_t snapshot;
 static int effectCount, lastEffect, leftHits, rightHits, grips, pushes, rightFetches, leftFetches;
 static vec3_t leftOrigin = { 1, 2, 3 }, rightOrigin = { 4, 5, 6 };
 static matrix3_t expectAxis;
+static int boltedCalls, unboltedCalls;
+static qboolean boltedOk = qtrue;
 enum { DRAIN = 11, DRAIN_WIDE, DRAIN_WIDE_JAPRO, DRAIN_HAND };
 
 static void TestPrint(const char *fmt, ...) { (void)fmt; }
@@ -46,6 +48,20 @@ static void PlayEntityEffect(int id, vec3_t org, matrix3_t axis, const int boltI
 	else { CHECK(VectorCompare(org, rightOrigin)); ++rightHits; }
 	lastEffect = id;
 	++effectCount;
+	++unboltedCalls;
+}
+static qboolean PlayBoltedEffect(int id, vec3_t org, void *g2, const int bolt, const int entNum, const int modelNum, int loop, qboolean relative)
+{
+	CHECK(g2 != NULL && modelNum == 0 && loop == 0 && relative);
+	CHECK(bolt == 1 || bolt == 2);
+	if (!boltedOk) return qfalse;
+	CHECK(VectorCompare(org, bolt == 2 ? rightOrigin : leftOrigin));
+	(void)entNum;
+	if (bolt == 2) ++rightHits; else ++leftHits;
+	lastEffect = id;
+	++effectCount;
+	++boltedCalls;
+	return qtrue;
 }
 void BG_GiveMeVectorFromMatrix(mdxaBone_t *matrix, int flags, vec3_t out)
 {
@@ -142,6 +158,16 @@ static void CheckHand(void)
 	cent.currentState.torsoAnim = 0;
 	cent.currentState.weapon = WP_MELEE;
 
+	// Effects are bolted to the hands (relative); without a usable bolt they fall back to a plain play.
+	boltedCalls = unboltedCalls = 0;
+	Draw(&cent, &ci, qtrue);
+	CHECK(effectCount == 2 && boltedCalls == 2 && unboltedCalls == 0);
+	boltedOk = qfalse;
+	boltedCalls = unboltedCalls = 0;
+	Draw(&cent, &ci, qtrue);
+	CHECK(effectCount == 2 && boltedCalls == 0 && unboltedCalls == 2);
+	boltedOk = qtrue;
+
 	// Hidden (mind trick) or own first person: nothing, and no Grip/Push fallthrough.
 	Draw(&cent, &ci, qfalse);
 	CHECK(effectCount == 0 && grips == 0 && pushes == 0);
@@ -171,9 +197,10 @@ int main(void)
 {
 	imports.G2API_GetBoltMatrix = GetBoltMatrix;
 	imports.FX_PlayEntityEffectID = PlayEntityEffect;
+	imports.FX_PlayBoltedEffectID = PlayBoltedEffect;
 	cg.snap = &snapshot;
 	srand(1);
 	CheckHand();
-	puts("Destruction charge plays force/drain_hand.efx, Super plays both hands every frame, visibility, marker priority and stock Grip/Push checks passed.");
+	puts("Destruction charge plays force/drain_hand.efx bolted to the hands, Super plays both hands every frame, visibility, marker priority and stock Grip/Push checks passed.");
 	return 0;
 }
