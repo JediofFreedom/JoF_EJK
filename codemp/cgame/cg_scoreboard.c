@@ -1136,7 +1136,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 				compactHasRows = (n1 > 0);
 			}
 			else {
-				y += (n1 * lineHeight) + BIGCHAR_HEIGHT;
+				y += (n1 * lineHeight) + (BIGCHAR_HEIGHT - 8);
 			}
 
 			n2 = CG_TeamScoreboard( y, TEAM_BLUE, fade, team2MaxCl, lineHeight, qtrue, maxClientsScoreboard );
@@ -1155,7 +1155,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 				}
 			}
 			else {
-				y += (n2 * lineHeight) + BIGCHAR_HEIGHT;
+				y += (n2 * lineHeight) + (BIGCHAR_HEIGHT - 8);
 			}
 
 			maxClients -= (team1MaxCl+team2MaxCl);
@@ -1188,7 +1188,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 				compactHasRows = (n1 > 0);
 			}
 			else {
-				y += (n1 * lineHeight) + (maxClientsScoreboard ? BIGCHAR_HEIGHT - 8 : BIGCHAR_HEIGHT);
+				y += (n1 * lineHeight) + (BIGCHAR_HEIGHT - 8);
 			}
 
 			n2 = CG_TeamScoreboard( y, TEAM_RED, fade, team2MaxCl, lineHeight, qtrue, maxClientsScoreboard );
@@ -1207,7 +1207,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 				}
 			}
 			else {
-				y += (n2 * lineHeight) + (maxClientsScoreboard ? BIGCHAR_HEIGHT - 8 : BIGCHAR_HEIGHT);
+				y += (n2 * lineHeight) + (BIGCHAR_HEIGHT - 8);
 			}
 
 			maxClients -= (team1MaxCl+team2MaxCl);
@@ -1229,7 +1229,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 			}
 			else {
 				n1 = CG_TeamScoreboard( y, TEAM_FREE, fade, maxClientsScoreboard ? MAX_CLIENTS : maxClients, lineHeight, qfalse, maxClientsScoreboard );
-				y += (n1 * lineHeight) + (maxClientsScoreboard ? compactSectionSpacing : BIGCHAR_HEIGHT);
+				y += (n1 * lineHeight) + (BIGCHAR_HEIGHT - 8);
 			}
 		}
 
@@ -1248,7 +1248,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 		}
 		else {
 			n1 = CG_TeamScoreboard( y, TEAM_SPECTATOR, fade, maxClientsScoreboard ? MAX_CLIENTS : maxClients, lineHeight, qfalse, maxClientsScoreboard );
-			y += (n1 * lineHeight) + (maxClientsScoreboard ? compactSectionSpacing : BIGCHAR_HEIGHT);
+			y += (n1 * lineHeight) + (BIGCHAR_HEIGHT - 8);
 		}
 #if NEW_SCOREBOARD
 	} else {
