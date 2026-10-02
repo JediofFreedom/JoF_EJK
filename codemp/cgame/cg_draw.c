@@ -8911,7 +8911,8 @@ static void CG_DrawSpectator(void)
 	s = CG_GetStringEdString("MP_INGAME", "SPECTATOR");
 	if ((cgs.gametype == GT_DUEL || cgs.gametype == GT_POWERDUEL) &&
 		cgs.duelist1 != -1 &&
-		cgs.duelist2 != -1)
+		cgs.duelist2 != -1 &&
+		cg.snap->ps.clientNum != cg.clientNum)
 	{
 		char text[1024];
 		int size = 64;
@@ -10441,9 +10442,9 @@ static QINLINE void CG_ChatBox_DrawStrings(void)
 	int numToDraw = 0;
 	int linesToDraw = 0;
 	int i = 0;
-	float x = (cg.scoreBoardShowing ? 8 : cg_chatBoxX.value) * cgs.widthRatioCoef;
+	float x = (cg.showScores ? 8 : cg_chatBoxX.value) * cgs.widthRatioCoef;
 	float y = cg_chatBoxHeight.value;
-	if (cg.scoreBoardShowing)
+	if (cg.showScores)
 	{
 		if (cg.pressingScoreBoard && cgs.numClients > 25)
 			y = 10000;
