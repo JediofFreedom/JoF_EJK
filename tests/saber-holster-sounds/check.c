@@ -249,6 +249,29 @@ static void TestCanceledDraw(void) {
     Update(0);
     CHECK(Count(IGNITION) == 0 && Count(SHUTDOWN) == 0);
 }
+static void TestWeaponChangeBeforeDrawAnimation(void) {
+    Reset(1);
+    Commit(WP_MELEE);
+    Update(0);
+    cgs.clientinfo[0].saber[0].blade[0].length = 0;
+    soundCount = 0;
+    Anim(IDLE, 90); //weapon prediction commits before the server sends the reach
+    Commit(WP_SABER);
+    CHECK(Count(IGNITION) == 0);
+    Update(-1);
+    CHECK(Count(IGNITION) == 0);
+    cg.time += 20;
+    Anim(BOTH_S1_S7, 90); //plain draw still leaves the hilt on the back
+    Update(0);
+    CHECK(Count(IGNITION) == 0 && staffSwapSound[0].sound == IGNITION);
+    cg.time += 20;
+    Anim(BOTH_S1_S7_NEW, 10);
+    Update(0);
+    CHECK(Count(IGNITION) == 0);
+    boneFrame = 46;
+    Update(-1);
+    CHECK(Count(IGNITION) == 1 && soundTimes[0] == cg.time);
+}
 static void TestStaleTorsoFrames(void) {
     const char *why = "";
     float fraction = 0;
@@ -294,6 +317,7 @@ int main(void) {
     TestDualShutdownDebounce();
     TestMissedAnimationFrames();
     TestCanceledDraw();
+    TestWeaponChangeBeforeDrawAnimation();
     TestStaleTorsoFrames();
     TestGatingAndReset();
     puts("Saber holster sound regression checks passed.");
