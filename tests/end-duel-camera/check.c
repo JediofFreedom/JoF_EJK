@@ -47,10 +47,22 @@ int main(void) {
     CHECK(cg.endDuelCameraTime == cg.time);
     CHECK(CG_EndDuelCameraActive());
     CHECK(CG_EndDuelCameraAngle() == 0.0f);
-    cg.time += END_DUEL_CAMERA_DURATION / 2;
+    CHECK(CG_EndDuelCameraEnvelope() == 0.0f);
+    // Match SP's linear spin and independent pitch/range ramps, not smoothstep.
+    CHECK(END_DUEL_CAMERA_DURATION == 1000);
+    cg.time += 165;
+    CHECK(fabsf(CG_EndDuelCameraAngle() - 59.4f) < 0.01f);
+    CHECK(fabsf(CG_EndDuelCameraEnvelope() - 0.5f) < 0.001f);
+    cg.time += 335;
     CHECK(fabsf(CG_EndDuelCameraAngle() - 180.0f) < 0.01f);
-    cg.time += END_DUEL_CAMERA_DURATION / 2;
+    CHECK(CG_EndDuelCameraEnvelope() == 1.0f);
+    cg.time += 335;
+    CHECK(fabsf(CG_EndDuelCameraAngle() - 300.6f) < 0.01f);
+    CHECK(fabsf(CG_EndDuelCameraEnvelope() - 0.5f) < 0.001f);
+    cg.time += 165;
     CHECK(!CG_EndDuelCameraActive());
+    CHECK(CG_EndDuelCameraAngle() == 0.0f);
+    CHECK(CG_EndDuelCameraEnvelope() == 0.0f);
 
     // The end event can precede prediction catching up with the duel state.
     event = Setup();
