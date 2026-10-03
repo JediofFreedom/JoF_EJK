@@ -26,6 +26,8 @@ extract(codemp/cgame/cg_ents.c "static void CG_AddPredictedPlayerEntity(void)" "
 extract(codemp/cgame/cg_servercmds.c "static void CG_RegisterCustomSounds(" "void CG_PrecacheNPCSounds(")
 extract(codemp/cgame/cg_players.c "void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso, int oldFrame, int frame, int entNum )\n{" "void CG_TriggerAnimSounds(")
 extract(codemp/cgame/cg_predict.c "static qboolean CG_InMeleeGrappleVictimState(" "// JA+ marks victims")
+extract(codemp/cgame/cg_view.c "typedef struct dampPos_s {" "/*\n===============\nNotes on the camera viewpoint")
+extract(codemp/cgame/cg_view.c "static void CG_DampPosition(" "// This is called every frame.")
 file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "static void PredictHold(void) { playerState_t oldPlayerState; const playerState_t *predictionPS = &cg.snap->ps;\n")
 extract(codemp/cgame/cg_predict.c "\t// Grapple victims are positioned" "\t// non-predicting local movement")
 file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "}\n")
