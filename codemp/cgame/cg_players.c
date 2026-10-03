@@ -3439,6 +3439,20 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 				anim = cg_entities[entNum].nextState.legsAnim;
 			}
 		}
+		// nextState can already contain the release/get-up while Ghoul2 is
+		// still playing the current kata. Its sampled frames, not the future
+		// snapshot's animation, decide whether an impact was crossed.
+		if ( BG_IsGrappleSoundAnim( oldAnim ) )
+		{
+			const animation_t *playing = &bgAllAnims[animFileIndex].anims[oldAnim];
+			if ( oldFrame >= playing->firstFrame &&
+				oldFrame < playing->firstFrame + playing->numFrames &&
+				frame >= playing->firstFrame &&
+				frame < playing->firstFrame + playing->numFrames )
+			{
+				anim = oldAnim;
+			}
+		}
 		if ( anim != oldAnim )
 		{//not in same anim
 			inSameAnim = qfalse;
@@ -5311,18 +5325,51 @@ int cgFPLSState = 0;
 #endif
 static qboolean CG_GetHeldHandPosition( const centity_t *cent, vec3_t position )
 {
-	centity_t *holder;
+	centity_t *holder = NULL;
 	mdxaBone_t boltMatrix;
-	int handBolt;
+	int handBolt, i;
 
-	// The link stores entity number + 1, and NPCs are outside the player slots.
-	if ( cent->currentState.heldByClient <= 0 ||
+	// The stock wire field has only six bits: NPC entity+1 links wrap,
+	// including to zero. Never treat that wrapped value as a player slot.
+	if ( cent->currentState.heldByClient < 0 ||
 		cent->currentState.heldByClient > ENTITYNUM_WORLD )
 	{
 		return qfalse;
 	}
-	holder = &cg_entities[cent->currentState.heldByClient - 1];
-	if ( !holder->currentValid || !holder->ghoul2 ||
+	if ( cent->currentState.heldByClient > 63 )
+	{
+		holder = &cg_entities[cent->currentState.heldByClient - 1];
+	}
+	else
+	{
+		if ( !cent->currentState.heldByClient &&
+			cent->currentState.legsAnim != BOTH_KNEES1 &&
+			cent->currentState.torsoAnim != BOTH_KNEES1 )
+		{
+			return qfalse;
+		}
+		for ( i = (cent->currentState.heldByClient + 63) & 63;
+			i < ENTITYNUM_WORLD; i += 64 )
+		{
+			centity_t *candidate = &cg_entities[i];
+			if ( i == cent->currentState.number || !candidate->currentValid ||
+				!candidate->ghoul2 ||
+				(candidate->currentState.eType != ET_PLAYER && candidate->currentState.eType != ET_NPC) ||
+				candidate->currentState.torsoAnim != BOTH_A3_TL_BR ||
+				candidate->currentState.legsAnim != BOTH_A3_TL_BR ||
+				DistanceSquared( candidate->currentState.pos.trBase,
+					cent->currentState.pos.trBase ) > 128.0f * 128.0f )
+			{
+				continue;
+			}
+			if ( holder )
+			{
+				return qfalse; // Ambiguous links must not pull the arm to another actor.
+			}
+			holder = candidate;
+		}
+	}
+	if ( !holder || !holder->currentValid || !holder->ghoul2 ||
 		(holder->currentState.eType != ET_PLAYER && holder->currentState.eType != ET_NPC) )
 	{
 		return qfalse;
@@ -11778,7 +11825,11 @@ void CG_Player( centity_t *cent ) {
 		VectorClear(cent->modelScale);
 	}
 
-	if ((cent->doLerp || cent->currentState.heldByClient) && (cent->currentState.groundEntityNum >= ENTITYNUM_WORLD || cent->currentState.eType == ET_TERRAIN) &&
+	// The local carry has already been interpolated with its camera. Applying
+	// the frame-dependent body smoother again separates the two while held.
+	if (!(cent->currentState.number == cg.predictedPlayerState.clientNum &&
+		(cg.predictedPlayerState.forceHandExtend == HANDEXTEND_PRETHROWN || cg.predictedPlayerState.heldByClient)) &&
+		(cent->doLerp || cent->currentState.heldByClient) && (cent->currentState.groundEntityNum >= ENTITYNUM_WORLD || cent->currentState.eType == ET_TERRAIN) &&
 		!(cent->currentState.eFlags2 & EF2_HYPERSPACE) && cg.predictedPlayerState.m_iVehicleNum != cent->currentState.number)
 	{ //always smooth when being thrown
 		vec3_t			posDif;

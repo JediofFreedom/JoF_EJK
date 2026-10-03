@@ -39,6 +39,7 @@ extract(codemp/game/bg_panimate.c "stringID_table_t animEventTypeTable[" "bgLoad
 extract(codemp/cgame/cg_players.c "static sfxHandle_t CG_AnimEventSound(" "void CG_PlayerAnimEventDo(")
 extract(codemp/cgame/cg_players.c "int CG_G2EvIndexForModel(" "void CG_LoadCISounds(")
 extract(codemp/cgame/cg_players.c "static qboolean CG_GetHeldHandPosition(" "static void CG_G2PlayerAngles(")
+extract(codemp/cgame/cg_ents.c "static void CG_AddPredictedPlayerEntity(void)" "/*\n===============\nCG_AddPacketEntities")
 extract(codemp/cgame/cg_servercmds.c "static void CG_RegisterCustomSounds(" "void CG_PrecacheNPCSounds(")
 extract(codemp/cgame/cg_players.c "void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso, int oldFrame, int frame, int entNum )\n{" "void CG_TriggerAnimSounds(")
 extract_function(codemp/cgame/cg_predict.c "static qboolean CG_InMeleeGrappleVictimState(")

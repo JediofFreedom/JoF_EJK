@@ -1127,7 +1127,8 @@ static qboolean CG_InMeleeGrappleVictimState( const playerState_t *ps )
 
 	// JA+'s A + melee carry uses KNEES1 rather than a PA grapple animation.
 	// The server positions and turns its victim, including before it sets the
-	// holder's entity number. NPC holders use the same entity-number-plus-one link.
+	// holder's entity number. Keep PRETHROWN as the primary carry marker: the
+	// six-bit heldByClient wire field can wrap an NPC's entity+1 link to zero.
 	if ( ps->forceHandExtend == HANDEXTEND_PRETHROWN ||
 		(ps->heldByClient > 0 && ps->heldByClient <= ENTITYNUM_WORLD) )
 	{

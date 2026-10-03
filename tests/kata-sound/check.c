@@ -29,6 +29,7 @@ static void SetCustomSoundForType(clientInfo_t *ci, int type, int index, sfxHand
 typedef struct {
     entityState_t currentState, nextState;
     qboolean currentValid;
+    qboolean interpolate;
     void *ghoul2;
     vec3_t turAngles, lerpOrigin, modelScale;
 } centity_t;
@@ -52,14 +53,26 @@ static struct {
     int time;
 } cg;
 static struct { qhandle_t gameModels[MAX_MODELS]; } cgs;
-static struct { int integer; } cg_noPredict, g_synchronousClients;
+static struct { int integer; } cg_noPredict, g_synchronousClients, cg_smoothClients;
 static qboolean CG_UsingEWeb(void) { return qfalse; }
+static void CG_AddCEntity(centity_t *cent) {
+    CHECK(!cent->interpolate && !cg_smoothClients.integer);
+    // The normal entity interpolation path would blend this already
+    // interpolated position toward nextState for a second time.
+    CHECK(cent == &cg_entities[cg.predictedPlayerState.clientNum]);
+}
 
 void QDECL Com_Printf(const char *format, ...) { (void)format; }
 void QDECL Com_Error(int code, const char *format, ...) { (void)code; (void)format; exit(2); }
 void *BG_Alloc(int size) { void *p = calloc(1, size); CHECK(p); return p; }
 int Q_irand(int low, int high) { CHECK(high >= low); return randomChoice ? high : low; }
 void VectorClear(vec3_t v) { v[0] = v[1] = v[2] = 0; }
+vec_t DistanceSquared(const vec3_t a, const vec3_t b) {
+    vec3_t delta;
+    int i;
+    for (i = 0; i < 3; ++i) delta[i] = a[i] - b[i];
+    return delta[0]*delta[0] + delta[1]*delta[1] + delta[2]*delta[2];
+}
 
 static sfxHandle_t RegisterSound(const char *name) {
     CHECK(name[0] != '*');
@@ -181,7 +194,14 @@ static void Parse(const char *text) {
 int main(void) {
     int i, calls;
     playerState_t predicted, server;
-
+    cg_entities[0].interpolate = qtrue;
+    cg_smoothClients.integer = 1;
+    CG_AddPredictedPlayerEntity();
+    CHECK(cg_entities[0].interpolate && cg_smoothClients.integer == 1);
+    cg_entities[0].interpolate = qfalse;
+    cg_smoothClients.integer = 0;
+    CG_AddPredictedPlayerEntity();
+    CHECK(!cg_entities[0].interpolate && !cg_smoothClients.integer);
     // Missing custom NPC events use the skeleton on every load, even when
     // an earlier precache may have cached an empty model-specific event set.
     CHECK(CG_NPCEventIndexForModel(&testNpc, "models/players/custom/", 0) == 7);
@@ -238,10 +258,32 @@ int main(void) {
         victim.currentState.heldByClient = ENTITYNUM_WORLD + 1;
         CHECK(!CG_GetHeldHandPosition(&victim, position));
         victim.currentState.heldByClient = 1;
+        victim.currentState.number = 3;
         cg_entities[0].currentValid = qtrue;
         cg_entities[0].currentState.eType = ET_PLAYER;
+        cg_entities[0].currentState.legsAnim = cg_entities[0].currentState.torsoAnim = BOTH_A3_TL_BR;
         cg_entities[0].ghoul2 = &testNpc;
         CHECK(CG_GetHeldHandPosition(&victim, position));
+
+        // Real snapshots truncate entity+1 to six bits. An unrelated player
+        // at the aliased index must not become the hand attachment target.
+        victim.currentState.heldByClient = 71 & 63;
+        cg_entities[6] = cg_entities[0];
+        cg_entities[6].currentState.legsAnim = cg_entities[6].currentState.torsoAnim = BOTH_STAND1;
+        cg_entities[70].currentState.eType = ET_NPC;
+        cg_entities[70].currentState.legsAnim = cg_entities[70].currentState.torsoAnim = BOTH_A3_TL_BR;
+        CHECK(CG_GetHeldHandPosition(&victim, position));
+        cg_entities[6].currentState.legsAnim = cg_entities[6].currentState.torsoAnim = BOTH_A3_TL_BR;
+        CHECK(!CG_GetHeldHandPosition(&victim, position)); // Ambiguous.
+        cg_entities[6].currentValid = qfalse;
+        cg_entities[70].currentState.pos.trBase[0] = 200;
+        CHECK(!CG_GetHeldHandPosition(&victim, position)); // Too far away.
+        cg_entities[127] = cg_entities[0];
+        cg_entities[127].currentState.eType = ET_NPC;
+        victim.currentState.heldByClient = 128 & 63;
+        CHECK(!CG_GetHeldHandPosition(&victim, position));
+        victim.currentState.legsAnim = BOTH_KNEES1;
+        CHECK(CG_GetHeldHandPosition(&victim, position)); // Link wrapped to zero.
     }
 
     // A render stall crosses the impact frame with both samples >3 frames away.
@@ -261,13 +303,14 @@ int main(void) {
     CHECK(animationEvents == 1); // Reject a stale frame from another animation.
     cg_entities[0].nextState.torsoAnim = BOTH_KYLE_PA_3;
     CG_PlayerAnimEvents(0, 0, qtrue, 140, 160, 0);
-    CHECK(animationEvents == 1); // Do not bridge an animation transition.
+    CHECK(animationEvents == 2); // Future snapshot must not swallow the current impact.
+    CG_PlayerAnimEvents(0, 0, qtrue, 90, 160, 0);
+    CHECK(animationEvents == 2); // Still reject frames from a different animation.
     cg_entities[0].currentState.torsoAnim = BOTH_JUMP1;
     cg_entities[0].nextState.torsoAnim = BOTH_JUMP1;
     animations[BOTH_JUMP1] = animations[BOTH_KYLE_PA_2];
     CG_PlayerAnimEvents(0, 0, qtrue, 140, 160, 0);
-    CHECK(animationEvents == 1); // Preserve unrelated animations' behavior.
-
+    CHECK(animationEvents == 2); // Preserve unrelated animations' behavior.
     for (i = 0; i < MAX_TOTALANIMATIONS; i++) {
         animations[i].firstFrame = i;
         animations[i].numFrames = 200;
@@ -330,6 +373,15 @@ int main(void) {
             CHECK(animationEvents == before + 2);
             CG_PlayerAnimEvents(0, 0, qtrue, anim + 60, anim + 70, 0);
             CHECK(animationEvents == before + 2);
+
+            // The shipped victim clips put fallsplat on the legs near the
+            // end. A future get-up snapshot must not silence that impact.
+            bgAllEvents[0].legsAnimEvents[0].keyFrame = anim + 95;
+            cg_entities[0].nextState.legsAnim = BOTH_GETUP1;
+            CG_PlayerAnimEvents(0, 0, qfalse, anim + 90, anim + 100, 0);
+            CHECK(animationEvents == before + 3);
+            CG_PlayerAnimEvents(0, 0, qfalse, anim + 100, anim + 101, 0);
+            CHECK(animationEvents == before + 3);
         }
     }
 
@@ -475,7 +527,9 @@ int main(void) {
     CHECK(transitions == calls + 1);
     CHECK(cg.predictedPlayerState.origin[0] == 40 && cg.predictedPlayerState.viewangles[YAW] == 90);
     CHECK(cg.predictedError[0] == 0 && cg.predictedErrorTime == 0);
-    serverSnapshot.ps.heldByClient = 71;
+    serverSnapshot.ps.heldByClient = 128 & 63;
+    CHECK(CG_InMeleeGrappleVictimState(&serverSnapshot.ps));
+    serverSnapshot.ps.heldByClient = 71 & 63;
     serverSnapshot.ps.forceHandExtend = HANDEXTEND_NONE;
     CHECK(CG_InMeleeGrappleVictimState(&serverSnapshot.ps));
     serverSnapshot.ps.forceHandExtend = HANDEXTEND_POSTTHROWN;
