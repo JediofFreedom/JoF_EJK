@@ -274,7 +274,7 @@ extern void BG_VehicleAdjustBBoxForOrientation( Vehicle_t *veh, vec3_t origin, v
 										int clientNum, int tracemask,
 										void (*localTrace)(trace_t *results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentMask)); // bg_pmove.c
 static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end,
-							int skipNumber, int mask, trace_t *tr, qboolean g2Check, qboolean crosshairTrace ) {
+							int skipNumber, int skipNumber2, int mask, trace_t *tr, qboolean g2Check, qboolean crosshairTrace ) {
 	int			i, x, zd, zu;
 	trace_t		trace, oldTrace;
 	entityState_t	*ent;
@@ -293,7 +293,7 @@ static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const
 		cent = cg_solidEntities[ i ];
 		ent = &cent->currentState;
 
-		if ( ent->number == skipNumber ) {
+		if ( ent->number == skipNumber || ent->number == skipNumber2 ) {
 			continue;
 		}
 
@@ -468,8 +468,18 @@ void	CG_Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec
 	trap->CM_Trace ( &t, start, end, mins, maxs, 0, mask, 0);
 	t.entityNum = t.fraction != 1.0 ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	// check all other solid models
-	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, mask, &t, qfalse, qfalse);
+	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, ENTITYNUM_NONE, mask, &t, qfalse, qfalse);
 
+	*result = t;
+}
+
+void CG_TraceSkipEntity( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs,
+		const vec3_t end, int skipNumber, int skipNumber2, int mask ) {
+	trace_t t;
+
+	trap->CM_Trace( &t, start, end, mins, maxs, 0, mask, 0 );
+	t.entityNum = t.fraction != 1.0f ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
+	CG_ClipMoveToEntities( start, mins, maxs, end, skipNumber, skipNumber2, mask, &t, qfalse, qfalse );
 	*result = t;
 }
 
@@ -485,7 +495,7 @@ void	CG_G2Trace( trace_t *result, const vec3_t start, const vec3_t mins, const v
 	trap->CM_Trace ( &t, start, end, mins, maxs, 0, mask, 0);
 	t.entityNum = t.fraction != 1.0 ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	// check all other solid models
-	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, mask, &t, qtrue, qfalse);
+	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, ENTITYNUM_NONE, mask, &t, qtrue, qfalse);
 
 	*result = t;
 }
@@ -497,7 +507,7 @@ void CG_CrosshairTrace( trace_t *result, const vec3_t start, const vec3_t mins, 
 	trap->CM_Trace ( &t, start, end, mins, maxs, 0, CONTENTS_SOLID|CONTENTS_BODY, 0);
 	t.entityNum = t.fraction != 1.0 ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	// check all other solid models
-	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, CONTENTS_SOLID|CONTENTS_BODY, &t, g2Check, qtrue);
+	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, ENTITYNUM_NONE, CONTENTS_SOLID|CONTENTS_BODY, &t, g2Check, qtrue);
 
 	*result = t;
 }
@@ -1108,13 +1118,13 @@ static qboolean CG_InKnockDownState( playerState_t *ps )
 	return qfalse;
 }
 
-static qboolean CG_InMeleeGrappleVictimState( playerState_t *ps )
+static qboolean CG_InMeleeGrappleVictimState( const playerState_t *ps )
 {
-	// The paired hold is positioned directly by the server and cannot be
-	// reconstructed locally. Once the throw animation starts, its velocity and
-	// knockback time are predictable, so resume prediction for a smooth launch.
-	if ( ps->legsAnim == BOTH_PLAYER_PA_3_FLY ||
-		ps->torsoAnim == BOTH_PLAYER_PA_3_FLY )
+	// The side kata's throw is ballistic once released. A channel can still
+	// contain the hold animation during the transition to the flight animation.
+	if ( ps->stats[STAT_HEALTH] <= 0 ||
+		(ps->legsAnim == BOTH_PLAYER_PA_3_FLY && ps->legsTimer > 0) ||
+		(ps->torsoAnim == BOTH_PLAYER_PA_3_FLY && ps->torsoTimer > 0) )
 	{
 		return qfalse;
 	}
@@ -1126,18 +1136,24 @@ static qboolean CG_InMeleeGrappleVictimState( playerState_t *ps )
 static void CG_PreserveMeleeKataFlightAnimation( playerState_t *predicted,
 	const playerState_t *server )
 {
-	if ( (server->legsAnim != BOTH_PLAYER_PA_3_FLY || server->legsTimer <= 0) &&
-		(server->torsoAnim != BOTH_PLAYER_PA_3_FLY || server->torsoTimer <= 0) )
+	if ( server->stats[STAT_HEALTH] <= 0 )
 	{
 		return;
 	}
 
-	// Predict the ballistic origin, but render the server-selected paired throw
-	// animation. Pmove command replay may otherwise replace it with an air anim.
-	predicted->legsAnim = BOTH_PLAYER_PA_3_FLY;
-	predicted->torsoAnim = BOTH_PLAYER_PA_3_FLY;
-	predicted->legsFlip = server->legsFlip;
-	predicted->torsoFlip = server->torsoFlip;
+	// Predict the throw's movement, but keep the server's flight animation.
+	// Replayed movement/weapon commands can otherwise replace it with an idle
+	// or air animation. Only restore channels still marked as flight by the server.
+	if ( server->legsAnim == BOTH_PLAYER_PA_3_FLY && server->legsTimer > 0 )
+	{
+		predicted->legsAnim = server->legsAnim;
+		predicted->legsFlip = server->legsFlip;
+	}
+	if ( server->torsoAnim == BOTH_PLAYER_PA_3_FLY && server->torsoTimer > 0 )
+	{
+		predicted->torsoAnim = server->torsoAnim;
+		predicted->torsoFlip = server->torsoFlip;
+	}
 }
 
 // JA+ marks victims of its added side/back kicks with forceDodgeAnim 4/5 and
@@ -1175,6 +1191,7 @@ void CG_PredictPlayerState( void ) {
 	int			cmdNum, current, i;
 	playerState_t	oldPlayerState;
 	playerState_t	oldVehicleState;
+	const playerState_t *predictionPS;
 	qboolean	moved;
 	usercmd_t	oldestCmd;
 	usercmd_t	latestCmd;
@@ -1206,6 +1223,32 @@ void CG_PredictPlayerState( void ) {
 		return;
 	}
 
+	// Use the same snapshot as command replay below, including the first frame
+	// of a grab or release that has only arrived in nextSnap so far.
+	predictionPS = &cg.snap->ps;
+	if ( cg.nextSnap && !cg.nextFrameTeleport && !cg.thisFrameTeleport )
+	{
+		predictionPS = &cg.nextSnap->ps;
+	}
+
+	// Grapple victims are positioned and turned by the server (player or NPC).
+	// Keep its state while held, including when hilt changes reset one channel
+	// or replayed WASD commands would run past the end of an animation timer.
+	if ( CG_InMeleeGrappleVictimState( predictionPS ) )
+	{
+		oldPlayerState = cg.predictedPlayerState;
+		VectorClear( cg.predictedError );
+		cg.predictedErrorTime = 0;
+		cg.predictedTimeFrac = 0.0f;
+		CG_InterpolatePlayerState( qfalse );
+		if ( !cg_noPredict.integer && !g_synchronousClients.integer && !CG_UsingEWeb() )
+		{
+			// With prediction disabled, CG_TransitionSnapshot already does this.
+			CG_TransitionPlayerState( &cg.predictedPlayerState, &oldPlayerState );
+		}
+		return;
+	}
+
 	// non-predicting local movement will grab the latest angles
 	if ( cg_noPredict.integer || g_synchronousClients.integer || CG_UsingEWeb() ) {
 		CG_InterpolatePlayerState( qtrue );
@@ -1229,18 +1272,6 @@ void CG_PredictPlayerState( void ) {
 		{
 			CG_InterpolateVehiclePlayerState(qtrue);
 		}
-		return;
-	}
-
-	// Grapple victims are positioned and animated by the server during the paired
-	// hold. Local command replay cannot reproduce the grappler's state there.
-	if ( CG_InMeleeGrappleVictimState( &cg.snap->ps ) )
-	{
-		oldPlayerState = cg.predictedPlayerState;
-		CG_InterpolatePlayerState( qfalse );
-		// Snapshot transitions still assume prediction is active here. Process
-		// damage, local sounds and events even though the hold skips Pmove.
-		CG_TransitionPlayerState( &cg.predictedPlayerState, &oldPlayerState );
 		return;
 	}
 
@@ -1822,6 +1853,8 @@ void CG_PredictPlayerState( void ) {
 		// check for predictable events that changed from previous predictions
 		//CG_CheckChangedPredictableEvents(&cg.predictedPlayerState);
 	}
+
+	CG_PreserveMeleeKataFlightAnimation( &cg.predictedPlayerState, predictionPS );
 
 	if ( cg_showMiss.integer == 2 ) {
 		trap->Print( "[%i : %i] ", cg_pmove.cmd.serverTime, cg.time );

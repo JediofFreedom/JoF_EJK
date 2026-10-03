@@ -2802,6 +2802,31 @@ void CG_DrawForceSelect( void )
 	}
 }
 
+static int CG_BuildInvenWheel( int wheel[] )
+{
+	int i;
+	int wheelCount = 0;
+
+	for ( i = 0; i < HI_NUM_HOLDABLE; i++ )
+	{
+		if ( !(cg.snap->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << i)) )
+		{
+			continue;
+		}
+		if ( !BG_IsItemSelectable( &cg.predictedPlayerState, i ) )
+		{
+			continue;
+		}
+		if ( !cgs.media.invenIcons[i] )
+		{
+			continue;
+		}
+		wheel[wheelCount++] = i;
+	}
+
+	return wheelCount;
+}
+
 /*
 ===================
 CG_DrawInventorySelect
@@ -2809,13 +2834,14 @@ CG_DrawInventorySelect
 */
 void CG_DrawInvenSelect( void )
 {
-	int				i;
-	int				sideMax,holdCount,iconCnt;
-	int				smallIconSize,bigIconSize;
-	int				sideLeftIconCnt,sideRightIconCnt;
-	int				count;
-	int				holdX, x, y, y2, pad;
-//	float			addX;
+	int		i;
+	int		count;
+	int		smallIconSize,bigIconSize;
+	int		holdX, x, y, pad;
+	int		sideLeftIconCnt,sideRightIconCnt;
+	int		sideMax,holdCount;
+	int		wheel[HI_NUM_HOLDABLE];
+	int		wheelCount, cur = -1, idx, drawn, item;
 
 	// don't display if dead
 	if ( cg.snap->ps.stats[STAT_HEALTH] <= 0 )
@@ -2838,50 +2864,48 @@ void CG_DrawInvenSelect( void )
 		cg.itemSelect = bg_itemlist[cg.snap->ps.stats[STAT_HOLDABLE_ITEM]].giTag;
 	}
 
-//const int bits = cg.snap->ps.stats[ STAT_ITEMS ];
-
-	// count the number of items owned
-	count = 0;
-	for ( i = 0 ; i < HI_NUM_HOLDABLE ; i++ )
+	// Build the wheel order (only owned AND currently selectable items), mirroring
+	// CG_BuildForceWheel, so the side counts always match what's actually drawable
+	// and wrap-around never lands on an empty/undrawable slot.
+	wheelCount = CG_BuildInvenWheel( wheel );
+	if (wheelCount == 0)
 	{
-		if (/*CG_InventorySelectable(i) && inv_icons[i]*/
-			(cg.snap->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << i)) )
-		{
-			count++;
-		}
-	}
-
-	if (!count)
-	{
-		y2 = 0; //err?
-		CG_DrawProportionalString(SCREEN_WIDTH / 2, y2 + 22, "EMPTY INVENTORY", UI_CENTER | UI_SMALLFONT, colorTable[CT_ICON_BLUE]);
+		CG_DrawProportionalString(SCREEN_WIDTH / 2, 22, "EMPTY INVENTORY", UI_CENTER | UI_SMALLFONT, colorTable[CT_ICON_BLUE]);
 		return;
 	}
 
-	sideMax = 3;	// Max number of icons on the side
+	for (i = 0; i < wheelCount; i++)
+	{
+		if (wheel[i] == cg.itemSelect)
+		{
+			cur = i;
+			break;
+		}
+	}
+	if (cur < 0)	// selection no longer valid (e.g. dropped/used) - fall back to first entry
+	{
+		cur = 0;
+		cg.itemSelect = wheel[0];
+	}
 
-	// Calculate how many icons will appear to either side of the center one
-	holdCount = count - 1;	// -1 for the center icon
-	if (holdCount == 0)			// No icons to either side
+	count = wheelCount;
+	sideMax = 3;
+
+	holdCount = count - 1;
+	if (holdCount == 0)
 	{
 		sideLeftIconCnt = 0;
 		sideRightIconCnt = 0;
 	}
-	else if (count > (2*sideMax))	// Go to the max on each side
+	else if (count > (2*sideMax))
 	{
 		sideLeftIconCnt = sideMax;
 		sideRightIconCnt = sideMax;
 	}
-	else							// Less than max, so do the calc
+	else
 	{
 		sideLeftIconCnt = holdCount/2;
 		sideRightIconCnt = holdCount - sideLeftIconCnt;
-	}
-
-	i = cg.itemSelect - 1;
-	if (i<0)
-	{
-		i = HI_NUM_HOLDABLE-1;
 	}
 
 	smallIconSize = 40;
@@ -2891,56 +2915,38 @@ void CG_DrawInvenSelect( void )
 	x = SCREEN_WIDTH / 2;
 	y = 410;
 
-	// Left side ICONS
-	// Work backwards from current icon
+	trap->R_SetColor(NULL);
+
+	// Left side - walk backwards from the centered icon through the wheel
 	holdX = x - ((bigIconSize/2) + pad + smallIconSize) * cgs.widthRatioCoef;
-//	addX = (float) smallIconSize * .75;
-
-	for (iconCnt=0;iconCnt<sideLeftIconCnt;i--)
+	idx = cur;
+	for (drawn = 0; drawn < sideLeftIconCnt; drawn++)
 	{
-		if (i<0)
+		idx--;
+		if (idx < 0)
 		{
-			i = HI_NUM_HOLDABLE-1;
+			idx = wheelCount - 1;
 		}
 
-		if ( !(cg.snap->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << i)) || i == cg.itemSelect )
-		{
-			continue;
-		}
-
-		++iconCnt;					// Good icon
-
-		if (!BG_IsItemSelectable(&cg.predictedPlayerState, i))
-		{
-			continue;
-		}
-
-		if (cgs.media.invenIcons[i])
+		item = wheel[idx];
+		if (cgs.media.invenIcons[item])
 		{
 			trap->R_SetColor(NULL);
-			CG_DrawPic( holdX, y+10, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.invenIcons[i] );
-
-			trap->R_SetColor(colorTable[CT_ICON_BLUE]);
-			/*CG_DrawNumField (holdX + addX, y + smallIconSize, 2, cg.snap->ps.inventory[i], 6, 12,
-				NUM_FONT_SMALL,qfalse);
-				*/
-
+			CG_DrawPic( holdX, y+10, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.invenIcons[item] );
 			holdX -= (smallIconSize+pad) * cgs.widthRatioCoef;
 		}
 	}
 
-	// Current Center Icon
-	if (cgs.media.invenIcons[cg.itemSelect] && BG_IsItemSelectable(&cg.predictedPlayerState, cg.itemSelect))
+	// Current center icon
+	item = wheel[cur];
+	if (cgs.media.invenIcons[item])
 	{
 		int itemNdex;
 		trap->R_SetColor(NULL);
-		CG_DrawPic( x-(bigIconSize/2) * cgs.widthRatioCoef, (y-((bigIconSize-smallIconSize)/2))+10, bigIconSize * cgs.widthRatioCoef, bigIconSize, cgs.media.invenIcons[cg.itemSelect] );
-	//	addX = (float) bigIconSize * .75;
+		CG_DrawPic( x-(bigIconSize/2) * cgs.widthRatioCoef, (y-((bigIconSize-smallIconSize)/2))+10, bigIconSize * cgs.widthRatioCoef, bigIconSize, cgs.media.invenIcons[item] );
 		trap->R_SetColor(colorTable[CT_ICON_BLUE]);
-		/*CG_DrawNumField ((x-(bigIconSize/2)) + addX, y, 2, cg.snap->ps.inventory[cg.inventorySelect], 6, 12,
-			NUM_FONT_SMALL,qfalse);*/
 
-		itemNdex = BG_GetItemIndexByTag(cg.itemSelect, IT_HOLDABLE);
+		itemNdex = BG_GetItemIndexByTag(item, IT_HOLDABLE);
 		if (bg_itemlist[itemNdex].classname)
 		{
 			vec4_t	textColor = { .312f, .75f, .621f, 1.0f };
@@ -2960,44 +2966,22 @@ void CG_DrawInvenSelect( void )
 		}
 	}
 
-	i = cg.itemSelect + 1;
-	if (i> HI_NUM_HOLDABLE-1)
-	{
-		i = 0;
-	}
-
-	// Right side ICONS
-	// Work forwards from current icon
+	// Right side - walk forwards from the centered icon through the wheel
 	holdX = x + ((bigIconSize/2) + pad) * cgs.widthRatioCoef;
-//	addX = (float) smallIconSize * .75;
-	for (iconCnt=0;iconCnt<sideRightIconCnt;i++)
+	idx = cur;
+	for (drawn = 0; drawn < sideRightIconCnt; drawn++)
 	{
-		if (i> HI_NUM_HOLDABLE-1)
+		idx++;
+		if (idx >= wheelCount)
 		{
-			i = 0;
+			idx = 0;
 		}
 
-		if ( !(cg.snap->ps.stats[STAT_HOLDABLE_ITEMS] & (1 << i)) || i == cg.itemSelect )
-		{
-			continue;
-		}
-
-		++iconCnt;					// Good icon
-
-		if (!BG_IsItemSelectable(&cg.predictedPlayerState, i))
-		{
-			continue;
-		}
-
-		if (cgs.media.invenIcons[i])
+		item = wheel[idx];
+		if (cgs.media.invenIcons[item])
 		{
 			trap->R_SetColor(NULL);
-			CG_DrawPic( holdX, y+10, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.invenIcons[i] );
-
-			trap->R_SetColor(colorTable[CT_ICON_BLUE]);
-			/*CG_DrawNumField (holdX + addX, y + smallIconSize, 2, cg.snap->ps.inventory[i], 6, 12,
-				NUM_FONT_SMALL,qfalse);*/
-
+			CG_DrawPic( holdX, y+10, smallIconSize * cgs.widthRatioCoef, smallIconSize, cgs.media.invenIcons[item] );
 			holdX += (smallIconSize+pad) * cgs.widthRatioCoef;
 		}
 	}
@@ -10100,6 +10084,15 @@ void CG_ChatBox_AddString(char *chatStr)
 	chatBoxItem_t *chat = &cg.chatItems[cg.chatItemActive];
 	char tempChatStr[MAX_SAY_TEXT+MAX_NETNAME] = { 0 }, *r = chatStr, *w = tempChatStr;
 	float chatLen;
+	char cutoffColorChar = COLOR_WHITE; //default/fallback if the cvar isn't a single digit 0-9
+	char cutoffColorStr[3];
+
+	if (cg_chatBoxShowCutoffColor.string[0] >= '0' && cg_chatBoxShowCutoffColor.string[0] <= '9' && cg_chatBoxShowCutoffColor.string[1] == '\0') {
+		cutoffColorChar = cg_chatBoxShowCutoffColor.string[0];
+	}
+	cutoffColorStr[0] = Q_COLOR_ESCAPE;
+	cutoffColorStr[1] = cutoffColorChar;
+	cutoffColorStr[2] = '\0';
 
 	if (cg_logChat.integer & JAPRO_CHATLOG_ENABLE) {
 		CG_LogPrintf(cg.log.file, "%s\n", chatStr);
@@ -10249,11 +10242,11 @@ void CG_ChatBox_AddString(char *chatStr)
 			while (chat->string[i])
 			{
 				if (cg_chatBoxShowCutoff.integer) {
-					if (i == MAX_SAY_TEXT) { //at the max length of the original JAMP chatbox, insert white color code
-						CG_ChatBox_StrInsert(chat->string, i, S_COLOR_WHITE);
+					if (i == MAX_SAY_TEXT) { //at the max length of the original JAMP chatbox, insert cutoff color code
+						CG_ChatBox_StrInsert(chat->string, i, cutoffColorStr);
 					}
-					else if (i > MAX_SAY_TEXT && Q_IsColorString(&chat->string[i])) { //already past max length but we have a color code, skip it so it stays white
-						chat->string[i+1] = COLOR_WHITE;
+					else if (i > MAX_SAY_TEXT && Q_IsColorString(&chat->string[i])) { //already past max length but we have a color code, skip it so it stays the cutoff color
+						chat->string[i+1] = cutoffColorChar;
 					}
 				}
 
@@ -10318,9 +10311,9 @@ void CG_ChatBox_AddString(char *chatStr)
 			qboolean draw = qfalse;
 
 			if (cg_chatBoxShowCutoff.integer) { //no idea why this needs to be offset by 2 here
-				if (r == (MAX_SAY_TEXT - 2)) { //at the max length of the original JAMP chatbox, insert white color code
+				if (r == (MAX_SAY_TEXT - 2)) { //at the max length of the original JAMP chatbox, insert cutoff color code
 					emojiStr[w++] = Q_COLOR_ESCAPE;
-					emojiStr[w++] = COLOR_WHITE;
+					emojiStr[w++] = cutoffColorChar;
 					if (Q_IsColorString(&chat->string[r]))
 						r += 2;
 				}
@@ -12203,9 +12196,61 @@ static void CG_LeadIndicator(void)
 		}
 }
 
+extern void BG_VehicleAdjustBBoxForOrientation(Vehicle_t *veh, vec3_t origin, vec3_t mins, vec3_t maxs,
+    int clientNum, int tracemask, void (*localTrace)(trace_t *, const vec3_t, const vec3_t, const vec3_t, int, int));
+
+// Draw a pilot whose player entity was omitted because the vehicle hides riders.
+static void CG_HiddenVehiclePilotLabel(int clientNum, centity_t *veh, int localVehicleNum)
+{
+	vec3_t pos, diff;
+	trace_t trace;
+	float x, y, top = 64.0f;
+	int vehicleNum = veh->currentState.number;
+
+	VectorSubtract(veh->lerpOrigin, cg.refdef.vieworg, diff);
+	if (VectorLength(diff) >= 3000)
+		return;
+	CG_TraceSkipEntity(&trace, cg.refdef.vieworg, NULL, NULL, veh->lerpOrigin,
+		cg.snap->ps.clientNum, localVehicleNum, CONTENTS_SOLID | CONTENTS_BODY);
+	if (trace.startsolid || trace.allsolid ||
+		(trace.fraction < 1.0f && trace.entityNum != vehicleNum))
+		return;
+
+	if (veh->currentState.solid && veh->currentState.solid != SOLID_BMODEL)
+		top = ((veh->currentState.solid >> 16) & 255) - 32;
+	if (veh->m_pVehicle && veh->m_pVehicle->m_pVehicleInfo) {
+		vec3_t mins, maxs;
+		float *oldOrientation = veh->m_pVehicle->m_vOrientation;
+		VectorSet(mins, -16, -16, -24);
+		VectorSet(maxs, 16, 16, top);
+		veh->m_pVehicle->m_vOrientation = veh->lerpAngles;
+		BG_VehicleAdjustBBoxForOrientation(veh->m_pVehicle, veh->lerpOrigin,
+			mins, maxs, vehicleNum, MASK_PLAYERSOLID, NULL);
+		veh->m_pVehicle->m_vOrientation = oldOrientation;
+		if (maxs[2] > top)
+			top = maxs[2];
+	}
+	VectorCopy(veh->lerpOrigin, pos);
+	pos[2] += top + 24;
+	if (!CG_WorldCoordToScreenCoord(pos, &x, &y))
+		return;
+	CG_TraceSkipEntity(&trace, cg.refdef.vieworg, NULL, NULL, pos,
+		cg.snap->ps.clientNum, localVehicleNum, CONTENTS_SOLID);
+	if (trace.startsolid || trace.allsolid ||
+		(trace.fraction < 1.0f && trace.entityNum != vehicleNum))
+		return;
+	CG_DrawScaledProportionalString(x, y, cgs.clientinfo[clientNum].name,
+		UI_CENTER, colorTable[CT_WHITE], cg_drawPlayerNamesScale.value);
+}
+
 static void CG_PlayerLabels(void)
 {
 	int i;
+	int localVehicleNum = cg.snap ? cg.snap->ps.m_iVehicleNum : ENTITYNUM_NONE;
+
+	// The camera can be inside the local fighter's collision box.
+	if (localVehicleNum <= 0 || localVehicleNum >= ENTITYNUM_WORLD)
+		localVehicleNum = ENTITYNUM_NONE;
 
 	if (!cg.snap || (cgs.restricts & RESTRICT_PLAYERLABELS) ||
 		cg.snap->ps.duelInProgress || cg.predictedPlayerState.duelInProgress ||
@@ -12218,6 +12263,9 @@ static void CG_PlayerLabels(void)
 		trace_t		trace;
 		centity_t	*cent = &cg_entities[i];
 		vec3_t		diff;
+		centity_t	*veh = NULL;
+		int			vehicleNum;
+		int			labelsAbove = 0;
 
 		if (!cent->currentValid)
 			continue;
@@ -12235,8 +12283,6 @@ static void CG_PlayerLabels(void)
 			continue;
 		if (cent->currentState.bolt1) // Never label players participating in a private duel.
 			continue;
-		if (cg_drawnCrosshairNameClient == i)
-			continue;
 		if (CG_IsMindTricked(cent->currentState.trickedentindex,
 			cent->currentState.trickedentindex2,
 			cent->currentState.trickedentindex3,
@@ -12247,31 +12293,92 @@ static void CG_PlayerLabels(void)
 		if (cent->cloaked || (cent->currentState.powerups & (1 << PW_CLOAKED)))
 			continue;
 
-		VectorSubtract(cent->lerpOrigin, cg.refdef.vieworg, diff);
+		vehicleNum = cent->currentState.m_iVehicleNum;
+		if (vehicleNum >= MAX_CLIENTS && vehicleNum < ENTITYNUM_WORLD &&
+			cg_entities[vehicleNum].currentValid &&
+			cg_entities[vehicleNum].currentState.eType == ET_NPC &&
+			cg_entities[vehicleNum].currentState.NPC_class == CLASS_VEHICLE)
+			veh = &cg_entities[vehicleNum];
+		// A crosshair name is centered on the HUD, so it does not replace
+		// the label that identifies which vehicle the player occupies.
+		if (cg_drawnCrosshairNameClient == i && !veh)
+			continue;
+
+		VectorSubtract(veh ? veh->lerpOrigin : cent->lerpOrigin, cg.refdef.vieworg, diff);
 		if (VectorLength(diff) >= 3000) //Make sure distance is less than... 3000 ?
 			continue;
 
-		// Only an unobstructed camera-to-player trace (or a hit on this player)
-		// is visible. Doors, movers and other bodies must block names too.
-		CG_Trace(&trace, cg.refdef.vieworg, NULL, NULL, cent->lerpOrigin,
-			cg.snap->ps.clientNum, CONTENTS_SOLID | CONTENTS_BODY);
+		// Trace to the visible vehicle, not to a rider hidden inside its hull.
+		CG_TraceSkipEntity(&trace, cg.refdef.vieworg, NULL, NULL,
+			veh ? veh->lerpOrigin : cent->lerpOrigin,
+			cg.snap->ps.clientNum, localVehicleNum, CONTENTS_SOLID | CONTENTS_BODY);
 		if (trace.startsolid || trace.allsolid ||
-			(trace.fraction < 1.0f && trace.entityNum != i))
+			(trace.fraction < 1.0f && trace.entityNum != i &&
+				(!veh || trace.entityNum != vehicleNum)))
 			continue;
 
-		VectorCopy(cent->lerpOrigin, pos);
-		pos[2] += 64;
+		if (veh) {
+			int j;
+			float top = 64.0f;
+
+			// The packed bbox is too small for some ships; use the vehicle's
+			// oriented bounds when available so the label clears its hull.
+			if (veh->currentState.solid && veh->currentState.solid != SOLID_BMODEL)
+				top = ((veh->currentState.solid >> 16) & 255) - 32;
+			if (veh->m_pVehicle && veh->m_pVehicle->m_pVehicleInfo) {
+				vec3_t mins, maxs;
+				float *oldOrientation = veh->m_pVehicle->m_vOrientation;
+				VectorSet(mins, -16, -16, -24);
+				VectorSet(maxs, 16, 16, top);
+				veh->m_pVehicle->m_vOrientation = veh->lerpAngles;
+				BG_VehicleAdjustBBoxForOrientation(veh->m_pVehicle, veh->lerpOrigin,
+					mins, maxs, vehicleNum, MASK_PLAYERSOLID, NULL);
+				veh->m_pVehicle->m_vOrientation = oldOrientation;
+				if (maxs[2] > top)
+					top = maxs[2];
+			}
+			VectorCopy(veh->lerpOrigin, pos);
+			pos[2] += top + 24;
+			for (j = 0; j < i; j++)
+				if (cg_entities[j].currentValid &&
+					cg_entities[j].currentState.m_iVehicleNum == vehicleNum)
+					labelsAbove++;
+		} else {
+			VectorCopy(cent->lerpOrigin, pos);
+			pos[2] += 64;
+		}
 
 		if (!CG_WorldCoordToScreenCoord(pos, &x, &y)) //off-screen, don't draw it
 			continue;
+		y -= labelsAbove * 14.0f;
 
 		// The elevated label itself must not be projected through a ceiling/wall.
-		CG_Trace(&trace, cg.refdef.vieworg, NULL, NULL, pos,
-			cg.snap->ps.clientNum, CONTENTS_SOLID);
-		if (trace.startsolid || trace.allsolid || trace.fraction < 1.0f)
+		CG_TraceSkipEntity(&trace, cg.refdef.vieworg, NULL, NULL, pos,
+			cg.snap->ps.clientNum, localVehicleNum, CONTENTS_SOLID);
+		if (trace.startsolid || trace.allsolid ||
+			(trace.fraction < 1.0f && (!veh || trace.entityNum != vehicleNum)))
 			continue;
 
 		CG_DrawScaledProportionalString(x, y, cgs.clientinfo[i].name, UI_CENTER, colorTable[CT_WHITE], cg_drawPlayerNamesScale.value);
+	}
+
+	// hideRider vehicles remove their pilots from other clients' snapshots.
+	// The vehicle owner remains available and identifies the missing pilot.
+	for (i = MAX_CLIENTS; i < ENTITYNUM_WORLD; i++) {
+		centity_t *veh = &cg_entities[i];
+		int pilotNum = veh->currentState.owner;
+
+		if (!veh->currentValid || veh->currentState.eType != ET_NPC ||
+			veh->currentState.NPC_class != CLASS_VEHICLE ||
+			pilotNum < 0 || pilotNum >= MAX_CLIENTS ||
+			veh->currentState.m_iVehicleNum != pilotNum + 1 ||
+			pilotNum == cg.clientNum || pilotNum == cg.snap->ps.clientNum ||
+			cg_entities[pilotNum].currentValid ||
+			!cgs.clientinfo[pilotNum].infoValid ||
+			cgs.clientinfo[pilotNum].team == TEAM_SPECTATOR)
+			continue;
+
+		CG_HiddenVehiclePilotLabel(pilotNum, veh, localVehicleNum);
 	}
 }
 

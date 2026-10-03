@@ -39,12 +39,18 @@ static testSnapshot_t serverSnapshot;
 static struct {
     playerState_t predictedPlayerState;
     testSnapshot_t *snap;
+    vec3_t predictedError;
+    int predictedErrorTime;
+    float predictedTimeFrac;
 } cg;
+static struct { int integer; } cg_noPredict, g_synchronousClients;
+static qboolean CG_UsingEWeb(void) { return qfalse; }
 
 void QDECL Com_Printf(const char *format, ...) { (void)format; }
 void QDECL Com_Error(int code, const char *format, ...) { (void)code; (void)format; exit(2); }
 void *BG_Alloc(int size) { void *p = calloc(1, size); CHECK(p); return p; }
 int Q_irand(int low, int high) { CHECK(high >= low); return randomChoice ? high : low; }
+void VectorClear(vec3_t v) { v[0] = v[1] = v[2] = 0; }
 
 static sfxHandle_t RegisterSound(const char *name) {
     CHECK(name[0] != '*');
@@ -265,6 +271,39 @@ int main(void) {
     serverSnapshot.ps.legsAnim = BOTH_PLAYER_PA_3_FLY;
     PredictHold();
     CHECK(transitions == calls); // Flight resumes normal prediction.
+
+    // Beta's hold path clears prediction error and avoids duplicate damage
+    // transitions when ordinary movement prediction is disabled.
+    serverSnapshot.ps.legsAnim = BOTH_PLAYER_PA_2;
+    cg_noPredict.integer = 1;
+    cg.predictedError[0] = 10;
+    cg.predictedErrorTime = 100;
+    cg.predictedTimeFrac = 0.5f;
+    PredictHold();
+    CHECK(transitions == calls);
+    CHECK(cg.predictedError[0] == 0 && cg.predictedErrorTime == 0 && cg.predictedTimeFrac == 0);
+    cg_noPredict.integer = 0;
+
+    // Restore only live flight channels. An expired channel and a dead
+    // player's animation must not be overwritten with the paired throw.
+    serverSnapshot.ps.legsAnim = BOTH_PLAYER_PA_3_FLY;
+    serverSnapshot.ps.legsTimer = 500;
+    serverSnapshot.ps.legsFlip = qtrue;
+    serverSnapshot.ps.torsoAnim = BOTH_PLAYER_PA_2;
+    cg.predictedPlayerState.legsAnim = BOTH_JUMP1;
+    cg.predictedPlayerState.torsoAnim = BOTH_JUMP1;
+    CG_PreserveMeleeKataFlightAnimation(&cg.predictedPlayerState, &serverSnapshot.ps);
+    CHECK(cg.predictedPlayerState.legsAnim == BOTH_PLAYER_PA_3_FLY && cg.predictedPlayerState.legsFlip);
+    CHECK(cg.predictedPlayerState.torsoAnim == BOTH_JUMP1);
+    serverSnapshot.ps.legsTimer = 0;
+    cg.predictedPlayerState.legsAnim = BOTH_JUMP1;
+    CG_PreserveMeleeKataFlightAnimation(&cg.predictedPlayerState, &serverSnapshot.ps);
+    CHECK(cg.predictedPlayerState.legsAnim == BOTH_JUMP1);
+    serverSnapshot.ps.legsTimer = 500;
+    serverSnapshot.ps.stats[STAT_HEALTH] = 0;
+    CHECK(!CG_InMeleeGrappleVictimState(&serverSnapshot.ps));
+    CG_PreserveMeleeKataFlightAnimation(&cg.predictedPlayerState, &serverSnapshot.ps);
+    CHECK(cg.predictedPlayerState.legsAnim == BOTH_JUMP1);
 
     puts("kata sound checks passed");
     return 0;
