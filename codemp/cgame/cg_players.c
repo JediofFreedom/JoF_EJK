@@ -11113,7 +11113,7 @@ static void CG_StaffSwapUpdateSounds( centity_t *cent, clientInfo_t *ci )
 
 	if (held->holstered != cent->currentState.saberHolstered)
 	{
-		if (held->holstered && !cent->currentState.saberHolstered)
+		if (held->holstered >= 2 && cent->currentState.saberHolstered < 2)
 			held->unholsterTime = cg.time;
 		held->holstered = cent->currentState.saberHolstered;
 	}
@@ -11146,8 +11146,7 @@ static void CG_StaffSwapUpdateSounds( centity_t *cent, clientInfo_t *ci )
 	held->shutdownPending = qfalse;
 	// A queued weapon-change sound can precede the reach animation. Keep it held until
 	// the hilt is in hand; an outgoing idle animation must not release it early.
-	if (held->sound && phase != STAFFSWAP_INHAND &&
-		(CG_StaffSwapDrawAnim(anim) || !ci->saber[0].blade[0].length))
+	if (held->sound && phase != STAFFSWAP_INHAND)
 		return;
 	if (!held->ignitionPlayed && (held->sound ||
 		(CG_StaffSwapDrawAnim(anim) && phase == STAFFSWAP_INHAND && !ci->saber[0].blade[0].length)))
@@ -11219,12 +11218,14 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 		holstered = cent->currentState.saberHolstered;
 	}
 
-	if (weapon != WP_SABER || holstered >= 2 ||
-		(!CG_StaffSwapDrawAnim( anim ) && cent->weapon == WP_SABER))
+	if (weapon != WP_SABER || holstered >= 2)
 		return qfalse;	//nothing is being drawn, so nothing is waiting on a hand
 
 	if (staffSwapSound[clientNum].sound || staffSwapSound[clientNum].ignitionPlayed)
 		return qtrue; //one ignition per draw, including later server copies
+
+	if (!CG_StaffSwapDrawAnim(anim) && cent->weapon == WP_SABER)
+		return qfalse;
 
 	staffSwapSound[clientNum].sound = sound;
 	staffSwapSound[clientNum].time = cg.time;
@@ -11253,13 +11254,16 @@ qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound )
 			&& cgs.clientinfo[i].serverSaberSoundOn[0] != sound)
 			continue;	//the server names the sound by its own handle, the client by the .sab's
 
-		if (cent->currentState.saberHolstered)
+		if (cent->currentState.saberHolstered >= 2 &&
+			(i != cg.predictedPlayerState.clientNum || cg.predictedPlayerState.saberHolstered >= 2))
 			continue;	//he has not just been lit, so this is not his draw
 
 		//and it has to be the ignition for that, not some later sound of his that happens to share
 		//the handle - JA+ sounds one the instant the saber comes on and at no other time
 		if (!staffSwapSound[i].sound && !staffSwapSound[i].ignitionPlayed &&
-			!staffSwapSound[i].holstered && (!staffSwapSound[i].unholsterTime ||
+			!CG_StaffSwapDrawAnim(cent->currentState.torsoAnim) &&
+			!(i == cg.predictedPlayerState.clientNum && CG_StaffSwapDrawAnim(cg.predictedPlayerState.torsoAnim)) &&
+			staffSwapSound[i].holstered < 2 && (!staffSwapSound[i].unholsterTime ||
 			cg.time - staffSwapSound[i].unholsterTime > STAFFSWAP_SOUND_WAIT))
 			continue;
 
