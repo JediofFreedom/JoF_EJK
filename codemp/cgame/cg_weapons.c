@@ -3064,7 +3064,8 @@ void CG_CheckPlayerG2Weapons(playerState_t *ps, centity_t *cent)
 				trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, cgs.clientinfo[ps->clientNum].saber[0].soundOn);
 			}
 
-			if (cgs.clientinfo[ps->clientNum].saber[1].soundOn)
+			if (cgs.clientinfo[ps->clientNum].saber[1].model[0] &&
+				cgs.clientinfo[ps->clientNum].saber[1].soundOn)
 			{
 				trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, cgs.clientinfo[ps->clientNum].saber[1].soundOn);
 			}
