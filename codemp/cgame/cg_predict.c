@@ -1160,25 +1160,24 @@ static void CG_PreserveMeleeKataFlightAnimation( playerState_t *predicted,
 		predicted->torsoAnim = server->torsoAnim;
 		predicted->torsoFlip = server->torsoFlip;
 	}
+}
 
-	// JA+ locks the local view server-side (it rewrites delta_angles every server
-	// frame) while we're being kicked down, getting up or kissing. Mirrors the anim
-	// list bg_pmove's JA+ animation support locks for, plus the kick knockdown
-	// window above.
-	static qboolean CG_JAPlusViewLockedState( playerState_t *ps )
+// JA+ locks the local view server-side (it rewrites delta_angles every server
+// frame) while we're being kicked down, getting up or kissing. Mirrors the anim
+// list bg_pmove's JA+ animation support locks for, plus the kick knockdown
+// window above.
+static qboolean CG_JAPlusViewLockedState( playerState_t *ps )
+{
+	if ( ps->legsAnim == BOTH_JUMP_BACKFLIP_ATCKEE || ps->torsoAnim == BOTH_JUMP_BACKFLIP_ATCKEE
+		|| ps->torsoAnim == BOTH_GETUP1 || ps->torsoAnim == BOTH_NEW_STABEE )
 	{
-		if ( ps->legsAnim == BOTH_JUMP_BACKFLIP_ATCKEE || ps->torsoAnim == BOTH_JUMP_BACKFLIP_ATCKEE
-			|| ps->torsoAnim == BOTH_GETUP1 || ps->torsoAnim == BOTH_NEW_STABEE )
-		{
-			return qtrue;
-		}
-		if ( ps->legsAnim >= BOTH_KISSEE && ps->legsAnim <= BOTH_KISSER1STOP )
-		{
-			return qtrue;
-		}
-		return CG_InKnockDownState( ps );
+		return qtrue;
 	}
-
+	if ( ps->legsAnim >= BOTH_KISSEE && ps->legsAnim <= BOTH_KISSER1STOP )
+	{
+		return qtrue;
+	}
+	return CG_InKnockDownState( ps );
 }
 
 // JA+ marks victims of its added side/back kicks with forceDodgeAnim 4/5 and
