@@ -274,6 +274,47 @@ static void TestStaleTorsoFrames(void) {
     cent->currentState.torsoFlip = 1; //same animation restarted but not yet applied
     CHECK(CG_StaffSwapPhaseReal(cent, &cgs.clientinfo[0], &why, &fraction) == STAFFSWAP_ONBACK);
 }
+static void TestResidualBladeBeforeReach(void) {
+    Reset(1);
+    Commit(WP_MELEE);
+    Update(0);
+    soundCount = 0;
+    Anim(IDLE, 90);
+    Commit(WP_SABER); //rapid redraw while the blade is still retracting
+    Update(-1);
+    CHECK(Count(IGNITION) == 0 && staffSwapSound[0].sound == IGNITION);
+    CHECK(CG_StaffSwapHoldGeneralSound(cg_entities[0].lerpOrigin, IGNITION));
+    cg.time += 20;
+    Anim(BOTH_STAND1TO2_NEW, 10);
+    Update(0);
+    CHECK(Count(IGNITION) == 0);
+    boneFrame = 46;
+    Update(-1);
+    CHECK(Count(IGNITION) == 1);
+}
+static void TestSingleBladeServerIgnition(void) {
+    Reset(1);
+    cg.predictedPlayerState.clientNum = 1; //observe a remote staff carrier
+    cg_entities[0].currentState.saberHolstered = 1;
+    cgs.clientinfo[0].saber[0].blade[0].length = 0;
+    Anim(BOTH_STAND1TO2_NEW, 10);
+    //Sound events arrive before the render update records the activation.
+    CHECK(CG_StaffSwapHoldGeneralSound(cg_entities[0].lerpOrigin, IGNITION));
+    Update(0);
+    CHECK(Count(IGNITION) == 0);
+    boneFrame = 46;
+    Update(-1);
+    CHECK(Count(IGNITION) == 1);
+    CHECK(CG_StaffSwapHoldGeneralSound(cg_entities[0].lerpOrigin, IGNITION));
+    Update(-1);
+    CHECK(Count(IGNITION) == 1);
+
+    Reset(1);
+    cg_entities[0].currentState.saberHolstered = 2; //prediction is ahead of the snapshot
+    cg.predictedPlayerState.saberHolstered = 1;
+    cg.predictedPlayerState.torsoAnim = BOTH_STAND1TO2_NEW;
+    CHECK(CG_StaffSwapHoldGeneralSound(cg_entities[0].lerpOrigin, IGNITION));
+}
 static void TestGatingAndReset(void) {
     Reset(1);
     cg_holsteredStaffSound.integer = 0;
@@ -300,6 +341,8 @@ int main(void) {
     TestCanceledDraw();
     TestWeaponChangeBeforeDrawAnimation();
     TestStaleTorsoFrames();
+    TestResidualBladeBeforeReach();
+    TestSingleBladeServerIgnition();
     TestGatingAndReset();
     puts("Saber holster sound regression checks passed.");
     return 0;
