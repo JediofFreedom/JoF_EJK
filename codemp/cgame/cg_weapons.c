@@ -3330,7 +3330,22 @@ void CG_CheckPlayerG2Weapons(playerState_t *ps, centity_t *cent)
 		else if (ps->weapon == WP_SABER && cent->weapon != ps->weapon && !cent->saberWasInFlight)
 		{ //switching to the saber
 			//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberon.wav" ));
-			if (cg.time - cent->saberSoundOnDebounceTime >= 800)
+if (cg.time - cent->saberSoundOnDebounceTime >= 800)
+			{
+				cent->saberSoundOnDebounceTime = cg.time;
+				//a staff coming off a JA+ back lights when his hand gets to it, not before
+				if (cgs.clientinfo[ps->clientNum].saber[0].soundOn
+					&& !CG_StaffSwapHoldIgnitionSound( ps->clientNum, cgs.clientinfo[ps->clientNum].saber[0].soundOn ))
+				{ //a staff coming off a JA+ back lights when his hand gets to it, not before
+					trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, cgs.clientinfo[ps->clientNum].saber[0].soundOn);
+				}
+
+				if (cgs.clientinfo[ps->clientNum].saber[1].model[0] &&
+					cgs.clientinfo[ps->clientNum].saber[1].soundOn)
+				{
+					trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, cgs.clientinfo[ps->clientNum].saber[1].soundOn);
+				}
+			}
 			{
 				cent->saberSoundOnDebounceTime = cg.time;
 				//a staff coming off a JA+ back lights when his hand gets to it, not before

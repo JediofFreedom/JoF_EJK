@@ -11064,8 +11064,6 @@ static qboolean CG_StaffSwapBladesIn( centity_t *cent, clientInfo_t *ci );
 typedef struct {
 	sfxHandle_t	sound;			//what to play once his hand is on the hilt
 	int			time;			//when it was held, so a swap that never comes cannot swallow it
-	int			holstered;		//what his saber was doing last frame
-	int			unholsterTime;	//and when it last came on, which is when JA+ sounds the ignition
 	qboolean	ignitionPlayed;	//consume later ignition events for this draw
 	qboolean	shutdownPending; //a completed weapon change is waiting for the blade update
 	qboolean	shutdownPlayed; //reset when the blade is allowed out again
@@ -11083,7 +11081,6 @@ static void CG_StaffSwapForgetClient( int clientNum )
 	memset( &staffSwapLatch[clientNum], 0, sizeof( staffSwapLatch[clientNum] ) );
 }
 
-#define STAFFSWAP_SOUND_WAIT	150		//match anonymous server ignition events to a recent activation
 #define STAFFSWAP_SOUND_HOLD	2000	//discard stale queued ignition events
 
 static qboolean CG_StaffSwapDrawAnim( int anim );
@@ -11109,13 +11106,6 @@ static void CG_StaffSwapUpdateSounds( centity_t *cent, clientInfo_t *ci )
 	{
 		memset(held, 0, sizeof(*held));
 		return;
-	}
-
-	if (held->holstered != cent->currentState.saberHolstered)
-	{
-		if (held->holstered >= 2 && cent->currentState.saberHolstered < 2)
-			held->unholsterTime = cg.time;
-		held->holstered = cent->currentState.saberHolstered;
 	}
 
 	if (cg.time < held->time || cg.time - held->time >= STAFFSWAP_SOUND_HOLD)
@@ -11182,6 +11172,24 @@ static qboolean CG_StaffSwapDrawAnim( int anim )
 		|| anim == BOTH_S1_S7_NEW || anim == BOTH_STAND1TO2_NEW);
 }
 
+// Snapshot events are dispatched while player entities are still being transitioned. Use the
+// complete snapshot to find their current state, even if currentValid has just been cleared.
+static const entityState_t *CG_StaffSwapSoundState( int clientNum )
+{
+	int i;
+	if (cg.snap)
+	{
+		for (i = 0; i < cg.snap->numEntities; i++)
+		{
+			const entityState_t *state = &cg.snap->entities[i];
+			if (state->number == clientNum && state->eType == ET_PLAYER)
+				return state;
+		}
+		return NULL;
+	}
+	return cg_entities[clientNum].currentValid ? &cg_entities[clientNum].currentState : NULL;
+}
+
 //Hold this client's ignition until his hand reaches the hilt, if that is what his staff is about to
 //do. Answers whether it took the sound on; the caller plays it itself when it did not.
 qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
@@ -11189,6 +11197,7 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 	const char		*why = "";
 	clientInfo_t	*ci;
 	centity_t		*cent;
+	const entityState_t *state;
 	int				anim, weapon, holstered;
 
 	if (clientNum < 0 || clientNum >= MAX_CLIENTS || !sound)
@@ -11203,19 +11212,37 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 	if (!ci->infoValid || !CG_StaffHolsteredOnBack( ci, &why ))
 		return qfalse;
 
-	//The weapon and animation must both come from prediction for the local player: this runs
-	//before BG_PlayerStateToEntityState copies the newly selected saber to the entity.
+	// Prediction may select the saber before the entity is updated. Server sound events can also
+	// run before prediction, so a new authoritative draw must take precedence over old prediction.
 	if (clientNum == cg.predictedPlayerState.clientNum)
 	{
 		anim = cg.predictedPlayerState.torsoAnim;
 		weapon = cg.predictedPlayerState.weapon;
 		holstered = cg.predictedPlayerState.saberHolstered;
 	}
+	else if (cg.snap && clientNum == cg.snap->ps.clientNum)
+	{
+		anim = cg.snap->ps.torsoAnim;
+		weapon = cg.snap->ps.weapon;
+		holstered = cg.snap->ps.saberHolstered;
+	}
 	else
 	{
-		anim = cent->currentState.torsoAnim;
-		weapon = cent->currentState.weapon;
-		holstered = cent->currentState.saberHolstered;
+		state = CG_StaffSwapSoundState(clientNum);
+		if (!state)
+			return qfalse;
+		anim = state->torsoAnim;
+		weapon = state->weapon;
+		holstered = state->saberHolstered;
+	}
+
+	if (cg.snap && clientNum == cg.snap->ps.clientNum &&
+		cg.snap->ps.weapon == WP_SABER && cg.snap->ps.saberHolstered < 2 &&
+		(CG_StaffSwapDrawAnim(cg.snap->ps.torsoAnim) || weapon != WP_SABER || holstered >= 2))
+	{
+		anim = cg.snap->ps.torsoAnim;
+		weapon = cg.snap->ps.weapon;
+		holstered = cg.snap->ps.saberHolstered;
 	}
 
 	if (weapon != WP_SABER || holstered >= 2)
@@ -11233,24 +11260,34 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 	return qtrue;
 }
 
+// Entity sound events carry every kind of sound, so only pass this hilt's ignition to the queue.
+qboolean CG_StaffSwapHoldEntitySound( int clientNum, sfxHandle_t sound )
+{
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS || !sound ||
+		cgs.clientinfo[clientNum].saber[0].soundOn != sound)
+		return qfalse;
+	return CG_StaffSwapHoldIgnitionSound(clientNum, sound);
+}
+
 //JA+ plays the same ignition from the server as a plain sound dropped at the player's feet, with
 //nothing on it to say whose it is. Match it back to the staff carrier who has just been told to draw
 //- his own ignition, at his own position - and hold that one the same way.
 qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound )
 {
-	int i;
+	int i, owner = -1;
+	float nearest = 64.0f * 64.0f;
 
 	if (!sound)
 		return qfalse;
 
 	for (i = 0; i < MAX_CLIENTS; i++)
 	{
-		centity_t *cent = &cg_entities[i];
-
-		if (!cent->currentValid || cent->currentState.eType != ET_PLAYER)
+		const entityState_t *state;
+		float distance;
+		if (!cgs.clientinfo[i].infoValid || cgs.clientinfo[i].saber[0].soundOn != sound)
 			continue;
 
-		if (cgs.clientinfo[i].saber[0].soundOn != sound
+if (cgs.clientinfo[i].saber[0].soundOn != sound
 			&& cgs.clientinfo[i].serverSaberSoundOn[0] != sound)
 			continue;	//the server names the sound by its own handle, the client by the .sab's
 
@@ -11270,11 +11307,30 @@ qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound )
 		if (DistanceSquared( origin, cent->lerpOrigin ) > 64.0f * 64.0f)
 			continue;
 
+		// G_Sound uses the server position, which can be far from the previous rendered or
+		// predicted position during movement. Match against the same snapshot as the event.
+		if (cg.snap && i == cg.snap->ps.clientNum)
+			distance = DistanceSquared(origin, cg.snap->ps.origin);
+		else
+		{
+			state = CG_StaffSwapSoundState(i);
+			if (!state || state->eType != ET_PLAYER)
+				continue;
+			distance = DistanceSquared(origin, cg.snap ? state->pos.trBase : cg_entities[i].lerpOrigin);
+		}
+		if (distance < nearest)
+		{
+			nearest = distance;
+			owner = i;
+		}
+
 		if (CG_StaffSwapHoldIgnitionSound( i, sound ))
 			return qtrue;
 	}
 
-	return qfalse;
+	// Resolve ownership before applying staff gating, so a nearby staff cannot take another
+	// player's ignition just because both hilts share the same sound file.
+	return owner >= 0 ? CG_StaffSwapHoldEntitySound(owner, sound) : qfalse;
 }
 
 //cg_holsteredStaffDebug prints one line per torso animation change (1 for yourself, 2 for everyone),
@@ -12485,7 +12541,21 @@ void CG_Player( centity_t *cent ) {
 					&& !cent->saberWasInFlight)
 				{ //switching to the saber
 					//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberon.wav" ));
-					if (cg.time - cent->saberSoundOnDebounceTime >= 800)
+if (cg.time - cent->saberSoundOnDebounceTime >= 800)
+					{
+						cent->saberSoundOnDebounceTime = cg.time;
+						//a staff coming off a JA+ back lights when his hand gets to it, not before
+						if (ci->saber[0].soundOn
+							&& !CG_StaffSwapHoldIgnitionSound( cent->currentState.number, ci->saber[0].soundOn ))
+						{ //a staff coming off a JA+ back lights when his hand gets to it, not before
+							trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, ci->saber[0].soundOn);
+						}
+
+						if (ci->saber[1].model[0] && ci->saber[1].soundOn)
+						{
+							trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, ci->saber[1].soundOn);
+						}
+					}
 					{
 						cent->saberSoundOnDebounceTime = cg.time;
 						//a staff coming off a JA+ back lights when his hand gets to it, not before

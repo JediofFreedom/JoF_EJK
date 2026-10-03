@@ -23,7 +23,7 @@ enum { SVMOD_BASE, SVMOD_JAPLUS };
 enum { SABER_SINGLE, SABER_STAFF };
 enum { IDLE, BOTH_S1_S7, BOTH_STAND1TO2, BOTH_S1_S7_NEW, BOTH_STAND1TO2_NEW,
        BOTH_S7_S1_NEW, BOTH_STAND2TO1_NEW };
-enum { EV_CHANGE_WEAPON };
+enum { EV_CHANGE_WEAPON, EV_ENTITY_SOUND, EV_SABER_UNHOLSTER };
 enum { IGNITION = 10, SHUTDOWN, SELECT };
 typedef int qboolean;
 typedef int sfxHandle_t;
@@ -33,26 +33,31 @@ typedef struct { char model[16]; int type, numBlades, soundOn, soundOff; blade_t
 typedef struct { int infoValid, team, serverSaberSoundOn[2]; saberInfo_t saber[2]; } clientInfo_t;
 typedef struct {
     int number, clientNum, eType, weapon, saberHolstered, saberInFlight, eFlags;
-    int torsoAnim, torsoFlip, eventParm;
+    int torsoAnim, torsoFlip, eventParm, trickedentindex;
+    struct { vec3_t trBase; } pos;
 } entityState_t;
 typedef struct {
     int clientNum, weapon, torsoAnim, saberHolstered, pm_flags, persistant[1];
     int duelInProgress, duelIndex;
+    vec3_t origin;
 } playerState_t;
+typedef struct { playerState_t ps; int numEntities; entityState_t entities[MAX_CLIENTS]; } snapshot_t;
 typedef struct {
     entityState_t currentState;
     int weapon, currentValid, torsoBolt, saberWasInFlight;
     int saberSoundOffDebounceTime, saberSoundOnDebounceTime;
     void *ghoul2, *ghoul2weapon;
+    clientInfo_t *npcClient;
     vec3_t lerpOrigin;
     struct { struct { int animationNumber, animationTime, lastFlip; } torso; } pe;
 } centity_t;
 typedef struct { sfxHandle_t selectSound; } weaponInfo_t;
 static weaponInfo_t cg_weapons[MAX_WEAPONS];
 static centity_t cg_entities[MAX_CLIENTS];
-static struct { int time; playerState_t predictedPlayerState; } cg;
+static struct { int time; playerState_t predictedPlayerState; snapshot_t *snap; } cg;
+static snapshot_t snapshot;
 static struct {
-    int serverMod, gameModels[1];
+    int serverMod, gameModels[1], gameSounds[32];
     clientInfo_t clientinfo[MAX_CLIENTS];
     struct { int selectSound; } media;
 } cgs;
@@ -94,6 +99,12 @@ static void BG_SI_SetDesiredLength(saberInfo_t *saber, float length, int blade) 
     int i;
     for (i = 0; i < saber->numBlades; ++i) saber->blade[i].desiredLength = length;
 }
+static int CG_ForceOwnSaberSound(const entityState_t *es, int source, int sound) { return sound; }
+static const char *CG_ConfigString(int index) { return "*voice"; }
+static int CG_ClassifyVoiceLine(const char *name, int *line) { return qfalse; }
+static int CG_VoiceLineThrottled(int source, int line) { return qfalse; }
+static int CG_CustomSound(int source, const char *name) { return SELECT; }
+#define CS_SOUNDS 0
 
 #include "actual.h"
 
@@ -102,6 +113,7 @@ static void Reset(int staff) {
     clientInfo_t *ci;
     memset(&cg, 0, sizeof(cg));
     memset(&cgs, 0, sizeof(cgs));
+    memset(&snapshot, 0, sizeof(snapshot));
     memset(cg_entities, 0, sizeof(cg_entities));
     memset(staffSwapSound, 0, sizeof(staffSwapSound));
     memset(staffSwapLatch, 0, sizeof(staffSwapLatch));
@@ -109,6 +121,9 @@ static void Reset(int staff) {
     cg.time = 1000;
     cgs.serverMod = SVMOD_JAPLUS;
     cgs.media.selectSound = SELECT;
+    cgs.gameSounds[IGNITION] = IGNITION;
+    cgs.gameSounds[SHUTDOWN] = SHUTDOWN;
+    cgs.gameSounds[SELECT] = SELECT;
     cp_pluginDisable.integer = 0;
     cg_holsteredStaffSound.integer = 1;
     cg_holsteredStaffSwap.value = 0.45f;
@@ -123,6 +138,10 @@ static void Reset(int staff) {
     ci->saber[0].numBlades = staff ? 2 : 1;
     ci->saber[0].soundOn = IGNITION;
     ci->saber[0].soundOff = SHUTDOWN;
+    // WP_RemoveSaber calls WP_SaberSetDefaults, then clears only the model. A missing
+    // second hilt still has sound handles; zero-filled mocks hid its early ignition.
+    ci->saber[1].soundOn = IGNITION;
+    ci->saber[1].soundOff = SHUTDOWN;
     ci->saber[0].blade[0].length = 40;
     ci->saber[0].blade[0].desiredLength = -1;
 }
@@ -352,6 +371,103 @@ static void TestGatingAndReset(void) {
     CG_StaffSwapForgetClient(0);
     CHECK(!staffSwapLatch[0].swapped);
 }
+static void TestEntitySoundBeforePrediction(void) {
+    centity_t event = {0};
+    Reset(1);
+    Commit(WP_MELEE);
+    Update(0);
+    cgs.clientinfo[0].saber[0].blade[0].length = 0;
+    soundCount = 0;
+    cg.snap = &snapshot;
+    snapshot.ps.weapon = WP_SABER;
+    snapshot.ps.torsoAnim = BOTH_S1_S7_NEW;
+    // Snapshot events run before prediction selects the saber or installs the reach.
+    event.currentState.eventParm = IGNITION;
+    EntitySoundEvent(&event);
+    CHECK(Count(IGNITION) == 0 && staffSwapSound[0].sound == IGNITION);
+    Anim(BOTH_S1_S7_NEW, 10);
+    Commit(WP_SABER);
+    Update(0);
+    CHECK(Count(IGNITION) == 0);
+    boneFrame = 46;
+    Update(-1);
+    CHECK(Count(IGNITION) == 1);
+    EntitySoundEvent(&event);
+    CHECK(Count(IGNITION) == 1); //late server copy is consumed
+    event.currentState.eventParm = SHUTDOWN;
+    EntitySoundEvent(&event);
+    CHECK(Count(SHUTDOWN) == 1); //ordinary entity sounds still play
+    event.currentState.eventParm = SELECT;
+    EntitySoundEvent(&event);
+    CHECK(Count(SELECT) == 1);
+}
+static void TestGeneralSoundSnapshotOrdering(void) {
+    vec3_t origin = {200, 0, 0};
+    Reset(1);
+    Commit(WP_MELEE);
+    Update(0);
+    soundCount = 0;
+    cg.snap = &snapshot;
+    snapshot.ps.weapon = WP_SABER;
+    snapshot.ps.torsoAnim = BOTH_S1_S7_NEW;
+    snapshot.ps.origin[0] = 200;
+    cg_entities[0].currentValid = qfalse;
+    // Previous prediction and lerpOrigin still describe melee at a different position.
+    CHECK(CG_StaffSwapHoldGeneralSound(origin, IGNITION));
+    CHECK(soundCount == 0 && staffSwapSound[0].sound == IGNITION);
+
+    Reset(1);
+    cg.predictedPlayerState.clientNum = 1;
+    cg.snap = &snapshot;
+    snapshot.ps.clientNum = 1;
+    snapshot.numEntities = 1;
+    snapshot.entities[0] = cg_entities[0].currentState;
+    snapshot.entities[0].torsoAnim = BOTH_S1_S7_NEW;
+    snapshot.entities[0].pos.trBase[0] = 200;
+    cg_entities[0].currentValid = qfalse;
+    cg_entities[0].currentState.weapon = cg_entities[0].weapon = WP_MELEE;
+    // The temp sound can be transitioned before the remote player's entity.
+    CHECK(CG_StaffSwapHoldGeneralSound(origin, IGNITION));
+    CHECK(staffSwapSound[0].sound == IGNITION);
+}
+static void TestInHandToggleAndNearbyPlayer(void) {
+    Reset(1);
+    CHECK(!CG_StaffSwapHoldGeneralSound(cg_entities[0].lerpOrigin, IGNITION));
+    CHECK(!CG_StaffSwapHoldIgnitionSound(0, IGNITION)); //an ordinary in-hand toggle
+    Anim(BOTH_S1_S7_NEW, 10);
+    cg_entities[0].lerpOrigin[0] = 20;
+    cg_entities[1] = cg_entities[0];
+    cg_entities[1].currentState.number = cg_entities[1].currentState.clientNum = 1;
+    cg_entities[1].lerpOrigin[0] = 0;
+    cgs.clientinfo[1] = cgs.clientinfo[0];
+    cgs.clientinfo[1].saber[0].type = SABER_SINGLE;
+    cgs.clientinfo[1].saber[0].numBlades = 1;
+    CHECK(!CG_StaffSwapHoldGeneralSound(cg_entities[1].lerpOrigin, IGNITION));
+}
+static void TestUnholsterWithoutSecondHilt(void) {
+    Reset(1);
+    cgs.clientinfo[0].saber[0].blade[0].length = 0;
+    Anim(BOTH_S1_S7_NEW, 10);
+    SaberUnholsterEvent(&cg_entities[0]);
+    CHECK(Count(IGNITION) == 0 && staffSwapSound[0].sound == IGNITION);
+    Update(0);
+    boneFrame = 46;
+    Update(-1);
+    CHECK(Count(IGNITION) == 1);
+    SaberUnholsterEvent(&cg_entities[0]);
+    CHECK(Count(IGNITION) == 1);
+}
+static void TestRealSecondHilt(void) {
+    Reset(0);
+    strcpy(cgs.clientinfo[0].saber[1].model, "second-hilt");
+    Commit(WP_MELEE);
+    CHECK(Count(SHUTDOWN) == 2);
+    soundCount = 0;
+    Commit(WP_SABER);
+    CHECK(Count(IGNITION) == 2);
+    SaberUnholsterEvent(&cg_entities[0]);
+    CHECK(Count(IGNITION) == 4);
+}
 int main(void) {
     TestCanceledWeaponSwitch();
     TestStaffTiming();
@@ -363,6 +479,11 @@ int main(void) {
     TestResidualBladeBeforeReach();
     TestSingleBladeServerIgnition();
     TestGatingAndReset();
+    TestEntitySoundBeforePrediction();
+    TestGeneralSoundSnapshotOrdering();
+    TestInHandToggleAndNearbyPlayer();
+    TestUnholsterWithoutSecondHilt();
+    TestRealSecondHilt();
     puts("Saber holster sound regression checks passed.");
     return 0;
 }

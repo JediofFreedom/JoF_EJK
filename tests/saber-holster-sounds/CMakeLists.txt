@@ -24,6 +24,12 @@ extract(codemp/cgame/cg_weapons.c "void CG_CheckPlayerG2Weapons(" "/*\nGhoul2 In
 file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "static void WeaponChangeEvent(centity_t *cent) { entityState_t *es = &cent->currentState; switch (EV_CHANGE_WEAPON) {\n")
 extract(codemp/cgame/cg_event.c "\tcase EV_CHANGE_WEAPON:" "\tcase EV_FIRE_WEAPON:")
 file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "} }\n")
+file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "static void EntitySoundEvent(centity_t *cent) { entityState_t *es = &cent->currentState; const char *s; int voiceLine; switch (EV_ENTITY_SOUND) {\n")
+extract(codemp/cgame/cg_event.c "\tcase EV_ENTITY_SOUND:" "\tcase EV_PLAY_ROFF:")
+file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "} }\n")
+file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "static void SaberUnholsterEvent(centity_t *cent) { entityState_t *es = &cent->currentState; switch (EV_SABER_UNHOLSTER) {\n")
+extract(codemp/cgame/cg_event.c "\tcase EV_SABER_UNHOLSTER:" "\tcase EV_BECOME_JEDIMASTER:")
+file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "} }\n")
 
 add_executable(saber_holster_sounds check.c)
 target_include_directories(saber_holster_sounds PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
