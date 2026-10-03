@@ -10968,6 +10968,11 @@ static void CG_StaffSwapUpdateSounds( centity_t *cent, clientInfo_t *ci )
 
 	held->shutdownPlayed = qfalse;
 	held->shutdownPending = qfalse;
+	// A queued weapon-change sound can precede the reach animation. Keep it held until
+	// the hilt is in hand; an outgoing idle animation must not release it early.
+	if (held->sound && phase != STAFFSWAP_INHAND &&
+		(CG_StaffSwapDrawAnim(anim) || !ci->saber[0].blade[0].length))
+		return;
 	if (!held->ignitionPlayed && (held->sound ||
 		(CG_StaffSwapDrawAnim(anim) && phase == STAFFSWAP_INHAND && !ci->saber[0].blade[0].length)))
 	{
@@ -11038,7 +11043,8 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 		holstered = cent->currentState.saberHolstered;
 	}
 
-	if (weapon != WP_SABER || holstered >= 2 || !CG_StaffSwapDrawAnim( anim ))
+	if (weapon != WP_SABER || holstered >= 2 ||
+		(!CG_StaffSwapDrawAnim( anim ) && cent->weapon == WP_SABER))
 		return qfalse;	//nothing is being drawn, so nothing is waiting on a hand
 
 	if (staffSwapSound[clientNum].sound || staffSwapSound[clientNum].ignitionPlayed)
