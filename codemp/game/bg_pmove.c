@@ -8731,7 +8731,6 @@ static void PM_Weapon( void )
 	int		killAfterItem = 0;
 	bgEntity_t *veh = NULL;
 	qboolean vehicleRocketLock = qfalse;
-	PM_UpdateLightningDeflect();
 
 	// westar dual-pistol: mirror the server's cmd.weapon rewrite so local prediction
 	// doesn't snap-back when the ack for weapon 19 (rendered only, never wire-selectable) arrives.
@@ -8883,9 +8882,6 @@ static void PM_Weapon( void )
 
 		switch(pm->ps->forceHandExtend)
 		{
-		case HANDEXTEND_LIGHTNING_DEFLECT:
-			desiredAnim = pm->ps->forceDodgeAnim == BOTH_P1_S1_TL ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
-			break;
 		case HANDEXTEND_FORCEPUSH:
 			desiredAnim = BOTH_FORCEPUSH;
 			break;
@@ -8973,7 +8969,7 @@ static void PM_Weapon( void )
 			break;
 		case HANDEXTEND_TAUNT:
 			desiredAnim = pm->ps->forceDodgeAnim;
-			if ( !BG_IsLightningDeflect(pm->ps) && desiredAnim != BOTH_ENGAGETAUNT
+			if ( desiredAnim != BOTH_ENGAGETAUNT
 				&& VectorCompare( pm->ps->velocity, vec3_origin )
 				&& pm->ps->groundEntityNum != ENTITYNUM_NONE )
 			{

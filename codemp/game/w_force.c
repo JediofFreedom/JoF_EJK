@@ -1772,6 +1772,69 @@ void ForceLightning( gentity_t *self )
 	WP_ForcePowerStart( self, FP_LIGHTNING, 500 );
 }
 
+#define LIGHTNING_DEFLECT_MIN_DOT 0.6427876f // +/- 50 degrees, including pitch.
+#define LIGHTNING_DEFLECT_HOLD_TIME 150
+// Prediction replays unacknowledged commands before drawing the local player.
+// Keep its ordinary torso timer alive through that replay; the server releases
+// it using the shorter hit timeout above, or as soon as input cancels the guard.
+#define LIGHTNING_DEFLECT_ANIM_TIME 1000
+
+static qboolean WP_CanDeflectLightning(const playerState_t *ps, const usercmd_t *cmd, int time)
+{
+	float walkSpeed = ps->basespeed > 0 ? ps->basespeed * 0.6f : ps->speed * 0.6f;
+	if (ps->stats[STAT_HEALTH] <= 0 || ps->pm_type != PM_NORMAL ||
+		ps->fd.forcePowerLevel[FP_SABER_DEFENSE] < FORCE_LEVEL_3 ||
+		ps->weapon != WP_SABER ||
+		ps->saberHolstered == 2 || ps->saberInFlight || !ps->saberEntityNum ||
+		// Combat owns wind-up, swings, returns, parries and special attacks.
+		(ps->saberMove != LS_NONE && ps->saberMove != LS_READY) ||
+		ps->weaponTime > 0 || ps->saberLockTime > time ||
+		ps->forceHandExtend != HANDEXTEND_NONE ||
+		ps->groundEntityNum == ENTITYNUM_NONE || ps->m_iVehicleNum ||
+		ps->emplacedIndex || (ps->brokenLimbs & (1 << BROKENLIMB_RARM)) ||
+		BG_InRoll((playerState_t *)ps, ps->legsAnim) || BG_InSpecialJump(ps->legsAnim))
+		return qfalse;
+	if (cmd->upmove > 0 ||
+		abs(cmd->forwardmove) > 64 || abs(cmd->rightmove) > 64 ||
+		(cmd->buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK | BUTTON_USE_HOLDABLE | BUTTON_GESTURE)) ||
+		((cmd->forwardmove || cmd->rightmove) && !(cmd->buttons & BUTTON_WALKING)))
+		return qfalse;
+	// Switching to walk must actually slow the player before the first hit.
+	return ps->velocity[0] * ps->velocity[0] + ps->velocity[1] * ps->velocity[1] <= walkSpeed * walkSpeed;
+}
+
+static qboolean WP_LightningDeflectDirection(const playerState_t *ps, const vec3_t source, int *anim)
+{
+	vec3_t incoming, forward, right;
+	VectorSubtract(source, ps->origin, incoming);
+	incoming[2] -= ps->viewheight;
+	if (VectorNormalize(incoming) < 1.0f)
+		return qfalse;
+	AngleVectors(ps->viewangles, forward, right, NULL);
+	if (DotProduct(incoming, forward) < LIGHTNING_DEFLECT_MIN_DOT)
+		return qfalse;
+	if (anim)
+		*anim = DotProduct(incoming, right) < -0.1f ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
+	return qtrue;
+}
+
+static void WP_EndLightningDeflect(gentity_t *self)
+{
+	gclient_t *client = self->client;
+	playerState_t *ps = &client->ps;
+	if (!client->lightningDeflectTime)
+		return;
+	// Release only the timer we own. A saber parry can use the same animation,
+	// and Force powers or knockdowns may already have replaced the pose.
+	if (ps->forceHandExtend == HANDEXTEND_NONE &&
+		(ps->saberMove == LS_NONE || ps->saberMove == LS_READY) &&
+		ps->torsoAnim == client->lightningDeflectAnim)
+		ps->torsoTimer = 0;
+	client->lightningDeflectTime = 0;
+	client->lightningDeflectAttacker = ENTITYNUM_NONE;
+	client->lightningDeflectAnim = 0;
+}
+
 static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 {
 	playerState_t *ps = &defender->client->ps;
@@ -1798,10 +1861,11 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 	}
 #endif
 	if (!BG_CanDeflectLightning(ps, &defender->client->pers.cmd, level.time))
+
 		return qfalse;
 	VectorCopy(attacker->client->ps.origin, source);
 	source[2] += attacker->client->ps.viewheight;
-	if (!BG_LightningDeflectDirection(ps, source, &anim))
+	if (!WP_LightningDeflectDirection(ps, source, &anim))
 		return qfalse;
 	// Guard toward the caster's position in the defender's facing frame.
 	// Caster aim changes may affect whether lightning hits, but never the pose.
@@ -1809,13 +1873,14 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 	ps->forceHandExtendTime = level.time + LIGHTNING_DEFLECT_HOLD_TIME;
 	ps->forceDodgeAnim = anim;
 	ps->eFlags2 |= EF2_LIGHTNING_DEFLECT;
+
 	// A successful guard never leaves the normal full-body shock shell behind.
 	ps->electrifyTime = 0;
 	G_SetAnim(defender, &defender->client->pers.cmd, SETANIM_TORSO, anim,
 		SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD, 100);
-	// Keep the pose in ordinary replicated player state. Attack cancellation
-	// clears this timer before PM_Weapon processes the swing in the same command.
-	ps->torsoTimer = LIGHTNING_DEFLECT_HOLD_TIME;
+	// Stock prediction preserves a held torso animation during idle/walk and
+	// overrides it for saber attacks. No hand extension blocks weapon input.
+	ps->torsoTimer = LIGHTNING_DEFLECT_ANIM_TIME;
 	defender->client->dangerTime = level.time;
 	// Refresh the source occasionally; the persistent flag carries immediate cancellation.
 	if (starting || defender->client->lightningDeflectEventTime[attacker->s.number] <= level.time ||
@@ -1831,37 +1896,45 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 		defender->client->lightningDeflectEventTime[attacker->s.number] = level.time + LIGHTNING_DEFLECT_EVENT_INTERVAL;
 	}
 	defender->client->lightningDeflectAttacker = attacker->s.number;
+	defender->client->lightningDeflectTime = level.time + LIGHTNING_DEFLECT_HOLD_TIME;
+	defender->client->lightningDeflectAnim = anim;
 	return qtrue;
 }
 
-static void WP_UpdateLightningDeflect(gentity_t *self, const usercmd_t *cmd)
+void WP_UpdateLightningDeflect(gentity_t *self, const usercmd_t *cmd)
 {
 	playerState_t *ps = &self->client->ps;
 	int sourceNum = self->client->lightningDeflectAttacker;
 	gentity_t *attacker;
 	vec3_t source;
-	if (!BG_IsLightningDeflect(ps) &&
+	if (!self->client->lightningDeflectTime &&
+		!BG_IsLightningDeflect(ps) &&
 		!(ps->eFlags2 & EF2_LIGHTNING_DEFLECT) &&
 		ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT)
 		return;
-	if (ps->forceHandExtendTime <= level.time ||
-		!BG_CanDeflectLightning(ps, cmd, level.time) ||
+	if (self->client->lightningDeflectTime <= level.time ||
+		!WP_CanDeflectLightning(ps, cmd, level.time) ||
+
+		return;
+	if (self->client->lightningDeflectTime <= level.time ||
+		!WP_CanDeflectLightning(ps, cmd, level.time) ||
+		ps->torsoAnim != self->client->lightningDeflectAnim ||
 		sourceNum < 0 || sourceNum >= ENTITYNUM_WORLD)
 	{
-		BG_EndLightningDeflect(ps);
+		WP_EndLightningDeflect(self);
 		return;
 	}
 	attacker = &g_entities[sourceNum];
 	if (!attacker->inuse || !attacker->client || attacker->health <= 0 ||
 		!(attacker->client->ps.fd.forcePowersActive & (1 << FP_LIGHTNING)))
 	{
-		BG_EndLightningDeflect(ps);
+		WP_EndLightningDeflect(self);
 		return;
 	}
 	VectorCopy(attacker->client->ps.origin, source);
 	source[2] += attacker->client->ps.viewheight;
-	if (!BG_LightningDeflectDirection(ps, source, NULL))
-		BG_EndLightningDeflect(ps);
+	if (!WP_LightningDeflectDirection(ps, source, NULL))
+		WP_EndLightningDeflect(self);
 }
 
 void ForceLightningDamage( gentity_t *self, gentity_t *traceEnt, vec3_t dir, vec3_t impactPoint )
@@ -1894,7 +1967,7 @@ void ForceLightningDamage( gentity_t *self, gentity_t *traceEnt, vec3_t dir, vec
 			{
 				if (WP_TryLightningDeflect(self, traceEnt))
 					return;
-				BG_EndLightningDeflect(&traceEnt->client->ps);
+				WP_EndLightningDeflect(traceEnt);
 //[JAPRO - Serverside - Saber - Tweak force lightning - Start]
 				int	dmg;
 				int modPowerLevel = -1;

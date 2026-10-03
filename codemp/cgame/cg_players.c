@@ -4225,7 +4225,6 @@ CG_PlayerAnimation
 ===============
 */
 qboolean PM_WalkingAnim( int anim );
-qboolean BG_SaberInTransitionAny( int move );
 
 static int CG_LightningDeflectionCaster(const centity_t *guard)
 {
@@ -4262,52 +4261,19 @@ static int CG_LightningDeflectionCaster(const centity_t *guard)
 
 static qboolean CG_LightningDeflectionActive(const centity_t *cent)
 {
-	int number = cent->currentState.number;
-#ifdef _DEBUG
-	{
-		static int nextReport[MAX_GENTITIES];
-		int caster = CG_LightningDeflectionCaster(cent);
-		if (caster != ENTITYNUM_NONE && nextReport[number] <= cg.time)
-		{
-			nextReport[number] = cg.time + 1000;
-			trap->Print("LD VIEW local=%d defender=%d caster=%d torso=%d TL=%d TR=%d saberMove=%d predictedHand=%d snapshotHand=%d\n",
-				cg.predictedPlayerState.clientNum, number, caster, cent->currentState.torsoAnim,
-				BOTH_P1_S1_TL, BOTH_P1_S1_TR, cent->currentState.saberMove,
-				cg.predictedPlayerState.forceHandExtend, cg.snap ? cg.snap->ps.forceHandExtend : -1);
-		}
-	}
-#endif
-	if (number == cg.predictedPlayerState.clientNum)
-	{
-		usercmd_t cmd;
-		if (trap->GetUserCmd(trap->GetCurrentCmdNumber(), &cmd) &&
-			!BG_CanDeflectLightning(&cg.predictedPlayerState, &cmd, cmd.serverTime))
-			return qfalse;
-		if (BG_IsLightningDeflect(&cg.predictedPlayerState))
-			return qtrue;
-	}
-	if (cent->currentState.saberMove != LS_NONE && cent->currentState.saberMove != LS_READY)
+	// Effects follow the ordinary server-selected animation. Cgame never
+	// authorizes the guard or chooses/replaces its pose.
+	if (cent->currentState.weapon != WP_SABER || cent->currentState.saberHolstered == 2 ||
+		cent->currentState.saberInFlight || (cent->currentState.eFlags & (EF_DEAD | EF_NODRAW)) ||
+		(cent->currentState.saberMove != LS_NONE && cent->currentState.saberMove != LS_READY))
+		return qfalse;
+	if (cent->currentState.number == cg.predictedPlayerState.clientNum &&
+		(cg.predictedPlayerState.torsoTimer <= 0 ||
+		 cg.predictedPlayerState.forceHandExtend != HANDEXTEND_NONE))
 		return qfalse;
 	return (cent->currentState.torsoAnim == BOTH_P1_S1_TL ||
 		cent->currentState.torsoAnim == BOTH_P1_S1_TR) &&
 		CG_LightningDeflectionCaster(cent) != ENTITYNUM_NONE;
-}
-
-static int CG_LightningDeflectionAnim(const centity_t *cent)
-{
-	int number = cent->currentState.number;
-	if (number == cg.predictedPlayerState.clientNum)
-	{
-		if (BG_IsLightningDeflect(&cg.predictedPlayerState))
-			return cg.predictedPlayerState.forceDodgeAnim == BOTH_P1_S1_TL ?
-				BOTH_P1_S1_TL : BOTH_P1_S1_TR;
-		if (cg.snap && cg.snap->ps.clientNum == number &&
-			BG_IsLightningDeflect(&cg.snap->ps))
-			return cg.snap->ps.forceDodgeAnim == BOTH_P1_S1_TL ?
-				BOTH_P1_S1_TL : BOTH_P1_S1_TR;
-	}
-	return cent->currentState.torsoAnim == BOTH_P1_S1_TL ?
-		BOTH_P1_S1_TL : BOTH_P1_S1_TR;
 }
 
 static void CG_PlayerAnimation( centity_t *cent, int *legsOld, int *legs, float *legsBackLerp,
@@ -4369,13 +4335,7 @@ static void CG_PlayerAnimation( centity_t *cent, int *legsOld, int *legs, float 
 	// If this is not a vehicle, you may lerm the frame (since vehicles never have a torso anim). -AReis
 	if ( cent->currentState.NPC_class != CLASS_VEHICLE )
 	{
-		int torsoAnim = cent->currentState.torsoAnim;
-		qboolean torsoFlip = cent->currentState.torsoFlip;
-		if (CG_LightningDeflectionActive(cent))
-		{
-			torsoAnim = CG_LightningDeflectionAnim(cent);
-		}
-		CG_RunLerpFrame( cent, ci, &cent->pe.torso, torsoFlip, torsoAnim, speedScale, qtrue );
+		CG_RunLerpFrame( cent, ci, &cent->pe.torso, cent->currentState.torsoFlip, cent->currentState.torsoAnim, speedScale, qtrue );
 
 		*torsoOld = cent->pe.torso.oldFrame;
 		*torso = cent->pe.torso.frame;

@@ -1178,7 +1178,12 @@ struct gclient_s {
 
 	int			noLightningTime;
 	int			lightningDeflectAttacker;
-	int		lightningDeflectEventTime[MAX_GENTITIES];
+		int		noLightningTime;
+		int		lightningDeflectAttacker;
+		int		lightningDeflectEventTime[MAX_GENTITIES];
+		int		lightningDeflectTime;
+		int		lightningDeflectAnim;
+
 
 	unsigned	mGameFlags;
 
@@ -1946,6 +1951,8 @@ void ForceDestruction( gentity_t *self );
 void G_ForceDestructionImpact( gentity_t *missile, trace_t *trace );
 int WP_AbsorbConversion(gentity_t *attacked, int atdAbsLevel, gentity_t *attacker,
 	int atPower, int atPowerLevel, int atForceSpent);
+void WP_UpdateLightningDeflect(gentity_t *self, const usercmd_t *cmd);
+
 int ForcePowerUsableOn(gentity_t *attacker, gentity_t *other, forcePowers_t forcePower);
 void ForceHeal( gentity_t *self );
 void ForceSpeed( gentity_t *self, int forceDuration );
