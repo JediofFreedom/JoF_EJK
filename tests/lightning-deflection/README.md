@@ -1,7 +1,9 @@
 # Lightning deflection checks
 
-These checks compile the production guard, damage, prediction cancellation, and effects code against real game headers and math functions. Engine imports are mocked, so the checks do not need a running game or assets. The server guard and damage path, the unchanged saber animation/prediction path, and the client effect recognition are all covered by the same real-game harness.
-
+These checks compile the production server guard and damage code, unchanged
+saber animation/prediction code, and client effect recognition against real
+game headers and math functions. Engine imports are mocked,
+so the checks do not need a running game or assets.
 
 ```powershell
 cmake -S tests/lightning-deflection -B build/lightning-deflection-check
@@ -10,19 +12,14 @@ ctest --test-dir build/lightning-deflection-check -C Release --output-on-failure
 ```
 
 Coverage includes Saber Defense 3 without learned Lightning or Force points,
-Coverage includes Saber Defense 3 without learned Lightning or Force points,
-client prediction retaining a server-confirmed guard when the untransmitted
-Saber Defense level is zero in the snapshot,
 ordinary prediction retaining both server-selected poses during idle/walk,
+including a delayed snapshot with no transmitted Saber Defense level,
 standing and walking, the 100-degree aiming cone and caster-position left/right poses
-relative to the defender's facing direction, pose stability through caster aim changes,
-immediate attack/run/jump cancellation, damage and electrification, guard expiry,
-multiple casters, every non-idle saber move and combat recovery preserving their
-animation timers, existing Absorb behavior, the replicated deflection animation state,
+relative to the defender's facing direction, pose stability through caster aim changes, immediate
+attack/run/jump cancellation, damage and electrification, guard expiry, multiple
+casters, every non-idle saber move and combat recovery preserving their animation timers,
+existing Absorb behavior, preservation of a saber parry using the same pose,
 and effect recognition from the caster's and defender's viewpoints.
-The compatibility check runs the unchanged stock hand-animation branch captured
-before the feature was added, alongside the current prediction branch.
-
 
 For an in-game check, run a server with the new game module. Test both an older
 client and the new JoF cgame module. With an ignited saber and Defense 3, stand or walk while aiming
@@ -31,27 +28,15 @@ while the defender holds the directional saber-block animation. Blue-white
 flares and traced electrical arcs should originate along the blade;
 they must not redirect or replace the beam. Running, attacking, throwing the saber,
 jumping, holstering, or turning beyond 50 degrees should release the guard. Try
-both left/right poses, two casters, single/dual/staff sabers, player scaling,
-spectators, and `cg_lightningEnvironment 0`. Verify the same animation from both client viewpoints.
+both left/right poses and verify the same animation from both client viewpoints.
 Only the updated cgame and asset pack supply the additional blade effects/sounds.
 Repeat with latency: swing input should immediately replace the pose through
 normal prediction; run/jump/turn cancellation is confirmed by the server.
 
-
-The player must slow down before the first hit; a player already being shocked
-cannot enter the guard until the existing electrification expires. Deflection
-has no Force cost and does not damage the caster.
-
-The update reuses the unused EF2 bit 8 and extends `EV_SABER_BLOCK` with parameter
-2, leaving the engine's network field layout and event numbers unchanged. Older
-clients can process the block event, but the new cgame is needed for the held
-pose's immediate local cancellation and the blade-attached visuals.
-The server sends stock `HANDEXTEND_TAUNT` with the selected guard animation in
-`forceDodgeAnim`, alongside the normal replicated torso animation. Stock clients
-can predict the guard without falling back to Force Push. Their stock taunt path
-also applies the guard to the legs while standing still; updated clients preserve
-the torso-only guard. Ordinary taunts remain separate, and updated clients still
-accept the original private deflection state from older upgraded servers.
+The player must slow down to walking speed to enter the guard. A player who is
+hit while running or swinging can still acquire the guard after settling down,
+even while the beam continues. Deflection has no Force cost and does not damage
+the caster.
 
 The server owns all guard eligibility, damage prevention, pose selection and
 cancellation. Its caster, pose and expiry tracking stay in `gclient_t`, outside

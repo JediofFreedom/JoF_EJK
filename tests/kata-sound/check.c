@@ -58,7 +58,6 @@ static qboolean CG_UsingEWeb(void) { return qfalse; }
 void QDECL Com_Printf(const char *format, ...) { (void)format; }
 void QDECL Com_Error(int code, const char *format, ...) { (void)code; (void)format; exit(2); }
 void *BG_Alloc(int size) { void *p = calloc(1, size); CHECK(p); return p; }
-void VectorClear(vec3_t vec) { vec[0] = vec[1] = vec[2] = 0; }
 int Q_irand(int low, int high) { CHECK(high >= low); return randomChoice ? high : low; }
 void VectorClear(vec3_t v) { v[0] = v[1] = v[2] = 0; }
 
@@ -435,6 +434,7 @@ int main(void) {
     g_synchronousClients.integer = 1;
     PredictHold();
     CHECK(transitions == calls);
+    g_synchronousClients.integer = 0;
 
     // Restore active flight channels only; keep movement, expired channels,
     // and death animations as prediction/server updates selected them.

@@ -1840,28 +1840,7 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 	playerState_t *ps = &defender->client->ps;
 	vec3_t source;
 	int anim;
-	qboolean starting = ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT;
-#if defined(_DEBUG) && !defined(LIGHTNING_DEFLECTION_TEST)
-	{
-		static int nextReport[MAX_GENTITIES];
-		if (nextReport[defender->s.number] <= level.time)
-		{
-			const usercmd_t *cmd = &defender->client->pers.cmd;
-			nextReport[defender->s.number] = level.time + 1000;
-			VectorCopy(attacker->client->ps.origin, source);
-			source[2] += attacker->client->ps.viewheight;
-			trap->Print("LD HIT caster=%d defender=%d eligible=%d facing=%d health=%d pm=%d defense=%d weapon=%d holster=%d saber=%d flight=%d move=%d hand=%d ground=%d buttons=%d input=%d,%d,%d velocity=%.1f,%.1f anim=%d\n",
-				attacker->s.number, defender->s.number,
-				BG_CanDeflectLightning(ps, cmd, level.time), BG_LightningDeflectDirection(ps, source, NULL),
-				ps->stats[STAT_HEALTH], ps->pm_type, ps->fd.forcePowerLevel[FP_SABER_DEFENSE],
-				ps->weapon, ps->saberHolstered, ps->saberEntityNum, ps->saberInFlight,
-				ps->saberMove, ps->forceHandExtend, ps->groundEntityNum, cmd->buttons,
-				cmd->forwardmove, cmd->rightmove, cmd->upmove, ps->velocity[0], ps->velocity[1], ps->torsoAnim);
-		}
-	}
-#endif
-	if (!BG_CanDeflectLightning(ps, &defender->client->pers.cmd, level.time))
-
+	if (!WP_CanDeflectLightning(ps, &defender->client->pers.cmd, level.time))
 		return qfalse;
 	VectorCopy(attacker->client->ps.origin, source);
 	source[2] += attacker->client->ps.viewheight;
@@ -1869,12 +1848,8 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 		return qfalse;
 	// Guard toward the caster's position in the defender's facing frame.
 	// Caster aim changes may affect whether lightning hits, but never the pose.
-	ps->forceHandExtend = HANDEXTEND_TAUNT;
-	ps->forceHandExtendTime = level.time + LIGHTNING_DEFLECT_HOLD_TIME;
-	ps->forceDodgeAnim = anim;
-	ps->eFlags2 |= EF2_LIGHTNING_DEFLECT;
-
 	// A successful guard never leaves the normal full-body shock shell behind.
+	// This can still be active from an immediately preceding lightning tick.
 	ps->electrifyTime = 0;
 	G_SetAnim(defender, &defender->client->pers.cmd, SETANIM_TORSO, anim,
 		SETANIM_FLAG_OVERRIDE | SETANIM_FLAG_HOLD, 100);
@@ -1882,19 +1857,6 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 	// overrides it for saber attacks. No hand extension blocks weapon input.
 	ps->torsoTimer = LIGHTNING_DEFLECT_ANIM_TIME;
 	defender->client->dangerTime = level.time;
-	// Refresh the source occasionally; the persistent flag carries immediate cancellation.
-	if (starting || defender->client->lightningDeflectEventTime[attacker->s.number] <= level.time ||
-		defender->client->lightningDeflectEventTime[attacker->s.number] > level.time + LIGHTNING_DEFLECT_EVENT_INTERVAL)
-	{
-		gentity_t *event = G_TempEntity(ps->origin, EV_SABER_BLOCK);
-		event->s.eventParm = LIGHTNING_DEFLECT_EVENT_PARM;
-		event->s.eFlags2 |= EF2_LIGHTNING_DEFLECT;
-		event->s.otherEntityNum = attacker->s.number;
-		event->s.otherEntityNum2 = defender->s.number;
-		VectorCopy(ps->origin, event->s.origin);
-		event->s.origin[2] += ps->viewheight;
-		defender->client->lightningDeflectEventTime[attacker->s.number] = level.time + LIGHTNING_DEFLECT_EVENT_INTERVAL;
-	}
 	defender->client->lightningDeflectAttacker = attacker->s.number;
 	defender->client->lightningDeflectTime = level.time + LIGHTNING_DEFLECT_HOLD_TIME;
 	defender->client->lightningDeflectAnim = anim;
@@ -1907,14 +1869,7 @@ void WP_UpdateLightningDeflect(gentity_t *self, const usercmd_t *cmd)
 	int sourceNum = self->client->lightningDeflectAttacker;
 	gentity_t *attacker;
 	vec3_t source;
-	if (!self->client->lightningDeflectTime &&
-		!BG_IsLightningDeflect(ps) &&
-		!(ps->eFlags2 & EF2_LIGHTNING_DEFLECT) &&
-		ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT)
-		return;
-	if (self->client->lightningDeflectTime <= level.time ||
-		!WP_CanDeflectLightning(ps, cmd, level.time) ||
-
+	if (!self->client->lightningDeflectTime)
 		return;
 	if (self->client->lightningDeflectTime <= level.time ||
 		!WP_CanDeflectLightning(ps, cmd, level.time) ||

@@ -3126,8 +3126,6 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				centity_t *saberCent = &cg_entities[es->number];
 				if (cg.time - saberCent->saberSoundOnDebounceTime >= 800)
 				{
-if (cg.time - saberCent->saberSoundOnDebounceTime >= 800)
-				{
 					saberCent->saberSoundOnDebounceTime = cg.time;
 					//a staff being drawn over a JA+ shoulder is not in his hand yet, so its
 					//ignition waits with the blade rather than going off on an empty hand
@@ -3140,7 +3138,6 @@ if (cg.time - saberCent->saberSoundOnDebounceTime >= 800)
 					{
 						trap->S_StartSound (NULL, es->number, CHAN_AUTO, ci->saber[1].soundOn );
 					}
-				}
 				}
 			}
 		}

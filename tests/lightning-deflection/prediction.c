@@ -24,58 +24,16 @@ qboolean PM_SaberInBrokenParry(int move);
 
 int main(void) {
   playerState_t ps;
-  usercmd_t cmd;
   pmove_t movement;
   animation_t animations[MAX_TOTALANIMATIONS];
   int pose, stance, move;
   const int poses[] = {BOTH_P1_S1_TL, BOTH_P1_S1_TR};
   const int stances[] = {BOTH_STAND2, BOTH_WALK1, BOTH_WALK2, BOTH_WALKBACK1};
-  memset(&ps, 0, sizeof(ps));
-  memset(&cmd, 0, sizeof(cmd));
   memset(animations, 0, sizeof(animations));
-  ps.stats[STAT_HEALTH] = 100;
-  ps.pm_type = PM_NORMAL;
-  ps.weapon = WP_SABER;
-  cmd.weapon = WP_SABER;
-  ps.saberEntityNum = 10;
-  ps.saberMove = LS_READY;
-  ps.groundEntityNum = ENTITYNUM_WORLD;
-  ps.basespeed = ps.speed = 250;
-  ps.forceHandExtend = HANDEXTEND_TAUNT;
-  ps.forceDodgeAnim = BOTH_P1_S1_TL;
-  CHECK(BG_IsLightningDeflect(&ps));
-  // Ordinary taunts must keep their own animation and hand-extension state.
-  ps.forceDodgeAnim = BOTH_GESTURE1;
-  CHECK(!BG_IsLightningDeflect(&ps));
-  BG_EndLightningDeflect(&ps);
-  CHECK(ps.forceHandExtend == HANDEXTEND_TAUNT && ps.forceDodgeAnim == BOTH_GESTURE1);
-  ps.forceHandExtend = HANDEXTEND_LIGHTNING_DEFLECT;
-  CHECK(BG_IsLightningDeflect(&ps)); // Older upgraded servers remain supported.
-  ps.forceHandExtend = HANDEXTEND_TAUNT;
-  ps.forceDodgeAnim = BOTH_P1_S1_TL;
-  /* Defense stays zero in decoded snapshots: only the server knows its level. */
-  CHECK(ps.fd.forcePowerLevel[FP_SABER_DEFENSE] == 0);
-  CHECK(BG_CanDeflectLightning(&ps, &cmd, 1000));
-  {
-    int move;
-    for (move = LS_NONE; move < LS_MOVE_MAX; ++move) {
-      if (move == LS_NONE || move == LS_READY) continue;
-      ps.saberMove = move;
-      CHECK(!BG_CanDeflectLightning(&ps, &cmd, 1000));
-    }
-    ps.saberMove = LS_READY;
-    ps.weaponTime = 100;
-    CHECK(!BG_CanDeflectLightning(&ps, &cmd, 1000));
-    ps.weaponTime = 0;
-  }
   for (move = 0; move < MAX_TOTALANIMATIONS; ++move) {
     animations[move].firstFrame = 1;
     animations[move].numFrames = 10;
     animations[move].frameLerp = 50;
-  }
-  memset(&movement, 0, sizeof(movement));
-  movement.ps = &ps;
-
   }
   memset(&movement, 0, sizeof(movement));
   movement.ps = &ps;

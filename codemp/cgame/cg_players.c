@@ -11289,26 +11289,6 @@ qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound )
 		if (!cgs.clientinfo[i].infoValid || cgs.clientinfo[i].saber[0].soundOn != sound)
 			continue;
 
-if (cgs.clientinfo[i].saber[0].soundOn != sound
-			&& cgs.clientinfo[i].serverSaberSoundOn[0] != sound)
-			continue;	//the server names the sound by its own handle, the client by the .sab's
-
-		if (cent->currentState.saberHolstered >= 2 &&
-			(i != cg.predictedPlayerState.clientNum || cg.predictedPlayerState.saberHolstered >= 2))
-			continue;	//he has not just been lit, so this is not his draw
-
-		//and it has to be the ignition for that, not some later sound of his that happens to share
-		//the handle - JA+ sounds one the instant the saber comes on and at no other time
-		if (!staffSwapSound[i].sound && !staffSwapSound[i].ignitionPlayed &&
-			!CG_StaffSwapDrawAnim(cent->currentState.torsoAnim) &&
-			!(i == cg.predictedPlayerState.clientNum && CG_StaffSwapDrawAnim(cg.predictedPlayerState.torsoAnim)) &&
-			staffSwapSound[i].holstered < 2 && (!staffSwapSound[i].unholsterTime ||
-			cg.time - staffSwapSound[i].unholsterTime > STAFFSWAP_SOUND_WAIT))
-			continue;
-
-		if (DistanceSquared( origin, cent->lerpOrigin ) > 64.0f * 64.0f)
-			continue;
-
 		// G_Sound uses the server position, which can be far from the previous rendered or
 		// predicted position during movement. Match against the same snapshot as the event.
 		if (cg.snap && i == cg.snap->ps.clientNum)
@@ -11325,9 +11305,6 @@ if (cgs.clientinfo[i].saber[0].soundOn != sound
 			nearest = distance;
 			owner = i;
 		}
-
-		if (CG_StaffSwapHoldIgnitionSound( i, sound ))
-			return qtrue;
 	}
 
 	// Resolve ownership before applying staff gating, so a nearby staff cannot take another

@@ -466,6 +466,9 @@ static void TestRealSecondHilt(void) {
     Commit(WP_SABER);
     CHECK(Count(IGNITION) == 2);
     SaberUnholsterEvent(&cg_entities[0]);
+    CHECK(Count(IGNITION) == 2); //the server copy shares alpha's ignition debounce
+    cg.time += 800;
+    SaberUnholsterEvent(&cg_entities[0]);
     CHECK(Count(IGNITION) == 4);
 }
 int main(void) {
