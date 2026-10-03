@@ -3368,6 +3368,7 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 	int		i;
 	int		firstFrame = 0, lastFrame = 0;
 	qboolean	doEvent = qfalse, inSameAnim = qfalse, loopAnim = qfalse, match = qfalse, animBackward = qfalse;
+	qboolean grappleFrames = qfalse;
 	animevent_t *animEvents = NULL;
 
 	if ( torso )
@@ -3422,6 +3423,14 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 
 			inSameAnim = qtrue;
 			animation = &bgAllAnims[animFileIndex].anims[anim];
+			// Paired melee sounds must survive skipped render frames. Only relax
+			// the proximity check when both sampled frames belong to this move;
+			// a stale frame from another animation must not trigger its events.
+			grappleFrames = BG_IsGrappleSoundAnim( anim ) &&
+				oldFrame >= animation->firstFrame &&
+				oldFrame < animation->firstFrame + animation->numFrames &&
+				frame >= animation->firstFrame &&
+				frame < animation->firstFrame + animation->numFrames;
 			animBackward = (animation->frameLerp<0);
 			if ( animation->loopFrames != -1 )
 			{//a looping anim!
@@ -3449,7 +3458,7 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 		{//given a range, see if keyFrame falls in that range
 			if ( inSameAnim )
 			{//if changed anims altogether, sorry, the sound is lost
-				if ( fabs((float)(oldFrame-animEvents[i].keyFrame)) <= 3
+				if ( grappleFrames || fabs((float)(oldFrame-animEvents[i].keyFrame)) <= 3
 					 || fabs((float)(frame-animEvents[i].keyFrame)) <= 3 )
 				{//must be at least close to the keyframe
 					if ( animBackward )

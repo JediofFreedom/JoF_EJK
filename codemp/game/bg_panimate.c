@@ -711,6 +711,39 @@ int BG_InGrappleMove(int anim)
 	return 0;
 }
 
+// JA+ treats these additional paired/Force animations as grapples. Sound
+// coverage is independent of our movement and prediction grapple rules.
+qboolean BG_IsGrappleSoundAnim(int anim)
+{
+	if ( BG_InGrappleMove( anim ) )
+	{
+		return qtrue;
+	}
+	switch ( anim )
+	{
+	case BOTH_PULLED_INAIR_B:
+	case BOTH_PULLED_INAIR_F:
+	case BOTH_SABERKILLER1:
+	case BOTH_SABERKILLEE1:
+	case BOTH_ALORA_SPIN_THROW:
+	case BOTH_FORCE_DRAIN_GRAB_START:
+	case BOTH_FORCE_DRAIN_GRAB_HOLD:
+	case BOTH_FORCE_DRAIN_GRABBED:
+	case BOTH_COWER1_START:
+	case BOTH_SONICPAIN_START:
+#if defined(_CGAME) || defined(UI_BUILD)
+	case BOTH_KISSEE:
+	case BOTH_KISSER:
+	case BOTH_JUMP_BACKFLIP_ATCKEE:
+	case BOTH_NEW_STABER:
+	case BOTH_NEW_STABEE:
+#endif
+		return qtrue;
+	default:
+		return qfalse;
+	}
+}
+
 int BG_BrokenParryForAttack( int move )
 {
 	//Our attack was knocked away by a knockaway parry
@@ -1909,7 +1942,7 @@ void ParseAnimationEvtBlock(const char *aeb_filename, animevent_t *animEvents, a
 			// Kata voices belong to the actor playing the animation. Keep the
 			// custom name until playback instead of discarding it as sound 0.
 			// Other animations already get their voices from gameplay events.
-			if ( stringData[0] == '*' && BG_InGrappleMove( animNum ) )
+			if ( stringData[0] == '*' && BG_IsGrappleSoundAnim( animNum ) )
 			{
 				if ( !animEvents[curAnimEvent].stringData )
 				{

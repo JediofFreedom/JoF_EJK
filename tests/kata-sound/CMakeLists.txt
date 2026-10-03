@@ -20,6 +20,8 @@ configure_file("${repo}/codemp/versionfile/jofversion.h.in" "${CMAKE_CURRENT_BIN
 extract(codemp/game/bg_panimate.c "int BG_InGrappleMove(" "int BG_BrokenParryForAttack(")
 extract(codemp/game/bg_panimate.c "stringID_table_t animEventTypeTable[" "bgLoadedEvents_t bgAllEvents[")
 extract(codemp/cgame/cg_players.c "static sfxHandle_t CG_AnimEventSound(" "void CG_PlayerAnimEventDo(")
+extract(codemp/cgame/cg_servercmds.c "static void CG_RegisterCustomSounds(" "void CG_PrecacheNPCSounds(")
+extract(codemp/cgame/cg_players.c "void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso, int oldFrame, int frame, int entNum )\n{" "void CG_TriggerAnimSounds(")
 extract(codemp/cgame/cg_predict.c "static qboolean CG_InMeleeGrappleVictimState(" "static void CG_PreserveMeleeKataFlightAnimation(")
 file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "static void PredictHold(void) { playerState_t oldPlayerState;\n")
 extract(codemp/cgame/cg_predict.c "\t// Grapple victims are positioned" "\t// prepare for pmove")

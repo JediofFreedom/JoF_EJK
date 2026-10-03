@@ -1871,6 +1871,7 @@ qboolean BG_SaberInKata( int saberMove );
 qboolean BG_InKataAnim(int anim);
 qboolean BG_KickingAnim( int anim );
 int BG_InGrappleMove(int anim);
+qboolean BG_IsGrappleSoundAnim(int anim);
 int BG_BrokenParryForAttack( int move );
 int BG_BrokenParryForParry( int move );
 int BG_KnockawayForParry( int move );
