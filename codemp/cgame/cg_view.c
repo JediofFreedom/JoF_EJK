@@ -373,6 +373,8 @@ CG_CalcTargetThirdPersonViewLocation
 
 ===============
 */
+static float CG_EndDuelCameraEnvelope( void );
+
 static void CG_CalcIdealThirdPersonViewLocation(void)
 {
 #ifndef TOURNAMENT_CLIENT
@@ -451,6 +453,7 @@ static void CG_CalcIdealThirdPersonViewLocation(void)
 		newThirdPersonRange = 120.0f;
 	}
 
+	newThirdPersonRange += 80.0f * CG_EndDuelCameraEnvelope();
 	VectorMA(cam.target.ideal, -(newThirdPersonRange), cam.fwd, cam.loc.ideal);
 }
 
@@ -746,7 +749,8 @@ CG_OffsetThirdPersonView
 */
 extern qboolean BG_UnrestrainedPitchRoll( playerState_t *ps, Vehicle_t *pVeh );
 
-#define END_DUEL_CAMERA_DURATION 3200
+// OpenJK SP CG_MatrixEffect's default kill-camera duration (game milliseconds).
+#define END_DUEL_CAMERA_DURATION 1000
 
 static qboolean CG_EndDuelCameraActive( void ) {
 	return cgs.serverMod == SVMOD_JAPLUS &&
@@ -768,7 +772,24 @@ static float CG_EndDuelCameraAngle( void ) {
 		return 0.0f;
 	}
 	progress = (float)(cg.time - cg.endDuelCameraTime) / END_DUEL_CAMERA_DURATION;
-	return 360.0f * progress * progress * (3.0f - 2.0f * progress);
+	return 360.0f * progress;
+}
+
+// SP ramps pitch/range in over the first 33%, holds through 66%, then returns.
+static float CG_EndDuelCameraEnvelope( void ) {
+	float progress;
+
+	if (!CG_EndDuelCameraActive()) {
+		return 0.0f;
+	}
+	progress = (float)(cg.time - cg.endDuelCameraTime) / END_DUEL_CAMERA_DURATION;
+	if (progress < 0.33f) {
+		return progress / 0.33f;
+	}
+	if (progress > 0.66f) {
+		return (1.0f - progress) / 0.33f;
+	}
+	return 1.0f;
 }
 
 static void CG_OffsetThirdPersonView( void )
@@ -834,7 +855,11 @@ static void CG_OffsetThirdPersonView( void )
 		else {
 			focusAngles[YAW] += cg_thirdPersonAngle.value;
 		}
-		focusAngles[YAW] += CG_EndDuelCameraAngle();
+		if (CG_EndDuelCameraActive()) {
+			// SP's matrix angle replaces the configured third-person angle.
+			focusAngles[YAW] = cg.refdef.viewangles[YAW] + CG_EndDuelCameraAngle();
+			pitchOffset -= 30.0f * CG_EndDuelCameraEnvelope();
+		}
 
 		if (cg.snap && cg.snap->ps.m_iVehicleNum)
 		{
