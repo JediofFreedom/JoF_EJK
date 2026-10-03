@@ -3953,13 +3953,20 @@ void CG_ManualEntityRender(centity_t *cent)
 static void CG_AddPredictedPlayerEntity(void)
 {
 	const int smoothClients = cg_smoothClients.integer;
+	centity_t *cent = &cg_entities[cg.predictedPlayerState.clientNum];
+	const qboolean interpolate = cent->interpolate;
 
 	// TaystJK disables smoothing while rendering the predicted local player
 	// to avoid jitter, then restores the player's setting for packet entities.
 	if (smoothClients) {
 		cg_smoothClients.integer = 0;
 	}
-	CG_AddCEntity(&cg_entities[cg.predictedPlayerState.clientNum]);
+	// Its origin/angles already come from prediction (or hold interpolation).
+	// Interpolating that state toward nextState again makes the rendered body
+	// drift ahead of the camera, then snap back at every snapshot boundary.
+	cent->interpolate = qfalse;
+	CG_AddCEntity(cent);
+	cent->interpolate = interpolate;
 	cg_smoothClients.integer = smoothClients;
 }
 
