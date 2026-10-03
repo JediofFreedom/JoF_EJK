@@ -11114,6 +11114,8 @@ typedef struct {
 	sfxHandle_t	sound;			//what to play once his hand is on the hilt
 	int			time;			//when it was held, so a swap that never comes cannot swallow it
 	qboolean	ignitionPlayed;	//consume later ignition events for this draw
+	int			ignitionHolstered; //which blade configuration that ignition belongs to
+	qboolean	drawSeen;		//the reach was observed before a skipped handoff frame
 	qboolean	shutdownPending; //a completed weapon change is waiting for the blade update
 	qboolean	shutdownPlayed; //reset when the blade is allowed out again
 } staffSwapSound_t;
@@ -11130,7 +11132,7 @@ static void CG_StaffSwapForgetClient( int clientNum )
 	memset( &staffSwapLatch[clientNum], 0, sizeof( staffSwapLatch[clientNum] ) );
 }
 
-#define STAFFSWAP_SOUND_HOLD	2000	//discard stale queued ignition events
+#define STAFFSWAP_SOUND_HOLD	2000	//maximum wait if the reach animation never arrives
 
 static qboolean CG_StaffSwapDrawAnim( int anim );
 
@@ -11157,8 +11159,13 @@ static void CG_StaffSwapUpdateSounds( centity_t *cent, clientInfo_t *ci )
 		return;
 	}
 
-	if (cg.time < held->time || cg.time - held->time >= STAFFSWAP_SOUND_HOLD)
+	if (cg.time < held->time)
+	{
 		held->sound = 0;
+		held->drawSeen = qfalse;
+	}
+	if (CG_StaffSwapDrawAnim(anim))
+		held->drawSeen = qtrue;
 
 	phase = CG_StaffSwapPhaseReal(cent, ci, &why, &frac);
 	puttingAway = (qboolean)(phase != STAFFSWAP_NONE &&
@@ -11176,7 +11183,10 @@ static void CG_StaffSwapUpdateSounds( centity_t *cent, clientInfo_t *ci )
 			held->shutdownPending = qfalse;
 		}
 		if (cent->currentState.weapon != WP_SABER || cent->currentState.saberHolstered >= 2 || puttingAway)
+		{
 			held->sound = 0; //the draw was canceled; a timeout must not ignite a stowed saber
+			held->drawSeen = qfalse;
+		}
 		held->ignitionPlayed = qfalse;
 		return;
 	}
@@ -11185,7 +11195,12 @@ static void CG_StaffSwapUpdateSounds( centity_t *cent, clientInfo_t *ci )
 	held->shutdownPending = qfalse;
 	// A queued weapon-change sound can precede the reach animation. Keep it held until
 	// the hilt is in hand; an outgoing idle animation must not release it early.
-	if (held->sound && phase != STAFFSWAP_INHAND)
+	// The handoff may occur between rendered frames. Once an observed draw
+	// ends, or the reach never arrives, an active visible blade still owes its
+	// queued ignition. The canceled/stowed path above always discards it.
+	if (held->sound && phase != STAFFSWAP_INHAND &&
+		!(phase == STAFFSWAP_NONE &&
+			(held->drawSeen || cg.time - held->time >= STAFFSWAP_SOUND_HOLD)))
 		return;
 	if (!held->ignitionPlayed && (held->sound ||
 		(CG_StaffSwapDrawAnim(anim) && phase == STAFFSWAP_INHAND && !ci->saber[0].blade[0].length)))
@@ -11194,6 +11209,7 @@ static void CG_StaffSwapUpdateSounds( centity_t *cent, clientInfo_t *ci )
 		if (sound)
 			trap->S_StartSound(cent->lerpOrigin, cl, CHAN_AUTO, sound);
 		held->ignitionPlayed = qtrue;
+		held->ignitionHolstered = cent->currentState.saberHolstered;
 	}
 	held->sound = 0;
 }
@@ -11287,7 +11303,9 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 
 	if (cg.snap && clientNum == cg.snap->ps.clientNum &&
 		cg.snap->ps.weapon == WP_SABER && cg.snap->ps.saberHolstered < 2 &&
-		(CG_StaffSwapDrawAnim(cg.snap->ps.torsoAnim) || weapon != WP_SABER || holstered >= 2))
+		(CG_StaffSwapDrawAnim(cg.snap->ps.torsoAnim) || weapon != WP_SABER || holstered >= 2 ||
+			(staffSwapSound[clientNum].ignitionPlayed &&
+				cg.snap->ps.saberHolstered != staffSwapSound[clientNum].ignitionHolstered)))
 	{
 		anim = cg.snap->ps.torsoAnim;
 		weapon = cg.snap->ps.weapon;
@@ -11297,14 +11315,24 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 	if (weapon != WP_SABER || holstered >= 2)
 		return qfalse;	//nothing is being drawn, so nothing is waiting on a hand
 
+	// Opening the second blade can arrive while the completed reach still
+	// occupies the torso channel, before prediction sees the new blade state.
+	if (staffSwapSound[clientNum].ignitionPlayed &&
+		holstered != staffSwapSound[clientNum].ignitionHolstered)
+		return qfalse;
+
+	// A second-blade toggle is a new ignition, even if the first blade has
+	// stayed lit since the back draw. Only deduplicate while that draw or its
+	// queued sound is still active.
+	if (!CG_StaffSwapDrawAnim(anim) && cent->weapon == WP_SABER && !staffSwapSound[clientNum].sound)
+		return qfalse;
+
 	if (staffSwapSound[clientNum].sound || staffSwapSound[clientNum].ignitionPlayed)
 		return qtrue; //one ignition per draw, including later server copies
 
-	if (!CG_StaffSwapDrawAnim(anim) && cent->weapon == WP_SABER)
-		return qfalse;
-
 	staffSwapSound[clientNum].sound = sound;
 	staffSwapSound[clientNum].time = cg.time;
+	staffSwapSound[clientNum].drawSeen = CG_StaffSwapDrawAnim(anim);
 
 	return qtrue;
 }
