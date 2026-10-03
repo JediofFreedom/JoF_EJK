@@ -850,6 +850,26 @@ int CG_G2EvIndexForModel(void *g2, int animIndex)
 	return evtIndex;
 }
 
+static int CG_NPCEventIndexForModel( void *g2, const char *modelDirectory, int animIndex )
+{
+	char filename[MAX_QPATH];
+	fileHandle_t file;
+
+	// Keep model-specific events, including deliberately empty files. A missing
+	// file is cached as an empty event set by the parser, so check before parsing.
+	Com_sprintf( filename, sizeof( filename ), "%sanimevents.cfg", modelDirectory );
+	trap->FS_Open( filename, &file, FS_READ );
+	if ( file )
+	{
+		trap->FS_Close( file );
+		return BG_ParseAnimationEvtFile( modelDirectory, animIndex, bgNumAnimEvents );
+	}
+
+	// Custom humanoid NPCs commonly share the player skeleton without supplying
+	// an event file of their own. Resolve the actual skeleton for other NPCs too.
+	return CG_G2EvIndexForModel( g2, animIndex );
+}
+
 void CG_LoadCISounds(clientInfo_t *ci, qboolean modelloaded, qboolean isDefaultModel)
 {
 	fileHandle_t f;
@@ -3130,6 +3150,23 @@ static void CG_PlayerFootsteps( centity_t *cent, footstepType_t footStepType )
 	}
 }
 
+static sfxHandle_t CG_AnimEventSound( int entityNum, const animevent_t *animEvent )
+{
+	int sound = animEvent->eventData[AED_SOUNDINDEX_START +
+		Q_irand( 0, animEvent->eventData[AED_SOUND_NUMRANDOMSNDS] )];
+
+	if ( animEvent->stringData && animEvent->stringData[0] == '*' )
+	{
+		const char *name = animEvent->stringData;
+		if ( sound > 0 )
+		{
+			name = va( name, sound );
+		}
+		return CG_CustomSound( entityNum, name );
+	}
+	return sound;
+}
+
 void CG_PlayerAnimEventDo( centity_t *cent, animevent_t *animEvent )
 {
 	soundChannel_t channel = CHAN_AUTO;
@@ -3148,7 +3185,7 @@ void CG_PlayerAnimEventDo( centity_t *cent, animevent_t *animEvent )
 		channel = (soundChannel_t)animEvent->eventData[AED_SOUNDCHANNEL];
 	case AEV_SOUND:
 		{	// are there variations on the sound?
-			const int holdSnd = animEvent->eventData[ AED_SOUNDINDEX_START+Q_irand( 0, animEvent->eventData[AED_SOUND_NUMRANDOMSNDS] ) ];
+			const sfxHandle_t holdSnd = CG_AnimEventSound( cent->currentState.number, animEvent );
 			if ( holdSnd > 0 )
 			{
 				trap->S_StartSound( NULL, cent->currentState.number, channel, holdSnd );
@@ -3359,6 +3396,7 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 	int		i;
 	int		firstFrame = 0, lastFrame = 0;
 	qboolean	doEvent = qfalse, inSameAnim = qfalse, loopAnim = qfalse, match = qfalse, animBackward = qfalse;
+	qboolean grappleFrames = qfalse;
 	animevent_t *animEvents = NULL;
 
 	if ( torso )
@@ -3402,6 +3440,20 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 				anim = cg_entities[entNum].nextState.legsAnim;
 			}
 		}
+		// nextState can already contain the release/get-up while Ghoul2 is
+		// still playing the current kata. Its sampled frames, not the future
+		// snapshot's animation, decide whether an impact was crossed.
+		if ( BG_IsGrappleSoundAnim( oldAnim ) )
+		{
+			const animation_t *playing = &bgAllAnims[animFileIndex].anims[oldAnim];
+			if ( oldFrame >= playing->firstFrame &&
+				oldFrame < playing->firstFrame + playing->numFrames &&
+				frame >= playing->firstFrame &&
+				frame < playing->firstFrame + playing->numFrames )
+			{
+				anim = oldAnim;
+			}
+		}
 		if ( anim != oldAnim )
 		{//not in same anim
 			inSameAnim = qfalse;
@@ -3413,6 +3465,14 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 
 			inSameAnim = qtrue;
 			animation = &bgAllAnims[animFileIndex].anims[anim];
+			// Paired melee sounds must survive skipped render frames. Only relax
+			// the proximity check when both sampled frames belong to this move;
+			// a stale frame from another animation must not trigger its events.
+			grappleFrames = BG_IsGrappleSoundAnim( anim ) &&
+				oldFrame >= animation->firstFrame &&
+				oldFrame < animation->firstFrame + animation->numFrames &&
+				frame >= animation->firstFrame &&
+				frame < animation->firstFrame + animation->numFrames;
 			animBackward = (animation->frameLerp<0);
 			if ( animation->loopFrames != -1 )
 			{//a looping anim!
@@ -3440,7 +3500,7 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 		{//given a range, see if keyFrame falls in that range
 			if ( inSameAnim )
 			{//if changed anims altogether, sorry, the sound is lost
-				if ( fabs((float)(oldFrame-animEvents[i].keyFrame)) <= 3
+				if ( grappleFrames || fabs((float)(oldFrame-animEvents[i].keyFrame)) <= 3
 					 || fabs((float)(frame-animEvents[i].keyFrame)) <= 3 )
 				{//must be at least close to the keyframe
 					if ( animBackward )
@@ -5214,6 +5274,71 @@ qboolean CG_G2PlayerHeadAnims( centity_t *cent )
 #if 1
 int cgFPLSState = 0;
 #endif
+static qboolean CG_GetHeldHandPosition( const centity_t *cent, vec3_t position )
+{
+	centity_t *holder = NULL;
+	mdxaBone_t boltMatrix;
+	int handBolt, i;
+
+	// The stock wire field has only six bits: NPC entity+1 links wrap,
+	// including to zero. Never treat that wrapped value as a player slot.
+	if ( cent->currentState.heldByClient < 0 ||
+		cent->currentState.heldByClient > ENTITYNUM_WORLD )
+	{
+		return qfalse;
+	}
+	if ( cent->currentState.heldByClient > 63 )
+	{
+		holder = &cg_entities[cent->currentState.heldByClient - 1];
+	}
+	else
+	{
+		if ( !cent->currentState.heldByClient &&
+			cent->currentState.legsAnim != BOTH_KNEES1 &&
+			cent->currentState.torsoAnim != BOTH_KNEES1 )
+		{
+			return qfalse;
+		}
+		for ( i = (cent->currentState.heldByClient + 63) & 63;
+			i < ENTITYNUM_WORLD; i += 64 )
+		{
+			centity_t *candidate = &cg_entities[i];
+			if ( i == cent->currentState.number || !candidate->currentValid ||
+				!candidate->ghoul2 ||
+				(candidate->currentState.eType != ET_PLAYER && candidate->currentState.eType != ET_NPC) ||
+				candidate->currentState.torsoAnim != BOTH_A3_TL_BR ||
+				candidate->currentState.legsAnim != BOTH_A3_TL_BR ||
+				DistanceSquared( candidate->currentState.pos.trBase,
+					cent->currentState.pos.trBase ) > 128.0f * 128.0f )
+			{
+				continue;
+			}
+			if ( holder )
+			{
+				return qfalse; // Ambiguous links must not pull the arm to another actor.
+			}
+			holder = candidate;
+		}
+	}
+	if ( !holder || !holder->currentValid || !holder->ghoul2 ||
+		(holder->currentState.eType != ET_PLAYER && holder->currentState.eType != ET_NPC) )
+	{
+		return qfalse;
+	}
+
+	// Bolt indices belong to each model; the victim's index need not match a
+	// custom NPC holder's index. Zero is also a valid bolt index.
+	handBolt = trap->G2API_AddBolt( holder->ghoul2, 0, "*l_hand" );
+	if ( handBolt < 0 || !trap->G2API_GetBoltMatrix( holder->ghoul2, 0, handBolt,
+		&boltMatrix, holder->turAngles, holder->lerpOrigin, cg.time,
+		cgs.gameModels, holder->modelScale ) )
+	{
+		return qfalse;
+	}
+	BG_GiveMeVectorFromMatrix( &boltMatrix, ORIGIN, position );
+	return qtrue;
+}
+
 static void CG_G2PlayerAngles( centity_t *cent, matrix3_t legs, vec3_t legsAngles)
 {
 	clientInfo_t *ci;
@@ -5301,28 +5426,18 @@ static void CG_G2PlayerAngles( centity_t *cent, matrix3_t legs, vec3_t legsAngle
 			cg.frametime, cent->turAngles, cent->modelScale, ci->legsAnim, ci->torsoAnim, &ci->corrTime,
 			lookAngles, ci->lastHeadAngles, ci->lookTime, emplaced, &ci->superSmoothTime);
 
-		if (cent->currentState.heldByClient && cent->currentState.heldByClient <= MAX_CLIENTS)
-		{ //then put our arm in this client's hand
-			//is index+1 because index 0 is valid.
-			int heldByIndex = cent->currentState.heldByClient-1;
-			centity_t *other = &cg_entities[heldByIndex];
-
-			if (other && other->ghoul2 && ci->bolt_lhand)
+		{
+			vec3_t boltOrg;
+			if ( ci->bolt_lhand >= 0 && CG_GetHeldHandPosition( cent, boltOrg ) )
 			{
-				mdxaBone_t boltMatrix;
-				vec3_t boltOrg;
-
-				trap->G2API_GetBoltMatrix(other->ghoul2, 0, ci->bolt_lhand, &boltMatrix, other->turAngles, other->lerpOrigin, cg.time, cgs.gameModels, other->modelScale);
-				BG_GiveMeVectorFromMatrix(&boltMatrix, ORIGIN, boltOrg);
-
 				BG_IK_MoveArm(cent->ghoul2, ci->bolt_lhand, cg.time, &cent->currentState,
 					cent->currentState.torsoAnim/*BOTH_DEAD1*/, boltOrg, &cent->ikStatus, cent->lerpOrigin, cent->lerpAngles, cent->modelScale, 500, qfalse);
 			}
-		}
-		else if (cent->ikStatus)
-		{ //make sure we aren't IKing if we don't have anyone to hold onto us.
-			BG_IK_MoveArm(cent->ghoul2, ci->bolt_lhand, cg.time, &cent->currentState,
-				cent->currentState.torsoAnim/*BOTH_DEAD1*/, vec3_origin, &cent->ikStatus, cent->lerpOrigin, cent->lerpAngles, cent->modelScale, 500, qtrue);
+			else if (cent->ikStatus)
+			{ //clear IK when the holder or its hand is no longer available.
+				BG_IK_MoveArm(cent->ghoul2, ci->bolt_lhand, cg.time, &cent->currentState,
+					cent->currentState.torsoAnim/*BOTH_DEAD1*/, vec3_origin, &cent->ikStatus, cent->lerpOrigin, cent->lerpAngles, cent->modelScale, 500, qtrue);
+			}
 		}
 	}
 	else if ( cent->m_pVehicle && cent->m_pVehicle->m_pVehicleInfo->type == VH_WALKER )
@@ -9528,7 +9643,7 @@ void CG_G2AnimEntModelLoad(centity_t *cent)
 					*slash = 0;
 				}
 
-				cent->eventAnimIndex = BG_ParseAnimationEvtFile(originalModelName, cent->localAnimIndex, bgNumAnimEvents);
+				cent->eventAnimIndex = CG_NPCEventIndexForModel(cent->ghoul2, originalModelName, cent->localAnimIndex);
 			}
 		}
 	}
@@ -11556,7 +11671,11 @@ void CG_Player( centity_t *cent ) {
 		VectorClear(cent->modelScale);
 	}
 
-	if ((cent->doLerp || cent->currentState.heldByClient) && (cent->currentState.groundEntityNum >= ENTITYNUM_WORLD || cent->currentState.eType == ET_TERRAIN) &&
+	// The local carry has already been interpolated with its camera. Applying
+	// the frame-dependent body smoother again separates the two while held.
+	if (!(cent->currentState.number == cg.predictedPlayerState.clientNum &&
+		(cg.predictedPlayerState.forceHandExtend == HANDEXTEND_PRETHROWN || cg.predictedPlayerState.heldByClient)) &&
+		(cent->doLerp || cent->currentState.heldByClient) && (cent->currentState.groundEntityNum >= ENTITYNUM_WORLD || cent->currentState.eType == ET_TERRAIN) &&
 		!(cent->currentState.eFlags2 & EF2_HYPERSPACE) && cg.predictedPlayerState.m_iVehicleNum != cent->currentState.number)
 	{ //always smooth when being thrown
 		vec3_t			posDif;
