@@ -208,9 +208,42 @@ static void PositionPose(void) {
   CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TR);
   caster->origin[1] = 50; Hit(0);
   CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TL);
-  // Turning the defender changes which shoulder faces the caster.
-  defender->viewangles[YAW] = 40; Hit(0);
+  // Aim changes inside the blocking cone cannot flip a stationary guard.
+  for (yaw = -15; yaw <= 70; yaw += 5) {
+    for (pitch = -15; pitch <= 15; pitch += 5) {
+      defender->viewangles[YAW] = yaw;
+      defender->viewangles[PITCH] = pitch;
+      WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd);
+      Hit(0);
+      CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TL);
+      CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
+    }
+  }
+  defender->viewangles[PITCH] = 0;
+  defender->viewangles[YAW] = 0;
+  // Moving the defender across the caster changes the pose too.
+  defender->origin[1] = 100; Hit(0);
   CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TR);
+  defender->origin[1] = 0; Hit(0);
+  CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TL);
+  // A new guard captures the new facing frame after the old guard expires.
+  level.time += LIGHTNING_DEFLECT_HOLD_TIME;
+  WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd);
+  CHECK(clients[1].lightningDeflectTime == 0);
+  defender->viewangles[YAW] = 40;
+  Hit(0);
+  CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TR);
+  CHECK(damages == 0);
+  // The same geometry works when the encounter is rotated in world space.
+  Reset();
+  defender->viewangles[YAW] = 90;
+  caster->origin[0] = -50; caster->origin[1] = 100;
+  Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
+  defender->viewangles[YAW] = 130;
+  Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
+  defender->viewangles[YAW] = 90;
+  caster->origin[0] = 50;
+  Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TR);
   CHECK(damages == 0);
 }
 static void Absorption(void) {

@@ -15,7 +15,8 @@ Coverage includes Saber Defense 3 without learned Lightning or Force points,
 ordinary prediction retaining both server-selected poses during idle/walk,
 including a delayed snapshot with no transmitted Saber Defense level,
 standing and walking, the 100-degree aiming cone and caster-position left/right poses
-relative to the defender's facing direction, pose stability through caster aim changes, immediate
+relative to the defender's facing direction when the guard starts, pose stability
+through either player's aim changes, position-driven changes as either player moves, immediate
 attack/run/jump cancellation, damage and electrification, guard expiry, multiple
 casters, every non-idle saber move and combat recovery preserving their animation timers,
 existing Absorb behavior, preservation of a saber parry using the same pose,
@@ -29,6 +30,10 @@ flares and traced electrical arcs should originate along the blade;
 they must not redirect or replace the beam. Running, attacking, throwing the saber,
 jumping, holstering, or turning beyond 50 degrees should release the guard. Try
 both left/right poses and verify the same animation from both client viewpoints.
+While both players stand still, turn your aim within the blocking cone: the pose
+should stay fixed. Move either player across the guard's initial facing direction
+to change sides. A new guard captures a new facing direction after cancellation
+or expiry; aim still controls the blocking cone throughout.
 Only the updated cgame and asset pack supply the additional blade effects/sounds.
 Repeat with latency: swing input should immediately replace the pose through
 normal prediction; run/jump/turn cancellation is confirmed by the server.
