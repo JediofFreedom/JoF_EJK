@@ -450,7 +450,73 @@ static void TestRealSecondHilt(void) {
     SaberUnholsterEvent(&cg_entities[0]);
     CHECK(Count(IGNITION) == 4);
 }
+static void TestSecondBladeAfterDraw(void) {
+    centity_t event = {0};
+    Reset(1);
+    cg_entities[0].currentState.saberHolstered = cg.predictedPlayerState.saberHolstered = 1;
+    cgs.clientinfo[0].saber[0].blade[0].length = 0;
+    Anim(BOTH_STAND1TO2_NEW, 60);
+    Update(-1);
+    CHECK(Count(IGNITION) == 1);
+    cgs.clientinfo[0].saber[0].blade[0].length = 40;
+    Anim(IDLE, 0);
+    Update(-1);
+    // Cycling staff stance opens the second blade without another back draw.
+    cg_entities[0].currentState.saberHolstered = cg.predictedPlayerState.saberHolstered = 0;
+    event.currentState.eventParm = IGNITION;
+    EntitySoundEvent(&event);
+    CHECK(Count(IGNITION) == 2);
+    CHECK(!CG_StaffSwapHoldGeneralSound(cg_entities[0].lerpOrigin, IGNITION));
+    cg_entities[0].currentState.saberHolstered = cg.predictedPlayerState.saberHolstered = 1;
+    Update(-1); // First blade stays on throughout repeated stance changes.
+    cg_entities[0].currentState.saberHolstered = cg.predictedPlayerState.saberHolstered = 0;
+    EntitySoundEvent(&event);
+    CHECK(Count(IGNITION) == 3);
+
+    Reset(1);
+    cg_entities[0].currentState.saberHolstered = cg.predictedPlayerState.saberHolstered = 1;
+    cgs.clientinfo[0].saber[0].blade[0].length = 0;
+    Anim(BOTH_STAND1TO2_NEW, 60);
+    Update(-1);
+    CHECK(Count(IGNITION) == 1);
+    cg.snap = &snapshot;
+    snapshot.ps.weapon = WP_SABER;
+    snapshot.ps.torsoAnim = BOTH_STAND1TO2_NEW;
+    snapshot.ps.saberHolstered = 0;
+    // The second-blade event runs before prediction, while the reach lingers.
+    EntitySoundEvent(&event);
+    CHECK(Count(IGNITION) == 2);
+}
+static void TestDrawEndsBetweenRenders(void) {
+    Reset(1);
+    cgs.clientinfo[0].saber[0].blade[0].length = 0;
+    Anim(BOTH_S1_S7_NEW, 10);
+    CHECK(CG_StaffSwapHoldIgnitionSound(0, IGNITION));
+    Update(0);
+    cg.time += 500;
+    Anim(IDLE, 0); // The next rendered frame is after the entire reach.
+    Update(-1);
+    CHECK(Count(IGNITION) == 1 && !staffSwapSound[0].sound);
+    Update(-1);
+    CHECK(Count(IGNITION) == 1);
+
+    Reset(1);
+    Commit(WP_MELEE);
+    Update(0);
+    soundCount = 0;
+    Anim(IDLE, 0);
+    Commit(WP_SABER); // No reach animation arrives at all.
+    Update(-1);
+    CHECK(Count(IGNITION) == 0);
+    cg.time += 2100;
+    Update(-1);
+    CHECK(Count(IGNITION) == 1 && !staffSwapSound[0].sound);
+    Update(-1);
+    CHECK(Count(IGNITION) == 1);
+}
 int main(void) {
+    TestSecondBladeAfterDraw();
+    TestDrawEndsBetweenRenders();
     TestCanceledWeaponSwitch();
     TestStaffTiming();
     TestMissedAnimationFrames();
