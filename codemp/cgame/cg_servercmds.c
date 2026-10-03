@@ -1226,6 +1226,7 @@ static void CG_MapRestart( void ) {
 
 	cg.intermissionStarted = qfalse;
 	cg.binocularTargetCount = 0;
+	cg.endDuelCameraTime = 0;
 
 	cgs.voteTime = 0;
 

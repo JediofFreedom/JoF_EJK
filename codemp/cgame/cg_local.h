@@ -1119,6 +1119,8 @@ typedef struct cg_s {
 	qboolean	mapRestart;			// set on a map restart to set back the weapon
 
 	qboolean	renderingThirdPerson;		// during deaths, chasecams, etc
+	int			endDuelCameraTime;			// local duel-end event that started the camera orbit
+	int			endDuelCameraSpawnCount;	// stop the orbit after a respawn
 
 	// prediction state
 	qboolean	hyperspace;				// true if prediction has hit a trigger_teleport
