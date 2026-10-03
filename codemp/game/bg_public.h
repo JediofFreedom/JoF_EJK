@@ -215,7 +215,6 @@ typedef enum {
 	HANDEXTEND_DRAGGING,
 
 	HANDEXTEND_JEDITAUNT,
-	HANDEXTEND_LIGHTNING_DEFLECT,
 } forceHandAnims_t;
 
 typedef enum
@@ -1862,12 +1861,6 @@ qboolean BG_InReboundRelease( int anim );
 qboolean BG_InBackFlip( int anim );
 qboolean BG_DirectFlippingAnim( int anim );
 qboolean BG_SaberInAttack( int move );
-// A passive, interruptible saber guard. Shared with client prediction.
-#define LIGHTNING_DEFLECT_MIN_DOT 0.6427876f // +/- 50 degrees, including pitch.
-#define LIGHTNING_DEFLECT_HOLD_TIME 150
-qboolean BG_CanDeflectLightning(const playerState_t *ps, const usercmd_t *cmd, int time);
-qboolean BG_LightningDeflectDirection(const playerState_t *ps, const vec3_t source, int *anim);
-void BG_EndLightningDeflect(playerState_t *ps);
 qboolean BG_SaberInSpecial( int move );
 qboolean BG_KickMove( int move );
 qboolean BG_SaberInIdle( int move );

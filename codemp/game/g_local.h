@@ -1163,6 +1163,8 @@ struct gclient_s {
 
 	int			noLightningTime;
 	int			lightningDeflectAttacker;
+	int			lightningDeflectTime;
+	int			lightningDeflectAnim;
 
 	unsigned	mGameFlags;
 
@@ -1924,6 +1926,7 @@ void WP_SaberInitBladeData( gentity_t *ent );
 void WP_InitForcePowers( gentity_t *ent );
 void WP_SpawnInitForcePowers( gentity_t *ent );
 void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd );
+void WP_UpdateLightningDeflect(gentity_t *self, const usercmd_t *cmd);
 int ForcePowerUsableOn(gentity_t *attacker, gentity_t *other, forcePowers_t forcePower);
 void ForceHeal( gentity_t *self );
 void ForceSpeed( gentity_t *self, int forceDuration );

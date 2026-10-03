@@ -8696,19 +8696,6 @@ Generates weapon events and modifes the weapon counter
 ==============
 */
 extern int PM_KickMoveForConditions(void);
-static void PM_UpdateLightningDeflect(void)
-{
-	if (pm->ps->forceHandExtend != HANDEXTEND_LIGHTNING_DEFLECT)
-		return;
-
-	// Attack input has priority over the passive guard.  End it here without
-	// consuming either attack button, then let PM_Weapon process the saber swing
-	// during this same command.
-	if ((pm->cmd.buttons & (BUTTON_ATTACK | BUTTON_ALT_ATTACK)) ||
-		!BG_CanDeflectLightning(pm->ps, &pm->cmd, pm->cmd.serverTime))
-		BG_EndLightningDeflect(pm->ps);
-}
-
 static void PM_Weapon( void )
 {
 	int		addTime;
@@ -8716,7 +8703,6 @@ static void PM_Weapon( void )
 	int		killAfterItem = 0;
 	bgEntity_t *veh = NULL;
 	qboolean vehicleRocketLock = qfalse;
-	PM_UpdateLightningDeflect();
 
 #ifdef _GAME
 	if (pm->ps->clientNum >= MAX_CLIENTS &&
@@ -8856,9 +8842,6 @@ static void PM_Weapon( void )
 
 		switch(pm->ps->forceHandExtend)
 		{
-		case HANDEXTEND_LIGHTNING_DEFLECT:
-			desiredAnim = pm->ps->forceDodgeAnim == BOTH_P1_S1_TL ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
-			break;
 		case HANDEXTEND_FORCEPUSH:
 			desiredAnim = BOTH_FORCEPUSH;
 			break;

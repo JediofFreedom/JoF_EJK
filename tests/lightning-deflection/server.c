@@ -10,7 +10,6 @@ vmCvar_t g_fixLightning;
 static gclient_t clients[3];
 static gentity_t eventEntity;
 static pmove_t movement;
-static pmove_t *pm = &movement;
 static int damages, events, absorbCalls, absorbLevel = -1, forceAllowed = 1;
 
 int ForcePowerUsableOn(gentity_t *attacker, gentity_t *target, forcePowers_t power) { return forceAllowed; }
@@ -68,51 +67,51 @@ static void Hit(int caster) {
 }
 static void Requirements(void) {
   playerState_t *ps = &clients[1].ps; usercmd_t *cmd = &clients[1].pers.cmd;
-  CHECK(BG_CanDeflectLightning(ps, cmd, level.time)); // No learned Lightning or Force points.
+  CHECK(WP_CanDeflectLightning(ps, cmd, level.time)); // No learned Lightning or Force points.
   ps->fd.forcePowerLevel[FP_SABER_DEFENSE] = FORCE_LEVEL_2;
-  CHECK(!BG_CanDeflectLightning(ps, cmd, level.time)); ps->fd.forcePowerLevel[FP_SABER_DEFENSE] = FORCE_LEVEL_3;
+  CHECK(!WP_CanDeflectLightning(ps, cmd, level.time)); ps->fd.forcePowerLevel[FP_SABER_DEFENSE] = FORCE_LEVEL_3;
   cmd->forwardmove = 64; cmd->buttons = BUTTON_WALKING; ps->velocity[0] = 125;
-  CHECK(BG_CanDeflectLightning(ps, cmd, level.time));
-  cmd->rightmove = -64; CHECK(BG_CanDeflectLightning(ps, cmd, level.time));
-  cmd->buttons = 0; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
+  CHECK(WP_CanDeflectLightning(ps, cmd, level.time));
+  cmd->rightmove = -64; CHECK(WP_CanDeflectLightning(ps, cmd, level.time));
+  cmd->buttons = 0; CHECK(!WP_CanDeflectLightning(ps, cmd, level.time));
   cmd->buttons = BUTTON_WALKING; ps->velocity[0] = 250;
-  CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
+  CHECK(!WP_CanDeflectLightning(ps, cmd, level.time));
   ps->velocity[0] = 0; cmd->forwardmove = 127;
-  CHECK(!BG_CanDeflectLightning(ps, cmd, level.time)); cmd->forwardmove = 64;
-  ps->velocity[0] = 0; ps->saberHolstered = 2; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
-  ps->saberHolstered = 0; ps->saberInFlight = qtrue; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
-  ps->saberInFlight = qfalse; ps->groundEntityNum = ENTITYNUM_NONE; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
-  ps->groundEntityNum = ENTITYNUM_WORLD; ps->saberMove = LS_A_T2B; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
-  ps->saberMove = LS_READY; ps->m_iVehicleNum = 1; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
-  ps->m_iVehicleNum = 0; ps->forceHandExtend = HANDEXTEND_KNOCKDOWN; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time));
+  CHECK(!WP_CanDeflectLightning(ps, cmd, level.time)); cmd->forwardmove = 64;
+  ps->velocity[0] = 0; ps->saberHolstered = 2; CHECK(!WP_CanDeflectLightning(ps, cmd, level.time));
+  ps->saberHolstered = 0; ps->saberInFlight = qtrue; CHECK(!WP_CanDeflectLightning(ps, cmd, level.time));
+  ps->saberInFlight = qfalse; ps->groundEntityNum = ENTITYNUM_NONE; CHECK(!WP_CanDeflectLightning(ps, cmd, level.time));
+  ps->groundEntityNum = ENTITYNUM_WORLD; ps->saberMove = LS_A_T2B; CHECK(!WP_CanDeflectLightning(ps, cmd, level.time));
+  ps->saberMove = LS_READY; ps->m_iVehicleNum = 1; CHECK(!WP_CanDeflectLightning(ps, cmd, level.time));
+  ps->m_iVehicleNum = 0; ps->forceHandExtend = HANDEXTEND_KNOCKDOWN; CHECK(!WP_CanDeflectLightning(ps, cmd, level.time));
 	ps->forceHandExtend = HANDEXTEND_NONE; ps->weaponTime = 100; ps->saberBlocked = BLOCKED_UPPER_RIGHT;
-	cmd->weapon = WP_MELEE; CHECK(!BG_CanDeflectLightning(ps, cmd, level.time)); // Wait for combat recovery to finish.
-	ps->weaponTime = 0; CHECK(BG_CanDeflectLightning(ps, cmd, level.time)); // Stale input/block state alone is harmless.
+	cmd->weapon = WP_MELEE; CHECK(!WP_CanDeflectLightning(ps, cmd, level.time)); // Wait for combat recovery to finish.
+	ps->weaponTime = 0; CHECK(WP_CanDeflectLightning(ps, cmd, level.time)); // Stale input/block state alone is harmless.
 }
 static void Aiming(void) {
   playerState_t *ps = &clients[1].ps; vec3_t source = {100, 0, DEFAULT_VIEWHEIGHT}; int anim;
-  CHECK(BG_LightningDeflectDirection(ps, source, &anim)); CHECK(anim == BOTH_P1_S1_TR);
-  source[1] = 50; CHECK(BG_LightningDeflectDirection(ps, source, &anim)); CHECK(anim == BOTH_P1_S1_TL);
-  source[1] = -50; CHECK(BG_LightningDeflectDirection(ps, source, &anim)); CHECK(anim == BOTH_P1_S1_TR);
-  source[1] = 0; ps->viewangles[YAW] = 49; CHECK(BG_LightningDeflectDirection(ps, source, NULL));
-  ps->viewangles[YAW] = 51; CHECK(!BG_LightningDeflectDirection(ps, source, NULL));
-  ps->viewangles[YAW] = 90; CHECK(!BG_LightningDeflectDirection(ps, source, NULL));
-  ps->viewangles[YAW] = 180; CHECK(!BG_LightningDeflectDirection(ps, source, NULL));
-  ps->viewangles[YAW] = 0; ps->viewangles[PITCH] = 60; CHECK(!BG_LightningDeflectDirection(ps, source, NULL));
-  ps->viewangles[PITCH] = -45; source[2] += 100; CHECK(BG_LightningDeflectDirection(ps, source, NULL));
+  CHECK(WP_LightningDeflectDirection(ps, source, &anim)); CHECK(anim == BOTH_P1_S1_TR);
+  source[1] = 50; CHECK(WP_LightningDeflectDirection(ps, source, &anim)); CHECK(anim == BOTH_P1_S1_TL);
+  source[1] = -50; CHECK(WP_LightningDeflectDirection(ps, source, &anim)); CHECK(anim == BOTH_P1_S1_TR);
+  source[1] = 0; ps->viewangles[YAW] = 49; CHECK(WP_LightningDeflectDirection(ps, source, NULL));
+  ps->viewangles[YAW] = 51; CHECK(!WP_LightningDeflectDirection(ps, source, NULL));
+  ps->viewangles[YAW] = 90; CHECK(!WP_LightningDeflectDirection(ps, source, NULL));
+  ps->viewangles[YAW] = 180; CHECK(!WP_LightningDeflectDirection(ps, source, NULL));
+  ps->viewangles[YAW] = 0; ps->viewangles[PITCH] = 60; CHECK(!WP_LightningDeflectDirection(ps, source, NULL));
+  ps->viewangles[PITCH] = -45; source[2] += 100; CHECK(WP_LightningDeflectDirection(ps, source, NULL));
 }
 static void Interruption(void) {
   int i; const int buttons[] = {BUTTON_ATTACK, BUTTON_ALT_ATTACK, BUTTON_USE_HOLDABLE, BUTTON_GESTURE};
   for (i = 0; i < 4; ++i) {
-    Reset(); Hit(0); movement.cmd.buttons = buttons[i]; PM_UpdateLightningDeflect();
-    CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+    Reset(); Hit(0); movement.cmd.buttons = buttons[i]; WP_UpdateLightningDeflect(&g_entities[1], &movement.cmd);
+    CHECK(clients[1].lightningDeflectTime == 0);
     CHECK(clients[1].ps.torsoTimer == 0 && clients[1].ps.weaponTime == 0);
 	CHECK(movement.cmd.buttons == buttons[i]);
   }
-  Reset(); Hit(0); movement.cmd.forwardmove = 127; PM_UpdateLightningDeflect();
-  CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
-  Reset(); Hit(0); movement.cmd.upmove = 127; PM_UpdateLightningDeflect();
-  CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+  Reset(); Hit(0); movement.cmd.forwardmove = 127; WP_UpdateLightningDeflect(&g_entities[1], &movement.cmd);
+  CHECK(clients[1].lightningDeflectTime == 0);
+  Reset(); Hit(0); movement.cmd.upmove = 127; WP_UpdateLightningDeflect(&g_entities[1], &movement.cmd);
+  CHECK(clients[1].lightningDeflectTime == 0);
 }
 static void Combat(void) {
   int i;
@@ -123,30 +122,34 @@ static void Combat(void) {
     clients[1].ps.torsoAnim = BOTH_A1_T__B_; clients[1].ps.torsoTimer = 250;
     clients[1].ps.weaponTime = 0;
     Hit(0);
-    CHECK(damages == 1 && clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+    CHECK(damages == 1 && clients[1].lightningDeflectTime == 0);
     CHECK(clients[1].ps.torsoAnim == BOTH_A1_T__B_ && clients[1].ps.torsoTimer == 250);
     CHECK(clients[1].ps.weaponTime == 0 && clients[1].ps.saberMove == i);
     Reset(); Hit(0);
     clients[1].ps.saberMove = i; clients[1].ps.torsoAnim = BOTH_A1_T__B_;
     clients[1].ps.torsoTimer = 250; clients[1].ps.weaponTime = 250;
-    PM_UpdateLightningDeflect();
-    CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+    WP_UpdateLightningDeflect(&g_entities[1], &movement.cmd);
+    CHECK(clients[1].lightningDeflectTime == 0);
     CHECK(clients[1].ps.torsoTimer == 250 && clients[1].ps.weaponTime == 250);
   }
   Reset(); clients[1].ps.weaponTime = 100; Hit(0);
-  CHECK(damages == 1 && clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+  CHECK(damages == 1 && clients[1].lightningDeflectTime == 0);
   Reset(); clients[1].ps.saberLockTime = level.time + 100; Hit(0);
-  CHECK(damages == 1 && clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+  CHECK(damages == 1 && clients[1].lightningDeflectTime == 0);
 }
 static void Damage(void) {
   clients[1].ps.electrifyTime = level.time + 800; // A new guard clears a prior shock shell.
   Hit(0); CHECK(damages == 0 && absorbCalls == 0); CHECK(g_entities[1].health == 100);
   CHECK(clients[1].ps.electrifyTime == 0 && clients[1].ps.fd.forcePower == 0);
   CHECK(clients[1].ps.torsoAnim == BOTH_P1_S1_TR); CHECK(clients[1].ps.legsAnim == 0);
+  CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+  CHECK(clients[1].ps.forceHandExtendTime == 0 && clients[1].ps.forceDodgeAnim == 0);
+  CHECK(clients[1].ps.weaponTime == 0 && clients[1].ps.torsoTimer == LIGHTNING_DEFLECT_ANIM_TIME);
+  CHECK(clients[1].lightningDeflectTime > level.time);
   CHECK(events == 0);
   clients[1].pers.cmd.buttons = BUTTON_ATTACK; Hit(0);
   CHECK(damages == 1 && g_entities[1].health == 99); CHECK(clients[1].ps.electrifyTime > level.time);
-  CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+  CHECK(clients[1].lightningDeflectTime == 0);
   clients[1].pers.cmd.buttons = 0; Hit(0); CHECK(damages == 1); // Settling down can reacquire against a continuous beam.
   Reset(); clients[1].ps.viewangles[YAW] = 90; Hit(0); CHECK(damages == 1);
   Reset(); clients[1].pers.cmd.forwardmove = 127; Hit(0); CHECK(damages == 1);
@@ -156,14 +159,21 @@ static void Lifecycle(void) {
   Hit(0); CHECK(events == 0); level.time += 50; Hit(0); CHECK(events == 0);
   level.time += 50; Hit(0); CHECK(events == 0);
   level.time += LIGHTNING_DEFLECT_HOLD_TIME; WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd);
-  CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE && clients[1].ps.weaponTime == 0);
+  CHECK(clients[1].lightningDeflectTime == 0 && clients[1].ps.weaponTime == 0);
   Reset(); Hit(0); clients[0].ps.fd.forcePowersActive = 0;
-  WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd); CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+  WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd); CHECK(clients[1].lightningDeflectTime == 0);
   Reset(); Hit(0); clients[1].ps.viewangles[YAW] = 90;
-  WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd); CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+  WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd); CHECK(clients[1].lightningDeflectTime == 0);
   Reset(); Hit(0); clients[1].ps.forceHandExtend = HANDEXTEND_KNOCKDOWN; clients[1].ps.forceDodgeAnim = 2;
   WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd);
   CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_KNOCKDOWN && clients[1].ps.forceDodgeAnim == 2);
+  CHECK(clients[1].lightningDeflectTime == 0);
+  // Saber parries use the same pose; ending deflection must preserve their timer.
+  Reset(); Hit(0); clients[1].ps.saberMove = LS_PARRY_UR;
+  clients[1].ps.torsoTimer = clients[1].ps.weaponTime = 350;
+  WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd);
+  CHECK(clients[1].lightningDeflectTime == 0);
+  CHECK(clients[1].ps.torsoTimer == 350 && clients[1].ps.weaponTime == 350);
 }
 static void Sources(void) {
   Hit(0); Hit(2); CHECK(damages == 0 && events == 0);
@@ -175,7 +185,7 @@ static void Sources(void) {
 	CHECK(clients[1].ps.torsoAnim == BOTH_P1_S1_TL);
 	Reset(); Hit(0);
   clients[2].ps.origin[0] = 0; clients[2].ps.origin[1] = 100; Hit(2);
-  CHECK(damages == 1 && clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
+  CHECK(damages == 1 && clients[1].lightningDeflectTime == 0);
 }
 static void PositionPose(void) {
   int yaw, pitch;
@@ -189,18 +199,18 @@ static void PositionPose(void) {
       caster->viewangles[YAW] = yaw;
       caster->viewangles[PITCH] = pitch;
       Hit(0);
-      CHECK(damages == 0 && defender->forceDodgeAnim == BOTH_P1_S1_TL);
+      CHECK(damages == 0 && clients[1].lightningDeflectAnim == BOTH_P1_S1_TL);
       CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
     }
   }
   // Crossing the defender's facing direction changes the side naturally.
   caster->origin[1] = -50; Hit(0);
-  CHECK(defender->forceDodgeAnim == BOTH_P1_S1_TR);
+  CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TR);
   caster->origin[1] = 50; Hit(0);
-  CHECK(defender->forceDodgeAnim == BOTH_P1_S1_TL);
+  CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TL);
   // Turning the defender changes which shoulder faces the caster.
   defender->viewangles[YAW] = 40; Hit(0);
-  CHECK(defender->forceDodgeAnim == BOTH_P1_S1_TR);
+  CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TR);
   CHECK(damages == 0);
 }
 static void Absorption(void) {
