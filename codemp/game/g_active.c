@@ -5075,7 +5075,11 @@ void ClientThink_real( gentity_t *ent ) {
 #endif
 	}
 
+	// Release the passive lightning pose before this command handles combat.
+	WP_UpdateLightningDeflect(ent, &pmove.cmd);
 	Pmove (&pmove);
+	// Movement applies the new view angles and may enter a jump or saber move.
+	WP_UpdateLightningDeflect(ent, &pmove.cmd);
 
 	if (ent->client->solidHack)
 	{

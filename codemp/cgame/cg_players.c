@@ -4201,6 +4201,56 @@ CG_PlayerAnimation
 */
 qboolean PM_WalkingAnim( int anim );
 
+static int CG_LightningDeflectionCaster(const centity_t *guard)
+{
+	int index, best = ENTITYNUM_NONE;
+	float bestDistance = 1024.0f * 1024.0f;
+	for (index = 0; index < MAX_GENTITIES; index++)
+	{
+		// The viewing player's own entity comes from prediction, not the
+		// snapshot entity list. Include it when that player is the caster.
+		centity_t *caster = &cg_entities[index];
+		qboolean localCaster = index == cg.predictedPlayerState.clientNum;
+		int activePass = localCaster ? cg.predictedPlayerState.activeForcePass : caster->currentState.activeForcePass;
+		int activePowers = localCaster ? cg.predictedPlayerState.fd.forcePowersActive : caster->currentState.forcePowersActive;
+		int flags = localCaster ? cg.predictedPlayerState.eFlags : caster->currentState.eFlags;
+		vec3_t delta;
+		float distance;
+		if (index == guard->currentState.number ||
+			(!localCaster && !caster->currentValid) ||
+			(flags & (EF_DEAD | EF_NODRAW)) ||
+			activePass <= 0 || activePass > FORCE_LEVEL_3 ||
+			!(activePowers & (1 << FP_LIGHTNING)))
+			continue;
+		VectorSubtract(guard->lerpOrigin,
+			localCaster ? cg.predictedPlayerState.origin : caster->lerpOrigin, delta);
+		distance = VectorLengthSquared(delta);
+		if (distance < bestDistance)
+		{
+			bestDistance = distance;
+			best = index;
+		}
+	}
+	return best;
+}
+
+static qboolean CG_LightningDeflectionActive(const centity_t *cent)
+{
+	// Effects follow the ordinary server-selected animation. Cgame never
+	// authorizes the guard or chooses/replaces its pose.
+	if (cent->currentState.weapon != WP_SABER || cent->currentState.saberHolstered == 2 ||
+		cent->currentState.saberInFlight || (cent->currentState.eFlags & (EF_DEAD | EF_NODRAW)) ||
+		(cent->currentState.saberMove != LS_NONE && cent->currentState.saberMove != LS_READY))
+		return qfalse;
+	if (cent->currentState.number == cg.predictedPlayerState.clientNum &&
+		(cg.predictedPlayerState.torsoTimer <= 0 ||
+		 cg.predictedPlayerState.forceHandExtend != HANDEXTEND_NONE))
+		return qfalse;
+	return (cent->currentState.torsoAnim == BOTH_P1_S1_TL ||
+		cent->currentState.torsoAnim == BOTH_P1_S1_TR) &&
+		CG_LightningDeflectionCaster(cent) != ENTITYNUM_NONE;
+}
+
 static void CG_PlayerAnimation( centity_t *cent, int *legsOld, int *legs, float *legsBackLerp,
 						int *torsoOld, int *torso, float *torsoBackLerp ) {
 	clientInfo_t	*ci;
@@ -8218,6 +8268,13 @@ void CG_AddSaberBlade( centity_t *cent, centity_t *scent, refEntity_t *saber, in
 		}
 	}
 CheckTrail:
+	if (!dontDraw && CG_LightningDeflectionActive(cent) &&
+		!(client->saber[saberNum].saberFlags2 &
+			(WP_SaberBladeUseSecondBladeStyle(&client->saber[saberNum], bladeNum) ?
+				SFL2_NO_BLADE2 : SFL2_NO_BLADE)))
+	{
+		FX_ForceLightningSaberContact(cent, saberNum, bladeNum, org_, end, axis_[0]);
+	}
 
 	if (!cg_saberTrail.integer && !sfxSabers)
 	{ //don't do the trail in this case
@@ -15034,7 +15091,8 @@ stillDoSaber:
 
 	// Electricity
 	//------------------------------------------------
-	if ( cent->currentState.emplacedOwner > cg.time )
+	if ( cent->currentState.emplacedOwner > cg.time &&
+		!CG_LightningDeflectionActive(cent) )
 	{
 		int	dif = cent->currentState.emplacedOwner - cg.time;
 		vec3_t tempAngles;
