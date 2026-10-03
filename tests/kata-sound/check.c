@@ -26,10 +26,17 @@ static void SetCustomSoundForType(clientInfo_t *ci, int type, int index, sfxHand
     (void)type;
     ci->sounds[index] = sound;
 }
-typedef struct { entityState_t currentState, nextState; } testEntity_t;
-static testEntity_t cg_entities[1];
+typedef struct {
+    entityState_t currentState, nextState;
+    qboolean currentValid;
+    void *ghoul2;
+    vec3_t turAngles, lerpOrigin, modelScale;
+} centity_t;
+typedef centity_t testEntity_t;
+static testEntity_t cg_entities[MAX_GENTITIES];
 bgLoadedAnim_t bgAllAnims[MAX_ANIM_FILES];
 bgLoadedEvents_t bgAllEvents[MAX_ANIM_FILES];
+int bgNumAnimEvents = 1;
 static void CG_PlayerAnimEventDo(testEntity_t *ent, animevent_t *event) {
     (void)ent; (void)event;
     animationEvents++;
@@ -42,7 +49,9 @@ static struct {
     vec3_t predictedError;
     int predictedErrorTime;
     float predictedTimeFrac;
+    int time;
 } cg;
+static struct { qhandle_t gameModels[MAX_MODELS]; } cgs;
 static struct { int integer; } cg_noPredict, g_synchronousClients;
 static qboolean CG_UsingEWeb(void) { return qfalse; }
 
@@ -62,10 +71,63 @@ static sfxHandle_t RegisterSound(const char *name) {
     return 100 + ++registrations;
 }
 static int RegisterEffect(const char *name) { (void)name; return 1; }
+static int modelEventLength = -1, eventParses, fileCloses;
+static char eventDirectory[MAX_QPATH];
+static const char *glaName = "models/players/_humanoid/_humanoid.gla";
+static int OpenFile(const char *name, fileHandle_t *file, fsMode_t mode) {
+    CHECK(mode == FS_READ);
+    CHECK(!strcmp(name, "models/players/custom/animevents.cfg"));
+    *file = modelEventLength >= 0 ? 1 : 0;
+    return modelEventLength;
+}
+static void CloseFile(fileHandle_t file) { CHECK(file == 1); fileCloses++; }
+static void GetGLAName(void *g2, int model, char *name) {
+    CHECK(g2 == &testNpc && model == 0);
+    Q_strncpyz(name, glaName, MAX_QPATH);
+}
+int BG_ParseAnimationEvtFile(const char *directory, int animIndex, int eventIndex) {
+    CHECK(eventIndex == bgNumAnimEvents);
+    CHECK(animIndex == 0 || animIndex == 2);
+    eventParses++;
+    Q_strncpyz(eventDirectory, directory, sizeof(eventDirectory));
+    return !strcmp(directory, "models/players/custom/") && modelEventLength == 0 ? -1 : 7;
+}
+static int handBolt, matrixCalls, matrixBolt;
+static qboolean matrixAvailable = qtrue;
+static void *handModel;
+static int AddBolt(void *g2, int model, const char *name) {
+    CHECK(model == 0 && !strcmp(name, "*l_hand"));
+    handModel = g2;
+    return handBolt;
+}
+static qboolean GetBoltMatrix(void *g2, int model, int bolt, mdxaBone_t *matrix,
+    const vec3_t angles, const vec3_t position, int time, qhandle_t *models, vec3_t scale) {
+    (void)angles; (void)position; (void)time; (void)scale;
+    CHECK(g2 == handModel && model == 0 && models == cgs.gameModels);
+    matrixCalls++;
+    matrixBolt = bolt;
+    matrix->matrix[0][3] = 11;
+    matrix->matrix[1][3] = 22;
+    matrix->matrix[2][3] = 33;
+    return matrixAvailable;
+}
+void BG_GiveMeVectorFromMatrix(mdxaBone_t *matrix, int flags, vec3_t result) {
+    CHECK(flags == ORIGIN);
+    result[0] = matrix->matrix[0][3];
+    result[1] = matrix->matrix[1][3];
+    result[2] = matrix->matrix[2][3];
+}
 static struct {
     sfxHandle_t (*S_RegisterSound)(const char *);
     int (*FX_RegisterEffect)(const char *);
-} imports = { RegisterSound, RegisterEffect }, *trap = &imports;
+    int (*FS_Open)(const char *, fileHandle_t *, fsMode_t);
+    void (*FS_Close)(fileHandle_t);
+    void (*G2API_GetGLAName)(void *, int, char *);
+    int (*G2API_AddBolt)(void *, int, const char *);
+    qboolean (*G2API_GetBoltMatrix)(void *, int, int, mdxaBone_t *, const vec3_t,
+        const vec3_t, int, qhandle_t *, vec3_t);
+} imports = { RegisterSound, RegisterEffect, OpenFile, CloseFile, GetGLAName,
+    AddBolt, GetBoltMatrix }, *trap = &imports;
 
 static sfxHandle_t CG_CustomSound(int entityNum, const char *name) {
     if (testNpcSounds && entityNum == 70) {
@@ -118,6 +180,68 @@ static void Parse(const char *text) {
 
 int main(void) {
     int i, calls;
+    // Missing custom NPC events use the skeleton on every load, even when
+    // an earlier precache may have cached an empty model-specific event set.
+    CHECK(CG_NPCEventIndexForModel(&testNpc, "models/players/custom/", 0) == 7);
+    CHECK(!strcmp(eventDirectory, "models/players/_humanoid/"));
+    CHECK(eventParses == 1 && fileCloses == 0);
+    CHECK(CG_NPCEventIndexForModel(&testNpc, "models/players/custom/", 0) == 7);
+    CHECK(!strcmp(eventDirectory, "models/players/_humanoid/"));
+    CHECK(eventParses == 2 && fileCloses == 0);
+    // Resolve non-humanoid skeletons too, retaining their own animation layout.
+    glaName = "models/players/custom_droid/model.gla";
+    CHECK(CG_NPCEventIndexForModel(&testNpc, "models/players/custom/", 2) == 7);
+    CHECK(!strcmp(eventDirectory, "models/players/custom_droid/"));
+    glaName = "models/players/_humanoid/_humanoid.gla";
+    // A model's explicit events (including deliberate silence) take precedence.
+    modelEventLength = 20;
+    CHECK(CG_NPCEventIndexForModel(&testNpc, "models/players/custom/", 0) == 7);
+    CHECK(!strcmp(eventDirectory, "models/players/custom/") && fileCloses == 1);
+    modelEventLength = 0;
+    CHECK(CG_NPCEventIndexForModel(&testNpc, "models/players/custom/", 0) == -1);
+    CHECK(!strcmp(eventDirectory, "models/players/custom/") && fileCloses == 2);
+
+    // NPC holders use entity numbers rather than player slots. Resolve their
+    // own hand bolt, including bolt zero, and reject stale or invalid holders.
+    {
+        centity_t victim = {0};
+        vec3_t position = {0};
+        victim.currentState.heldByClient = 71;
+        cg_entities[70].currentValid = qtrue;
+        cg_entities[70].currentState.eType = ET_NPC;
+        cg_entities[70].ghoul2 = &testNpc;
+        handBolt = 0;
+        CHECK(CG_GetHeldHandPosition(&victim, position));
+        CHECK(handModel == &testNpc && matrixBolt == 0);
+        CHECK(position[0] == 11 && position[1] == 22 && position[2] == 33);
+        handBolt = 5;
+        CHECK(CG_GetHeldHandPosition(&victim, position) && matrixBolt == 5);
+        calls = matrixCalls;
+        handBolt = -1;
+        CHECK(!CG_GetHeldHandPosition(&victim, position) && matrixCalls == calls);
+        handBolt = 0;
+        matrixAvailable = qfalse;
+        CHECK(!CG_GetHeldHandPosition(&victim, position));
+        matrixAvailable = qtrue;
+        cg_entities[70].currentValid = qfalse;
+        CHECK(!CG_GetHeldHandPosition(&victim, position));
+        cg_entities[70].currentValid = qtrue;
+        cg_entities[70].ghoul2 = NULL;
+        CHECK(!CG_GetHeldHandPosition(&victim, position));
+        cg_entities[70].ghoul2 = &testNpc;
+        cg_entities[70].currentState.eType = ET_GENERAL;
+        CHECK(!CG_GetHeldHandPosition(&victim, position));
+        victim.currentState.heldByClient = -1;
+        CHECK(!CG_GetHeldHandPosition(&victim, position));
+        victim.currentState.heldByClient = ENTITYNUM_WORLD + 1;
+        CHECK(!CG_GetHeldHandPosition(&victim, position));
+        victim.currentState.heldByClient = 1;
+        cg_entities[0].currentValid = qtrue;
+        cg_entities[0].currentState.eType = ET_PLAYER;
+        cg_entities[0].ghoul2 = &testNpc;
+        CHECK(CG_GetHeldHandPosition(&victim, position));
+    }
+
     // A render stall crosses the impact frame with both samples >3 frames away.
     bgAllAnims[0].anims = animations;
     animations[BOTH_KYLE_PA_2].firstFrame = 100;
@@ -283,6 +407,42 @@ int main(void) {
     CHECK(transitions == calls);
     CHECK(cg.predictedError[0] == 0 && cg.predictedErrorTime == 0 && cg.predictedTimeFrac == 0);
     cg_noPredict.integer = 0;
+
+    // The binary's A + melee victim is KNEES1 with timers refreshed to 1.
+    // Bypass command prediction before the hand link exists, then while held
+    // by an NPC. The release must restore ballistic prediction immediately.
+    memset(&serverSnapshot.ps, 0, sizeof(serverSnapshot.ps));
+    serverSnapshot.ps.stats[STAT_HEALTH] = 50;
+    serverSnapshot.ps.legsAnim = serverSnapshot.ps.torsoAnim = BOTH_KNEES1;
+    serverSnapshot.ps.legsTimer = serverSnapshot.ps.torsoTimer = 1;
+    serverSnapshot.ps.forceHandExtend = HANDEXTEND_PRETHROWN;
+    serverSnapshot.ps.origin[0] = 40;
+    serverSnapshot.ps.viewangles[YAW] = 90;
+    cg.predictedError[0] = 20;
+    cg.predictedErrorTime = 100;
+    calls = transitions;
+    PredictHold();
+    CHECK(transitions == calls + 1);
+    CHECK(cg.predictedPlayerState.origin[0] == 40 && cg.predictedPlayerState.viewangles[YAW] == 90);
+    CHECK(cg.predictedError[0] == 0 && cg.predictedErrorTime == 0);
+    serverSnapshot.ps.heldByClient = 71;
+    serverSnapshot.ps.forceHandExtend = HANDEXTEND_NONE;
+    CHECK(CG_InMeleeGrappleVictimState(&serverSnapshot.ps));
+    serverSnapshot.ps.forceHandExtend = HANDEXTEND_POSTTHROWN;
+    serverSnapshot.ps.heldByClient = 0;
+    serverSnapshot.ps.velocity[0] = 400;
+    CHECK(!CG_InMeleeGrappleVictimState(&serverSnapshot.ps));
+    calls = transitions;
+    PredictHold();
+    CHECK(transitions == calls);
+    serverSnapshot.ps.forceHandExtend = HANDEXTEND_NONE;
+    serverSnapshot.ps.heldByClient = ENTITYNUM_WORLD + 1;
+    CHECK(!CG_InMeleeGrappleVictimState(&serverSnapshot.ps));
+    serverSnapshot.ps.heldByClient = 71;
+    serverSnapshot.ps.stats[STAT_HEALTH] = 0;
+    CHECK(!CG_InMeleeGrappleVictimState(&serverSnapshot.ps));
+    serverSnapshot.ps.heldByClient = 0;
+    serverSnapshot.ps.stats[STAT_HEALTH] = 50;
 
     // Restore only live flight channels. An expired channel and a dead
     // player's animation must not be overwritten with the paired throw.

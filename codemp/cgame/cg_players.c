@@ -850,6 +850,26 @@ int CG_G2EvIndexForModel(void *g2, int animIndex)
 	return evtIndex;
 }
 
+static int CG_NPCEventIndexForModel( void *g2, const char *modelDirectory, int animIndex )
+{
+	char filename[MAX_QPATH];
+	fileHandle_t file;
+
+	// Keep model-specific events, including deliberately empty files. A missing
+	// file is cached as an empty event set by the parser, so check before parsing.
+	Com_sprintf( filename, sizeof( filename ), "%sanimevents.cfg", modelDirectory );
+	trap->FS_Open( filename, &file, FS_READ );
+	if ( file )
+	{
+		trap->FS_Close( file );
+		return BG_ParseAnimationEvtFile( modelDirectory, animIndex, bgNumAnimEvents );
+	}
+
+	// Custom humanoid NPCs commonly share the player skeleton without supplying
+	// an event file of their own. Resolve the actual skeleton for other NPCs too.
+	return CG_G2EvIndexForModel( g2, animIndex );
+}
+
 void CG_LoadCISounds(clientInfo_t *ci, qboolean modelloaded, qboolean isDefaultModel)
 {
 	fileHandle_t f;
@@ -5240,6 +5260,38 @@ qboolean CG_G2PlayerHeadAnims( centity_t *cent )
 #if 1
 int cgFPLSState = 0;
 #endif
+static qboolean CG_GetHeldHandPosition( const centity_t *cent, vec3_t position )
+{
+	centity_t *holder;
+	mdxaBone_t boltMatrix;
+	int handBolt;
+
+	// The link stores entity number + 1, and NPCs are outside the player slots.
+	if ( cent->currentState.heldByClient <= 0 ||
+		cent->currentState.heldByClient > ENTITYNUM_WORLD )
+	{
+		return qfalse;
+	}
+	holder = &cg_entities[cent->currentState.heldByClient - 1];
+	if ( !holder->currentValid || !holder->ghoul2 ||
+		(holder->currentState.eType != ET_PLAYER && holder->currentState.eType != ET_NPC) )
+	{
+		return qfalse;
+	}
+
+	// Bolt indices belong to each model; the victim's index need not match a
+	// custom NPC holder's index. Zero is also a valid bolt index.
+	handBolt = trap->G2API_AddBolt( holder->ghoul2, 0, "*l_hand" );
+	if ( handBolt < 0 || !trap->G2API_GetBoltMatrix( holder->ghoul2, 0, handBolt,
+		&boltMatrix, holder->turAngles, holder->lerpOrigin, cg.time,
+		cgs.gameModels, holder->modelScale ) )
+	{
+		return qfalse;
+	}
+	BG_GiveMeVectorFromMatrix( &boltMatrix, ORIGIN, position );
+	return qtrue;
+}
+
 static void CG_G2PlayerAngles( centity_t *cent, matrix3_t legs, vec3_t legsAngles)
 {
 	clientInfo_t *ci;
@@ -5327,28 +5379,18 @@ static void CG_G2PlayerAngles( centity_t *cent, matrix3_t legs, vec3_t legsAngle
 			cg.frametime, cent->turAngles, cent->modelScale, ci->legsAnim, ci->torsoAnim, &ci->corrTime,
 			lookAngles, ci->lastHeadAngles, ci->lookTime, emplaced, &ci->superSmoothTime);
 
-		if (cent->currentState.heldByClient && cent->currentState.heldByClient <= MAX_CLIENTS)
-		{ //then put our arm in this client's hand
-			//is index+1 because index 0 is valid.
-			int heldByIndex = cent->currentState.heldByClient-1;
-			centity_t *other = &cg_entities[heldByIndex];
-
-			if (other && other->ghoul2 && ci->bolt_lhand)
+		{
+			vec3_t boltOrg;
+			if ( ci->bolt_lhand >= 0 && CG_GetHeldHandPosition( cent, boltOrg ) )
 			{
-				mdxaBone_t boltMatrix;
-				vec3_t boltOrg;
-
-				trap->G2API_GetBoltMatrix(other->ghoul2, 0, ci->bolt_lhand, &boltMatrix, other->turAngles, other->lerpOrigin, cg.time, cgs.gameModels, other->modelScale);
-				BG_GiveMeVectorFromMatrix(&boltMatrix, ORIGIN, boltOrg);
-
 				BG_IK_MoveArm(cent->ghoul2, ci->bolt_lhand, cg.time, &cent->currentState,
 					cent->currentState.torsoAnim/*BOTH_DEAD1*/, boltOrg, &cent->ikStatus, cent->lerpOrigin, cent->lerpAngles, cent->modelScale, 500, qfalse);
 			}
-		}
-		else if (cent->ikStatus)
-		{ //make sure we aren't IKing if we don't have anyone to hold onto us.
-			BG_IK_MoveArm(cent->ghoul2, ci->bolt_lhand, cg.time, &cent->currentState,
-				cent->currentState.torsoAnim/*BOTH_DEAD1*/, vec3_origin, &cent->ikStatus, cent->lerpOrigin, cent->lerpAngles, cent->modelScale, 500, qtrue);
+			else if (cent->ikStatus)
+			{ //clear IK when the holder or its hand is no longer available.
+				BG_IK_MoveArm(cent->ghoul2, ci->bolt_lhand, cg.time, &cent->currentState,
+					cent->currentState.torsoAnim/*BOTH_DEAD1*/, vec3_origin, &cent->ikStatus, cent->lerpOrigin, cent->lerpAngles, cent->modelScale, 500, qtrue);
+			}
 		}
 	}
 	else if ( cent->m_pVehicle && cent->m_pVehicle->m_pVehicleInfo->type == VH_WALKER )
@@ -9554,7 +9596,7 @@ void CG_G2AnimEntModelLoad(centity_t *cent)
 					*slash = 0;
 				}
 
-				cent->eventAnimIndex = BG_ParseAnimationEvtFile(originalModelName, cent->localAnimIndex, bgNumAnimEvents);
+				cent->eventAnimIndex = CG_NPCEventIndexForModel(cent->ghoul2, originalModelName, cent->localAnimIndex);
 			}
 		}
 	}
