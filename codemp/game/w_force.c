@@ -1803,18 +1803,29 @@ static qboolean WP_CanDeflectLightning(const playerState_t *ps, const usercmd_t 
 	return ps->velocity[0] * ps->velocity[0] + ps->velocity[1] * ps->velocity[1] <= walkSpeed * walkSpeed;
 }
 
+static int WP_LightningDeflectAnim(const playerState_t *ps, const vec3_t source, float yaw)
+{
+	vec3_t incoming, angles = {0, 0, 0}, right;
+	VectorSubtract(source, ps->origin, incoming);
+	incoming[2] = 0;
+	VectorNormalize(incoming);
+	angles[YAW] = yaw;
+	AngleVectors(angles, NULL, right, NULL);
+	return DotProduct(incoming, right) < -0.1f ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
+}
+
 static qboolean WP_LightningDeflectDirection(const playerState_t *ps, const vec3_t source, int *anim)
 {
-	vec3_t incoming, forward, right;
+	vec3_t incoming, forward;
 	VectorSubtract(source, ps->origin, incoming);
 	incoming[2] -= ps->viewheight;
 	if (VectorNormalize(incoming) < 1.0f)
 		return qfalse;
-	AngleVectors(ps->viewangles, forward, right, NULL);
+	AngleVectors(ps->viewangles, forward, NULL, NULL);
 	if (DotProduct(incoming, forward) < LIGHTNING_DEFLECT_MIN_DOT)
 		return qfalse;
 	if (anim)
-		*anim = DotProduct(incoming, right) < -0.1f ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
+		*anim = WP_LightningDeflectAnim(ps, source, ps->viewangles[YAW]);
 	return qtrue;
 }
 
@@ -1833,6 +1844,7 @@ static void WP_EndLightningDeflect(gentity_t *self)
 	client->lightningDeflectTime = 0;
 	client->lightningDeflectAttacker = ENTITYNUM_NONE;
 	client->lightningDeflectAnim = 0;
+	client->lightningDeflectYaw = 0;
 }
 
 static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
@@ -1844,10 +1856,13 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 		return qfalse;
 	VectorCopy(attacker->client->ps.origin, source);
 	source[2] += attacker->client->ps.viewheight;
-	if (!WP_LightningDeflectDirection(ps, source, &anim))
+	if (!WP_LightningDeflectDirection(ps, source, NULL))
 		return qfalse;
-	// Guard toward the caster's position in the defender's facing frame.
-	// Caster aim changes may affect whether lightning hits, but never the pose.
+	// Freeze the facing frame for this guard so aim alone cannot flip its pose.
+	// Recompute from positions so movement by either player still changes sides.
+	if (defender->client->lightningDeflectTime <= level.time)
+		defender->client->lightningDeflectYaw = ps->viewangles[YAW];
+	anim = WP_LightningDeflectAnim(ps, source, defender->client->lightningDeflectYaw);
 	// A successful guard never leaves the normal full-body shock shell behind.
 	// This can still be active from an immediately preceding lightning tick.
 	ps->electrifyTime = 0;
