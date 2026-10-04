@@ -755,7 +755,7 @@ extern qboolean BG_UnrestrainedPitchRoll( playerState_t *ps, Vehicle_t *pVeh );
 
 static qboolean CG_EndDuelCameraActive( void ) {
 	return cgs.serverMod == SVMOD_JAPLUS &&
-		!(cp_pluginDisable.integer & JAPRO_PLUGIN_ENDDUELROTATION) &&
+		(cp_pluginDisable.integer & JAPRO_PLUGIN_ENDDUELROTATION) &&
 		cg.endDuelCameraTime > 0 &&
 		cg.time >= cg.endDuelCameraTime &&
 		cg.time - cg.endDuelCameraTime < END_DUEL_CAMERA_DURATION &&
