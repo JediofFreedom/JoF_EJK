@@ -775,6 +775,7 @@ typedef enum {
 #define	EF_JETPACK_ACTIVE		(1<<11)		//jetpack is activated
 
 #define EF_WESTAR_MODE			(1<<12)		// player is wielding the westar dual-pistol
+#define EF_NPC_FLIPKICKABLE		(1<<15)		// NPC opts into player flipkick, fall damage and head-standing rules
 
 #define	EF_TALK					(1<<13)		// draw a talk balloon
 #define	EF_CONNECTION			(1<<14)		// draw a connection trouble sprite
@@ -1951,6 +1952,7 @@ extern int WeaponReadyAnim[WP_NUM_WEAPONS];
 extern int WeaponAttackAnim[WP_NUM_WEAPONS];
 qboolean BG_WeaponIsVehicleGun(int weapon);
 qboolean BG_IsDroidClass(class_t npcClass);
+qboolean BG_IsFlipkickableNPC( const entityState_t *state );
 
 extern int forcePowerDarkLight[NUM_FORCE_POWERS];
 
