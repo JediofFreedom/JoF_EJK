@@ -625,6 +625,7 @@ typedef struct centity_s {
 	qboolean		ikStatus;
 
 	qboolean		saberWasInFlight;
+	qboolean		saberHiltChanged; //confirmed local hilt replacement awaiting ignition feedback
 
 	float			smoothYaw;
 
