@@ -1774,6 +1774,7 @@ void ForceLightning( gentity_t *self )
 
 #define LIGHTNING_DEFLECT_MIN_DOT 0.6427876f // +/- 50 degrees, including pitch.
 #define LIGHTNING_DEFLECT_HOLD_TIME 150
+#define LIGHTNING_DEFLECT_SIDE_SWITCH_DOT 0.2f // Cross +/- 11.5 degrees to change an active pose.
 // Prediction replays unacknowledged commands before drawing the local player.
 // Keep its ordinary torso timer alive through that replay; the server releases
 // it using the shorter hit timeout above, or as soon as input cancels the guard.
@@ -1790,6 +1791,8 @@ static qboolean WP_CanDeflectLightning(const playerState_t *ps, const usercmd_t 
 		(ps->saberMove != LS_NONE && ps->saberMove != LS_READY) ||
 		ps->weaponTime > 0 || ps->saberLockTime > time ||
 		ps->forceHandExtend != HANDEXTEND_NONE ||
+		// Hand state can clear while the down/get-up animation still owns the body.
+		BG_InKnockDown(ps->legsAnim) || BG_InKnockDown(ps->torsoAnim) ||
 		ps->groundEntityNum == ENTITYNUM_NONE || ps->m_iVehicleNum ||
 		ps->emplacedIndex || (ps->brokenLimbs & (1 << BROKENLIMB_RARM)) ||
 		BG_InRoll((playerState_t *)ps, ps->legsAnim) || BG_InSpecialJump(ps->legsAnim))
@@ -1803,15 +1806,23 @@ static qboolean WP_CanDeflectLightning(const playerState_t *ps, const usercmd_t 
 	return ps->velocity[0] * ps->velocity[0] + ps->velocity[1] * ps->velocity[1] <= walkSpeed * walkSpeed;
 }
 
-static int WP_LightningDeflectAnim(const playerState_t *ps, const vec3_t source, float yaw)
+static int WP_LightningDeflectAnim(const playerState_t *ps, const vec3_t source, float yaw, int previousAnim)
 {
 	vec3_t incoming, angles = {0, 0, 0}, right;
+	float side;
 	VectorSubtract(source, ps->origin, incoming);
 	incoming[2] = 0;
 	VectorNormalize(incoming);
 	angles[YAW] = yaw;
 	AngleVectors(angles, NULL, right, NULL);
-	return DotProduct(incoming, right) < -0.1f ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
+	side = DotProduct(incoming, right);
+	// Keep the current side near center so small positional changes cannot
+	// repeatedly alternate the poses. Clear movement across center still switches.
+	if (previousAnim == BOTH_P1_S1_TL)
+		return side > LIGHTNING_DEFLECT_SIDE_SWITCH_DOT ? BOTH_P1_S1_TR : BOTH_P1_S1_TL;
+	if (previousAnim == BOTH_P1_S1_TR)
+		return side < -LIGHTNING_DEFLECT_SIDE_SWITCH_DOT ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
+	return side < -0.1f ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
 }
 
 static qboolean WP_LightningDeflectDirection(const playerState_t *ps, const vec3_t source, int *anim)
@@ -1825,7 +1836,7 @@ static qboolean WP_LightningDeflectDirection(const playerState_t *ps, const vec3
 	if (DotProduct(incoming, forward) < LIGHTNING_DEFLECT_MIN_DOT)
 		return qfalse;
 	if (anim)
-		*anim = WP_LightningDeflectAnim(ps, source, ps->viewangles[YAW]);
+		*anim = WP_LightningDeflectAnim(ps, source, ps->viewangles[YAW], 0);
 	return qtrue;
 }
 
@@ -1851,7 +1862,7 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 {
 	playerState_t *ps = &defender->client->ps;
 	vec3_t source;
-	int anim;
+	int anim, previousAnim = 0;
 	if (!WP_CanDeflectLightning(ps, &defender->client->pers.cmd, level.time))
 		return qfalse;
 	VectorCopy(attacker->client->ps.origin, source);
@@ -1862,7 +1873,9 @@ static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 	// Recompute from positions so movement by either player still changes sides.
 	if (defender->client->lightningDeflectTime <= level.time)
 		defender->client->lightningDeflectYaw = ps->viewangles[YAW];
-	anim = WP_LightningDeflectAnim(ps, source, defender->client->lightningDeflectYaw);
+	else
+		previousAnim = defender->client->lightningDeflectAnim;
+	anim = WP_LightningDeflectAnim(ps, source, defender->client->lightningDeflectYaw, previousAnim);
 	// A successful guard never leaves the normal full-body shock shell behind.
 	// This can still be active from an immediately preceding lightning tick.
 	ps->electrifyTime = 0;
