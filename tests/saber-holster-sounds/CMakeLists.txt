@@ -20,6 +20,7 @@ endfunction()
 
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "")
 extract(codemp/cgame/cg_players.c "typedef enum {\n\tSTAFFSWAP_NONE," "//cg_holsteredStaffDebug prints")
+extract(codemp/cgame/cg_players.c "static void CG_SaberClientInfoChanged(" "void CG_NewClientInfo(")
 extract(codemp/cgame/cg_weapons.c "void CG_CheckPlayerG2Weapons(" "/*\nGhoul2 Insert End")
 file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "static void WeaponChangeEvent(centity_t *cent) { entityState_t *es = &cent->currentState; switch (EV_CHANGE_WEAPON) {\n")
 extract(codemp/cgame/cg_event.c "\tcase EV_CHANGE_WEAPON:" "\tcase EV_FIRE_WEAPON:")

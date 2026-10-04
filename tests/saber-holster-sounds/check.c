@@ -7,6 +7,7 @@
 #define assert CHECK
 #define DEBUGNAME(x) ((void)0)
 #define MAX_CLIENTS 4
+#define MAX_SABERS 2
 #define MAX_WEAPONS 8
 #define CHAN_AUTO 0
 #define EF_DEAD 1
@@ -43,7 +44,7 @@ typedef struct {
 typedef struct { playerState_t ps; int numEntities; entityState_t entities[MAX_CLIENTS]; } snapshot_t;
 typedef struct {
     entityState_t currentState;
-    int weapon, currentValid, torsoBolt, saberWasInFlight;
+    int weapon, currentValid, torsoBolt, saberWasInFlight, saberHiltChanged;
     void *ghoul2, *ghoul2weapon;
     clientInfo_t *npcClient;
     vec3_t lerpOrigin;
@@ -52,7 +53,7 @@ typedef struct {
 typedef struct { sfxHandle_t selectSound; } weaponInfo_t;
 static weaponInfo_t cg_weapons[MAX_WEAPONS];
 static centity_t cg_entities[MAX_CLIENTS];
-static struct { int time; playerState_t predictedPlayerState; snapshot_t *snap; } cg;
+static struct { int time, clientNum; playerState_t predictedPlayerState; snapshot_t *snap; } cg;
 static snapshot_t snapshot;
 static struct {
     int serverMod, gameModels[1], gameSounds[32];
@@ -514,7 +515,99 @@ static void TestDrawEndsBetweenRenders(void) {
     Update(-1);
     CHECK(Count(IGNITION) == 1);
 }
+static void TestConfirmedHiltChanges(void) {
+    const qboolean changed[MAX_SABERS] = { qtrue, qfalse };
+    const qboolean unchanged[MAX_SABERS] = { qfalse, qfalse };
+    centity_t *cent;
+    int hilt, blocked;
+    Reset(1);
+    cent = &cg_entities[0];
+    Anim(IDLE, 0);
+    for (hilt = 1; hilt <= 4; hilt++) {
+        cgs.clientinfo[0].saber[0].soundOn = 20 + hilt;
+        CG_SaberClientInfoChanged(0, qtrue, changed);
+        CG_SaberClientInfoChanged(0, qtrue, unchanged);
+        // Even if the model has already been reattached, each confirmed hilt
+        // must sound once. An idle staff is already in hand and needs no reach.
+        Commit(WP_SABER);
+        CHECK(soundCount == hilt && sounds[hilt - 1] == 20 + hilt);
+        CHECK(!cent->saberHiltChanged && !staffSwapSound[0].sound);
+        Update(-1);
+        Commit(WP_SABER);
+        CHECK(soundCount == hilt);
+    }
+
+    Reset(1);
+    Anim(IDLE, 0);
+    cent->weapon = WP_NONE;
+    cent->ghoul2weapon = NULL;
+    cent->saberWasInFlight = qtrue; //old return marker belongs to the previous hilt
+    CG_SaberClientInfoChanged(0, qtrue, changed);
+    Commit(WP_SABER);
+    CHECK(Count(IGNITION) == 1 && !cent->saberHiltChanged);
+
+    // Replacing a hilt during a real draw still honors its handoff and consumes
+    // late copies. The new hilt must not inherit the old draw's consumed sound.
+    Reset(1);
+    Anim(BOTH_S1_S7_NEW, 10);
+    staffSwapSound[0].ignitionPlayed = qtrue;
+    cgs.clientinfo[0].saber[0].blade[0].length = 0;
+    CG_SaberClientInfoChanged(0, qtrue, changed);
+    Commit(WP_SABER);
+    CHECK(Count(IGNITION) == 0 && staffSwapSound[0].sound == IGNITION);
+    Update(0);
+    CG_SaberClientInfoChanged(0, qtrue, unchanged); //name/color refresh while held
+    CHECK(staffSwapSound[0].sound == IGNITION);
+    boneFrame = 46;
+    Update(-1);
+    CHECK(Count(IGNITION) == 1 && !staffSwapSound[0].sound);
+    SaberUnholsterEvent(cent);
+    Update(-1);
+    CHECK(Count(IGNITION) == 1);
+
+    // No actual changed hilt means no feedback (rejected or redundant commands).
+    Reset(1);
+    Anim(IDLE, 0);
+    CG_SaberClientInfoChanged(0, qtrue, unchanged);
+    Commit(WP_SABER);
+    CHECK(soundCount == 0);
+    CG_SaberClientInfoChanged(0, qfalse, changed); //initial loading
+    CHECK(!cent->saberHiltChanged);
+    cgs.clientinfo[0].infoValid = qfalse;
+    CG_SaberClientInfoChanged(0, qtrue, changed); //first clientinfo
+    CHECK(!cent->saberHiltChanged);
+    cgs.clientinfo[1].infoValid = qtrue;
+    CG_SaberClientInfoChanged(1, qtrue, changed);
+    CHECK(!cg_entities[1].saberHiltChanged);
+
+    // A missing player model defers feedback until it can be attached.
+    Reset(1);
+    Anim(IDLE, 0);
+    cent->ghoul2 = NULL;
+    CG_SaberClientInfoChanged(0, qtrue, changed);
+    Commit(WP_SABER);
+    CHECK(soundCount == 0 && cent->saberHiltChanged);
+    cent->ghoul2 = cent;
+    Commit(WP_SABER);
+    CHECK(Count(IGNITION) == 1 && !cent->saberHiltChanged);
+
+    for (blocked = 0; blocked < 5; blocked++) {
+        Reset(1);
+        CG_SaberClientInfoChanged(0, qtrue, changed);
+        switch (blocked) {
+        case 0: cg.predictedPlayerState.pm_flags = PMF_FOLLOW; break;
+        case 1: cent->currentState.eFlags = EF_DEAD; break;
+        case 2: cgs.clientinfo[0].team = TEAM_SPECTATOR; break;
+        case 3: cent->torsoBolt = 1; break;
+        case 4: cent->currentState.saberInFlight = qtrue; break;
+        }
+        Commit(WP_SABER);
+        CHECK(soundCount == 0 && !cent->saberHiltChanged);
+    }
+}
+
 int main(void) {
+    TestConfirmedHiltChanges();
     TestSecondBladeAfterDraw();
     TestDrawEndsBetweenRenders();
     TestCanceledWeaponSwitch();
