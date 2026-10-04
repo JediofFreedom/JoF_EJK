@@ -514,6 +514,15 @@ qboolean FX_ForceLightningEnvironment(centity_t *cent, vec3_t origin, matrix3_t 
 	else
 		VectorCopy(origin, beamEnd);
 
+	// Contained lightning responds only at the main beam's contact point.
+	if (cg_lightningEnvironment.integer < 2) {
+		if (surfaceRay >= 0 && cent->lightningSurfaceTime <= cg.time) {
+			cent->lightningSurfaceTime = cg.time + LIGHTNING_INTERVAL;
+			FX_LightningNestVisual(beamEnd, hits[surfaceRay].plane.normal);
+		}
+		return qtrue;
+	}
+
 	{
 		int owner = cent->currentState.number;
 		FX_LightningExpireNests(owner);

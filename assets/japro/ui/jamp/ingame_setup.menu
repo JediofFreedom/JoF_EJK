@@ -3187,7 +3187,7 @@
 			type				ITEM_TYPE_MULTI
 			text				"Environmental Force Lightning:"
 			cvar				"cg_lightningEnvironment"
-			cvarFloatList	{ @MENUS_ON 1 @MENUS_OFF 0 }
+			cvarFloatList	{ @MENUS_OFF 0 "Contained" 1 "Erratic" 2 }
 			rect				220 63 300 20
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			165
@@ -3196,7 +3196,7 @@
 			textscale			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			descText			"Use environmental effects for Force Lightning."
+			descText			"Contained adds effects where lightning hits; Erratic also arcs to nearby surfaces."
 			action				{ play "sound/interface/button1" }
 			mouseenter			{ show highlight2 }
 			mouseexit			{ hide highlight2 }
