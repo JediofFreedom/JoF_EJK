@@ -1594,7 +1594,10 @@ static bitInfo_T pluginDisables[] = { // MAX_WEAPON_TWEAKS tweaks (24)
 static const int MAX_PLUGINDISABLES = ARRAY_LEN( pluginDisables );
 
 static qboolean CG_PluginOptionEnabled(int index)
-{ //these are JA+ disable bits, so the feature behind one is on while its bit is clear
+{ //Plugin 2 opts into end-duel rotation; the remaining features use JA+ disable bits.
+	if (index == 2) {
+		return (qboolean)((cp_pluginDisable.integer & JAPRO_PLUGIN_ENDDUELROTATION) != 0);
+	}
 	return (qboolean)(!(cp_pluginDisable.integer & (1 << index)) != 0);
 }
 
@@ -1614,8 +1617,8 @@ void CG_PluginDisable_f( void ) {
 			if (cgs.serverMod == SVMOD_JAPRO && !japroPluginDisables[i])
 				continue;
 
-			//nearly every entry is named as a disable, so its box tracks the bit. Plugin 9 is named
-			//as the feature itself ("Holster staff on back"), so its box ticks when the bit is clear
+			//Boxes track the bit, including Plugin 2's opt-in. Plugin 9 ("Holster staff on back")
+			//uses a disable bit, so its box ticks when the bit is clear.
 			if ( (i == 9) ? CG_PluginOptionEnabled(i) : (cp_pluginDisable.integer & (1 << i)) != 0 ) {
 				Com_Printf( "%2d [X] %s\n", display, pluginDisables[i].string );
 			}

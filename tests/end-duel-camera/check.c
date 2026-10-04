@@ -11,6 +11,56 @@ static snapshot_t snapshot;
 static cgameImport_t imports;
 cgameImport_t *trap = &imports;
 static int musicRestarts;
+static const char *pluginArg;
+static char consoleOutput[8192];
+static int pendingPlugins;
+
+static const struct { const char *name, *value; } cvarDefaults[] = {
+#define XCVAR_DEF(name, defVal, update, flags) { #name, defVal },
+#include "cgame/cg_xcvar.h"
+};
+
+static int DefaultPlugins(void) {
+    size_t i;
+    for (i = 0; i < ARRAY_LEN(cvarDefaults); ++i) {
+        if (!strcmp(cvarDefaults[i].name, "cp_pluginDisable")) {
+            return atoi(cvarDefaults[i].value);
+        }
+    }
+    CHECK(0);
+    return 0;
+}
+
+static void Print(const char *format, ...) {
+    size_t length = strlen(consoleOutput);
+    va_list args;
+    va_start(args, format);
+    vsnprintf(consoleOutput + length, sizeof(consoleOutput) - length, format, args);
+    va_end(args);
+}
+
+char *QDECL va(const char *format, ...) {
+    static char buffer[128];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    return buffer;
+}
+
+static int CmdArgc(void) { return pluginArg ? 2 : 1; }
+static void CmdArgv(int arg, char *buffer, int length) {
+    CHECK(arg == 1 && pluginArg);
+    snprintf(buffer, length, "%s", pluginArg);
+}
+static void CvarSet(const char *name, const char *value) {
+    CHECK(!strcmp(name, "cp_pluginDisable"));
+    pendingPlugins = atoi(value);
+}
+static void CvarUpdate(vmCvar_t *cvar) {
+    CHECK(cvar == &cp_pluginDisable);
+    cvar->integer = pendingPlugins;
+}
 
 static void ClearLoopingSounds(void) {}
 void CG_StartMusic(qboolean force) { CHECK(force); ++musicRestarts; }
@@ -24,7 +74,12 @@ static entityState_t Setup(void) {
     memset(&cg, 0, sizeof(cg));
     memset(&cgs, 0, sizeof(cgs));
     memset(&snapshot, 0, sizeof(snapshot));
-    cp_pluginDisable.integer = 0;
+    cp_pluginDisable.integer = DefaultPlugins() | JAPRO_PLUGIN_ENDDUELROTATION;
+    Com_Printf = Print;
+    imports.Cmd_Argc = CmdArgc;
+    imports.Cmd_Argv = CmdArgv;
+    imports.Cvar_Set = CvarSet;
+    imports.Cvar_Update = CvarUpdate;
     imports.S_ClearLoopingSounds = ClearLoopingSounds;
     musicRestarts = 0;
     cgs.serverMod = SVMOD_JAPLUS;
@@ -38,8 +93,57 @@ static entityState_t Setup(void) {
     return event;
 }
 
-int main(void) {
+static void Plugin(const char *arg) {
+    pluginArg = arg;
+    consoleOutput[0] = '\0';
+    CG_PluginDisable_f();
+}
+
+static void CheckPluginToggle(void) {
     entityState_t event = Setup();
+    int defaults = DefaultPlugins();
+
+    // Use the registered default, then exercise the actual /plugin command.
+    CHECK(!(defaults & JAPRO_PLUGIN_ENDDUELROTATION));
+    cp_pluginDisable.integer = defaults;
+    Plugin(NULL);
+    CHECK(strstr(consoleOutput, " 2 [ ] End duel rotation\n"));
+    DispatchDuelEvent(&event);
+    CHECK(cg.endDuelCameraTime == 0);
+    CHECK(!CG_EndDuelCameraActive());
+
+    Plugin("2");
+    CHECK(cp_pluginDisable.integer == (defaults | JAPRO_PLUGIN_ENDDUELROTATION));
+    CHECK(!strcmp(consoleOutput, "End duel rotation ^2Enabled^7\n"));
+    Plugin(NULL);
+    CHECK(strstr(consoleOutput, " 2 [X] End duel rotation\n"));
+    DispatchDuelEvent(&event);
+    CHECK(CG_EndDuelCameraActive());
+
+    Plugin("2");
+    CHECK(cp_pluginDisable.integer == defaults);
+    CHECK(!strcmp(consoleOutput, "End duel rotation ^1Disabled^7\n"));
+    CHECK(!CG_EndDuelCameraActive());
+    Plugin(NULL);
+    CHECK(strstr(consoleOutput, " 2 [ ] End duel rotation\n"));
+    DispatchDuelEvent(&event);
+    CHECK(cg.endDuelCameraTime == 0);
+
+    // Other JA+ options retain their legacy disable-bit behavior.
+    CHECK(CG_PluginOptionEnabled(3));
+    CHECK(CG_PluginOptionEnabled(9));
+    Plugin("3");
+    CHECK(!CG_PluginOptionEnabled(3));
+    CHECK(CG_PluginOptionEnabled(9));
+    Plugin("9");
+    CHECK(!CG_PluginOptionEnabled(9));
+}
+
+int main(void) {
+    entityState_t event;
+
+    CheckPluginToggle();
+    event = Setup();
 
     // JA+ ends the duel through EV_PRIVATE_DUEL 0, without a required obituary.
     DispatchDuelEvent(&event);
@@ -71,7 +175,7 @@ int main(void) {
     CHECK(CG_EndDuelCameraActive());
 
     event = Setup();
-    cp_pluginDisable.integer = JAPRO_PLUGIN_ENDDUELROTATION;
+    cp_pluginDisable.integer &= ~JAPRO_PLUGIN_ENDDUELROTATION;
     DispatchDuelEvent(&event);
     CHECK(cg.endDuelCameraTime == 0);
     CHECK(!CG_EndDuelCameraActive());
@@ -135,9 +239,9 @@ int main(void) {
 
     event = Setup();
     DispatchDuelEvent(&event);
-    cp_pluginDisable.integer = JAPRO_PLUGIN_ENDDUELROTATION;
+    cp_pluginDisable.integer &= ~JAPRO_PLUGIN_ENDDUELROTATION;
     CHECK(!CG_EndDuelCameraActive());
 
-    puts("PASS: JA+ duel-end event, delayed prediction, camera duration, plugin toggle, death, follow/spectator, respawn, new duel, other players/mods.");
+    puts("PASS: Plugin 2 defaults, command/checkmark/status, JA+ duel-end event, delayed prediction, camera duration, immediate disable, death, follow/spectator, respawn, new duel, other players/mods.");
     return 0;
 }

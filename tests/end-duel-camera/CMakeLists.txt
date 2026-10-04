@@ -5,7 +5,7 @@ get_filename_component(repo "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 configure_file("${repo}/codemp/versionfile/jofversion.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/jofversion.h" @ONLY)
 
-# Compile the real event dispatch and camera predicates, with sound/UI mocked.
+# Compile the real plugin command, event dispatch and camera predicates.
 function(extract path first last)
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${repo}/${path}")
   file(READ "${repo}/${path}" source)
@@ -19,7 +19,10 @@ function(extract path first last)
   file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "${part}\n")
 endfunction()
 
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/actual.h"
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "")
+extract(codemp/cgame/cg_consolecmds.c "typedef struct bitInfo_S {" "static bitInfo_T strafeTweaks[] = {")
+extract(codemp/cgame/cg_consolecmds.c "static qboolean japroPluginDisables[] = {" "//Playermodel visuals")
+file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h"
   "static void DispatchDuelEvent(entityState_t *es) { switch (EV_PRIVATE_DUEL) {\n")
 extract(codemp/cgame/cg_event.c "\tcase EV_PRIVATE_DUEL:" "\tcase EV_JUMP:")
 file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "} }\n")

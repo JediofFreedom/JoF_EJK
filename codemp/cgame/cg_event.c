@@ -2003,7 +2003,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			// JA+ starts Plugin 2 from EV_PRIVATE_DUEL 0, not an obituary.
 			// The survivor can receive this before prediction clears duelInProgress.
 			if (!es->eventParm &&
-				!(cp_pluginDisable.integer & JAPRO_PLUGIN_ENDDUELROTATION) &&
+				(cp_pluginDisable.integer & JAPRO_PLUGIN_ENDDUELROTATION) &&
 				!(cg.snap->ps.pm_flags & PMF_FOLLOW) &&
 				cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR &&
 				cg.snap->ps.stats[STAT_HEALTH] > 0) {
