@@ -3266,6 +3266,7 @@ void CG_CheckPlayerG2Weapons(playerState_t *ps, centity_t *cent)
 
 	if (ps->pm_flags & PMF_FOLLOW)
 	{
+		cent->saberHiltChanged = qfalse;
 		return;
 	}
 
@@ -3278,17 +3279,20 @@ void CG_CheckPlayerG2Weapons(playerState_t *ps, centity_t *cent)
 	// should we change the gun model on this player?
 	if (cent->currentState.saberInFlight)
 	{
+		cent->saberHiltChanged = qfalse;
 		cent->ghoul2weapon = CG_G2WeaponInstance(cent, WP_SABER);
 	}
 
 	if (cent->currentState.eFlags & EF_DEAD)
 	{ //no updating weapons when dead
+		cent->saberHiltChanged = qfalse;
 		cent->ghoul2weapon = NULL;
 		return;
 	}
 
 	if (cent->torsoBolt)
 	{ //got our limb cut off, no updating weapons until it's restored
+		cent->saberHiltChanged = qfalse;
 		cent->ghoul2weapon = NULL;
 		return;
 	}
@@ -3296,12 +3300,13 @@ void CG_CheckPlayerG2Weapons(playerState_t *ps, centity_t *cent)
 	if (cgs.clientinfo[ps->clientNum].team == TEAM_SPECTATOR ||
 		ps->persistant[PERS_TEAM] == TEAM_SPECTATOR)
 	{
+		cent->saberHiltChanged = qfalse;
 		cent->ghoul2weapon = cg_entities[ps->clientNum].ghoul2weapon = NULL;
 		cent->weapon = cg_entities[ps->clientNum].weapon = 0;
 		return;
 	}
 
-	if (cent->ghoul2 && cent->ghoul2weapon != CG_G2WeaponInstance(cent, ps->weapon) &&
+	if (cent->ghoul2 && (cent->saberHiltChanged || cent->ghoul2weapon != CG_G2WeaponInstance(cent, ps->weapon)) &&
 		ps->clientNum == cent->currentState.number) //don't want spectator mode forcing one client's weapon instance over another's
 	{
 		CG_CopyG2WeaponInstance(cent, ps->weapon, cent->ghoul2);
@@ -3327,8 +3332,8 @@ void CG_CheckPlayerG2Weapons(playerState_t *ps, centity_t *cent)
 				}
 			}
 		}
-		else if (ps->weapon == WP_SABER && cent->weapon != ps->weapon && !cent->saberWasInFlight)
-		{ //switching to the saber
+		else if (ps->weapon == WP_SABER && (cent->saberHiltChanged || (cent->weapon != ps->weapon && !cent->saberWasInFlight)))
+		{ //switching to the saber, or replacing a hilt already in hand
 			//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberon.wav" ));
 			if (cg.time - cent->saberSoundOnDebounceTime >= 800)
 			{
@@ -3351,6 +3356,7 @@ void CG_CheckPlayerG2Weapons(playerState_t *ps, centity_t *cent)
 			BG_SI_SetDesiredLength(&cgs.clientinfo[ps->clientNum].saber[1], 0, -1);
 		}
 		cent->weapon = ps->weapon;
+		cent->saberHiltChanged = qfalse;
 	}
 }
 

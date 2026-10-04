@@ -2215,6 +2215,16 @@ void CG_CleanHolsteredSabers( clientInfo_t *ci ) {
 //whatever this client's staff was part way through, it belongs to the old saber
 static void CG_StaffSwapForgetClient( int clientNum );
 
+static void CG_SaberClientInfoChanged( int clientNum, qboolean entitiesInitialized, const qboolean saberUpdate[MAX_SABERS] )
+{
+	if (!saberUpdate[0] && !saberUpdate[1])
+		return; //a name, color or other userinfo change must not discard a queued ignition
+
+	CG_StaffSwapForgetClient( clientNum );
+	cg_entities[clientNum].saberHiltChanged = (qboolean)(entitiesInitialized
+		&& cgs.clientinfo[clientNum].infoValid && clientNum == cg.clientNum);
+}
+
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	clientInfo_t *ci;
 	clientInfo_t newInfo;
@@ -2261,6 +2271,8 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 
 		if ( ci->infoValid )
 			cgs.numClients--;
+		CG_StaffSwapForgetClient( clientNum );
+		cg_entities[clientNum].saberHiltChanged = qfalse;
 		memset( ci, 0, sizeof( *ci ) );
 		return;		// player just left
 	}
@@ -2728,9 +2740,8 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 
 	if (ci->holsterGhoul2_2 && trap->G2_HaveWeGhoul2Models(ci->holsterGhoul2_2))
 		trap->G2API_CleanGhoul2Models(&ci->holsterGhoul2_2);
+CG_SaberClientInfoChanged( clientNum, entitiesInitialized, saberUpdate );
 	*ci = newInfo;
-
-	CG_StaffSwapForgetClient( clientNum );
 
 	//force a weapon change anyway, for all clients being rendered to the current client
 	while (i < MAX_CLIENTS)
@@ -11314,6 +11325,9 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 
 	if (weapon != WP_SABER || holstered >= 2)
 		return qfalse;	//nothing is being drawn, so nothing is waiting on a hand
+
+	if (cent->saberHiltChanged && !CG_StaffSwapDrawAnim(anim))
+		return qfalse; //a confirmed replacement is already in hand; no back draw is pending
 
 	// Opening the second blade can arrive while the completed reach still
 	// occupies the torso channel, before prediction sees the new blade state.
