@@ -3896,7 +3896,7 @@
 			type				ITEM_TYPE_MULTI
 			text				"Saber Hum:"
 			cvar				"cg_saberHum"
-			cvarFloatList		{ "Random (Default)" 0 "Hum 1" 1 "Hum 2" 2 "Hum 3" 3 "Hum 4" 4 "Hum 5" 5 "Hilt default" 6 }
+			cvarFloatList		{ "Random (default)" 0 "Hum 1" 1 "Hum 2" 2 "Hum 3" 3 "Hum 4" 4 "Hum 5" 5 "Hilt" 6 }
 			rect				220 63 300 20
 			textalign			ITEM_ALIGN_RIGHT
 			textalignx			120
@@ -3905,7 +3905,7 @@
 			textscale			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			descText			"Changes immediately. Custom hilt hums are always preserved; Hilt default disables randomization."
+			descText			"Stock hums change instantly. Hilt uses the hilt's hum; custom hums are kept."
 			action				{ play "sound/interface/button1" }
 			mouseenter			{ show highlight2 }
 			mouseexit			{ hide highlight2 }

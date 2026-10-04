@@ -1750,7 +1750,7 @@ typedef struct saberInfo_s {
 	qhandle_t		skin;									// registered skin id
 	int				soundOn;								// game soundindex for turning on sound
 	int				soundLoop;								// game soundindex for hum/loop sound
-	qboolean		soundLoopCustom;						// hilt explicitly sets soundLoop
+	qboolean		soundLoopCustom;						// hilt uses a non-stock hum or an explicit silent loop
 	int				soundOff;								// game soundindex for turning off sound
 	int				numBlades;
 	bladeInfo_t		blade[MAX_BLADES];						// blade info - like length, trail, origin, dir, etc.

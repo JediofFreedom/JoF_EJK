@@ -579,11 +579,26 @@ static void Saber_ParseSoundOn( saberInfo_t *saber, const char **p ) {
 	saber->soundOn = BG_SoundIndex( value );
 }
 static void Saber_ParseSoundLoop( saberInfo_t *saber, const char **p ) {
+	static const char *stockHums[] = {
+		"sound/weapons/saber/saberhum1.wav",
+		"sound/weapons/saber/saberhum2.wav",
+		"sound/weapons/saber/saberhum3.wav",
+		"sound/weapons/saber/saberhum4.wav",
+		"sound/weapons/saber/saberhum5.wav"
+	};
 	const char *value;
+	size_t i;
 	if ( COM_ParseString( p, &value ) )
 		return;
 	saber->soundLoop = BG_SoundIndex( value );
+	// Stock hilts explicitly declare their built-in hum too. Only protect custom loops.
 	saber->soundLoopCustom = qtrue;
+	for ( i = 0; i < ARRAY_LEN( stockHums ); i++ ) {
+		if ( !Q_stricmp( value, stockHums[i] ) ) {
+			saber->soundLoopCustom = qfalse;
+			break;
+		}
+	}
 }
 static void Saber_ParseSoundOff( saberInfo_t *saber, const char **p ) {
 	const char *value;
