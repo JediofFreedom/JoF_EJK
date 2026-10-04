@@ -176,6 +176,7 @@ static void Lifecycle(void) {
   CHECK(clients[1].ps.torsoTimer == 350 && clients[1].ps.weaponTime == 350);
 }
 static void Sources(void) {
+  clients[2].ps.origin[1] = 50; // Clearly across the active pose's center buffer.
   Hit(0); Hit(2); CHECK(damages == 0 && events == 0);
 	CHECK(clients[1].ps.torsoAnim == BOTH_P1_S1_TL);
 	level.time += 50; Hit(0); Hit(2); CHECK(events == 0 && damages == 0);
@@ -188,7 +189,7 @@ static void Sources(void) {
   CHECK(damages == 1 && clients[1].lightningDeflectTime == 0);
 }
 static void PositionPose(void) {
-  int yaw, pitch;
+  int yaw, pitch, lateral;
   playerState_t *defender = &clients[1].ps;
   playerState_t *caster = &clients[0].ps;
   caster->origin[1] = 50;
@@ -245,12 +246,66 @@ static void PositionPose(void) {
   caster->origin[0] = 50;
   Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TR);
   CHECK(damages == 0);
+  // Small movements around the center line must not alternate the poses.
+  Reset();
+  caster->origin[1] = -50; Hit(0);
+  for (lateral = -20; lateral <= 20; ++lateral) {
+    level.time += 50;
+    caster->origin[1] = lateral;
+    Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TR);
+  }
+  caster->origin[1] = 50; Hit(0);
+  CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
+  for (lateral = 20; lateral >= -20; --lateral) {
+    level.time += 50;
+    caster->origin[1] = lateral;
+    Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
+  }
+  caster->origin[1] = -50; Hit(0);
+  CHECK(defender->torsoAnim == BOTH_P1_S1_TR);
+  // Translate the encounter: map coordinates do not change the side choice.
+  defender->origin[0] += 12000; defender->origin[1] -= 9000;
+  defender->origin[2] += 3000;
+  caster->origin[0] += 12000; caster->origin[1] -= 9000;
+  caster->origin[2] += 3000;
+  Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TR);
+  CHECK(damages == 0);
 }
 static void Absorption(void) {
   forceAllowed = 0; Hit(0); CHECK(damages == 0 && events == 0);
   forceAllowed = 1; clients[1].ps.fd.forcePowerLevel[FP_SABER_DEFENSE] = FORCE_LEVEL_2;
   absorbLevel = 0; Hit(0); CHECK(damages == 0 && absorbCalls == 1);
   level.time += 50; Hit(0); CHECK(clients[1].ps.fd.forcePower == 1 && absorbCalls == 1);
+}
+static void Knockdown(void) {
+  int anim, part, tick;
+  // The hand state may clear before the recovery animation is replaced.
+  // Every down/get-up pose must keep taking unabsorbed lightning damage.
+  for (anim = 0; anim < MAX_TOTALANIMATIONS; ++anim) {
+    if (!BG_InKnockDown(anim)) continue;
+    for (part = 0; part < 2; ++part) {
+      playerState_t *ps = &clients[1].ps;
+      Reset(); Hit(0); // A prior guard must not survive a knockdown.
+      if (part) { ps->torsoAnim = anim; ps->torsoTimer = 500; }
+      else { ps->legsAnim = anim; ps->legsTimer = 500; }
+      CHECK(ps->forceHandExtend == HANDEXTEND_NONE && ps->weaponTime == 0);
+      WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd);
+      CHECK(clients[1].lightningDeflectTime == 0);
+      for (tick = 0; tick < 40; ++tick) {
+        level.time += 50;
+        Hit(0);
+        CHECK(damages == tick + 1 && clients[1].lightningDeflectTime == 0);
+        CHECK(part ? ps->torsoAnim == anim && ps->torsoTimer == 500 :
+                     ps->legsAnim == anim && ps->legsTimer == 500);
+      }
+      CHECK(g_entities[1].health == 60 && clients[1].noLightningTime == 0);
+      ps->torsoAnim = BOTH_STAND2; ps->legsAnim = BOTH_STAND2;
+      ps->torsoTimer = ps->legsTimer = 0;
+      Hit(0); CHECK(damages == 40 && clients[1].lightningDeflectTime > level.time);
+    }
+  }
+  Reset(); clients[1].ps.forceHandExtend = HANDEXTEND_KNOCKDOWN;
+  Hit(0); CHECK(damages == 1 && clients[1].lightningDeflectTime == 0);
 }
 int main(int argc, char **argv) {
   CHECK(argc == 2); Reset();
@@ -263,6 +318,7 @@ int main(int argc, char **argv) {
   else if (!strcmp(argv[1], "sources")) Sources();
   else if (!strcmp(argv[1], "position_pose")) PositionPose();
   else if (!strcmp(argv[1], "absorption")) Absorption();
+  else if (!strcmp(argv[1], "knockdown")) Knockdown();
   else CHECK(0);
   puts("Passed"); return 0;
 }

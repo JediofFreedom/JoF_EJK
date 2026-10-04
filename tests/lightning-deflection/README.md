@@ -16,10 +16,12 @@ ordinary prediction retaining both server-selected poses during idle/walk,
 including a delayed snapshot with no transmitted Saber Defense level,
 standing and walking, the 100-degree aiming cone and caster-position left/right poses
 relative to the defender's facing direction when the guard starts, pose stability
-through either player's aim changes, position-driven changes as either player moves, immediate
+through either player's aim changes, position-driven changes as either player moves,
+stable poses near center and independence from map coordinates, immediate
 attack/run/jump cancellation, damage and electrification, guard expiry, multiple
 casters, every non-idle saber move and combat recovery preserving their animation timers,
-existing Absorb behavior, preservation of a saber parry using the same pose,
+existing Absorb behavior, continued damage throughout knockdown/get-up animations
+after the hand state clears, preservation of a saber parry using the same pose,
 and effect recognition from the caster's and defender's viewpoints.
 
 For an in-game check, run a server with the new game module. Test both an older
@@ -34,6 +36,9 @@ While both players stand still, turn your aim within the blocking cone: the pose
 should stay fixed. Move either player across the guard's initial facing direction
 to change sides. A new guard captures a new facing direction after cancellation
 or expiry; aim still controls the blocking cone throughout.
+An active pose changes sides only after the caster passes about 11.5 degrees
+beyond center toward the opposite side. Small movements around center keep the
+current pose. The calculation uses relative positions, so it works on every map.
 Only the updated cgame and asset pack supply the additional blade effects/sounds.
 Repeat with latency: swing input should immediately replace the pose through
 normal prediction; run/jump/turn cancellation is confirmed by the server.
@@ -42,6 +47,10 @@ The player must slow down to walking speed to enter the guard. A player who is
 hit while running or swinging can still acquire the guard after settling down,
 even while the beam continues. Deflection has no Force cost and does not damage
 the caster.
+Knockdown and get-up animations cannot acquire or retain the guard, even after
+the hand state clears. With Absorb off and no other damage protection, keep
+Lightning hitting during a knockdown and recovery: damage must continue and no
+block pose should interrupt recovery. Blocking can resume after recovery ends.
 
 The server owns all guard eligibility, damage prevention, pose selection and
 cancellation. Its caster, pose and expiry tracking stay in `gclient_t`, outside
