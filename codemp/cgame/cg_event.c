@@ -468,13 +468,23 @@ clientkilled:
 
 void CG_ToggleBinoculars(centity_t *cent, int forceZoom)
 {
+	playerState_t *eventPlayerState;
+
 	if (cent->currentState.number != cg.snap->ps.clientNum)
 	{
 		return;
 	}
 
-	if (cg.snap->ps.weaponstate != WEAPON_READY)
-	{ //So we can't fool it and reactivate while switching to the saber or something.
+	eventPlayerState = cent->playerState ? cent->playerState : &cg.snap->ps;
+
+	// A nonzero forceZoom comes from the server after ItemUse_Binoculars has
+	// already accepted and applied the toggle. Do not reject its sound because
+	// another snapshot still carries a transient forced-state weapon timer. For
+	// predicted item use, validate the player state that produced the event.
+	if (!forceZoom && (eventPlayerState->weaponTime > 0 ||
+		eventPlayerState->weaponstate == WEAPON_CHARGING ||
+		eventPlayerState->weaponstate == WEAPON_CHARGING_ALT))
+	{ //Still block unconfirmed predicted uses during genuine weapon activity.
 		return;
 	}
 
@@ -1745,7 +1755,6 @@ extern int cg_dueltypes[MAX_CLIENTS];//JAPRO - Clientside - Fullforce Duels
 void CG_GibPlayer( vec3_t playerOrigin );
 
 #define	DEBUGNAME(x) if(cg_debugEvents.integer){trap->Print(x"\n");}
-extern void CG_ChatBox_AddString(char *chatStr); //cg_draw.c
 void CG_SpotIcon( int client, vec3_t org );
 void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	entityState_t	*es;
@@ -3937,7 +3946,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				}
 				if (ci->team == ourTeam || isGlobalVGS(s)) //put it to console or.. just not at all?
 				{ //add to the chat box
-					CG_ChatBox_AddString(va("<%s^7: %s>", ci->name, descr));
+					CG_ChatBox_AddString(va("<%s^7: %s>", ci->name, descr), qfalse);
 				}
 
 				if (ci->team == ourTeam || isGlobalVGS(s))

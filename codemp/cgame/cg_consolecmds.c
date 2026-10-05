@@ -2711,6 +2711,35 @@ static void CG_TeleToPlayer_f(void) {
 }
 
 extern int lastWhispererId;
+static void CG_PMOnly_f( void )
+{
+	const char *arg = CG_Argv( 1 );
+
+	if ( trap->Cmd_Argc() > 1 )
+	{
+		if ( !Q_stricmp( arg, "on" ) || !Q_stricmp( arg, "1" ) )
+		{
+			cg.pmOnlyChat = qtrue;
+		}
+		else if ( !Q_stricmp( arg, "off" ) || !Q_stricmp( arg, "0" ) )
+		{
+			cg.pmOnlyChat = qfalse;
+		}
+		else
+		{
+			trap->Print( "Usage: pmonly [on|off]\n" );
+			return;
+		}
+	}
+	else
+	{
+		cg.pmOnlyChat = !cg.pmOnlyChat;
+	}
+
+	trap->Print( "PM-only chat %s for this map.\n",
+		cg.pmOnlyChat ? "enabled" : "disabled" );
+}
+
 void CG_Say_f( void ) {
 	char msg[MAX_SAY_TEXT] = {0};
 	char word[MAX_SAY_TEXT] = {0};
@@ -2967,6 +2996,7 @@ static consoleCommand_t	commands[] = {
 	{ "listRemaps",					CG_ListRemaps_f },
 	{ "listEmojis",					CG_ListEmojis_f },
 	{ "loadTrail",					CG_SpawnStrafeTrailFromCFG_f },
+	{ "pmonly",					CG_PMOnly_f },
 	{ "weaplast",					CG_LastWeapon_f },
 	{ "do",							CG_Do_f },
 	{ "doStop",						CG_DoCancel_f },

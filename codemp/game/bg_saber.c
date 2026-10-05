@@ -2886,6 +2886,12 @@ qboolean PM_SaberMoveOkayForKata( void )
 
 qboolean PM_CanDoKata( void )
 {
+	if ( BG_InGrappleMove( pm->ps->legsAnim )
+		|| BG_InGrappleMove( pm->ps->torsoAnim ) )
+	{
+		return qfalse;
+	}
+
 	if ( PM_InSecondaryStyle() )
 	{
 		return qfalse;
@@ -3167,6 +3173,11 @@ void PM_WeaponLightsaber(void)
 		if ( pm->ps->weaponTime > 0 )
 		{
 			pm->ps->weaponTime -= pml.msec;
+		}
+		if ( pm->ps->weaponTime <= 0 )
+		{
+			pm->ps->weaponTime = 0;
+			pm->ps->weaponstate = WEAPON_READY;
 		}
 
 		checkOnlyWeap = qtrue;

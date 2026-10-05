@@ -1055,6 +1055,7 @@ typedef struct chatBoxItem_s
 	char			string[MAX_STRING_CHARS];
 	int				time;
 	int				lines;
+	qboolean		isPrivate;
 	chatBoxEmoji_t emoji[MAX_CHATBOX_ITEM_EMOJIS];
 } chatBoxItem_t;
 
@@ -1076,6 +1077,9 @@ typedef struct cg_s {
 	binocularTarget_t binocularTargets[MAX_BINOCULAR_TARGETS];
 	int binocularTargetCount;
 	int binocularUpdateTime;
+	binocularTarget_t missionParty[MAX_MISSION_PARTY];
+	int missionPartyCount;
+	int missionPartyUpdateTime;
 	int			clientFrame;		// incremented each frame
 
 	int			clientNum;
@@ -1434,6 +1438,7 @@ Ghoul2 Insert End
 	short				numJumps;
 	int					userinfoUpdateDebounce;
 	char				lastChatMsg[MAX_SAY_TEXT + MAX_NETNAME + 32];
+	qboolean			pmOnlyChat;
 
 	int					drawingStrafeTrails;//optimization i guess
 	qboolean			loggingStrafeTrail;
@@ -1508,6 +1513,8 @@ enum
 typedef struct cgMedia_s {
 	qhandle_t	charsetShader;
 	qhandle_t	whiteShader;
+	qhandle_t	binocularHudFont;
+	qhandle_t	missionPartyUnknownIcon;
 
 	qhandle_t	loadBarLED;
 	qhandle_t	loadBarLEDCap;
@@ -2278,6 +2285,7 @@ typedef struct cgs_s {
 	qboolean radialMenuExecuteOnClose;
 	int radialMenuOpenTime;
 	int radialMenuSelection;
+	int radialMenuPage;
 	float radialMenuX;
 	float radialMenuY;
 
@@ -2442,6 +2450,7 @@ void CG_AddSpeedGraphFrameInfo( void );
 void CG_AddLagometerSnapshotInfo( snapshot_t *snap );
 void CG_CenterPrint( const char *str, int y, int charWidth );
 void CG_CenterPrintMultiKill(const char *str, int y, int charWidth);
+void CG_ChatBox_AddString(char *chatStr, qboolean isPrivate);
 void CG_DrawHead( float x, float y, float w, float h, int clientNum, vec3_t headAngles );
 void CG_DrawActive( stereoFrame_t stereoView );
 void CG_DrawFlagModel( float x, float y, float w, float h, int team, qboolean force2D );
@@ -2488,6 +2497,7 @@ qboolean CG_StaffSwapShutdownSounded( int clientNum );
 qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound );
 void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team );
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized );
+void CG_CleanHolsteredSabers( clientInfo_t *ci );
 saberInfo_t *CG_SaberEntityOwnerSaber( centity_t *saberEnt );
 const char *CG_SaberEntityHiltModel( saberInfo_t *saber, centity_t *saberEnt, qhandle_t *skin );
 qboolean CG_ModelIsBlacklisted( const char *modelName );
@@ -2502,6 +2512,8 @@ void CG_BuildSolidList( void );
 int	CG_PointContents( const vec3_t point, int passEntityNum );
 void CG_Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end,
 					 int skipNumber, int mask );
+void CG_TraceSkipEntity( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs,
+		const vec3_t end, int skipNumber, int skipNumber2, int mask );
 void CG_G2Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end,
 					 int skipNumber, int mask );
 void CG_CrosshairTrace(trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int skipNumber, qboolean g2Check); //japro
