@@ -13,6 +13,9 @@ OpenJK is licensed under GPLv2 as free software. You are free to use, modify and
 
 ## Contributing
 
+Windows release maintainers: see [signed release packaging](documentation/developer/windows-signing.md)
+for trusted publisher setup, PK3 DLL signing, and Smart App Control validation.
+
 Please target the **beta** branch.
 PRs opened against **master** may be closed and re-opened against beta.
 
