@@ -1755,7 +1755,6 @@ extern int cg_dueltypes[MAX_CLIENTS];//JAPRO - Clientside - Fullforce Duels
 void CG_GibPlayer( vec3_t playerOrigin );
 
 #define	DEBUGNAME(x) if(cg_debugEvents.integer){trap->Print(x"\n");}
-extern void CG_ChatBox_AddString(char *chatStr); //cg_draw.c
 void CG_SpotIcon( int client, vec3_t org );
 void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	entityState_t	*es;
@@ -3936,7 +3935,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				}
 				if (ci->team == ourTeam || isGlobalVGS(s)) //put it to console or.. just not at all?
 				{ //add to the chat box
-					CG_ChatBox_AddString(va("<%s^7: %s>", ci->name, descr));
+					CG_ChatBox_AddString(va("<%s^7: %s>", ci->name, descr), qfalse);
 				}
 
 				if (ci->team == ourTeam || isGlobalVGS(s))
