@@ -28,12 +28,18 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define BINOCULAR_UPDATE_MSEC 200
 #define BINOCULAR_EXPIRE_MSEC 600
 #define BINOCULAR_RANGE 8192.0f
+#define MAX_MISSION_PARTY 7
+#define MISSION_PARTY_UPDATE_MSEC 250
+#define MISSION_PARTY_EXPIRE_MSEC 1500
+#define MISSION_PARTY_DEAD_MSEC 8000
 
 typedef struct binocularTarget_s {
 	int entityNum;
 	int health;
 	int maxHealth;
 	int armor;
+	int force;
+	int maxForce;
 	char name[64]; // Optional binoNames extension; empty when unavailable.
 } binocularTarget_t;
 
