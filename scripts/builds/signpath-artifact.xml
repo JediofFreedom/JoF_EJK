@@ -1,0 +1,23 @@
+<!-- Review this with SignPath before activating a Public Trust signing policy.
+     The request contains only the seven JoF-built binaries for one architecture.
+     Third-party binaries and PK3s are never submitted under JoF's certificate.
+     Signed DLLs are inserted into PK3s locally after receiving the response. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file-set product-name="JoF EternalJK" product-version="${version}" file-version="${version}">
+      <include path="eternaljk.*.exe" />
+      <include path="eternaljkded.*.exe" />
+      <include path="jampgame*.dll" />
+      <include path="cgame*.dll" />
+      <include path="ui*.dll" />
+      <include path="rd-eternaljk_*.dll" />
+      <include path="rd-rend2-etjk_*.dll" />
+      <for-each>
+        <authenticode-sign hash-algorithm="sha256" />
+      </for-each>
+    </pe-file-set>
+  </zip-file>
+</artifact-configuration>
