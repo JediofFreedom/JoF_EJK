@@ -1120,10 +1120,24 @@ static qboolean CG_InKnockDownState( playerState_t *ps )
 
 static qboolean CG_InMeleeGrappleVictimState( const playerState_t *ps )
 {
+	if ( ps->stats[STAT_HEALTH] <= 0 )
+	{
+		return qfalse;
+	}
+
+	// JA+'s A + melee carry uses KNEES1 rather than a PA grapple animation.
+	// The server positions and turns its victim, including before it sets the
+	// holder's entity number. Keep PRETHROWN as the primary carry marker: the
+	// six-bit heldByClient wire field can wrap an NPC's entity+1 link to zero.
+	if ( ps->forceHandExtend == HANDEXTEND_PRETHROWN ||
+		(ps->heldByClient > 0 && ps->heldByClient <= ENTITYNUM_WORLD) )
+	{
+		return qtrue;
+	}
+
 	// The side kata's throw is ballistic once released. A channel can still
 	// contain the hold animation during the transition to the flight animation.
-	if ( ps->stats[STAT_HEALTH] <= 0 ||
-		(ps->legsAnim == BOTH_PLAYER_PA_3_FLY && ps->legsTimer > 0) ||
+	if ( (ps->legsAnim == BOTH_PLAYER_PA_3_FLY && ps->legsTimer > 0) ||
 		(ps->torsoAnim == BOTH_PLAYER_PA_3_FLY && ps->torsoTimer > 0) )
 	{
 		return qfalse;
@@ -1866,6 +1880,8 @@ void CG_PredictPlayerState( void ) {
 		}
 		goto revertES;
 	}
+
+	CG_PreserveMeleeKataFlightAnimation( &cg.predictedPlayerState, &cg.snap->ps );
 
 	if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 	{

@@ -392,7 +392,7 @@ typedef struct animevent_s
 	animEventType_t	eventType;
 	unsigned short	keyFrame;			//Frame to play event on
 	signed short	eventData[AED_ARRAY_SIZE];	//Unique IDs, can be soundIndex of sound file to play OR effect index or footstep type, etc.
-	char			*stringData;		//we allow storage of one string, temporarily (in case we have to look up an index later, then make sure to set stringData to NULL so we only do the look-up once)
+	char			*stringData;		//Effect bolt name for deferred lookup, or custom sound name retained for per-actor playback.
 } animevent_t;
 
 typedef struct bgLoadedAnim_s {
@@ -1877,6 +1877,7 @@ qboolean BG_SaberInKata( int saberMove );
 qboolean BG_InKataAnim(int anim);
 qboolean BG_KickingAnim( int anim );
 int BG_InGrappleMove(int anim);
+qboolean BG_IsGrappleSoundAnim(int anim);
 int BG_BrokenParryForAttack( int move );
 int BG_BrokenParryForParry( int move );
 int BG_KnockawayForParry( int move );

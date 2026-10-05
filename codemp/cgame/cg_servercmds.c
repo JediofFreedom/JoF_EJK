@@ -588,10 +588,12 @@ static void CG_RegisterCustomSounds(clientInfo_t *ci, int setType, const char *p
 			char modifiedSound[MAX_QPATH];
 			char *p;
 
-			strcpy(modifiedSound, s);
-			p = strchr(modifiedSound,'.');
+			COM_StripExtension( s, modifiedSound, sizeof( modifiedSound ) );
+			// Custom sound tables use extensionless names. Inspect the final
+			// character rather than looking for a dot that is never present.
+			p = modifiedSound + strlen( modifiedSound );
 
-			if (p)
+			if (p > modifiedSound)
 			{
 				char testNumber[2];
 				p--;
@@ -603,9 +605,7 @@ static void CG_RegisterCustomSounds(clientInfo_t *ci, int setType, const char *p
 				testNumber[1] = 0;
 				if (atoi(testNumber))
 				{
-					*p = 0;
-
-					strcat(modifiedSound, "1.wav");
+					*p = '1';
 
 					hSFX = trap->S_RegisterSound( va("sound/chars/%s/misc/%s", psDir, modifiedSound) );
 				}
