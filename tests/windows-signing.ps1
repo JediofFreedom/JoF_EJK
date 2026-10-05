@@ -61,7 +61,31 @@ exit 0
     $rejected = $false
     try { & $scriptPath @options -OutputZip $output } catch { $rejected = $true }
     if (-not $rejected) { throw 'Existing output was not rejected.' }
-    Write-Host 'PASS: PK3 signing, nested paths, unchanged assets and inputs, manifest, failure handling, overwrite protection.'
+    # Remote signing replaces only binaries matching the original signing request.
+    $unsignedRoot = Join-Path $testRoot 'unsigned-remote'
+    $signedRoot = Join-Path $testRoot 'signed-remote'
+    New-Item -ItemType Directory -Path $unsignedRoot, $signedRoot | Out-Null
+    foreach ($name in @('client.exe', 'cgame.dll', 'ui.dll', 'outside.dll')) {
+        $original = if ($name -eq 'client.exe') { 'unsigned-test-exe' } else { 'original-content' }
+        [IO.File]::WriteAllText((Join-Path $unsignedRoot $name), $original)
+        [IO.File]::WriteAllText((Join-Path $signedRoot $name), $original + '-signed')
+    }
+    $remoteOptions = @{ ReleaseDirectory = $source; SignTool = $fakeTool; SignedBinariesDirectory = $signedRoot; UnsignedBinariesDirectory = $unsignedRoot }
+    & $scriptPath @remoteOptions -OutputZip (Join-Path $testRoot 'remote.zip')
+    # An unsigned third-party dependency must block packaging, never be re-signed.
+    $dependency = Join-Path $source 'third-party.dll'
+    [IO.File]::WriteAllText($dependency, 'unsigned-dependency')
+    $rejected = $false
+    $failedOutput = Join-Path $testRoot 'remote-dependency-failed.zip'
+    try { & $scriptPath @remoteOptions -OutputZip $failedOutput } catch { $rejected = $true }
+    if (-not $rejected -or (Test-Path -LiteralPath $failedOutput)) { throw 'Unsigned remote dependency was not rejected.' }
+    Remove-Item -LiteralPath $dependency
+    [IO.File]::WriteAllText((Join-Path $unsignedRoot 'cgame.dll'), 'another-release')
+    $rejected = $false
+    $failedOutput = Join-Path $testRoot 'remote-mismatch-failed.zip'
+    try { & $scriptPath @remoteOptions -OutputZip $failedOutput } catch { $rejected = $true }
+    if (-not $rejected -or (Test-Path -LiteralPath $failedOutput)) { throw 'Signing request mismatch was not rejected.' }
+    Write-Host 'PASS: local/remote PK3 signing, unchanged inputs/assets, failure handling, overwrite protection, unsigned dependency rejection and request matching.'
 } finally {
     Remove-Item Env:\JOF_SIGN_TEST_FAILURE -ErrorAction SilentlyContinue
     $resolved = [IO.Path]::GetFullPath($testRoot)

@@ -13,6 +13,8 @@ param(
     [Parameter(ParameterSetName = 'Certificate')][switch]$MachineStore,
     [Parameter(Mandatory, ParameterSetName = 'Artifact')][string]$SigningDlib,
     [Parameter(Mandatory, ParameterSetName = 'Artifact')][string]$SigningMetadata,
+    [Parameter(Mandatory, ParameterSetName = 'Remote')][string]$SignedBinariesDirectory,
+    [Parameter(Mandatory, ParameterSetName = 'Remote')][string]$UnsignedBinariesDirectory,
     [string]$SignTool = 'signtool.exe',
     [string]$TimestampUrl
 )
@@ -25,6 +27,20 @@ function Invoke-SignTool([string[]]$ToolArguments) {
     if ($LASTEXITCODE -ne 0) { throw "SignTool failed ($LASTEXITCODE): $($ToolArguments[0])" }
 }
 function Sign-Binary([string]$Path) {
+    if ($script:remoteBinaries) {
+        $name = [IO.Path]::GetFileName($Path)
+        if ($script:remoteBinaries.ContainsKey($name)) {
+            $replacement = $script:remoteBinaries[$name]
+            if ((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -ne $replacement.UnsignedHash) {
+                throw "Release binary does not match this signing request: $name"
+            }
+            Copy-Item -LiteralPath $replacement.SignedPath -Destination $Path -Force
+            $replacement.Used = $true
+        }
+        # Never re-sign dependencies under a free OSS signing identity.
+        Invoke-SignTool @('verify', '/pa', '/all', '/tw', $Path)
+        return
+    }
     # Keep valid third-party signatures; do not impersonate dependency publishers.
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
     if ($signature.Status -ne 'Valid' -or -not $signature.TimeStamperCertificate) {
@@ -45,11 +61,31 @@ if ($output.StartsWith($source.TrimEnd('\') + '\', [StringComparison]::OrdinalIg
     throw 'OutputZip must be outside ReleaseDirectory.'
 }
 $script:SignTool = (Get-Command $SignTool -ErrorAction Stop).Source
+$script:remoteBinaries = $null
 if (-not $TimestampUrl) {
     $TimestampUrl = if ($PSCmdlet.ParameterSetName -eq 'Artifact') { 'http://timestamp.acs.microsoft.com' } else { 'http://timestamp.digicert.com' }
 }
 $script:signArguments = @('sign', '/fd', 'SHA256', '/tr', $TimestampUrl, '/td', 'SHA256')
-if ($PSCmdlet.ParameterSetName -eq 'Artifact') {
+if ($PSCmdlet.ParameterSetName -eq 'Remote') {
+    $signedRoot = (Resolve-Path -LiteralPath $SignedBinariesDirectory).Path
+    $unsignedRoot = (Resolve-Path -LiteralPath $UnsignedBinariesDirectory).Path
+    foreach ($root in @($signedRoot, $unsignedRoot)) {
+        if (-not (Test-Path -LiteralPath $root -PathType Container) -or @(Get-ChildItem -LiteralPath $root -Force | Where-Object { $_.PSIsContainer -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) }).Count) {
+            throw 'Remote signing inputs must be flat directories of binary files without links.'
+        }
+    }
+    $script:remoteBinaries = @{}
+    $unsignedFiles = @(Get-ChildItem -LiteralPath $unsignedRoot -File)
+    $signedFiles = @(Get-ChildItem -LiteralPath $signedRoot -File)
+    if (-not $unsignedFiles.Count -or $signedFiles.Count -ne $unsignedFiles.Count) { throw 'Signed and unsigned binary sets must match.' }
+    foreach ($file in $unsignedFiles) {
+        if ($file.Extension -notin '.dll', '.exe') { throw 'Signing request must contain only EXEs and DLLs.' }
+        $signedPath = Join-Path $signedRoot $file.Name
+        if (-not (Test-Path -LiteralPath $signedPath -PathType Leaf)) { throw "Missing signed binary: $($file.Name)" }
+        Invoke-SignTool @('verify', '/pa', '/all', '/tw', $signedPath)
+        $script:remoteBinaries[$file.Name] = @{ SignedPath = $signedPath; UnsignedHash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash; Used = $false }
+    }
+} elseif ($PSCmdlet.ParameterSetName -eq 'Artifact') {
     $dlib = (Resolve-Path -LiteralPath $SigningDlib).Path
     $metadata = (Resolve-Path -LiteralPath $SigningMetadata).Path
     $script:signArguments += @('/dlib', $dlib, '/dmdf', $metadata)
@@ -85,7 +121,9 @@ try {
                 $name = $entry.FullName
                 $timestamp = $entry.LastWriteTime
                 # Never use an archive entry's path as a filesystem destination.
-                $binary = Join-Path $work ([guid]::NewGuid().ToString('N') + [IO.Path]::GetExtension($name))
+                $entryDirectory = Join-Path $work ([guid]::NewGuid().ToString('N'))
+                New-Item -ItemType Directory -Path $entryDirectory | Out-Null
+                $binary = Join-Path $entryDirectory ([IO.Path]::GetFileName($name.Replace('/', '\')))
                 [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $binary)
                 Sign-Binary $binary
                 $signedHash = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash
@@ -111,6 +149,11 @@ try {
                 }
             }
         } finally { $archive.Dispose() }
+    }
+    if ($script:remoteBinaries) {
+        foreach ($name in $script:remoteBinaries.Keys) {
+            if (-not $script:remoteBinaries[$name].Used) { throw "Signed binary not present in release: $name" }
+        }
     }
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $payload 'signed-binaries.json') -Encoding UTF8
     [IO.Compression.ZipFile]::CreateFromDirectory($payload, $candidate)

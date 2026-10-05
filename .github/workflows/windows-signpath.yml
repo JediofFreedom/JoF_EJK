@@ -1,0 +1,142 @@
+name: Prepare signed Windows release (SignPath)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Four-part Windows product version, for example 1.6.1.0'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  sign:
+    if: github.repository == 'JediofFreedom/JoF_EJK' && (github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master')
+    runs-on: windows-2022
+    environment: windows-signing
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            platform: Win32
+          - arch: x86_64
+            platform: x64
+    env:
+      SIGNING_VERSION: ${{ inputs.version }}
+      SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+      SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+      SIGNPATH_POLICY_SLUG: ${{ vars.SIGNPATH_POLICY_SLUG }}
+      SIGNPATH_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_CONFIGURATION_SLUG }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check approved signing configuration
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:SIGNING_VERSION -notmatch '^\d+\.\d+\.\d+\.\d+$') { throw 'Expected a four-part numeric version.' }
+          foreach ($part in $env:SIGNING_VERSION.Split('.')) {
+            if ([long]$part -gt 65535) { throw 'Version components must be at most 65535.' }
+          }
+          foreach ($name in @('SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG', 'SIGNPATH_POLICY_SLUG', 'SIGNPATH_CONFIGURATION_SLUG', 'SIGNPATH_API_TOKEN')) {
+            if (-not [Environment]::GetEnvironmentVariable($name)) { throw "Missing $name. Complete Foundation approval and configure the windows-signing environment first." }
+          }
+
+      - name: Checkout the approved branch commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configure and build JoF binaries
+        env:
+          BUILD_PLATFORM: ${{ matrix.platform }}
+        run: |
+          cmake -S . -B signing-build -A $env:BUILD_PLATFORM "-DCMAKE_INSTALL_PREFIX=$env:GITHUB_WORKSPACE/signing-build/install" "-DJOF_VERSION_STRING=$env:SIGNING_VERSION" "-DJOF_WINDOWS_FILE_VERSION=$env:SIGNING_VERSION"
+          if ($LASTEXITCODE -ne 0) { throw 'CMake configuration failed.' }
+          cmake --build signing-build --config Release --parallel 4
+          if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
+          cmake --install signing-build --config Release
+          if ($LASTEXITCODE -ne 0) { throw 'Installation failed.' }
+
+      - name: Stage only JoF-built signing targets
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory unsigned-jof | Out-Null
+          $targets = @(Get-Content signing-build/codemp/signing-targets-Release.txt | Where-Object { $_ })
+          if ($targets.Count -ne 7) { throw 'Expected client, dedicated server, game, cgame, UI and two renderers.' }
+          foreach ($path in $targets) {
+            $file = Get-Item -LiteralPath $path
+            $info = $file.VersionInfo
+            if ($info.ProductName -ne 'JoF EternalJK' -or $info.ProductVersion -ne $env:SIGNING_VERSION) { throw "Invalid signing metadata: $path" }
+            $destination = Join-Path unsigned-jof $file.Name
+            if (Test-Path -LiteralPath $destination) { throw 'Duplicate signing target filename.' }
+            Copy-Item -LiteralPath $file.FullName -Destination $destination
+          }
+
+      - name: Upload source-linked unsigned signing request
+        id: unsigned
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: JoF-signing-request-${{ matrix.arch }}
+          path: unsigned-jof/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Request Foundation signing and wait for manual approval
+        uses: signpath/github-action-submit-signing-request@f6d04783b4569d051e0c80105fe66e82819d0092 # v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_POLICY_SLUG }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: signed-jof
+          parameters: |
+            version: ${{ toJSON(inputs.version) }}
+
+      - name: Verify returned JoF binaries
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sdk = Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/bin/*/x64/signtool.exe' | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $sdk) { throw 'Windows SDK SignTool is missing.' }
+          "SIGNTOOL_PATH=$($sdk.FullName)" >> $env:GITHUB_ENV
+          $unsigned = @(Get-ChildItem unsigned-jof -File)
+          $signed = @(Get-ChildItem signed-jof -File)
+          if ($signed.Count -ne $unsigned.Count) { throw 'Returned binary set does not match the request.' }
+          foreach ($file in $unsigned) {
+            $returned = Get-Item -LiteralPath (Join-Path signed-jof $file.Name)
+            if ($returned.VersionInfo.ProductName -ne 'JoF EternalJK' -or $returned.VersionInfo.ProductVersion -ne $env:SIGNING_VERSION) { throw 'Returned metadata mismatch.' }
+            & $sdk.FullName verify /pa /all /tw $returned.FullName
+            if ($LASTEXITCODE -ne 0) { throw "Signature verification failed: $($file.Name)" }
+          }
+
+      - name: Upload verified signed JoF components
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: JoF-signed-components-${{ matrix.arch }}
+          path: signed-jof/*
+          if-no-files-found: error
+
+      - name: Assemble release and check all dependency signatures
+        run: |
+          ./scripts/builds/sign-release.ps1 -ReleaseDirectory signing-build/install/GameData -OutputZip "JoF-signed-$env:SIGNING_VERSION-${{ matrix.arch }}.zip" -SignedBinariesDirectory signed-jof -UnsignedBinariesDirectory unsigned-jof -SignTool $env:SIGNTOOL_PATH
+
+      - name: Upload verified complete release candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: JoF-signed-release-candidate-${{ matrix.arch }}
+          path: JoF-signed-*.zip
+          if-no-files-found: error
+          # Manual Smart App Control acceptance is still required before publishing.
