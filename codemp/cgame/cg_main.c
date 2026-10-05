@@ -825,9 +825,15 @@ static void CG_RegisterSounds( void ) {
 	trap->S_RegisterSound("sound/weapons/force/see.wav");
 	trap->S_RegisterSound("sound/weapons/force/rage.wav");
 	trap->S_RegisterSound("sound/weapons/force/lightning");
-	cgs.media.forceLightningImpactSounds[0] = trap->S_RegisterSound("sound/weapons/force/lightninghit1");
-	cgs.media.forceLightningImpactSounds[1] = trap->S_RegisterSound("sound/weapons/force/lightninghit2");
-	cgs.media.forceLightningImpactSounds[2] = trap->S_RegisterSound("sound/weapons/force/lightninghit3");
+	// Environment impacts use the stock spark sounds.
+	// Environmental arcs use three dedicated sound variants.
+	// Separate asset names preserve player-hit audio.
+	for (i = 0; i < ARRAY_LEN(cgs.media.forceLightningEnvironmentArcSounds); i++) {
+		cgs.media.forceLightningEnvironmentArcSounds[i] = trap->S_RegisterSound(va("sound/weapons/force/lightningenv%i.mp3", i + 1));
+	}
+	for (i = 0; i < ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds); i++) {
+		cgs.media.forceLightningEnvironmentSounds[i] = trap->S_RegisterSound(va("sound/ambience/spark%i.wav", i + 1));
+	}
 	trap->S_RegisterSound("sound/weapons/force/drain.wav");
 	trap->S_RegisterSound("sound/weapons/force/jumpbuild.wav");
 	trap->S_RegisterSound("sound/weapons/force/distract.wav");
@@ -1227,6 +1233,17 @@ static void CG_RegisterEffects( void )
 extern char *forceHolocronModels[];
 int CG_HandleAppendedSkin(char *modelName);
 void CG_CacheG2AnimInfo(char *modelName);
+
+// The reference-lightning asset pack is optional and distributed separately.
+static fxHandle_t CG_RegisterOptionalLightningEffect(const char *path) {
+	fileHandle_t file = 0;
+	trap->FS_Open(path, &file, FS_READ);
+	if (!file)
+		return 0;
+	trap->FS_Close(file);
+	return trap->FX_RegisterEffect(path);
+}
+
 /*
 =================
 CG_RegisterGraphics
@@ -1371,8 +1388,12 @@ static void CG_RegisterGraphics( void )
 
 	cgs.effects.forceLightning		= trap->FX_RegisterEffect( "effects/force/lightning.efx" );
 	cgs.effects.forceLightningWide	= trap->FX_RegisterEffect( "effects/force/lightningwide.efx" );
+	cgs.effects.forceLightningEnvironmentImpact = trap->FX_RegisterEffect("effects/mp/lightning_environment_impact");
 	cgs.effects.demp2WallImpactEffectSmall = trap->FX_RegisterEffect( "effects/mp/wall_impact_small" );
 	cgs.effects.forceLightningBranch = trap->FX_RegisterEffect( "effects/mp/lightning_branch" );
+	cgs.effects.forceLightningReference = CG_RegisterOptionalLightningEffect("effects/mp/lightning_reference/lightning.efx");
+	cgs.effects.forceLightningReferenceWide = CG_RegisterOptionalLightningEffect("effects/mp/lightning_reference/lightningwide.efx");
+	cgs.effects.forceLightningReferenceArc = CG_RegisterOptionalLightningEffect("effects/mp/lightning_reference/lightning_arc.efx");
 
 	cgs.media.forceLightningArcShader = trap->R_RegisterShader("gfx/misc/blueLine");
 	cgs.media.forceLightningFlashShader = trap->R_RegisterShader("gfx/misc/lightningFlash");
