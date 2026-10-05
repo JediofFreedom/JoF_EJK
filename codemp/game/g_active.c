@@ -6423,6 +6423,7 @@ void ClientEndFrame( gentity_t *ent ) {
 
 	G_UpdateMissionParty(ent);
 	G_UpdateBinocularScan(ent);
+	G_UpdateForceDestruction(ent);
 
 	if (ent->s.eType == ET_NPC)
 	{
@@ -6473,6 +6474,8 @@ void ClientEndFrame( gentity_t *ent ) {
 		//ent->client->forceDebounce.drain += time_delta;
 		//ent->client->forceDebounce.lightning += time_delta;
 		ent->client->ps.fd.forcePowerRegenDebounceTime += time_delta;
+		if (ent->client->forceDestructionCooldown > level.previousTime)
+			ent->client->forceDestructionCooldown += time_delta;
 	}
 
 	//

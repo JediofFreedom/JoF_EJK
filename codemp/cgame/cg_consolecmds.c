@@ -2896,7 +2896,14 @@ int cmdcmp( const void *a, const void *b ) {
 	return Q_stricmp( (const char *)a, ((consoleCommand_t*)b)->cmd );
 }
 
+static void CG_ForceDestruction_f(void)
+{
+	if (CG_HasDestruction() && !cg.demoPlayback)
+		trap->SendClientCommand("force_destruction");
+}
+
 static consoleCommand_t	commands[] = {
+	{ "force_destruction", CG_ForceDestruction_f },
 	{ "+scores",					CG_ScoresDown_f },
 	{ "-scores",					CG_ScoresUp_f },
 	{ "briefing",					CG_SiegeBriefing_f },

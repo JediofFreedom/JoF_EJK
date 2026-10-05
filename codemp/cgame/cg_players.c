@@ -6439,6 +6439,48 @@ static void CG_ForceGripEffect( vec3_t org )
 	ex->refEntity.customShader = cgs.media.redSaberGlowShader;//trap->R_RegisterShader( "gfx/effects/forcePush" );
 }
 
+// Force Destruction charge (250 ms): the hand plays force/drain_hand.efx at the left hand;
+// Super Destruction (melee, two-handed lightning pose) plays it on BOTH hands every frame.
+// Resolve each hand bolt when delayed particles spawn, then leave the particles
+// in world space so hand movement preserves the effect's intentional trail.
+static void CG_ForceDestructionHandFX( centity_t *cent, int bolt, vec3_t handOrg, matrix3_t axis )
+{
+	if ( bolt >= 0 && cent->ghoul2 &&
+		trap->FX_PlayBoltedEffectID( cgs.effects.destructionDrainHand, handOrg, cent->ghoul2, bolt,
+			cent->currentState.number, 0, 0, qfalse ) )
+		return;
+	// no usable bolt: play it at the hand position
+	trap->FX_PlayEntityEffectID( cgs.effects.destructionDrainHand, handOrg, axis, -1, -1, -1, -1 );
+}
+
+static void CG_ForceDestructionDrainHand( centity_t *cent, clientInfo_t *ci, const vec3_t lHandOrg )
+{
+	matrix3_t axis;
+	mdxaBone_t rHandMatrix;
+	vec3_t fAng, lOrg, rOrg;
+	qboolean super = ( cent->currentState.weapon == WP_MELEE ||
+		cent->currentState.torsoAnim == BOTH_FORCE_2HANDEDLIGHTNING );
+
+	if ( !cgs.effects.destructionDrainHand )
+		return;
+
+	VectorSet( fAng, cent->pe.torso.pitchAngle, cent->pe.torso.yawAngle, 0 );
+	AnglesToAxis( fAng, axis );
+
+	VectorCopy( lHandOrg, lOrg );
+	CG_ForceDestructionHandFX( cent, ci->bolt_lhand, lOrg, axis );
+
+	if ( super && ci->bolt_rhand >= 0 &&
+		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, ci->bolt_rhand, &rHandMatrix, cent->turAngles,
+			cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale ) )
+	{
+		rOrg[0] = rHandMatrix.matrix[0][3];
+		rOrg[1] = rHandMatrix.matrix[1][3];
+		rOrg[2] = rHandMatrix.matrix[2][3];
+		CG_ForceDestructionHandFX( cent, ci->bolt_rhand, rOrg, axis );
+	}
+}
+
 
 /*
 ===============
@@ -11620,10 +11662,11 @@ void CG_Player( centity_t *cent ) {
 	vec3_t			angles, dir, elevated, enang, seekorg;
 	int				iwantout = 0, successchange = 0;
 	int				team;
-	mdxaBone_t 		boltMatrix, lHandMatrix;
+	mdxaBone_t 		boltMatrix, lHandMatrix, rHandMatrix;
 	mdxaBone_t 		headMatrix; //fpls
 	int				doAlpha = 0;
 	qboolean		gotLHandMatrix = qfalse;
+	qboolean		gotRHandMatrix = qfalse;
 	qboolean		g2HasWeapon = qfalse;
 	qboolean		drawPlayerSaber = qfalse;
 	qboolean		checkDroidShields = qfalse;
@@ -13137,8 +13180,7 @@ skipTrail:
 		if ( cent->currentState.torsoAnim == BOTH_FORCE_2HANDEDLIGHTNING_HOLD
 			&& Q_irand( 0, 1 ) )
 		{//alternate back and forth between left and right
-			mdxaBone_t 	rHandMatrix;
-			trap->G2API_GetBoltMatrix(cent->ghoul2, 0, ci->bolt_rhand, &rHandMatrix, cent->turAngles, cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale);
+			gotRHandMatrix = trap->G2API_GetBoltMatrix(cent->ghoul2, 0, ci->bolt_rhand, &rHandMatrix, cent->turAngles, cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale);
 			efOrg[0] = rHandMatrix.matrix[0][3];
 			efOrg[1] = rHandMatrix.matrix[1][3];
 			efOrg[2] = rHandMatrix.matrix[2][3];
@@ -13373,7 +13415,17 @@ skipTrail:
 		efOrg[1] = lHandMatrix.matrix[1][3];
 		efOrg[2] = lHandMatrix.matrix[2][3];
 
-		if ( (cent->currentState.forcePowersActive & (1 << FP_GRIP)) &&
+		// Consume the marker even when hidden/first-person: never fall through to
+		// the vanilla Grip compatibility bit or the caster's stock Push blur.
+		if ( cent->currentState.forcePowersActive & DESTRUCTION_HAND_FLAG )
+		{
+			if ( (cg.renderingThirdPerson || cent->currentState.number != cg.snap->ps.clientNum) &&
+				forceFXVisible )
+			{
+				CG_ForceDestructionDrainHand( cent, ci, efOrg );
+			}
+		}
+		else if ( (cent->currentState.forcePowersActive & (1 << FP_GRIP)) &&
 			(cg.renderingThirdPerson || cent->currentState.number != cg.snap->ps.clientNum) &&
 			forceFXVisible )
 		{

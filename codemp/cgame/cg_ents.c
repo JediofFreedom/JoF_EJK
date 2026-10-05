@@ -3049,6 +3049,9 @@ static void CG_Missile( centity_t *cent ) {
 	// calculate the axis
 	VectorCopy( s1->angles, cent->lerpAngles);
 
+	if (CG_PlayDestructionEffect(s1, cent->lerpOrigin, s1->pos.trDelta, qfalse))
+		return;
+
 	if ( s1->otherEntityNum2 && s1->weapon != WP_SABER )
 	{//using an over-ridden trail effect!
 		vec3_t forward;
