@@ -1556,9 +1556,9 @@ qboolean BG_SaberLockBreakAnim( int anim )
 }
 
 
-// Blue deflection borrows a super-break pose without entering combat recovery.
+// Blue/yellow deflection borrows a super-break pose without entering combat recovery.
 // A real lock or break still owns movement and weapon input.
-qboolean BG_LightningDeflectBluePose( const playerState_t *ps, int time )
+qboolean BG_LightningDeflectBreakPose( const playerState_t *ps, int time )
 {
 	return ps->weapon == WP_SABER && ps->torsoAnim == BOTH_LK_S_DL_T_SB_1_L &&
 		(ps->saberMove == LS_NONE || ps->saberMove == LS_READY) &&
@@ -1570,7 +1570,7 @@ qboolean BG_LightningDeflectBluePose( const playerState_t *ps, int time )
 qboolean BG_SaberLockMovement( const playerState_t *ps, int time )
 {
 	return BG_SaberLockBreakAnim(ps->legsAnim) || ps->saberLockTime >= time ||
-		(BG_SaberLockBreakAnim(ps->torsoAnim) && !BG_LightningDeflectBluePose(ps, time));
+		(BG_SaberLockBreakAnim(ps->torsoAnim) && !BG_LightningDeflectBreakPose(ps, time));
 }
 qboolean BG_FullBodyTauntAnim( int anim )
 {

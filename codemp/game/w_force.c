@@ -1820,16 +1820,14 @@ static qboolean WP_LightningDeflectDirection(const playerState_t *ps, const vec3
 		switch (ps->fd.saberAnimLevel)
 		{
 		case SS_FAST:
+		case SS_MEDIUM:
 			*anim = BOTH_LK_S_DL_T_SB_1_L;
-			break;
-		case SS_STRONG:
-			*anim = BOTH_LK_S_S_T_L_2;
 			break;
 		case SS_DUAL:
 			*anim = ps->saberHolstered == 1 ? BOTH_LK_S_DL_T_SB_1_L : BOTH_LK_DL_S_T_L_1;
 			break;
 		case SS_STAFF:
-			*anim = ps->saberHolstered == 1 ? BOTH_BF1LOCK : BOTH_LK_ST_ST_T_L_1;
+			*anim = ps->saberHolstered == 1 ? BOTH_LK_S_DL_T_SB_1_L : BOTH_LK_ST_ST_T_L_1;
 			break;
 		default:
 			*anim = BOTH_BF1LOCK;

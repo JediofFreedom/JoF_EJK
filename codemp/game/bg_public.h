@@ -1878,7 +1878,7 @@ qboolean BG_InRoll( playerState_t *ps, int anim );
 qboolean BG_InDeathAnim( int anim );
 qboolean BG_InSaberLockOld( int anim );
 qboolean BG_InSaberLock( int anim );
-qboolean BG_LightningDeflectBluePose( const playerState_t *ps, int time );
+qboolean BG_LightningDeflectBreakPose( const playerState_t *ps, int time );
 qboolean BG_SaberLockMovement( const playerState_t *ps, int time );
 
 void BG_SaberStartTransAnim( int clientNum, int saberAnimLevel, int weapon, int anim, float *animSpeed, int broken );
