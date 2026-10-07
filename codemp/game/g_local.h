@@ -1165,7 +1165,6 @@ struct gclient_s {
 	int			lightningDeflectAttacker;
 	int			lightningDeflectTime;
 	int			lightningDeflectAnim;
-	float		lightningDeflectYaw;
 
 	unsigned	mGameFlags;
 

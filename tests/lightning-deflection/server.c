@@ -90,9 +90,9 @@ static void Requirements(void) {
 }
 static void Aiming(void) {
   playerState_t *ps = &clients[1].ps; vec3_t source = {100, 0, DEFAULT_VIEWHEIGHT}; int anim;
-  CHECK(WP_LightningDeflectDirection(ps, source, &anim)); CHECK(anim == BOTH_P1_S1_TR);
-  source[1] = 50; CHECK(WP_LightningDeflectDirection(ps, source, &anim)); CHECK(anim == BOTH_P1_S1_TL);
-  source[1] = -50; CHECK(WP_LightningDeflectDirection(ps, source, &anim)); CHECK(anim == BOTH_P1_S1_TR);
+  CHECK(WP_LightningDeflectDirection(ps, source, &anim)); CHECK(anim == BOTH_BF1LOCK);
+  source[1] = 50; CHECK(WP_LightningDeflectDirection(ps, source, &anim)); CHECK(anim == BOTH_BF1LOCK);
+  source[1] = -50; CHECK(WP_LightningDeflectDirection(ps, source, &anim)); CHECK(anim == BOTH_BF1LOCK);
   source[1] = 0; ps->viewangles[YAW] = 49; CHECK(WP_LightningDeflectDirection(ps, source, NULL));
   ps->viewangles[YAW] = 51; CHECK(!WP_LightningDeflectDirection(ps, source, NULL));
   ps->viewangles[YAW] = 90; CHECK(!WP_LightningDeflectDirection(ps, source, NULL));
@@ -141,7 +141,7 @@ static void Damage(void) {
   clients[1].ps.electrifyTime = level.time + 800; // A new guard clears a prior shock shell.
   Hit(0); CHECK(damages == 0 && absorbCalls == 0); CHECK(g_entities[1].health == 100);
   CHECK(clients[1].ps.electrifyTime == 0 && clients[1].ps.fd.forcePower == 0);
-  CHECK(clients[1].ps.torsoAnim == BOTH_P1_S1_TR); CHECK(clients[1].ps.legsAnim == 0);
+  CHECK(clients[1].ps.torsoAnim == BOTH_BF1LOCK); CHECK(clients[1].ps.legsAnim == 0);
   CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_NONE);
   CHECK(clients[1].ps.forceHandExtendTime == 0 && clients[1].ps.forceDodgeAnim == 0);
   CHECK(clients[1].ps.weaponTime == 0 && clients[1].ps.torsoTimer == LIGHTNING_DEFLECT_ANIM_TIME);
@@ -168,7 +168,7 @@ static void Lifecycle(void) {
   WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd);
   CHECK(clients[1].ps.forceHandExtend == HANDEXTEND_KNOCKDOWN && clients[1].ps.forceDodgeAnim == 2);
   CHECK(clients[1].lightningDeflectTime == 0);
-  // Saber parries use the same pose; ending deflection must preserve their timer.
+  // Combat owns its timer; ending deflection must preserve their timer.
   Reset(); Hit(0); clients[1].ps.saberMove = LS_PARRY_UR;
   clients[1].ps.torsoTimer = clients[1].ps.weaponTime = 350;
   WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd);
@@ -176,14 +176,21 @@ static void Lifecycle(void) {
   CHECK(clients[1].ps.torsoTimer == 350 && clients[1].ps.weaponTime == 350);
 }
 static void Sources(void) {
+  clients[1].ps.fd.saberAnimLevel = SS_DUAL;
+  Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_LK_DL_S_T_L_1);
+  clients[1].ps.saberHolstered = 1;
+  Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_BF1LOCK);
+  Reset(); clients[1].ps.fd.saberAnimLevel = SS_STAFF;
+  Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_LK_ST_ST_T_L_1);
+  Reset();
   clients[2].ps.origin[1] = 50; // Clearly across the active pose's center buffer.
   Hit(0); Hit(2); CHECK(damages == 0 && events == 0);
-	CHECK(clients[1].ps.torsoAnim == BOTH_P1_S1_TL);
+	CHECK(clients[1].ps.torsoAnim == BOTH_BF1LOCK);
 	level.time += 50; Hit(0); Hit(2); CHECK(events == 0 && damages == 0);
 	Reset(); clients[1].ps.origin[1] = 20; Hit(0);
-	CHECK(clients[1].ps.torsoAnim == BOTH_P1_S1_TR);
+	CHECK(clients[1].ps.torsoAnim == BOTH_BF1LOCK);
 	Reset(); clients[1].ps.origin[1] = -20; Hit(0);
-	CHECK(clients[1].ps.torsoAnim == BOTH_P1_S1_TL);
+	CHECK(clients[1].ps.torsoAnim == BOTH_BF1LOCK);
 	Reset(); Hit(0);
   clients[2].ps.origin[0] = 0; clients[2].ps.origin[1] = 100; Hit(2);
   CHECK(damages == 1 && clients[1].lightningDeflectTime == 0);
@@ -200,15 +207,15 @@ static void PositionPose(void) {
       caster->viewangles[YAW] = yaw;
       caster->viewangles[PITCH] = pitch;
       Hit(0);
-      CHECK(damages == 0 && clients[1].lightningDeflectAnim == BOTH_P1_S1_TL);
-      CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
+      CHECK(damages == 0 && clients[1].lightningDeflectAnim == BOTH_BF1LOCK);
+      CHECK(defender->torsoAnim == BOTH_BF1LOCK);
     }
   }
-  // Crossing the defender's facing direction changes the side naturally.
+  // Crossing the defender's facing direction retains the block pose.
   caster->origin[1] = -50; Hit(0);
-  CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TR);
+  CHECK(clients[1].lightningDeflectAnim == BOTH_BF1LOCK);
   caster->origin[1] = 50; Hit(0);
-  CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TL);
+  CHECK(clients[1].lightningDeflectAnim == BOTH_BF1LOCK);
   // Aim changes inside the blocking cone cannot flip a stationary guard.
   for (yaw = -15; yaw <= 70; yaw += 5) {
     for (pitch = -15; pitch <= 15; pitch += 5) {
@@ -216,35 +223,35 @@ static void PositionPose(void) {
       defender->viewangles[PITCH] = pitch;
       WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd);
       Hit(0);
-      CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TL);
-      CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
+      CHECK(clients[1].lightningDeflectAnim == BOTH_BF1LOCK);
+      CHECK(defender->torsoAnim == BOTH_BF1LOCK);
     }
   }
   defender->viewangles[PITCH] = 0;
   defender->viewangles[YAW] = 0;
-  // Moving the defender across the caster changes the pose too.
+  // Moving the defender across the caster retains the pose too.
   defender->origin[1] = 100; Hit(0);
-  CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TR);
+  CHECK(clients[1].lightningDeflectAnim == BOTH_BF1LOCK);
   defender->origin[1] = 0; Hit(0);
-  CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TL);
-  // A new guard captures the new facing frame after the old guard expires.
+  CHECK(clients[1].lightningDeflectAnim == BOTH_BF1LOCK);
+  // A new guard uses the same pose after the old guard expires.
   level.time += LIGHTNING_DEFLECT_HOLD_TIME;
   WP_UpdateLightningDeflect(&g_entities[1], &clients[1].pers.cmd);
   CHECK(clients[1].lightningDeflectTime == 0);
   defender->viewangles[YAW] = 40;
   Hit(0);
-  CHECK(clients[1].lightningDeflectAnim == BOTH_P1_S1_TR);
+  CHECK(clients[1].lightningDeflectAnim == BOTH_BF1LOCK);
   CHECK(damages == 0);
   // The same geometry works when the encounter is rotated in world space.
   Reset();
   defender->viewangles[YAW] = 90;
   caster->origin[0] = -50; caster->origin[1] = 100;
-  Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
+  Hit(0); CHECK(defender->torsoAnim == BOTH_BF1LOCK);
   defender->viewangles[YAW] = 130;
-  Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
+  Hit(0); CHECK(defender->torsoAnim == BOTH_BF1LOCK);
   defender->viewangles[YAW] = 90;
   caster->origin[0] = 50;
-  Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TR);
+  Hit(0); CHECK(defender->torsoAnim == BOTH_BF1LOCK);
   CHECK(damages == 0);
   // Small movements around the center line must not alternate the poses.
   Reset();
@@ -252,23 +259,23 @@ static void PositionPose(void) {
   for (lateral = -20; lateral <= 20; ++lateral) {
     level.time += 50;
     caster->origin[1] = lateral;
-    Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TR);
+    Hit(0); CHECK(defender->torsoAnim == BOTH_BF1LOCK);
   }
   caster->origin[1] = 50; Hit(0);
-  CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
+  CHECK(defender->torsoAnim == BOTH_BF1LOCK);
   for (lateral = 20; lateral >= -20; --lateral) {
     level.time += 50;
     caster->origin[1] = lateral;
-    Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TL);
+    Hit(0); CHECK(defender->torsoAnim == BOTH_BF1LOCK);
   }
   caster->origin[1] = -50; Hit(0);
-  CHECK(defender->torsoAnim == BOTH_P1_S1_TR);
-  // Translate the encounter: map coordinates do not change the side choice.
+  CHECK(defender->torsoAnim == BOTH_BF1LOCK);
+  // Translate the encounter: map coordinates do not change the pose.
   defender->origin[0] += 12000; defender->origin[1] -= 9000;
   defender->origin[2] += 3000;
   caster->origin[0] += 12000; caster->origin[1] -= 9000;
   caster->origin[2] += 3000;
-  Hit(0); CHECK(defender->torsoAnim == BOTH_P1_S1_TR);
+  Hit(0); CHECK(defender->torsoAnim == BOTH_BF1LOCK);
   CHECK(damages == 0);
 }
 static void Absorption(void) {

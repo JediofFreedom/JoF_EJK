@@ -4246,8 +4246,9 @@ static qboolean CG_LightningDeflectionActive(const centity_t *cent)
 		(cg.predictedPlayerState.torsoTimer <= 0 ||
 		 cg.predictedPlayerState.forceHandExtend != HANDEXTEND_NONE))
 		return qfalse;
-	return (cent->currentState.torsoAnim == BOTH_P1_S1_TL ||
-		cent->currentState.torsoAnim == BOTH_P1_S1_TR) &&
+	return (cent->currentState.torsoAnim == BOTH_BF1LOCK ||
+		cent->currentState.torsoAnim == BOTH_LK_DL_S_T_L_1 ||
+		cent->currentState.torsoAnim == BOTH_LK_ST_ST_T_L_1) &&
 		CG_LightningDeflectionCaster(cent) != ENTITYNUM_NONE;
 }
 

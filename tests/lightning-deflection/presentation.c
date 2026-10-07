@@ -18,11 +18,16 @@ int main(void) {
   guard->currentState.number = 1;
   guard->currentState.weapon = WP_SABER;
   guard->currentState.saberMove = LS_READY;
-  guard->currentState.torsoAnim = BOTH_P1_S1_TL;
+  guard->currentState.torsoAnim = BOTH_BF1LOCK;
   // The viewing caster is absent from the snapshot list, as during prediction.
   CHECK(!caster->currentValid && CG_LightningDeflectionActive(guard));
-  guard->currentState.torsoAnim = BOTH_P1_S1_TR;
+  guard->currentState.torsoAnim = BOTH_LK_DL_S_T_L_1;
   CHECK(CG_LightningDeflectionActive(guard));
+  guard->currentState.torsoAnim = BOTH_LK_ST_ST_T_L_1;
+  CHECK(CG_LightningDeflectionActive(guard));
+  guard->currentState.torsoAnim = BOTH_P1_S1_TR;
+  CHECK(!CG_LightningDeflectionActive(guard));
+  guard->currentState.torsoAnim = BOTH_BF1LOCK;
   guard->currentState.saberMove = LS_PARRY_UR;
   CHECK(!CG_LightningDeflectionActive(guard));
   guard->currentState.saberMove = LS_READY;
