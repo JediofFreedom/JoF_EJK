@@ -176,12 +176,24 @@ static void Lifecycle(void) {
   CHECK(clients[1].ps.torsoTimer == 350 && clients[1].ps.weaponTime == 350);
 }
 static void Sources(void) {
+  clients[1].ps.fd.saberAnimLevel = SS_STRONG;
+  Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_LK_S_S_T_L_2);
+  clients[1].ps.fd.saberAnimLevel = SS_FAST;
+  Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_LK_S_DL_T_SB_1_L);
+  clients[1].ps.fd.saberAnimLevel = SS_MEDIUM;
+  Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_BF1LOCK);
   clients[1].ps.fd.saberAnimLevel = SS_DUAL;
   Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_LK_DL_S_T_L_1);
   clients[1].ps.saberHolstered = 1;
-  Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_BF1LOCK);
+  Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_LK_S_DL_T_SB_1_L);
+  clients[1].ps.fd.saberAnimLevel = SS_FAST;
+  Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_LK_S_DL_T_SB_1_L);
   Reset(); clients[1].ps.fd.saberAnimLevel = SS_STAFF;
   Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_LK_ST_ST_T_L_1);
+  clients[1].ps.saberHolstered = 1;
+  Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_BF1LOCK);
+  clients[1].ps.fd.saberAnimLevel = SS_MEDIUM;
+  Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_BF1LOCK);
   Reset();
   clients[2].ps.origin[1] = 50; // Clearly across the active pose's center buffer.
   Hit(0); Hit(2); CHECK(damages == 0 && events == 0);

@@ -1816,9 +1816,26 @@ static qboolean WP_LightningDeflectDirection(const playerState_t *ps, const vec3
 	if (DotProduct(incoming, forward) < LIGHTNING_DEFLECT_MIN_DOT)
 		return qfalse;
 	if (anim)
-		*anim = ps->fd.saberAnimLevel == SS_DUAL && ps->saberHolstered == 0 ?
-			BOTH_LK_DL_S_T_L_1 :
-			ps->fd.saberAnimLevel == SS_STAFF ? BOTH_LK_ST_ST_T_L_1 : BOTH_BF1LOCK;
+	{
+		switch (ps->fd.saberAnimLevel)
+		{
+		case SS_FAST:
+			*anim = BOTH_LK_S_DL_T_SB_1_L;
+			break;
+		case SS_STRONG:
+			*anim = BOTH_LK_S_S_T_L_2;
+			break;
+		case SS_DUAL:
+			*anim = ps->saberHolstered == 1 ? BOTH_LK_S_DL_T_SB_1_L : BOTH_LK_DL_S_T_L_1;
+			break;
+		case SS_STAFF:
+			*anim = ps->saberHolstered == 1 ? BOTH_BF1LOCK : BOTH_LK_ST_ST_T_L_1;
+			break;
+		default:
+			*anim = BOTH_BF1LOCK;
+			break;
+		}
+	}
 	return qtrue;
 }
 

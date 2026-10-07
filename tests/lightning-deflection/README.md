@@ -24,8 +24,9 @@ and effect recognition from the caster's and defender's viewpoints.
 For an in-game check, run a server with the new game module. Test both an older
 client and the new JoF cgame module. With an ignited saber and Defense 3, stand or walk while aiming
 at a Lightning user. The normal lightning beam must remain visually unchanged,
-while the defender holds the `BOTH_BF1LOCK` saber-block animation (dual sabers with both active use `BOTH_LK_DL_S_T_L_1`; staff uses `BOTH_LK_ST_ST_T_L_1`). Blue-white
-flares and traced electrical arcs should originate along the blade;
+while the defender holds the `BOTH_BF1LOCK` saber-block animation (red uses `BOTH_LK_S_S_T_L_2`; blue uses `BOTH_LK_S_DL_T_SB_1_L`; dual sabers with both active use `BOTH_LK_DL_S_T_L_1`; staff uses `BOTH_LK_ST_ST_T_L_1`).
+Switching duals to one saber uses the blue pose; switching staff to one blade uses the yellow pose.
+Blue-white flares and traced electrical arcs should originate along the blade;
 they must not redirect or replace the beam. Running, attacking, throwing the saber,
 jumping, holstering, or turning beyond 50 degrees should release the guard. Try
 the pose from both client viewpoints while turning within the blocking cone and moving either player. Aim still controls the blocking cone throughout. Only the updated cgame and asset pack supply the additional blade effects/sounds.

@@ -25,6 +25,10 @@ int main(void) {
   CHECK(CG_LightningDeflectionActive(guard));
   guard->currentState.torsoAnim = BOTH_LK_ST_ST_T_L_1;
   CHECK(CG_LightningDeflectionActive(guard));
+  guard->currentState.torsoAnim = BOTH_LK_S_S_T_L_2;
+  CHECK(CG_LightningDeflectionActive(guard));
+  guard->currentState.torsoAnim = BOTH_LK_S_DL_T_SB_1_L;
+  CHECK(CG_LightningDeflectionActive(guard));
   guard->currentState.torsoAnim = BOTH_P1_S1_TR;
   CHECK(!CG_LightningDeflectionActive(guard));
   guard->currentState.torsoAnim = BOTH_BF1LOCK;
