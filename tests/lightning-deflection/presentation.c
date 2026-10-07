@@ -1,4 +1,5 @@
 #include "cgame/cg_local.h"
+#include "ghoul2/G2.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,6 +7,18 @@
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "line %d: %s\n", __LINE__, #x); exit(1); } } while (0)
 cg_t cg;
 centity_t cg_entities[MAX_GENTITIES];
+bgLoadedAnim_t bgAllAnims[MAX_ANIM_FILES];
+static cgameImport_t imports;
+cgameImport_t *trap = &imports;
+static int boneCalls, boneFrame, boneBlend;
+static qboolean SetBoneAnim(void *ghoul2, const int model, const char *bone,
+  const int first, const int last, const int flags, const float speed,
+  const int time, const float setFrame, const int blend) {
+  CHECK(!strcmp(bone, "lower_lumbar"));
+  CHECK(last == first + 1 && setFrame == first && (flags & BONE_ANIM_OVERRIDE_FREEZE));
+  ++boneCalls; boneFrame = first; boneBlend = blend;
+  return qtrue;
+}
 #include "presentation.h"
 
 int main(void) {
@@ -27,6 +40,40 @@ int main(void) {
   CHECK(CG_LightningDeflectionActive(guard));
   guard->currentState.torsoAnim = BOTH_LK_S_S_T_L_2;
   CHECK(!CG_LightningDeflectionActive(guard));
+  cg.predictedPlayerState.forceHandExtend = HANDEXTEND_NONE;
+  {
+    animation_t animations[MAX_TOTALANIMATIONS] = {0};
+    lerpFrame_t lf = {0};
+    const int poses[] = {BOTH_BF1LOCK, BOTH_LK_S_DL_T_SB_1_L,
+      BOTH_LK_DL_S_T_L_1, BOTH_LK_ST_ST_T_L_1};
+    int i;
+    bgAllAnims[0].anims = animations;
+    guard->ghoul2 = guard;
+    imports.G2API_SetBoneAnim = SetBoneAnim;
+    for (i = 0; i < ARRAY_LEN(poses); ++i) {
+      int pose = poses[i], expected = pose == BOTH_LK_ST_ST_T_L_1 ? 100 : 109;
+      animations[pose].firstFrame = 100;
+      animations[pose].numFrames = 10;
+      animations[pose].frameLerp = 50;
+      guard->currentState.torsoAnim = pose;
+      guard->lightningDeflectFrameAnim = 0;
+      CHECK(CG_LightningDeflectionFrame(guard, &lf, pose));
+      CHECK(boneFrame == expected && boneBlend == 100);
+      CHECK(lf.frame == expected && lf.oldFrame == expected && lf.animationNumber == -1);
+      CHECK(CG_LightningDeflectionFrame(guard, &lf, pose));
+      CHECK(boneFrame == expected && boneBlend == 0);
+      animations[pose].frameLerp = -50;
+      CHECK(CG_LightningDeflectionFrame(guard, &lf, pose));
+      CHECK(boneFrame == (pose == BOTH_LK_ST_ST_T_L_1 ? 109 : 100));
+      guard->currentState.saberMove = LS_A_T2B;
+      {
+        int before = boneCalls;
+        CHECK(!CG_LightningDeflectionFrame(guard, &lf, pose));
+        CHECK(boneCalls == before && guard->lightningDeflectFrameAnim == 0);
+      }
+      guard->currentState.saberMove = LS_READY;
+    }
+  }
   guard->currentState.torsoAnim = BOTH_LK_S_DL_T_SB_1_L;
   CHECK(CG_LightningDeflectionActive(guard));
   guard->currentState.torsoAnim = BOTH_P1_S1_TR;

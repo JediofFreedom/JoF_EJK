@@ -656,6 +656,7 @@ typedef struct centity_s {
 	vec3_t lightningReferenceEnd[5];
 	int lightningReferenceSoundTime[5];
 	lightningSaberShock_t lightningSaberShock[MAX_SABERS][MAX_BLADES];
+	int lightningDeflectFrameAnim;
 	int				lightningSurfaceTime;
 	int				lightningImpactSoundTime;
 	unsigned int	flameThrowerHitTime;

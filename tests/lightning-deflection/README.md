@@ -25,6 +25,7 @@ For an in-game check, run a server with the new game module. Test both an older
 client and the new JoF cgame module. With an ignited saber and Defense 3, stand or walk while aiming
 at a Lightning user. The normal lightning beam must remain visually unchanged,
 while the defender holds the `BOTH_BF1LOCK` saber-block animation (red uses `BOTH_BF1LOCK`; blue and yellow use `BOTH_LK_S_DL_T_SB_1_L`; dual sabers with both active use `BOTH_LK_DL_S_T_L_1`; staff uses `BOTH_LK_ST_ST_T_L_1`).
+The updated cgame freezes the torso on the last playback frame for red, yellow, blue and duals, and the first playback frame for staff. Legs retain normal walking animation; attacks and guard cancellation restore normal torso playback. Older clients still play these animations normally.
 Switching duals to one saber uses the blue pose; switching staff to one blade uses the yellow pose.
 Blue-white flares and traced electrical arcs should originate along the blade;
 they must not redirect or replace the beam. Running, attacking, throwing the saber,
