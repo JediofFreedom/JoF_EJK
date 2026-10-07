@@ -4260,7 +4260,7 @@ static qboolean CG_LightningDeflectionActive(const centity_t *cent)
 static qboolean CG_LightningDeflectionFrame(centity_t *cent, lerpFrame_t *lf, int animation)
 {
 	animation_t *anim;
-	int frame;
+	int frame, blendTime;
 	if (!cent->ghoul2 || cent->noLumbar || !CG_LightningDeflectionActive(cent) ||
 		animation != cent->currentState.torsoAnim)
 	{
@@ -4277,9 +4277,14 @@ static qboolean CG_LightningDeflectionFrame(centity_t *cent, lerpFrame_t *lf, in
 	frame = anim->firstFrame;
 	if ((animation == BOTH_LK_ST_ST_T_L_1) == (anim->frameLerp < 0))
 		frame += anim->numFrames - 1;
+	blendTime = cent->lightningDeflectFrameAnim == animation + 1 ? 0 : 100;
 	trap->G2API_SetBoneAnim(cent->ghoul2, 0, "lower_lumbar", frame, frame + 1,
-		BONE_ANIM_OVERRIDE_FREEZE | BONE_ANIM_BLEND, 1.0f, cg.time, frame,
-		cent->lightningDeflectFrameAnim == animation + 1 ? 0 : 100);
+		BONE_ANIM_OVERRIDE_FREEZE | BONE_ANIM_BLEND, 1.0f, cg.time, frame, blendTime);
+	// The humanoid spine correction reads Motion as well as lower_lumbar.
+	// Keep both on the same pose, as the ordinary torso animation setter does.
+	if (cent->localAnimIndex <= 1)
+		trap->G2API_SetBoneAnim(cent->ghoul2, 0, "Motion", frame, frame + 1,
+			BONE_ANIM_OVERRIDE_FREEZE | BONE_ANIM_BLEND, 1.0f, cg.time, frame, blendTime);
 	cent->lightningDeflectFrameAnim = animation + 1;
 	lf->animation = anim;
 	// Force normal playback to restart when the guard ends, even for the same anim.

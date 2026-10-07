@@ -11,10 +11,13 @@ bgLoadedAnim_t bgAllAnims[MAX_ANIM_FILES];
 static cgameImport_t imports;
 cgameImport_t *trap = &imports;
 static int boneCalls, boneFrame, boneBlend;
+static int torsoCalls, motionCalls;
 static qboolean SetBoneAnim(void *ghoul2, const int model, const char *bone,
   const int first, const int last, const int flags, const float speed,
   const int time, const float setFrame, const int blend) {
-  CHECK(!strcmp(bone, "lower_lumbar"));
+  CHECK(!strcmp(bone, "lower_lumbar") || !strcmp(bone, "Motion"));
+  if (!strcmp(bone, "lower_lumbar")) ++torsoCalls;
+  else ++motionCalls;
   CHECK(last == first + 1 && setFrame == first && (flags & BONE_ANIM_OVERRIDE_FREEZE));
   ++boneCalls; boneFrame = first; boneBlend = blend;
   return qtrue;
@@ -59,6 +62,7 @@ int main(void) {
       guard->lightningDeflectFrameAnim = 0;
       CHECK(CG_LightningDeflectionFrame(guard, &lf, pose));
       CHECK(boneFrame == expected && boneBlend == 100);
+      CHECK(torsoCalls == motionCalls && torsoCalls > 0);
       CHECK(lf.frame == expected && lf.oldFrame == expected && lf.animationNumber == -1);
       CHECK(CG_LightningDeflectionFrame(guard, &lf, pose));
       CHECK(boneFrame == expected && boneBlend == 0);
