@@ -34,6 +34,7 @@ extract(shared.h codemp/game/bg_panimate.c "qboolean BG_InReboundJump(" "qboolea
 extract(shared.h codemp/game/bg_panimate.c "qboolean BG_InRoll(" "qboolean BG_InSpecialDeathAnim(")
 extract(shared.h codemp/game/bg_pmove.c "qboolean BG_InKnockDown( int anim )\n{" "qboolean BG_InRollES(")
 extract(shared.h codemp/game/bg_misc.c "void BG_GiveMeVectorFromMatrix(" "qboolean BG_LegalizedForcePowers(")
+extract(shared.h codemp/game/bg_panimate.c "qboolean BG_SuperBreakLoseAnim(" "qboolean BG_FullBodyTauntAnim(")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/server.h" "")
 extract(server.h codemp/game/w_force.c "#define LIGHTNING_DEFLECT_MIN_DOT" "void ForceShootLightning(")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/visuals.h" "")

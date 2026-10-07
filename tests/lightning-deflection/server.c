@@ -176,6 +176,23 @@ static void Lifecycle(void) {
   CHECK(clients[1].ps.torsoTimer == 350 && clients[1].ps.weaponTime == 350);
 }
 static void Sources(void) {
+  clients[1].ps.fd.saberAnimLevel = SS_FAST;
+  Hit(0);
+  CHECK(BG_LightningDeflectBluePose(&clients[1].ps, level.time));
+  CHECK(!BG_SaberLockMovement(&clients[1].ps, level.time));
+  clients[1].ps.weaponTime = 350;
+  CHECK(BG_SaberLockMovement(&clients[1].ps, level.time));
+  clients[1].ps.weaponTime = 0; clients[1].ps.saberLockTime = level.time + 500;
+  CHECK(BG_SaberLockMovement(&clients[1].ps, level.time));
+  clients[1].ps.saberLockTime = 0; clients[1].ps.saberLockFrame = 10;
+  CHECK(BG_SaberLockMovement(&clients[1].ps, level.time));
+  clients[1].ps.saberLockFrame = 0; clients[1].ps.forceHandExtend = HANDEXTEND_KNOCKDOWN;
+  CHECK(BG_SaberLockMovement(&clients[1].ps, level.time));
+  clients[1].ps.forceHandExtend = HANDEXTEND_NONE; clients[1].ps.saberMove = LS_A_T2B;
+  CHECK(BG_SaberLockMovement(&clients[1].ps, level.time));
+  clients[1].ps.saberMove = LS_READY; clients[1].ps.legsAnim = BOTH_LK_S_DL_T_SB_1_L;
+  CHECK(BG_SaberLockMovement(&clients[1].ps, level.time));
+  Reset();
   clients[1].ps.fd.saberAnimLevel = SS_STRONG;
   Hit(0); CHECK(damages == 0 && clients[1].ps.torsoAnim == BOTH_LK_S_S_T_L_2);
   clients[1].ps.fd.saberAnimLevel = SS_FAST;

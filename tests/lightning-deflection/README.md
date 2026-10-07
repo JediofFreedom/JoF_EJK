@@ -30,6 +30,7 @@ Blue-white flares and traced electrical arcs should originate along the blade;
 they must not redirect or replace the beam. Running, attacking, throwing the saber,
 jumping, holstering, or turning beyond 50 degrees should release the guard. Try
 the pose from both client viewpoints while turning within the blocking cone and moving either player. Aim still controls the blocking cone throughout. Only the updated cgame and asset pack supply the additional blade effects/sounds.
+The stock animation table maps red `BOTH_LK_S_S_T_L_2` and yellow `BOTH_BF1LOCK` to the same 45 frames starting at 1702, so these requested poses look identical.
 Repeat with latency: swing input should immediately replace the pose through
 normal prediction; run/jump/turn cancellation is confirmed by the server.
 
@@ -48,7 +49,8 @@ the network protocol. It sends the normal torso animation with a one-second
 animation timer so unacknowledged client commands can retain the pose. The
 server releases that timer after 150 ms without a guarded hit, or immediately
 when a command becomes ineligible, before and after movement processing.
-No custom hand extension or lightning-specific client prediction is involved;
+Blue deflection is exempt from lock-break movement and weapon restrictions only while the saber is idle, with no active lock, lock frame, hand extension, weapon cooldown, or leg recovery animation. Real saber-lock breaks retain their restrictions.
+No custom hand extension is involved;
 normal saber attacks override the held torso animation, and walking keeps its
 own leg animation. Client animation rendering uses its standard path.
 
