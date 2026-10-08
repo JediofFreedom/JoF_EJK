@@ -2740,7 +2740,7 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 
 	if (ci->holsterGhoul2_2 && trap->G2_HaveWeGhoul2Models(ci->holsterGhoul2_2))
 		trap->G2API_CleanGhoul2Models(&ci->holsterGhoul2_2);
-CG_SaberClientInfoChanged( clientNum, entitiesInitialized, saberUpdate );
+	CG_SaberClientInfoChanged( clientNum, entitiesInitialized, saberUpdate );
 	*ci = newInfo;
 
 	//force a weapon change anyway, for all clients being rendered to the current client
@@ -11232,7 +11232,9 @@ static void CG_StaffSwapUpdateSounds( centity_t *cent, clientInfo_t *ci )
 	{
 		if (held->shutdownPending || puttingAway)
 		{
-			if (!held->shutdownPlayed && ci->saber[0].blade[0].length > 0 && ci->saber[0].soundOff)
+			// A manual toggle already sounded, even if its blade is still retracting.
+			if (!held->shutdownPlayed && cent->currentState.saberHolstered < 2 &&
+				ci->saber[0].blade[0].length > 0 && ci->saber[0].soundOff)
 				trap->S_StartSound(cent->lerpOrigin, cl, CHAN_AUTO, ci->saber[0].soundOff);
 			held->shutdownPlayed = qtrue;
 			held->shutdownPending = qfalse;
