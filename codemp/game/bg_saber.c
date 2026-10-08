@@ -3127,8 +3127,9 @@ void PM_WeaponLightsaber(void)
 		pm->ps->weaponTime = 0;
 	}
 
-	if ( BG_SuperBreakLoseAnim( pm->ps->torsoAnim )
-		|| BG_SuperBreakWinAnim( pm->ps->torsoAnim ) )
+	if ( (BG_SuperBreakLoseAnim( pm->ps->torsoAnim )
+		|| BG_SuperBreakWinAnim( pm->ps->torsoAnim )) &&
+		!BG_LightningDeflectBreakPose( pm->ps, pm->cmd.serverTime ) )
 	{
 		if ( pm->ps->torsoTimer > 0 )
 		{//never interrupt these

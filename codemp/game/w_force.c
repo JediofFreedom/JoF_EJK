@@ -1774,7 +1774,6 @@ void ForceLightning( gentity_t *self )
 
 #define LIGHTNING_DEFLECT_MIN_DOT 0.6427876f // +/- 50 degrees, including pitch.
 #define LIGHTNING_DEFLECT_HOLD_TIME 150
-#define LIGHTNING_DEFLECT_SIDE_SWITCH_DOT 0.2f // Cross +/- 11.5 degrees to change an active pose.
 // Prediction replays unacknowledged commands before drawing the local player.
 // Keep its ordinary torso timer alive through that replay; the server releases
 // it using the shorter hit timeout above, or as soon as input cancels the guard.
@@ -1806,25 +1805,6 @@ static qboolean WP_CanDeflectLightning(const playerState_t *ps, const usercmd_t 
 	return ps->velocity[0] * ps->velocity[0] + ps->velocity[1] * ps->velocity[1] <= walkSpeed * walkSpeed;
 }
 
-static int WP_LightningDeflectAnim(const playerState_t *ps, const vec3_t source, float yaw, int previousAnim)
-{
-	vec3_t incoming, angles = {0, 0, 0}, right;
-	float side;
-	VectorSubtract(source, ps->origin, incoming);
-	incoming[2] = 0;
-	VectorNormalize(incoming);
-	angles[YAW] = yaw;
-	AngleVectors(angles, NULL, right, NULL);
-	side = DotProduct(incoming, right);
-	// Keep the current side near center so small positional changes cannot
-	// repeatedly alternate the poses. Clear movement across center still switches.
-	if (previousAnim == BOTH_P1_S1_TL)
-		return side > LIGHTNING_DEFLECT_SIDE_SWITCH_DOT ? BOTH_P1_S1_TR : BOTH_P1_S1_TL;
-	if (previousAnim == BOTH_P1_S1_TR)
-		return side < -LIGHTNING_DEFLECT_SIDE_SWITCH_DOT ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
-	return side < -0.1f ? BOTH_P1_S1_TL : BOTH_P1_S1_TR;
-}
-
 static qboolean WP_LightningDeflectDirection(const playerState_t *ps, const vec3_t source, int *anim)
 {
 	vec3_t incoming, forward;
@@ -1836,7 +1816,24 @@ static qboolean WP_LightningDeflectDirection(const playerState_t *ps, const vec3
 	if (DotProduct(incoming, forward) < LIGHTNING_DEFLECT_MIN_DOT)
 		return qfalse;
 	if (anim)
-		*anim = WP_LightningDeflectAnim(ps, source, ps->viewangles[YAW], 0);
+	{
+		switch (ps->fd.saberAnimLevel)
+		{
+		case SS_FAST:
+		case SS_MEDIUM:
+			*anim = BOTH_LK_S_DL_T_SB_1_L;
+			break;
+		case SS_DUAL:
+			*anim = ps->saberHolstered == 1 ? BOTH_LK_S_DL_T_SB_1_L : BOTH_LK_DL_S_T_L_1;
+			break;
+		case SS_STAFF:
+			*anim = ps->saberHolstered == 1 ? BOTH_LK_S_DL_T_SB_1_L : BOTH_LK_ST_ST_T_L_1;
+			break;
+		default:
+			*anim = BOTH_BF1LOCK;
+			break;
+		}
+	}
 	return qtrue;
 }
 
@@ -1846,7 +1843,7 @@ static void WP_EndLightningDeflect(gentity_t *self)
 	playerState_t *ps = &client->ps;
 	if (!client->lightningDeflectTime)
 		return;
-	// Release only the timer we own. A saber parry can use the same animation,
+	// Release only the timer we own. Combat may already own the animation,
 	// and Force powers or knockdowns may already have replaced the pose.
 	if (ps->forceHandExtend == HANDEXTEND_NONE &&
 		(ps->saberMove == LS_NONE || ps->saberMove == LS_READY) &&
@@ -1855,27 +1852,19 @@ static void WP_EndLightningDeflect(gentity_t *self)
 	client->lightningDeflectTime = 0;
 	client->lightningDeflectAttacker = ENTITYNUM_NONE;
 	client->lightningDeflectAnim = 0;
-	client->lightningDeflectYaw = 0;
 }
 
 static qboolean WP_TryLightningDeflect(gentity_t *attacker, gentity_t *defender)
 {
 	playerState_t *ps = &defender->client->ps;
 	vec3_t source;
-	int anim, previousAnim = 0;
+	int anim;
 	if (!WP_CanDeflectLightning(ps, &defender->client->pers.cmd, level.time))
 		return qfalse;
 	VectorCopy(attacker->client->ps.origin, source);
 	source[2] += attacker->client->ps.viewheight;
-	if (!WP_LightningDeflectDirection(ps, source, NULL))
+	if (!WP_LightningDeflectDirection(ps, source, &anim))
 		return qfalse;
-	// Freeze the facing frame for this guard so aim alone cannot flip its pose.
-	// Recompute from positions so movement by either player still changes sides.
-	if (defender->client->lightningDeflectTime <= level.time)
-		defender->client->lightningDeflectYaw = ps->viewangles[YAW];
-	else
-		previousAnim = defender->client->lightningDeflectAnim;
-	anim = WP_LightningDeflectAnim(ps, source, defender->client->lightningDeflectYaw, previousAnim);
 	// A successful guard never leaves the normal full-body shock shell behind.
 	// This can still be active from an immediately preceding lightning tick.
 	ps->electrifyTime = 0;

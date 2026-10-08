@@ -27,7 +27,7 @@ int main(void) {
   pmove_t movement;
   animation_t animations[MAX_TOTALANIMATIONS];
   int pose, stance, move;
-  const int poses[] = {BOTH_P1_S1_TL, BOTH_P1_S1_TR};
+  const int poses[] = {BOTH_BF1LOCK, BOTH_LK_DL_S_T_L_1, BOTH_LK_ST_ST_T_L_1, BOTH_LK_S_DL_T_SB_1_L, BOTH_LK_S_DL_T_SB_1_L};
   const int stances[] = {BOTH_STAND2, BOTH_WALK1, BOTH_WALK2, BOTH_WALKBACK1};
   memset(animations, 0, sizeof(animations));
   for (move = 0; move < MAX_TOTALANIMATIONS; ++move) {
@@ -48,7 +48,10 @@ int main(void) {
       ps.pm_type = PM_NORMAL;
       ps.weapon = WP_SABER;
       ps.saberMove = LS_READY;
-      ps.fd.saberAnimLevel = SS_MEDIUM;
+      ps.fd.saberAnimLevel = poses[pose] == BOTH_LK_DL_S_T_L_1 ? SS_DUAL :
+        poses[pose] == BOTH_LK_ST_ST_T_L_1 ? SS_STAFF :
+        poses[pose] == BOTH_BF1LOCK ? SS_STRONG :
+        poses[pose] == BOTH_LK_S_DL_T_SB_1_L ? (pose == 3 ? SS_FAST : SS_MEDIUM) : SS_MEDIUM;
       ps.groundEntityNum = ENTITYNUM_WORLD;
       ps.legsAnim = stances[stance];
       ps.torsoAnim = poses[pose];

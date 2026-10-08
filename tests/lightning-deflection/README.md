@@ -12,12 +12,9 @@ ctest --test-dir build/lightning-deflection-check -C Release --output-on-failure
 ```
 
 Coverage includes Saber Defense 3 without learned Lightning or Force points,
-ordinary prediction retaining both server-selected poses during idle/walk,
+ordinary prediction retaining the server-selected pose during idle/walk,
 including a delayed snapshot with no transmitted Saber Defense level,
-standing and walking, the 100-degree aiming cone and caster-position left/right poses
-relative to the defender's facing direction when the guard starts, pose stability
-through either player's aim changes, position-driven changes as either player moves,
-stable poses near center and independence from map coordinates, immediate
+standing and walking, the 100-degree aiming cone, a stable BOTH_BF1LOCK pose across aim and position changes, immediate
 attack/run/jump cancellation, damage and electrification, guard expiry, multiple
 casters, every non-idle saber move and combat recovery preserving their animation timers,
 existing Absorb behavior, continued damage throughout knockdown/get-up animations
@@ -27,19 +24,13 @@ and effect recognition from the caster's and defender's viewpoints.
 For an in-game check, run a server with the new game module. Test both an older
 client and the new JoF cgame module. With an ignited saber and Defense 3, stand or walk while aiming
 at a Lightning user. The normal lightning beam must remain visually unchanged,
-while the defender holds the directional saber-block animation. Blue-white
-flares and traced electrical arcs should originate along the blade;
+while the defender holds the `BOTH_BF1LOCK` saber-block animation (red uses `BOTH_BF1LOCK`; blue and yellow use `BOTH_LK_S_DL_T_SB_1_L`; dual sabers with both active use `BOTH_LK_DL_S_T_L_1`; staff uses `BOTH_LK_ST_ST_T_L_1`).
+The updated cgame freezes the torso on the last playback frame for red, yellow, blue and duals, and the first playback frame for staff. Legs retain normal walking animation; attacks and guard cancellation restore normal torso playback. Older clients still play these animations normally.
+Switching duals to one saber uses the blue pose; switching staff to one blade uses the yellow pose.
+Blue-white flares and traced electrical arcs should originate along the blade;
 they must not redirect or replace the beam. Running, attacking, throwing the saber,
 jumping, holstering, or turning beyond 50 degrees should release the guard. Try
-both left/right poses and verify the same animation from both client viewpoints.
-While both players stand still, turn your aim within the blocking cone: the pose
-should stay fixed. Move either player across the guard's initial facing direction
-to change sides. A new guard captures a new facing direction after cancellation
-or expiry; aim still controls the blocking cone throughout.
-An active pose changes sides only after the caster passes about 11.5 degrees
-beyond center toward the opposite side. Small movements around center keep the
-current pose. The calculation uses relative positions, so it works on every map.
-Only the updated cgame and asset pack supply the additional blade effects/sounds.
+the pose from both client viewpoints while turning within the blocking cone and moving either player. Aim still controls the blocking cone throughout. Only the updated cgame and asset pack supply the additional blade effects/sounds.
 Repeat with latency: swing input should immediately replace the pose through
 normal prediction; run/jump/turn cancellation is confirmed by the server.
 
@@ -58,7 +49,8 @@ the network protocol. It sends the normal torso animation with a one-second
 animation timer so unacknowledged client commands can retain the pose. The
 server releases that timer after 150 ms without a guarded hit, or immediately
 when a command becomes ineligible, before and after movement processing.
-No custom hand extension or lightning-specific client prediction is involved;
+Blue/yellow deflection is exempt from lock-break movement and weapon restrictions only while the saber is idle, with no active lock, lock frame, hand extension, weapon cooldown, or leg recovery animation. Real saber-lock breaks retain their restrictions.
+No custom hand extension is involved;
 normal saber attacks override the held torso animation, and walking keeps its
 own leg animation. Client animation rendering uses its standard path.
 

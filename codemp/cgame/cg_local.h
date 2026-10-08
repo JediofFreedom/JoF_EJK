@@ -655,6 +655,7 @@ typedef struct centity_s {
 	unsigned int	flameSndDebounceTime;
 	int				lightningEnvironmentTime;
 	lightningSaberShock_t lightningSaberShock[MAX_SABERS][MAX_BLADES];
+	int lightningDeflectFrameAnim;
 	int				lightningSurfaceTime;
 	int				lightningImpactSoundTime;
 	// Independent cached directions and timers used by cg_lightningEnvironment 2.

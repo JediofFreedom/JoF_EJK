@@ -3729,6 +3729,7 @@ CG_SetLerpFrameAnimation
 */
 qboolean BG_SaberStanceAnim( int anim );
 qboolean PM_RunningAnim( int anim );
+static qboolean CG_LightningDeflectionFrame(centity_t *cent, lerpFrame_t *lf, int animation);
 static void CG_SetLerpFrameAnimation( centity_t *cent, clientInfo_t *ci, lerpFrame_t *lf, int newAnimation, float animSpeedMult, qboolean torsoOnly, qboolean flipState) {
 	animation_t	*anim;
 	float animSpeed;
@@ -4187,6 +4188,9 @@ static void CG_RunLerpFrame( centity_t *cent, clientInfo_t *ci, lerpFrame_t *lf,
 
 		lf->lastForcedFrame = -1;
 
+		if (torsoOnly && CG_LightningDeflectionFrame(cent, lf, newAnimation))
+			return;
+
 		if ( (newAnimation != lf->animationNumber || cent->currentState.brokenLimbs != ci->brokenLimbs || lf->lastFlip != flipState || !lf->animation) || (CG_FirstAnimFrame(lf, torsoOnly, speedScale)) )
 		{
 			CG_SetLerpFrameAnimation( cent, ci, lf, newAnimation, speedScale, torsoOnly, flipState);
@@ -4316,9 +4320,49 @@ static qboolean CG_LightningDeflectionActive(const centity_t *cent)
 		(cg.predictedPlayerState.torsoTimer <= 0 ||
 		 cg.predictedPlayerState.forceHandExtend != HANDEXTEND_NONE))
 		return qfalse;
-	return (cent->currentState.torsoAnim == BOTH_P1_S1_TL ||
-		cent->currentState.torsoAnim == BOTH_P1_S1_TR) &&
+	return (cent->currentState.torsoAnim == BOTH_BF1LOCK ||
+		cent->currentState.torsoAnim == BOTH_LK_S_DL_T_SB_1_L ||
+		cent->currentState.torsoAnim == BOTH_LK_DL_S_T_L_1 ||
+		cent->currentState.torsoAnim == BOTH_LK_ST_ST_T_L_1) &&
 		CG_LightningDeflectionCaster(cent) != ENTITYNUM_NONE;
+}
+
+static qboolean CG_LightningDeflectionFrame(centity_t *cent, lerpFrame_t *lf, int animation)
+{
+	animation_t *anim;
+	int frame, blendTime;
+	if (!cent->ghoul2 || cent->noLumbar || !CG_LightningDeflectionActive(cent) ||
+		animation != cent->currentState.torsoAnim)
+	{
+		cent->lightningDeflectFrameAnim = 0;
+		return qfalse;
+	}
+	anim = &bgAllAnims[cent->localAnimIndex].anims[animation];
+	if (anim->numFrames <= 0)
+	{
+		cent->lightningDeflectFrameAnim = 0;
+		return qfalse;
+	}
+	// Staff uses the start of its pose; other styles use the end of playback.
+	frame = anim->firstFrame;
+	if ((animation == BOTH_LK_ST_ST_T_L_1) == (anim->frameLerp < 0))
+		frame += anim->numFrames - 1;
+	blendTime = cent->lightningDeflectFrameAnim == animation + 1 ? 0 : 100;
+	trap->G2API_SetBoneAnim(cent->ghoul2, 0, "lower_lumbar", frame, frame + 1,
+		BONE_ANIM_OVERRIDE_FREEZE | BONE_ANIM_BLEND, 1.0f, cg.time, frame, blendTime);
+	// The humanoid spine correction reads Motion as well as lower_lumbar.
+	// Keep both on the same pose, as the ordinary torso animation setter does.
+	if (cent->localAnimIndex <= 1)
+		trap->G2API_SetBoneAnim(cent->ghoul2, 0, "Motion", frame, frame + 1,
+			BONE_ANIM_OVERRIDE_FREEZE | BONE_ANIM_BLEND, 1.0f, cg.time, frame, blendTime);
+	cent->lightningDeflectFrameAnim = animation + 1;
+	lf->animation = anim;
+	// Force normal playback to restart when the guard ends, even for the same anim.
+	lf->animationNumber = -1;
+	lf->oldFrame = lf->frame = frame;
+	lf->oldFrameTime = lf->frameTime = cg.time;
+	lf->backlerp = 0;
+	return qtrue;
 }
 
 static void CG_PlayerAnimation( centity_t *cent, int *legsOld, int *legs, float *legsBackLerp,
