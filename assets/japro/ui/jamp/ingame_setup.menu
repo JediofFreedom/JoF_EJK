@@ -3116,44 +3116,6 @@
 			mouseexit			{ hide morevisuals3button_glow }
 		}
 
-		itemDef
-		{
-			name				done2button_glow
-			style				WINDOW_STYLE_SHADER
-			rect				260 325 200 16
-			background			"gfx/menus/menu_blendbox"
-			forecolor			1 0.5 0.5 1
-			visible				0
-			decoration
-		}
-
-		itemDef
-		{
-			name				done2
-			group				morevisuals
-	  		type				ITEM_TYPE_BUTTON
-			text				"Done"
-			rect				260 323 200 20
-			textalign			ITEM_ALIGN_CENTER
-			textalignx			100
-			textaligny			2
-			font 				4
-			textscale 			1
-			forecolor			1 .682 0 1
-			visible				0
-			descText			"Return to visuals."
-			action
-			{
-				play 			"sound/interface/button1"
-				show			visuals
-				hide			done2button_glow
-				hide			morevisuals
-				hide			visuals3
-			}
-			mouseenter			{ show done2button_glow }
-			mouseexit			{ hide done2button_glow }
-		}
-
 		//----------------------------------------------------------------------------------------------
 		//
 		//	MORE VISUALS (PAGE 3)
@@ -3228,11 +3190,11 @@
 			textscale			1
 			forecolor			1 .682 0 1
 			visible				0
-			descText			"Return to more visuals."
+			descText			"Return to visuals."
 			action
 			{
 				play			"sound/interface/button1"
-				show			morevisuals
+				show			visuals
 				hide			visuals3done_glow
 				hide			visuals3
 			}
