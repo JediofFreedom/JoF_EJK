@@ -737,6 +737,8 @@ typedef struct cgameImport_s {
 		videoStatus_t	(*Video_Status)						( void );
 		void		(*Video_GetSize)						( int *width, int *height );
 		void		(*Video_Draw)							( float x, float y, float w, float h );
+		// Only valid when the "cl_soundLength" cvar is non-zero: older engines end the table before this.
+		int			(*S_GetSampleLengthMs)					( sfxHandle_t sfx );
 	} ext;
 	int				(*GetRadialMenuPage)					( void );
 

@@ -1944,6 +1944,10 @@ void CL_BindCGame( void ) {
 		cgi.ext.Video_Status					= CL_VideoStatus;
 		cgi.ext.Video_GetSize					= CL_VideoGetSize;
 		cgi.ext.Video_Draw						= CL_VideoDraw;
+		cgi.ext.S_GetSampleLengthMs				= S_GetSampleLengthMs;
+		// cgame checks this before calling ext.S_GetSampleLengthMs - an engine that never
+		// registered it ends the import table before that slot.
+		Cvar_Get( "cl_soundLength", "1", CVAR_ROM, "Sound length query supported by this client (0 = none)" );
 
 		GetCGameAPI = (GetCGameAPI_t)cgvm->GetModuleAPI;
 		ret = GetCGameAPI( CGAME_API_VERSION, &cgi );
