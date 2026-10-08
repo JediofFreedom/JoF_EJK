@@ -25,6 +25,79 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "cg_local.h"
 #include "fx_local.h"
 
+// Emit two environmental arcs for narrow lightning and five for wide lightning.
+// Cache endpoints between direction updates and constrain bolts to the aim cone.
+// Use optional pack effects when installed, otherwise vanilla/JoF effects.
+static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t axis, qboolean wide) {
+	int i;
+	int arcs = wide ? 5 : 2;
+	float spread = wide ? 0.8f : 0.5f;
+	float arcAngle = Com_Clamp(0.0f, 360.0f, cg_lightningEnvironmentAngle.value);
+	float minForwardDot = cosf(DEG2RAD(arcAngle * 0.5f));
+	float traceDistance, directionLength;
+	fxHandle_t mainEffect = wide ? cgs.effects.forceLightningReferenceWide : cgs.effects.forceLightningReference;
+	vec3_t direction, end, angles;
+	trace_t tr;
+
+	if (!mainEffect)
+		mainEffect = wide ? cgs.effects.forceLightningWide : cgs.effects.forceLightning;
+	trap->FX_PlayEntityEffectID(mainEffect, origin, axis, -1, -1, -1, -1);
+
+	for (i = 0; i < arcs; i++) {
+		if (cent->lightningReferenceTime[i] < cg.time) {
+			VectorCopy(axis[0], direction);
+			direction[0] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
+			direction[1] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
+			direction[2] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
+			// Keep randomized direction length to vary trace reach.
+			traceDistance = 350.0f;
+		} else {
+			VectorSubtract(origin, cent->lightningReferenceEnd[i], angles);
+			AngleVectors(angles, direction, NULL, NULL);
+			angles[ROLL] = 0.0f;
+			AngleVectors(angles, direction, NULL, NULL);
+			traceDistance = 200.0f;
+		}
+
+		if (arcAngle < 360.0f) {
+			directionLength = VectorLength(direction);
+			// Redirect rearward/over-wide bolts toward the player's current aim.
+			// Preserve vector length and therefore trace reach.
+			if (directionLength < 0.0001f)
+				VectorCopy(axis[0], direction);
+			else if (DotProduct(direction, axis[0]) < minForwardDot * directionLength)
+				VectorScale(axis[0], directionLength, direction);
+		}
+		VectorMA(origin, traceDistance, direction, end);
+
+		CG_Trace(&tr, origin, NULL, NULL, end, -1, MASK_SOLID);
+		if (tr.fraction >= 1.0f)
+			continue;
+
+		if (cent->lightningReferenceTime[i] < cg.time) {
+			// Cache the requested endpoint, not the trace's surface contact.
+			VectorCopy(end, cent->lightningReferenceEnd[i]);
+			cent->lightningReferenceTime[i] = cg.time + Q_irand(500, 1500);
+		}
+		if (cg.frametime > 0 && (cg.frametime >= 50 || cg.time % 50 <= cg.frametime)) {
+			trap->FX_PlayEffectID(cgs.effects.forceLightningReferenceArc ?
+				cgs.effects.forceLightningReferenceArc : cgs.effects.forceLightningBranch,
+				origin, direction, -1, -1, qfalse);
+			// Pack arcs own their impact effect; only the fallback needs this one.
+			if (!cgs.effects.forceLightningReferenceArc && !tr.startsolid && !tr.allsolid &&
+				!(tr.surfaceFlags & (SURF_SKY | SURF_NOIMPACT | SURF_NODRAW))) {
+				trap->FX_PlayEffectID(cgs.effects.forceLightningEnvironmentImpact,
+					tr.endpos, tr.plane.normal, -1, -1, qfalse);
+			}
+		}
+		if (cent->lightningReferenceSoundTime[i] < cg.time) {
+			cent->lightningReferenceSoundTime[i] = cg.time + Q_irand(500, 750);
+			trap->S_StartSound(end, cent->currentState.number, CHAN_AUTO,
+				cgs.media.forceLightningEnvironmentArcSounds[Q_irand(0, ARRAY_LEN(cgs.media.forceLightningEnvironmentArcSounds) - 1)]);
+		}
+	}
+}
+
 // Shared per-window budget so trace/effect work stays bounded at high FPS.
 #define LIGHTNING_INTERVAL 40
 #define LIGHTNING_EMIT_INTERVAL 10
@@ -339,11 +412,10 @@ static void FX_LightningNestImpactSound(vec3_t pos) {
 		return;
 	lightningSounds++;
 	trap->S_StartSound(pos, ENTITYNUM_WORLD, CHAN_AUTO,
-		cgs.media.forceLightningImpactSounds[rand() % 3]);
+		cgs.media.forceLightningEnvironmentSounds[rand() % ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds)]);
 }
 
-// Main beam impact sound - single variant, chosen by time+entity (matches
-// the reference implementation this was ported from).
+// Main beam impact sound - single variant, chosen by time and entity.
 static void FX_LightningImpactSound(centity_t *cent, const trace_t *hit) {
 	vec3_t contact;
 	int sound;
@@ -359,14 +431,14 @@ static void FX_LightningImpactSound(centity_t *cent, const trace_t *hit) {
 	if (lightningSounds >= LIGHTNING_SOUND_BUDGET)
 		return;
 
-	sound = (cg.time / LIGHTNING_INTERVAL + cent->currentState.number) % 3;
-	cent->lightningImpactSoundTime = cg.time + LIGHTNING_SOUND_INTERVAL + sound * 30;
-	if (!cgs.media.forceLightningImpactSounds[sound])
+	sound = (cg.time / LIGHTNING_INTERVAL + cent->currentState.number) % ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds);
+	cent->lightningImpactSoundTime = cg.time + LIGHTNING_SOUND_INTERVAL + (sound % 3) * 30;
+	if (!cgs.media.forceLightningEnvironmentSounds[sound])
 		return;
 
 	lightningSounds++;
 	VectorMA(hit->endpos, 2.0f, hit->plane.normal, contact);
-	trap->S_StartSound(contact, ENTITYNUM_WORLD, CHAN_AUTO, cgs.media.forceLightningImpactSounds[sound]);
+	trap->S_StartSound(contact, ENTITYNUM_WORLD, CHAN_AUTO, cgs.media.forceLightningEnvironmentSounds[sound]);
 }
 
 // Random point along the main beam's hand->tip segment to branch off from.
@@ -463,6 +535,10 @@ qboolean FX_ForceLightningEnvironment(centity_t *cent, vec3_t origin, matrix3_t 
 
 	if (!cg_lightningEnvironment.integer)
 		return qfalse;
+	if (cg_lightningEnvironment.integer == 2) {
+		FX_ForceLightningReference(cent, origin, axis, wide);
+		return qtrue;
+	}
 	if (cent->lightningEnvironmentTime > cg.time &&
 		cent->lightningEnvironmentTime <= cg.time + LIGHTNING_EMIT_INTERVAL)
 		return qtrue;
