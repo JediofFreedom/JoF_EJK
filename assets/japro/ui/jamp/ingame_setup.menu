@@ -2085,27 +2085,6 @@
 
 		itemDef
 		{
-			name				rend2_ssao
-			group				rend2video
-			type				ITEM_TYPE_MULTI
-			text				"Ambient Occlusion:"
-			rect				220 243 300 20
-			textalign			ITEM_ALIGN_RIGHT
-			textalignx			165
-			font				4
-			textscale			1
-			forecolor			.615 .615 .956 1
-			cvar				"r_ssao"
-			cvarFloatList		{ @MENUS_OFF 0 @MENUS_ON 1 }
-			visible				0
-			descText			"Enable screen-space ambient occlusion."
-			mouseenter			{ show highlight11 }
-			mouseexit			{ hide highlight11 }
-			action				{ play "sound/interface/button1" ; setcvar ui_r_modified 1 ; setcvar ui_vidrestart 1 }
-		}
-
-		itemDef
-		{
 			name				rend2backbutton_glow
 			style				WINDOW_STYLE_SHADER
 			rect				260 285 200 16
