@@ -38,6 +38,7 @@ cvar_t *s_sdlSpeed;
 cvar_t *s_sdlChannels;
 cvar_t *s_sdlDevSamps;
 cvar_t *s_sdlMixSamps;
+extern cvar_t* s_maxSounds;
 
 /* The audio callback. All the magic happens here. */
 static int dmapos = 0;
@@ -147,6 +148,16 @@ static int SNDDMA_ExpandSampleFrequencyKHzToHz(int khz)
 		case 11: return 11025;
 	}
 }
+/*
+================
+Initialize the soundBuffer 
+================
+*/
+void SNDDMA_InitSoundBuffer(int maxSounds) 
+{
+	sb.lastReset = 0;
+	sb.maxSoundsPerSec = maxSounds;
+}
 
 /*
 ===============
@@ -158,6 +169,8 @@ qboolean SNDDMA_Init(int sampleFrequencyInKHz)
 	SDL_AudioSpec desired;
 	SDL_AudioSpec obtained;
 	int tmp;
+	s_maxSounds = Cvar_Get("s_maxSounds", "100", CVAR_ARCHIVE);
+	SNDDMA_InitSoundBuffer(s_maxSounds->integer);
 
 	if (snd_inited)
 		return qtrue;
