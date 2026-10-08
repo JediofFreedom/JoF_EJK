@@ -3095,7 +3095,7 @@
 			name				morevisuals3button
 			group				morevisuals
 			type				ITEM_TYPE_BUTTON
-			text				"More Visual Options"
+			text				"Even More Visuals"
 			rect				260 303 200 20
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			100
