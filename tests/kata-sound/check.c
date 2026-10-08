@@ -54,6 +54,8 @@ static struct {
 } cg;
 static struct { qhandle_t gameModels[MAX_MODELS]; } cgs;
 static struct { int integer; } cg_noPredict, g_synchronousClients, cg_smoothClients;
+#define CAMERA_MIN_FPS 15
+static struct { int integer; float value; } cg_cameraFPS;
 static qboolean CG_UsingEWeb(void) { return qfalse; }
 static void CG_AddCEntity(centity_t *cent) {
     CHECK(!cent->interpolate && !cg_smoothClients.integer);
@@ -67,6 +69,13 @@ void QDECL Com_Error(int code, const char *format, ...) { (void)code; (void)form
 void *BG_Alloc(int size) { void *p = calloc(1, size); CHECK(p); return p; }
 int Q_irand(int low, int high) { CHECK(high >= low); return randomChoice ? high : low; }
 void VectorClear(vec3_t v) { v[0] = v[1] = v[2] = 0; }
+void VectorCopy(const vec3_t a, vec3_t b) { int i; for (i = 0; i < 3; ++i) b[i] = a[i]; }
+void VectorSubtract(const vec3_t a, const vec3_t b, vec3_t out) {
+    int i; for (i = 0; i < 3; ++i) out[i] = a[i] - b[i];
+}
+void VectorScale(const vec3_t a, float scale, vec3_t out) {
+    int i; for (i = 0; i < 3; ++i) out[i] = a[i] * scale;
+}
 vec_t DistanceSquared(const vec3_t a, const vec3_t b) {
     vec3_t delta;
     int i;
@@ -191,9 +200,59 @@ static void Parse(const char *text) {
     ParseAnimationEvtBlock("test", events, animations, &i, &text);
 }
 
+static void TestMeleeCarryCamera(void) {
+    int mode, frame;
+    for (mode = 0; mode < 2; ++mode) {
+        float previous = 0;
+        dampPos_t position = {0};
+        memset(&cam, 0, sizeof(cam));
+        memset(&cg.predictedPlayerState, 0, sizeof(cg.predictedPlayerState));
+        cg.predictedPlayerState.stats[STAT_HEALTH] = 100;
+        cg.predictedPlayerState.forceHandExtend = HANDEXTEND_PRETHROWN;
+        cg.predictedPlayerState.commandTime = 1000;
+        cg.time = 1000;
+        cg.predictedTimeFrac = 0;
+        cg_cameraFPS.integer = mode ? 125 : 0;
+        cg_cameraFPS.value = (float)cg_cameraFPS.integer;
+        CG_ThirdPersonCameraDeltaTime();
+        CHECK(cam.meleeCarry && cam.lastTime == 0); // One reset on entry.
+        CG_SaveThirdPersonCameraTime();
+        // NPC-controlled positions continue moving even when the victim's
+        // command time is unchanged, or corrections make it step backward.
+        for (frame = 1; frame <= 12; ++frame) {
+            float elapsed, cameraPosition;
+            cg.time += 8;
+            if (frame == 6) cg.predictedPlayerState.commandTime -= 100;
+            if (frame == 9) cg.predictedPlayerState.commandTime += 200;
+            cg.predictedTimeFrac = frame & 1 ? 0 : 25;
+            elapsed = CG_ThirdPersonCameraDeltaTime();
+            CHECK(elapsed == 8 && cam.lastTime != 0);
+            position.ideal[0] = (float)frame;
+            CG_DampPosition(&position, 0.7f, elapsed);
+            cameraPosition = position.ideal[0] + position.damp[0];
+            CHECK(cameraPosition > previous && cameraPosition < position.ideal[0]);
+            previous = cameraPosition;
+            CG_SaveThirdPersonCameraTime();
+        }
+        // The NPC holder link can wrap to zero; PRETHROWN still owns the camera.
+        CHECK(!cg.predictedPlayerState.heldByClient && cam.meleeCarry);
+        cg.predictedPlayerState.forceHandExtend = HANDEXTEND_POSTTHROWN;
+        CG_ThirdPersonCameraDeltaTime();
+        CHECK(!cam.meleeCarry && cam.lastTime == 0); // Release changes clocks once.
+        cg.predictedTimeFrac = 4;
+        CG_SaveThirdPersonCameraTime();
+        cg.predictedPlayerState.commandTime += 8;
+        cg.predictedTimeFrac = 6;
+        CHECK(CG_ThirdPersonCameraDeltaTime() == 10); // Normal command prediction resumes.
+    }
+    memset(&cg.predictedPlayerState, 0, sizeof(cg.predictedPlayerState));
+    cg.predictedTimeFrac = 0;
+}
+
 int main(void) {
     int i, calls;
     playerState_t predicted, server;
+    TestMeleeCarryCamera();
     cg_entities[0].interpolate = qtrue;
     cg_smoothClients.integer = 1;
     CG_AddPredictedPlayerEntity();
