@@ -185,6 +185,22 @@ static void TestCanceledWeaponSwitch(void) {
     Commit(WP_MELEE);
     CHECK(Count(SHUTDOWN) == 1);
 }
+static void TestManualShutdownBeforeMelee(void) {
+    int anim;
+    for (anim = 0; anim < 2; anim++) {
+        Reset(1);
+        Anim(IDLE, 0);
+        Update(-1);
+        cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 2;
+        trap->S_StartSound(cg_entities[0].lerpOrigin, 0, CHAN_AUTO, SHUTDOWN);
+        Update(0); //the manual toggle sounded, but the blade is still retracting
+        Anim(anim ? BOTH_STAND2TO1_NEW : BOTH_S7_S1_NEW, 90);
+        Update(0);
+        Commit(WP_MELEE);
+        Update(0);
+        CHECK(Count(SHUTDOWN) == 1);
+    }
+}
 static void TestStaffTiming(void) {
     Reset(1);
     Anim(BOTH_S7_S1_NEW, 90);
@@ -607,6 +623,7 @@ static void TestConfirmedHiltChanges(void) {
 }
 
 int main(void) {
+    TestManualShutdownBeforeMelee();
     TestConfirmedHiltChanges();
     TestSecondBladeAfterDraw();
     TestDrawEndsBetweenRenders();
