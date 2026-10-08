@@ -1647,18 +1647,18 @@ Limit repeated sounds within a one-second window when anti-spam is enabled.
 */
 qboolean S_CanPlaySound(const char* soundName)
 {
-	if (!s_soundAntiSpam->integer)
-		return qtrue;
-
 	const int currentTime = cls.realtime;
+	if (!s_soundAntiSpam->integer) {
+		// Drop the old window so enabling the filter again starts fresh.
+		sb.lastReset = currentTime;
+		SFX_ResetAllCounts();
+		return qtrue;
+	}
 	sb.maxSoundsPerSec = s_maxSounds->integer;
-
-	// Expire the window before checking the cap, even if this sound hit it.
 	if (currentTime < sb.lastReset || currentTime - sb.lastReset >= 1000) {
 		sb.lastReset = currentTime;
 		SFX_ResetAllCounts();
 	}
-
 	if (SFX_GetCount(soundName) > s_maxSounds->value)
 		return qfalse;
 
