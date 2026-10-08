@@ -878,10 +878,11 @@ set(GameLibFullPaths)
 		COMPONENT ${JKAMPCoreComponent})
 endif()
 
-# Track menu definitions and icons so edits also rebuild existing asset archives.
+# Track asset groups that are edited in-tree and need to rebuild the archive.
 file(GLOB_RECURSE JAPRO_MENU_FILES CONFIGURE_DEPENDS
 	"${CMAKE_SOURCE_DIR}/assets/japro/ui/*"
-	"${CMAKE_SOURCE_DIR}/assets/japro/gfx/menus/*")
+	"${CMAKE_SOURCE_DIR}/assets/japro/gfx/menus/*"
+	"${CMAKE_SOURCE_DIR}/assets/japro/ext_data/*")
 add_zip_command(japro-assets.pk3
 	FILES ${CMAKE_SOURCE_DIR}/assets/japro/*
 	DEPENDS ${JAPRO_MENU_FILES})

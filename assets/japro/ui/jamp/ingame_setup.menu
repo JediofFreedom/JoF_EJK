@@ -2945,8 +2945,9 @@
 			cvar				"cg_remaps"
 			cvarFloatList
 			{
+				"Map + Model" 2
+				"Map Only" 1
 				@MENUS_OFF 0
-				@MENUS_ON 1
 			}
 			rect				220 203 300 20
 			textalign			ITEM_ALIGN_RIGHT
@@ -2956,7 +2957,7 @@
 			textscale 			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			descText			"Toggle remaps."
+			descText			"Choose which remaps to apply: map and model, map only, or none."
 			action				{ play "sound/interface/button1" }
 			mouseenter			{ show highlight9 }
 			mouseexit			{ hide highlight9 }

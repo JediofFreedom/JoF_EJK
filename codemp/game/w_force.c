@@ -5384,6 +5384,29 @@ void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd )
 		g_LastFrameTime = level.time;
 	}
 
+	if ( self->client->NPC_class == CLASS_MARTIALARTIST &&
+		self->client->ps.forceHandExtend == HANDEXTEND_KNOCKDOWN &&
+		!self->client->ps.forceDodgeAnim )
+	{
+		// Martial artists recover on the first update. A forward getup uses the
+		// existing attacking roll and kick trace; jump uses the normal force getup.
+		self->client->ps.forceHandExtendTime = level.time - 1;
+		self->client->ps.quickerGetup = qfalse;
+		ucmd->rightmove = 0;
+		if ( self->enemy && self->enemy->inuse && self->enemy->health > 0 &&
+			DistanceHorizontalSquared( self->client->ps.origin,
+				self->enemy->r.currentOrigin ) <= 16384 && !Q_irand( 0, 1 ) )
+		{
+			ucmd->forwardmove = 127;
+			ucmd->upmove = 0;
+		}
+		else
+		{
+			ucmd->forwardmove = 0;
+			ucmd->upmove = 127;
+		}
+	}
+
 	if (self->client->ps.forceHandExtend == HANDEXTEND_KNOCKDOWN)
 	{
 		self->client->ps.zoomFov = 0;

@@ -251,7 +251,35 @@ static struct {
 	float		lastYaw;
 	int			lastTime;
 	float		lastTimeFrac;
+	qboolean	meleeCarry;
 } cam;
+
+static float CG_ThirdPersonCameraDeltaTime(void)
+{
+	const playerState_t *ps = &cg.predictedPlayerState;
+	qboolean meleeCarry = ps->stats[STAT_HEALTH] > 0 &&
+		(ps->forceHandExtend == HANDEXTEND_PRETHROWN ||
+			(ps->heldByClient > 0 && ps->heldByClient <= ENTITYNUM_WORLD));
+
+	// The NPC positions its victim on the server's clock. The victim's
+	// command clock can stall or step while its interpolated origin/angles
+	// still move. Damping against that clock freezes, then jumps the camera.
+	if (meleeCarry != cam.meleeCarry)
+	{
+		cam.lastTime = 0;
+		cam.meleeCarry = meleeCarry;
+	}
+	if (meleeCarry)
+		return (float)(cg.time - cam.lastTime);
+
+	return (float)(ps->commandTime - cam.lastTime) + cg.predictedTimeFrac - cam.lastTimeFrac;
+}
+
+static void CG_SaveThirdPersonCameraTime(void)
+{
+	cam.lastTime = cam.meleeCarry ? cg.time : cg.predictedPlayerState.commandTime;
+	cam.lastTimeFrac = cam.meleeCarry ? 0.0f : cg.predictedTimeFrac;
+}
 
 /*
 ===============
@@ -510,8 +538,8 @@ void CG_ClearThirdPersonDamp(void)
 	VectorCopy(oldLoc, cam.loc.prevIdeal);
 	VectorCopy(oldTarget, cam.target.prevIdeal);
 
-	cam.lastTime = cg.predictedPlayerState.commandTime;
-	cam.lastTimeFrac = cg.predictedTimeFrac;
+	CG_ThirdPersonCameraDeltaTime();
+	CG_SaveThirdPersonCameraTime();
 }
 
 static void CG_DampPosition(dampPos_t *pos, float dampfactor, float dtime)
@@ -930,8 +958,7 @@ static void CG_OffsetThirdPersonView( void )
 
 	// The next thing to do is to see if we need to calculate a new camera target location.
 
-	dtime = cg.predictedPlayerState.commandTime - cam.lastTime;
-	dtime += cg.predictedTimeFrac - cam.lastTimeFrac;
+	dtime = CG_ThirdPersonCameraDeltaTime();
 
 	// If we went back in time for some reason, or if we just started, reset the sample.
 	if (cam.lastTime == 0 || dtime < 0.0f || cg.thisFrameTeleport)
@@ -1013,8 +1040,7 @@ static void CG_OffsetThirdPersonView( void )
 	// ...and of course we should copy the new view location to the proper spot too.
 	VectorCopy(location, cg.refdef.vieworg);
 
-	cam.lastTime = cg.predictedPlayerState.commandTime;
-	cam.lastTimeFrac = cg.predictedTimeFrac;
+	CG_SaveThirdPersonCameraTime();
 	cam.lastYaw = focusAngles[YAW];
 }
 
@@ -3020,13 +3046,16 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// Pseudo-slots (stasis=18, repulse=19, dash=20) must never reach the server as forcesel.
 	// Fall back to the last real networked selection when any is centered.
-	if ( cg.forceSelect == STASIS_WHEEL_SLOT || cg.forceSelect == REPULSE_WHEEL_SLOT || cg.forceSelect == DASH_WHEEL_SLOT )
+	if (cg.forceSelect == DESTRUCTION_WHEEL_SLOT && !CG_HasDestruction())
+		cg.forceSelect = cg.snap ? cg.snap->ps.fd.forcePowerSelected : 0;
+	if ( cg.forceSelect >= NUM_FORCE_POWERS || cg.forceSelect < 0 )
 		fpSel = cg.snap ? cg.snap->ps.fd.forcePowerSelected : 0;
 	else
 		fpSel = cg.forceSelect;
 	trap->Cvar_Set( "cl_stasisSelected",  (cg.forceSelect == STASIS_WHEEL_SLOT  && CG_HasStasis())  ? "1" : "0" );
 	trap->Cvar_Set( "cl_repulseSelected", (cg.forceSelect == REPULSE_WHEEL_SLOT && CG_HasRepulse()) ? "1" : "0" );
 	trap->Cvar_Set( "cl_dashSelected",    (cg.forceSelect == DASH_WHEEL_SLOT    && CG_HasDash())    ? "1" : "0" );
+	trap->Cvar_Set("cl_destructionSelected", (cg.forceSelect == DESTRUCTION_WHEEL_SLOT && CG_HasDestruction()) ? "1" : "0");
 
 	// let the client system know what our weapon and zoom settings are
 	if (cg.snap && cg.snap->ps.saberLockTime > cg.time)

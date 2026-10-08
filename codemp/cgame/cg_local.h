@@ -646,6 +646,13 @@ typedef struct centity_s {
 #endif
 	
 	unsigned int	flameSndDebounceTime;
+	int				lightningEnvironmentTime;
+	int				lightningSurfaceTime;
+	int				lightningImpactSoundTime;
+	// Independent cached directions and timers used by cg_lightningEnvironment 2.
+	int				lightningReferenceTime[5];
+	vec3_t			lightningReferenceEnd[5];
+	int				lightningReferenceSoundTime[5];
 	unsigned int	flameThrowerHitTime;
 	qboolean		  flameThrowerSndActive;
 	qboolean	hasPlayedJetpackSounds;
@@ -1052,6 +1059,7 @@ typedef struct chatBoxItem_s
 	char			string[MAX_STRING_CHARS];
 	int				time;
 	int				lines;
+	qboolean		isPrivate;
 	chatBoxEmoji_t emoji[MAX_CHATBOX_ITEM_EMOJIS];
 } chatBoxItem_t;
 
@@ -1073,6 +1081,9 @@ typedef struct cg_s {
 	binocularTarget_t binocularTargets[MAX_BINOCULAR_TARGETS];
 	int binocularTargetCount;
 	int binocularUpdateTime;
+	binocularTarget_t missionParty[MAX_MISSION_PARTY];
+	int missionPartyCount;
+	int missionPartyUpdateTime;
 	int			clientFrame;		// incremented each frame
 
 	int			clientNum;
@@ -1433,6 +1444,7 @@ Ghoul2 Insert End
 	short				numJumps;
 	int					userinfoUpdateDebounce;
 	char				lastChatMsg[MAX_SAY_TEXT + MAX_NETNAME + 32];
+	qboolean			pmOnlyChat;
 
 	int					drawingStrafeTrails;//optimization i guess
 	qboolean			loggingStrafeTrail;
@@ -1507,6 +1519,8 @@ enum
 typedef struct cgMedia_s {
 	qhandle_t	charsetShader;
 	qhandle_t	whiteShader;
+	qhandle_t	binocularHudFont;
+	qhandle_t	missionPartyUnknownIcon;
 
 	qhandle_t	loadBarLED;
 	qhandle_t	loadBarLEDCap;
@@ -1917,6 +1931,9 @@ typedef struct cgMedia_s {
 	qhandle_t forcePowerIcons[NUM_FORCE_POWERS];
 	qhandle_t repulseIcon;		// JoF: custom Force Repulse wheel icon
 	qhandle_t dashIcon;			// JoF: custom Force Dash wheel icon
+	qhandle_t destructionIcon;
+	sfxHandle_t destructionCastSound;
+	sfxHandle_t destructionImpactSounds[2];
 	qhandle_t flamethrowerIcon;	// JoF: JA+ merc-mode replacement for Force Lightning
 
 	qhandle_t rageRecShader;
@@ -1944,6 +1961,10 @@ typedef struct cgMedia_s {
 	sfxHandle_t	noAmmoSound;
 
 	qhandle_t	lightningShader; // japro loda
+	qhandle_t	forceLightningArcShader;
+	qhandle_t	forceLightningFlashShader;
+	sfxHandle_t	forceLightningEnvironmentSounds[6];
+	sfxHandle_t	forceLightningEnvironmentArcSounds[3];
 
 	//japro gibs
 	qhandle_t	gibAbdomen;
@@ -1994,6 +2015,14 @@ typedef struct cgEffects_s {
 	//concussion
 	fxHandle_t	concussionShotEffect;
 	fxHandle_t	concussionImpactEffect;
+
+	// Force Destruction: locally selected custom FX or stock concussion fallbacks.
+	fxHandle_t	destructionProjectile;
+	fxHandle_t	destructionImpact;
+	fxHandle_t	destructionSuper;			// forcedestruction/destruction_super.efx (0 = normal orb)
+	fxHandle_t	destructionDrainHand;	// force/drain_hand.efx (Drain hand effect)
+	qboolean	destructionCustomProjectile;
+	qboolean	destructionCustomImpact;
 
 	// BRYAR PISTOL
 	fxHandle_t	bryarShotEffect;
@@ -2055,6 +2084,12 @@ typedef struct cgEffects_s {
 	//FORCE
 	fxHandle_t forceLightning;
 	fxHandle_t forceLightningWide;
+	fxHandle_t forceLightningEnvironmentImpact;
+	fxHandle_t demp2WallImpactEffectSmall;   
+	fxHandle_t forceLightningBranch;
+	fxHandle_t forceLightningReference;
+	fxHandle_t forceLightningReferenceWide;
+	fxHandle_t forceLightningReferenceArc;
 
 	fxHandle_t forceDrain;
 	fxHandle_t forceDrainWide;
@@ -2177,6 +2212,7 @@ typedef struct cgs_s {
 	qboolean		jediVmerc;
 	int				wDisable;
 	int				fDisable;
+	qboolean		forceDestruction; // explicit server support, in addition to the per-player grant
 
 	char			mapname[MAX_QPATH];
 	char			rawmapname[MAX_QPATH];
@@ -2260,6 +2296,7 @@ typedef struct cgs_s {
 	qboolean radialMenuExecuteOnClose;
 	int radialMenuOpenTime;
 	int radialMenuSelection;
+	int radialMenuPage;
 	float radialMenuX;
 	float radialMenuY;
 
@@ -2339,6 +2376,11 @@ void CG_PrevForcePower_f(void);
 qboolean ForcePower_Valid(int i);
 qboolean CG_HasStasis(void);
 qboolean CG_HasRepulse(void);
+#define DESTRUCTION_EFX_LAYERS 3 // MB2 plays the projectile once per Destruction level; Jerec = 3.
+qboolean CG_HasDestruction(void);
+qboolean CG_PlayDestructionEffect(const entityState_t *state, vec3_t origin,
+	const vec3_t direction, qboolean impact);
+sfxHandle_t CG_DestructionCastSound(const entityState_t *state, sfxHandle_t fallback);
 qboolean CG_HasDash(void);
 int CG_BuildForceWheel(int *slots);
 
@@ -2419,6 +2461,7 @@ void CG_AddSpeedGraphFrameInfo( void );
 void CG_AddLagometerSnapshotInfo( snapshot_t *snap );
 void CG_CenterPrint( const char *str, int y, int charWidth );
 void CG_CenterPrintMultiKill(const char *str, int y, int charWidth);
+void CG_ChatBox_AddString(char *chatStr, qboolean isPrivate);
 void CG_DrawHead( float x, float y, float w, float h, int clientNum, vec3_t headAngles );
 void CG_DrawActive( stereoFrame_t stereoView );
 void CG_DrawFlagModel( float x, float y, float w, float h, int team, qboolean force2D );
@@ -2465,6 +2508,7 @@ qboolean CG_StaffSwapShutdownSounded( int clientNum );
 qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound );
 void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team );
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized );
+void CG_CleanHolsteredSabers( clientInfo_t *ci );
 saberInfo_t *CG_SaberEntityOwnerSaber( centity_t *saberEnt );
 const char *CG_SaberEntityHiltModel( saberInfo_t *saber, centity_t *saberEnt, qhandle_t *skin );
 qboolean CG_ModelIsBlacklisted( const char *modelName );
@@ -2479,6 +2523,8 @@ void CG_BuildSolidList( void );
 int	CG_PointContents( const vec3_t point, int passEntityNum );
 void CG_Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end,
 					 int skipNumber, int mask );
+void CG_TraceSkipEntity( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs,
+		const vec3_t end, int skipNumber, int skipNumber2, int mask );
 void CG_G2Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end,
 					 int skipNumber, int mask );
 void CG_CrosshairTrace(trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int skipNumber, qboolean g2Check); //japro
@@ -2737,6 +2783,7 @@ void FX_BlasterWeaponHitPlayer( vec3_t origin, vec3_t normal, qboolean humanoid 
 
 
 void FX_ForceDrained(vec3_t origin, vec3_t dir);
+qboolean FX_ForceLightningEnvironment(centity_t *cent, vec3_t origin, matrix3_t axis, qboolean wide);
 
 
 //-----------------------------
