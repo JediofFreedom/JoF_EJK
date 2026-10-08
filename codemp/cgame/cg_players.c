@@ -11128,9 +11128,7 @@ static void CG_StaffSwapShutdownSound( centity_t *cent, clientInfo_t *ci, staffS
 	if (cl < 0 || cl >= MAX_CLIENTS || !ci->saber[0].soundOff)
 		return;
 
-	// A manually holstered blade can still be retracting when the put-away starts.
-	// Its toggle already played the shutdown sound; length alone is not enough.
-	if (cent->currentState.saberHolstered == 2 || !ci->saber[0].blade[0].length)
+	if (!ci->saber[0].blade[0].length)
 		return;	//it is already out, so there is nothing to shut down
 
 	held = &staffSwapSound[cl];
