@@ -38,7 +38,7 @@ typedef struct {
     struct { vec3_t trBase; } pos;
 } entityState_t;
 typedef struct {
-    int clientNum, weapon, torsoAnim, saberHolstered, pm_flags, persistant[1];
+    int clientNum, weapon, torsoAnim, saberHolstered, saberInFlight, eFlags, pm_flags, persistant[1];
     int duelInProgress, duelIndex;
     vec3_t origin;
 } playerState_t;
@@ -189,8 +189,8 @@ static void TestCanceledWeaponSwitch(void) {
     CHECK(Count(SHUTDOWN) == 1);
 }
 static void TestManualShutdownBeforeMelee(void) {
-    int anim;
-    for (anim = 0; anim < 2; anim++) {
+    int anim, clearHolstered;
+    for (anim = 0; anim < 2; anim++) for (clearHolstered = 0; clearHolstered < 2; clearHolstered++) {
         Reset(1);
         Anim(IDLE, 0);
         Update(-1);
@@ -200,9 +200,128 @@ static void TestManualShutdownBeforeMelee(void) {
         Anim(anim ? BOTH_STAND2TO1_NEW : BOTH_S7_S1_NEW, 90);
         Update(0);
         Commit(WP_MELEE);
+        if (clearHolstered)
+            cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 0;
         Update(0);
         CHECK(Count(SHUTDOWN) == 1);
     }
+    Reset(1);
+    cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 2;
+    trap->S_StartSound(cg_entities[0].lerpOrigin, 0, CHAN_AUTO, SHUTDOWN);
+    Update(0); //manual shutdown in idle, before any put-away animation arrives
+    cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 0;
+    Commit(WP_MELEE); //PM_Weapon clears saberHolstered once the weapon is no longer saber
+    Update(0);
+    CHECK(Count(SHUTDOWN) == 1);
+}
+static void ServerShutdown(int general) {
+    centity_t event = {0};
+    if (general) {
+        if (!CG_StaffSwapHoldGeneralSound(cg_entities[0].lerpOrigin, SHUTDOWN))
+            trap->S_StartSound(cg_entities[0].lerpOrigin, 0, CHAN_AUTO, SHUTDOWN);
+    } else {
+        event.currentState.eventParm = SHUTDOWN;
+        EntitySoundEvent(&event);
+    }
+}
+static void TestServerShutdownBeforeMelee(void) {
+    int general, anim;
+    for (general = 0; general < 2; general++) for (anim = 0; anim < 2; anim++) {
+        Reset(1);
+        cg.snap = &snapshot;
+        snapshot.ps.weapon = WP_SABER;
+        snapshot.ps.saberHolstered = 2;
+        //The server sound precedes prediction and the blade update.
+        ServerShutdown(general);
+        CHECK(Count(SHUTDOWN) == 1);
+        cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 2;
+        Update(0);
+        snapshot.ps.weapon = WP_MELEE;
+        snapshot.ps.saberHolstered = 0;
+        cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 0;
+        Anim(anim ? BOTH_STAND2TO1_NEW : BOTH_S7_S1_NEW, 90);
+        Commit(WP_MELEE);
+        Update(0);
+        ServerShutdown(general); //a later server weapon-switch copy
+        CHECK(Count(SHUTDOWN) == 1);
+    }
+}
+static void TestShutdownCopiesAndToggles(void) {
+    int general;
+    for (general = 0; general < 2; general++) {
+        Reset(1);
+        cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 2;
+        Update(0); //the off state can be rendered before its sound arrives
+        ServerShutdown(general);
+        CHECK(Count(SHUTDOWN) == 1);
+        ServerShutdown(general);
+        CHECK(Count(SHUTDOWN) == 1);
+
+        {
+            centity_t event = {0};
+            cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 0;
+            event.currentState.eventParm = IGNITION;
+            EntitySoundEvent(&event); //in-hand on/off commands between rendered frames
+            cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 2;
+            ServerShutdown(general);
+            CHECK(Count(SHUTDOWN) == 2 && Count(IGNITION) == 1);
+        }
+
+        cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 0;
+        Update(-1); //a real reactivation allows the next manual shutdown
+        cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 2;
+        ServerShutdown(general);
+        Update(0);
+        CHECK(Count(SHUTDOWN) == 3);
+
+        cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 0;
+        Update(-1);
+        cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 1;
+        ServerShutdown(general); //only the second blade closes; first blade remains lit
+        Update(-1);
+        cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 0;
+        Update(-1);
+        cg.predictedPlayerState.saberHolstered = cg_entities[0].currentState.saberHolstered = 1;
+        ServerShutdown(general);
+        Update(-1);
+        CHECK(Count(SHUTDOWN) == 5);
+
+        Anim(BOTH_STAND2TO1_NEW, 90);
+        Update(0); //the remaining blade shuts down at the start of the back reach
+        CHECK(Count(SHUTDOWN) == 6);
+        ServerShutdown(general); //consume the server copy after the blade already sounded
+        CHECK(Count(SHUTDOWN) == 6);
+    }
+}
+static void TestRemoteShutdownSnapshotOrdering(void) {
+    vec3_t origin = {200, 0, 0};
+    Reset(1);
+    cg.predictedPlayerState.clientNum = 1;
+    cg.snap = &snapshot;
+    snapshot.ps.clientNum = 1;
+    snapshot.numEntities = 1;
+    snapshot.entities[0] = cg_entities[0].currentState;
+    snapshot.entities[0].saberHolstered = 2;
+    snapshot.entities[0].pos.trBase[0] = 200;
+    cg_entities[0].currentValid = qfalse;
+    //The temp sound transitions before the carrier, who has moved since the last render.
+    CHECK(!CG_StaffSwapHoldGeneralSound(origin, SHUTDOWN));
+    trap->S_StartSound(origin, 0, CHAN_AUTO, SHUTDOWN);
+    snapshot.entities[0].weapon = WP_MELEE;
+    snapshot.entities[0].saberHolstered = 0;
+    CHECK(CG_StaffSwapHoldGeneralSound(origin, SHUTDOWN));
+    CHECK(Count(SHUTDOWN) == 1);
+
+    Reset(1);
+    cg_entities[0].lerpOrigin[0] = 20;
+    cg_entities[1] = cg_entities[0];
+    cg_entities[1].currentState.number = cg_entities[1].currentState.clientNum = 1;
+    cg_entities[1].lerpOrigin[0] = 0;
+    cgs.clientinfo[1] = cgs.clientinfo[0];
+    cgs.clientinfo[1].saber[0].type = SABER_SINGLE;
+    cgs.clientinfo[1].saber[0].numBlades = 1;
+    staffSwapSound[0].shutdownPlayed = qtrue;
+    CHECK(!CG_StaffSwapHoldGeneralSound(cg_entities[1].lerpOrigin, SHUTDOWN));
 }
 static void TestStaffTiming(void) {
     Reset(1);
@@ -645,6 +764,9 @@ static void TestConfirmedHiltChanges(void) {
 
 int main(void) {
     TestManualShutdownBeforeMelee();
+    TestServerShutdownBeforeMelee();
+    TestShutdownCopiesAndToggles();
+    TestRemoteShutdownSnapshotOrdering();
     TestConfirmedHiltChanges();
     TestSecondBladeAfterDraw();
     TestDrawEndsBetweenRenders();
