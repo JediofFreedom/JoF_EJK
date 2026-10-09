@@ -11068,6 +11068,7 @@ typedef struct {
 	qboolean	drawSeen;		//the reach was observed before a skipped handoff frame
 	qboolean	shutdownPending; //a completed weapon change is waiting for the blade update
 	qboolean	shutdownPlayed; //reset when the blade is allowed out again
+	qboolean	manualShutdown; //survives PM_Weapon clearing saberHolstered for melee
 } staffSwapSound_t;
 
 static staffSwapSound_t staffSwapSound[MAX_CLIENTS];
@@ -11125,13 +11126,19 @@ static void CG_StaffSwapUpdateSounds( centity_t *cent, clientInfo_t *ci )
 
 	if (!bladesOut)
 	{
+		// PM_Weapon clears saberHolstered after switching away. Remember the manual
+		// shutdown while it is still visible, even if no put-away animation has started.
+		if (cent->currentState.saberHolstered >= 2)
+			held->manualShutdown = qtrue;
 		if (held->shutdownPending || puttingAway)
 		{
 			// A manual toggle already sounded, even if its blade is still retracting.
-			if (!held->shutdownPlayed && cent->currentState.saberHolstered < 2 &&
+			if (!held->shutdownPlayed && !held->manualShutdown &&
 				ci->saber[0].blade[0].length > 0 && ci->saber[0].soundOff)
+			{
 				trap->S_StartSound(cent->lerpOrigin, cl, CHAN_AUTO, ci->saber[0].soundOff);
-			held->shutdownPlayed = qtrue;
+				held->shutdownPlayed = qtrue;
+			}
 			held->shutdownPending = qfalse;
 		}
 		if (cent->currentState.weapon != WP_SABER || cent->currentState.saberHolstered >= 2 || puttingAway)
@@ -11144,6 +11151,7 @@ static void CG_StaffSwapUpdateSounds( centity_t *cent, clientInfo_t *ci )
 	}
 
 	held->shutdownPlayed = qfalse;
+	held->manualShutdown = qfalse;
 	held->shutdownPending = qfalse;
 	// A queued weapon-change sound can precede the reach animation. Keep it held until
 	// the hilt is in hand; an outgoing idle animation must not release it early.
@@ -11280,7 +11288,14 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 	// stayed lit since the back draw. Only deduplicate while that draw or its
 	// queued sound is still active.
 	if (!CG_StaffSwapDrawAnim(anim) && cent->weapon == WP_SABER && !staffSwapSound[clientNum].sound)
+	{
+		// An in-hand ignition starts a new cycle even if no blade update was
+		// rendered between the previous off command and this on command.
+		staffSwapSound[clientNum].shutdownPlayed = qfalse;
+		staffSwapSound[clientNum].manualShutdown = qfalse;
+		staffSwapSound[clientNum].shutdownPending = qfalse;
 		return qfalse;
+	}
 
 	if (staffSwapSound[clientNum].sound || staffSwapSound[clientNum].ignitionPlayed)
 		return qtrue; //one ignition per draw, including later server copies
@@ -11292,18 +11307,67 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 	return qtrue;
 }
 
-// Entity sound events carry every kind of sound, so only pass this hilt's ignition to the queue.
-qboolean CG_StaffSwapHoldEntitySound( int clientNum, sfxHandle_t sound )
+// Server shutdowns sound immediately, then consume later copies from the same holster.
+// Use the snapshot because sound events can precede prediction and entity transitions.
+static qboolean CG_StaffSwapHoldServerShutdownSound( int clientNum )
 {
-	if (clientNum < 0 || clientNum >= MAX_CLIENTS || !sound ||
-		cgs.clientinfo[clientNum].saber[0].soundOn != sound)
+	const char *why = "";
+	const entityState_t *state;
+	staffSwapSound_t *held;
+	int weapon, holstered, anim;
+	qboolean played;
+
+	if (!cg_holsteredStaffSound.integer || !cgs.clientinfo[clientNum].infoValid ||
+		!CG_StaffHolsteredOnBack(&cgs.clientinfo[clientNum], &why))
 		return qfalse;
-	return CG_StaffSwapHoldIgnitionSound(clientNum, sound);
+
+	if (cg.snap && clientNum == cg.snap->ps.clientNum)
+	{
+		weapon = cg.snap->ps.weapon;
+		holstered = cg.snap->ps.saberHolstered;
+		anim = cg.snap->ps.torsoAnim;
+		if ((cg.snap->ps.eFlags & EF_DEAD) || cg.snap->ps.saberInFlight)
+			return qfalse;
+	}
+	else
+	{
+		state = CG_StaffSwapSoundState(clientNum);
+		if (!state || (state->eFlags & EF_DEAD) || state->saberInFlight)
+			return qfalse;
+		weapon = state->weapon;
+		holstered = state->saberHolstered;
+		anim = state->torsoAnim;
+	}
+
+	// Closing only the second blade is a separate toggle; the first blade stays lit.
+	if (weapon == WP_SABER && holstered < 2 &&
+		anim != BOTH_S7_S1_NEW && anim != BOTH_STAND2TO1_NEW)
+		return qfalse;
+
+	held = &staffSwapSound[clientNum];
+	played = held->shutdownPlayed;
+	held->shutdownPlayed = qtrue;
+	held->shutdownPending = qfalse;
+	held->sound = 0;
+	held->drawSeen = qfalse;
+	held->ignitionPlayed = qfalse;
+	return played;
 }
 
-//JA+ plays the same ignition from the server as a plain sound dropped at the player's feet, with
-//nothing on it to say whose it is. Match it back to the staff carrier who has just been told to draw
-//- his own ignition, at his own position - and hold that one the same way.
+// Entity sound events carry every kind of sound; handle only this hilt's on/off sounds.
+qboolean CG_StaffSwapHoldEntitySound( int clientNum, sfxHandle_t sound )
+{
+	if (clientNum < 0 || clientNum >= MAX_CLIENTS || !sound)
+		return qfalse;
+	if (cgs.clientinfo[clientNum].saber[0].soundOn == sound)
+		return CG_StaffSwapHoldIgnitionSound(clientNum, sound);
+	if (cgs.clientinfo[clientNum].saber[0].soundOff == sound)
+		return CG_StaffSwapHoldServerShutdownSound(clientNum);
+	return qfalse;
+}
+
+//JA+ also sends saber on/off sounds at the player's feet without an owner. Match the
+//sound to the nearest carrier before applying the same draw/holster handling.
 qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound )
 {
 	int i, owner = -1;
@@ -11316,7 +11380,8 @@ qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound )
 	{
 		const entityState_t *state;
 		float distance;
-		if (!cgs.clientinfo[i].infoValid || cgs.clientinfo[i].saber[0].soundOn != sound)
+		if (!cgs.clientinfo[i].infoValid ||
+			(cgs.clientinfo[i].saber[0].soundOn != sound && cgs.clientinfo[i].saber[0].soundOff != sound))
 			continue;
 
 		// G_Sound uses the server position, which can be far from the previous rendered or
@@ -11338,7 +11403,7 @@ qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound )
 	}
 
 	// Resolve ownership before applying staff gating, so a nearby staff cannot take another
-	// player's ignition just because both hilts share the same sound file.
+	// player's sound just because both hilts share the same sound file.
 	return owner >= 0 ? CG_StaffSwapHoldEntitySound(owner, sound) : qfalse;
 }
 
