@@ -22,7 +22,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // Catches crashes (unhandled exceptions on Windows, fatal signals on
 // Linux/macOS) that would otherwise just take the game down with no trace,
 // and writes a crashdump-<timestamp>.log with a stack trace and the recent
-// console output next to the other log files in the home path.
+// console output next to the other log files in the home path. On Windows it
+// also writes a crashdump-<timestamp>.dmp minidump with the same name.
 
 #include "qcommon/qcommon.h"
 #include "sys_local.h"
@@ -313,7 +314,7 @@ static LONG WINAPI Sys_CrashHandler( EXCEPTION_POINTERS *info )
 	Com_sprintf( dumpPath, sizeof( dumpPath ), "%s.dmp", basePath );
 
 	// Loaded once, used for both the minidump and the text stack trace.
-	DbgHelpApi dbghelp;
+	DbgHelpApi dbghelp = {};
 	bool haveDbgHelp = Sys_LoadDbgHelp( &dbghelp );
 
 	// The minidump goes first, before anything heavy: SymInitialize() in the
