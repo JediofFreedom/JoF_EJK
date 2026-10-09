@@ -11528,7 +11528,9 @@ void BG_G2PlayerAngles(void *ghoul2, int motionBolt, entityState_t *cent, int ti
 	static vec3_t		ulAngles, llAngles, viewAngles, angles, thoracicAngles = {0,0,0};
 	static vec3_t		headClampMinAngles = {-25,-55,-10}, headClampMaxAngles = {50,50,10};
 
-	if ( cent->m_iVehicleNum || cent->forceFrame || BG_SaberLockBreakAnim(cent->legsAnim) || BG_SaberLockBreakAnim(cent->torsoAnim) )
+	if ( cent->m_iVehicleNum || cent->forceFrame || BG_SaberLockBreakAnim(cent->legsAnim) || (BG_SaberLockBreakAnim(cent->torsoAnim) &&
+		!(cent->weapon == WP_SABER && cent->torsoAnim == BOTH_LK_S_DL_T_SB_1_L &&
+		  (cent->saberMove == LS_NONE || cent->saberMove == LS_READY))) )
 	{ //a vehicle or riding a vehicle - in either case we don't need to be in here
 		vec3_t forcedAngles;
 
@@ -12686,9 +12688,7 @@ void PmoveSingle (pmove_t *pmove) {
 	{
 		stiffenedUp = qtrue;
 	}
-	else if ( BG_SaberLockBreakAnim( pm->ps->legsAnim )
-		|| BG_SaberLockBreakAnim( pm->ps->torsoAnim )
-		|| pm->ps->saberLockTime >= pm->cmd.serverTime )
+	else if ( BG_SaberLockMovement( pm->ps, pm->cmd.serverTime ) )
 	{//can't move or turn
 		stiffenedUp = qtrue;
 		PM_SetPMViewAngle(pm->ps, pm->ps->viewangles, &pm->cmd);

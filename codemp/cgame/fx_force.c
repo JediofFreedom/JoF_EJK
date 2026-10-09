@@ -25,9 +25,6 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "cg_local.h"
 #include "fx_local.h"
 
-// Emit two environmental arcs for narrow lightning and five for wide lightning.
-// Cache endpoints between direction updates and constrain bolts to the aim cone.
-// Use optional pack effects when installed, otherwise vanilla/JoF effects.
 static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t axis, qboolean wide) {
 	int i;
 	int arcs = wide ? 5 : 2;
@@ -49,7 +46,6 @@ static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t
 			direction[0] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
 			direction[1] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
 			direction[2] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * spread;
-			// Keep randomized direction length to vary trace reach.
 			traceDistance = 350.0f;
 		} else {
 			VectorSubtract(origin, cent->lightningReferenceEnd[i], angles);
@@ -62,7 +58,7 @@ static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t
 		if (arcAngle < 360.0f) {
 			directionLength = VectorLength(direction);
 			// Redirect rearward/over-wide bolts toward the player's current aim.
-			// Preserve vector length and therefore trace reach.
+
 			if (directionLength < 0.0001f)
 				VectorCopy(axis[0], direction);
 			else if (DotProduct(direction, axis[0]) < minForwardDot * directionLength)
@@ -86,14 +82,14 @@ static void FX_ForceLightningReference(centity_t *cent, vec3_t origin, matrix3_t
 			// Pack arcs own their impact effect; only the fallback needs this one.
 			if (!cgs.effects.forceLightningReferenceArc && !tr.startsolid && !tr.allsolid &&
 				!(tr.surfaceFlags & (SURF_SKY | SURF_NOIMPACT | SURF_NODRAW))) {
-				trap->FX_PlayEffectID(cgs.effects.forceLightningEnvironmentImpact,
+				trap->FX_PlayEffectID(cgs.effects.demp2WallImpactEffectSmall,
 					tr.endpos, tr.plane.normal, -1, -1, qfalse);
 			}
 		}
 		if (cent->lightningReferenceSoundTime[i] < cg.time) {
 			cent->lightningReferenceSoundTime[i] = cg.time + Q_irand(500, 750);
 			trap->S_StartSound(end, cent->currentState.number, CHAN_AUTO,
-				cgs.media.forceLightningEnvironmentArcSounds[Q_irand(0, ARRAY_LEN(cgs.media.forceLightningEnvironmentArcSounds) - 1)]);
+				cgs.media.forceLightningEnvironmentSounds[Q_irand(0, ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds) - 1)]);
 		}
 	}
 }
@@ -130,7 +126,7 @@ static qboolean FX_LightningSurface(const trace_t *tr) {
 
 // Draws a thin electricity arc between two points. Only used for the nest
 // link now; the main beam and nest strikes use native engine effects.
-static void FX_LightningArc(vec3_t start, vec3_t end, float width, float chaos, qboolean mainBolt) {
+static void FX_LightningArc(const vec3_t start, const vec3_t end, float width, float chaos, qboolean mainBolt) {
 	addElectricityArgStruct_t arc;
 	vec3_t delta;
 	VectorSubtract(end, start, delta);
@@ -520,6 +516,71 @@ static void FX_LightningUpdateNests(vec3_t beamStart, vec3_t beamEnd, int owner)
 	}
 }
 // ---------------------------------------------------------------------------
+
+// CG_DoSaberShockEffects in the supplied MBII cgamei386.so, 0x872a0.
+// Keep its unnormalized spread, requested-endpoint cache, angle conversion,
+// surface test and frame gate. The impact EFX owns the spark sound.
+static void FX_LightningSaberShock(lightningSaberShock_t *shock, int index,
+	const vec3_t origin, const vec3_t bladeDir) {
+	vec3_t direction, end, angles;
+	trace_t tr;
+	int i;
+
+	if (shock->endpointTime[index] < cg.time) {
+		VectorCopy(bladeDir, direction);
+		for (i = 0; i < 3; i++)
+			direction[i] += 2.0f * ((rand() & 0x7fff) / 32767.0f - 0.5f) * 4.0f;
+		VectorMA(origin, 350.0f, direction, end);
+	} else {
+		VectorSubtract(origin, shock->endpoint[index], angles);
+		AngleVectors(angles, direction, NULL, NULL);
+		angles[ROLL] = 0.0f;
+		AngleVectors(angles, direction, NULL, NULL);
+		VectorMA(origin, 200.0f, direction, end);
+	}
+
+	CG_Trace(&tr, origin, NULL, NULL, end, -1, MASK_SOLID);
+	if (tr.fraction >= 1.0f)
+		return;
+	if (shock->endpointTime[index] < cg.time) {
+		VectorCopy(end, shock->endpoint[index]);
+		shock->endpointTime[index] = cg.time + Q_irand(250, 750);
+	}
+	if (cg.frametime > 0 && (cg.frametime >= 50 || cg.time % 50 <= cg.frametime)) {
+		trap->FX_PlayEffectID(cgs.effects.forceLightningDeflectFlare,
+			(vec_t *)origin, direction, -1, -1, qfalse);
+		trap->FX_PlayEffectID(cgs.effects.forceLightningDeflectArc,
+			(vec_t *)origin, direction, -1, -1, qfalse);
+	}
+}
+
+// CG_AddSaberBlade calls the shock routine in this order: base (1), quarter
+// (3), middle (4), 90% (0), three-quarter (2). Each blade has five caches.
+void FX_ForceLightningSaberContact(centity_t *guard, int saberNum, int bladeNum,
+	const vec3_t bladeBase, const vec3_t bladeEnd, const vec3_t bladeDir) {
+	lightningSaberShock_t *shock;
+	vec3_t origin, delta;
+
+	if (saberNum < 0 || saberNum >= MAX_SABERS || bladeNum < 0 || bladeNum >= MAX_BLADES ||
+		guard->currentState.weapon != WP_SABER || guard->currentState.saberHolstered == 2 ||
+		guard->currentState.saberInFlight)
+		return;
+	shock = &guard->lightningSaberShock[saberNum][bladeNum];
+	VectorSubtract(bladeEnd, bladeBase, delta);
+	FX_LightningSaberShock(shock, 1, bladeBase, bladeDir);
+	VectorMA(bladeBase, 0.25f, delta, origin);
+	FX_LightningSaberShock(shock, 3, origin, bladeDir);
+	VectorMA(bladeBase, 0.5f, delta, origin);
+	FX_LightningSaberShock(shock, 4, origin, bladeDir);
+	// MBII evaluates this interpolation with a double-precision 0.1 constant.
+	origin[0] = (float)(bladeEnd[0] + (bladeBase[0] - bladeEnd[0]) * 0.1);
+	origin[1] = (float)(bladeEnd[1] + (bladeBase[1] - bladeEnd[1]) * 0.1);
+	origin[2] = (float)(bladeEnd[2] + (bladeBase[2] - bladeEnd[2]) * 0.1);
+	FX_LightningSaberShock(shock, 0, origin, bladeDir);
+	VectorScale(delta, -1.0f, delta);
+	VectorMA(bladeEnd, 0.25f, delta, origin);
+	FX_LightningSaberShock(shock, 2, origin, bladeDir);
+}
 
 // Traces the main beam for hit detection, draws it via the native
 // forceLightning/forceLightningWide effect, and drives the nest system.
