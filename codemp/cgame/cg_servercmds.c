@@ -41,14 +41,38 @@ CG_ParseScores
 */
 static void CG_ParseScores( void ) {
 	int		i, powerups, readScores, scoreOffset;//JAPRO - Clientside - Scoreboard Deaths
-	
+	qboolean hasDeaths, weIdentifyAsJapro;
+
 	int argc = trap->Cmd_Argc();
 
-	if (cgs.serverMod == SVMOD_JAPLUS || cgs.serverMod == SVMOD_JAPRO)
-		scoreOffset = 15;
-	else
-		scoreOffset = 14;
-	
+	// Single source of truth for the per-client stride: this used to be
+	// computed twice with two different conditions (once here, once again
+	// inside the loop below) - if serverMod flipped to SVMOD_JAPLUS before
+	// the VM-side cjp_client cvar cache caught up with the Cvar_Set in
+	// CG_ParseServerinfo, the two conditions could disagree, misaligning
+	// every CG_Argv() index for every client (including powerups, which is
+	// why the scoreboard's flag-holder icon could end up reading garbage).
+	//
+	// DeathmatchScoreboardMessage() on the server picks the 15-field format
+	// (with deaths) whenever *we* (the client requesting the scoreboard,
+	// not each scored player) are seen as JAPRO-compatible - g_cmds.c
+	// checks the requester's own pers.isJAPRO, which is set from our own
+	// cjp_client userinfo (default JOFCLIENTVERSION). That happens for our
+	// own server too, which never sets "gamename" and so falls through to
+	// the SVMOD_BASEJKA default - not SVMOD_JAPLUS/SVMOD_JAPRO - so this
+	// used to always assume the 14-field format there while the server was
+	// actually sending 15, misaligning every field including powerups.
+	// !legacyProtocol rules out real 1.00 vanilla servers, which also land
+	// on SVMOD_BASEJKA but never send the extra field. Checked against both
+	// strings server-side accepts (g_client.c) - cjp_client can still read
+	// "1.4JAPRO" here if we were on a JAPRO server earlier this session and
+	// haven't reconnected since, so JOFCLIENTVERSION alone isn't enough.
+	weIdentifyAsJapro = ( !Q_stricmp( cjp_client.string, "1.4JAPRO" ) ) || ( !Q_stricmp( cjp_client.string, JOFCLIENTVERSION ) );
+	hasDeaths = ( cgs.serverMod == SVMOD_JAPLUS && weIdentifyAsJapro )
+		|| cgs.serverMod == SVMOD_JAPRO
+		|| ( cgs.serverMod == SVMOD_BASEJKA && !cgs.legacyProtocol && weIdentifyAsJapro );
+	scoreOffset = hasDeaths ? 15 : 14;
+
 	int actualSent = (argc - 4) / scoreOffset;
 
 	if (actualSent < 0)
@@ -71,12 +95,9 @@ static void CG_ParseScores( void ) {
 	memset( cg.scores, 0, sizeof( cg.scores ) );
 	for ( i=0; i<readScores; i++ ) {
 //JAPRO - Clientside - Scoreboard Deaths - Start
-		if (cgs.serverMod == SVMOD_JAPLUS && ((!Q_stricmp(cjp_client.string, "1.4JAPRO")) || (!Q_stricmp(cjp_client.string, JOFCLIENTVERSION))) || cgs.serverMod == SVMOD_JAPRO) {
-			scoreOffset = 15;
+		if (hasDeaths) {
 			cg.scores[i].deaths = atoi(CG_Argv(i * scoreOffset + 18));
 		}
-		else
-			scoreOffset = 14;
 
 		cg.scores[i].client = atoi( CG_Argv( i * scoreOffset + 4 ) );
 		cg.scores[i].score = atoi( CG_Argv( i * scoreOffset + 5 ) );
