@@ -115,7 +115,7 @@ XCVAR_DEF( cg_raceSounds,						"1",	NULL,								CVAR_ARCHIVE ) //Bitvalue, but 
 XCVAR_DEF( cg_tauntAntiSpam,					"1",	NULL,								CVAR_ARCHIVE ) //Throttle repeated model voice lines per player
 XCVAR_DEF( cg_duelSounds,						"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_duelMusic,						"1",	NULL,								CVAR_ARCHIVE )
-XCVAR_DEF( cg_saberHum,							"0",	NULL,								CVAR_ARCHIVE )
+XCVAR_DEF( cg_saberHum,							"0",	NULL,								CVAR_ARCHIVE ) // 0 per-player, 1-5 fixed, 6 hilt; non-stock hilt loops always win
 
 //Visuals
 XCVAR_DEF( cg_remaps,							"2",	NULL,								CVAR_ARCHIVE|CVAR_LATCH )
