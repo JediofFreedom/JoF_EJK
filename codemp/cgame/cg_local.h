@@ -489,6 +489,11 @@ typedef struct cgLoopSound_s {
 	sfxHandle_t sfx;
 } cgLoopSound_t;
 
+typedef struct {
+	int endpointTime[5];
+	vec3_t endpoint[5];
+} lightningSaberShock_t;
+
 // centity_t have a direct corespondence with gentity_t in the game, but
 // only the entityState_t is directly communicated to the cgame
 typedef struct centity_s {
@@ -647,6 +652,11 @@ typedef struct centity_s {
 	
 	unsigned int	flameSndDebounceTime;
 	int				lightningEnvironmentTime;
+	int lightningReferenceTime[5];
+	vec3_t lightningReferenceEnd[5];
+	int lightningReferenceSoundTime[5];
+	lightningSaberShock_t lightningSaberShock[MAX_SABERS][MAX_BLADES];
+	int lightningDeflectFrameAnim;
 	int				lightningSurfaceTime;
 	int				lightningImpactSoundTime;
 	// Independent cached directions and timers used by cg_lightningEnvironment 2.
@@ -1961,7 +1971,9 @@ typedef struct cgMedia_s {
 	qhandle_t	lightningShader; // japro loda
 	qhandle_t	forceLightningArcShader;
 	qhandle_t	forceLightningFlashShader;
-	sfxHandle_t	forceLightningEnvironmentSounds[6];
+  
+	sfxHandle_t	forceLightningImpactSounds[3];
+	sfxHandle_t forceLightningEnvironmentSounds[6];
 	sfxHandle_t	forceLightningEnvironmentArcSounds[3];
 
 	//japro gibs
@@ -2085,6 +2097,8 @@ typedef struct cgEffects_s {
 	fxHandle_t forceLightningEnvironmentImpact;
 	fxHandle_t demp2WallImpactEffectSmall;   
 	fxHandle_t forceLightningBranch;
+	fxHandle_t forceLightningDeflectArc;
+	fxHandle_t forceLightningDeflectFlare;
 	fxHandle_t forceLightningReference;
 	fxHandle_t forceLightningReferenceWide;
 	fxHandle_t forceLightningReferenceArc;
@@ -2782,6 +2796,8 @@ void FX_BlasterWeaponHitPlayer( vec3_t origin, vec3_t normal, qboolean humanoid 
 
 void FX_ForceDrained(vec3_t origin, vec3_t dir);
 qboolean FX_ForceLightningEnvironment(centity_t *cent, vec3_t origin, matrix3_t axis, qboolean wide);
+void FX_ForceLightningSaberContact(centity_t *guard, int saberNum, int bladeNum,
+	const vec3_t bladeBase, const vec3_t bladeEnd, const vec3_t bladeDir);
 
 
 //-----------------------------

@@ -1177,6 +1177,9 @@ struct gclient_s {
 	int			solidHack;
 
 	int			noLightningTime;
+	int			lightningDeflectAttacker;
+	int			lightningDeflectTime;
+	int			lightningDeflectAnim;
 
 	unsigned	mGameFlags;
 
@@ -1939,6 +1942,7 @@ void WP_SaberInitBladeData( gentity_t *ent );
 void WP_InitForcePowers( gentity_t *ent );
 void WP_SpawnInitForcePowers( gentity_t *ent );
 void WP_ForcePowersUpdate( gentity_t *self, usercmd_t *ucmd );
+void WP_UpdateLightningDeflect(gentity_t *self, const usercmd_t *cmd);
 void G_UpdateForceDestruction( gentity_t *self );
 void ForceDestruction( gentity_t *self );
 void G_ForceDestructionImpact( gentity_t *missile, trace_t *trace );
