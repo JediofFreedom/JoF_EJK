@@ -61,6 +61,7 @@ IDI_ICON1               ICON                    "icon.ico"
 // Version
 //
 
+#ifndef JOF_GENERATED_VERSION_RESOURCE
 #include "../qcommon/game_version.h"
 
 VS_VERSION_INFO VERSIONINFO
@@ -95,6 +96,7 @@ BEGIN
     END
 END
 
+#endif    // JOF_GENERATED_VERSION_RESOURCE
 #endif    // English (U.S.) resources
 /////////////////////////////////////////////////////////////////////////////
 

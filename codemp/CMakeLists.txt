@@ -902,3 +902,5 @@ install(FILES
 		${CMAKE_CURRENT_BINARY_DIR}/jofclient-assets.pk3
 	DESTINATION "${JKAInstallDir}/EternalJK"
 	COMPONENT ${JKAMPCoreComponent})
+
+include(WindowsSigningMetadata)
