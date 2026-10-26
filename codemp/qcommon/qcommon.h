@@ -473,6 +473,13 @@ cvar_t *Cvar_Get( const char *var_name, const char *value, uint32_t flags, const
 // that allows variables to be unarchived without needing bitflags
 // if value is "", the value will not override a previously set value.
 
+void Cvar_SetDescription( cvar_t *var, const char *description );
+// replaces or clears the engine-provided description for an existing cvar
+
+void Cvar_ActivateRendererCvar( cvar_t *var );
+void Cvar_DeactivateRendererCvars( void );
+// tracks whether renderer-owned cvars belong to the currently loaded renderer
+
 void	Cvar_Register( vmCvar_t *vmCvar, const char *varName, const char *defaultValue, uint32_t flags );
 // basically a slightly modified Cvar_Get for the interpreted modules
 
@@ -634,6 +641,12 @@ long		FS_FOpenFileRead( const char *qpath, fileHandle_t *file, qboolean uniqueFI
 int		FS_FileIsInPAK(const char *filename, int *pChecksum );
 // returns 1 if a file is in the PAK file, otherwise -1
 long	FS_ReadDLLInPAK(const char *filename, void **buffer);
+const char *FS_CmdlineGame( void );
+// the +set fs_game mod a client with fs_globalcfg 1 still mounts and hosts, or ""
+void	FS_NoteGameModule( const char *filename, const char *gameDir );
+// remembers the game folder a jampgame module was loaded from
+qboolean FS_CmdlineGameModule( void );
+// qtrue when the server game module came from FS_CmdlineGame
 
 qboolean FS_FindPureDLL(const char *name);
 
@@ -953,6 +966,10 @@ void CL_Disconnect( qboolean showMainMenu );
 void CL_Shutdown( void );
 void CL_Frame( int msec );
 
+void CL_Update_ApplyPending( void );
+// called first thing in main(), before anything opens a pk3: swaps in an
+// update /update downloaded, and restarts into it (client/cl_update.cpp)
+
 qboolean CL_GameCommand( void );
 void CL_KeyEvent (int key, qboolean down, unsigned time);
 
@@ -964,6 +981,7 @@ void CL_MouseEvent( int dx, int dy, int time );
 void CL_JoystickEvent( int axis, int value, int time );
 
 void CL_PacketEvent( netadr_t from, msg_t *msg );
+void CL_ConnectionlessPacket( netadr_t from, msg_t *msg );
 
 void CL_ConsolePrint( const char *text );
 

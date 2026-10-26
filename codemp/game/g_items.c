@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "g_local.h"
+#include "bg_pickup.h"
 #include "ghoul2/G2.h"
 #include "qcommon/q_shared.h"
 
@@ -501,8 +502,10 @@ void ItemUse_Binoculars(gentity_t *ent)
 		return;
 	}
 
-	if (ent->client->ps.weaponstate != WEAPON_READY)
-	{ //So we can't fool it and reactivate while switching to the saber or something.
+	if (ent->client->ps.weaponTime > 0 ||
+		ent->client->ps.weaponstate == WEAPON_CHARGING ||
+		ent->client->ps.weaponstate == WEAPON_CHARGING_ALT)
+	{ //Block genuine weapon activity without getting stuck on a stale state after an emote or knockdown.
 		return;
 	}
 
@@ -2416,6 +2419,20 @@ void ResetItem( gentity_t *ent ) { //PushPullItems
 Touch_Item
 ===============
 */
+static void G_ConfirmItemPickup(gentity_t *ent, gentity_t *other) {
+	if (other->s.number >= 0 && other->s.number < MAX_CLIENTS &&
+		BG_ConfirmedPickupType(ent->item->giType)) {
+		char userinfo[MAX_INFO_STRING];
+		trap->GetUserinfo(other->s.number, userinfo, sizeof(userinfo));
+		if (g_pickupConfirm.integer == 3 && other->client &&
+			other->client->pers.pickupConfirmed &&
+			!strcmp(Info_ValueForKey(userinfo, "cg_pickupReady"), "3") &&
+			!strcmp(Info_ValueForKey(userinfo, "cg_pickupConfirm"), "1")) {
+			trap->SendServerCommand(other->s.number, va("jof_pickup %d", ent->s.modelindex));
+		}
+	}
+}
+
 void Touch_Item(gentity_t *ent, gentity_t *other, trace_t *trace) {
 	int			respawn;
 	qboolean	predict;
@@ -2610,6 +2627,9 @@ void Touch_Item(gentity_t *ent, gentity_t *other, trace_t *trace) {
 	}
 
 	// play the normal pickup sound
+	// Keep ordinary events for legacy clients and observers. The collector can
+	// opt into reliable item-index confirmations, independent of the event ring.
+	G_ConfirmItemPickup(ent, other);
 	if (predict) {
 		if (other->client)
 		{

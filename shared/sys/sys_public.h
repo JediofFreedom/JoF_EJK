@@ -135,6 +135,13 @@ void		Sys_ShowIP(void);
 
 qboolean	Sys_Mkdir( const char *path );
 char	*Sys_Cwd( void );
+
+// Installs a crash handler that writes crash files to <home>/crashdumps
+// whenever the game crashes from an unhandled exception/signal:
+//   crashdump-<timestamp>.dmp  (Windows only) open it in Visual Studio
+//   crashdump-<timestamp>.log  readable summary: version, stack trace and
+//                              the recent console output
+void	Sys_InstallCrashHandler( void );
 void	Sys_SetDefaultInstallPath(const char *path);
 char	*Sys_DefaultInstallPath(void);
 
@@ -212,6 +219,11 @@ void		WIN_SetGamma( glconfig_t *glConfig, byte red[256], byte green[256], byte b
 void		WIN_Shutdown( void );
 void *		WIN_GL_GetProcAddress( const char *proc );
 qboolean	WIN_GL_ExtensionSupported( const char *extension );
+void		WIN_ReleaseGLContext( void );
+qboolean	WIN_ReacquireGLContext( void );
+void		WIN_BeginAsyncLoad( void );
+void		WIN_EndAsyncLoad( void );
+qboolean	WIN_AsyncLoadSafe( void );
 
 //#if WIN32 && !defined(DEDICATED)
 //qboolean	WIN_VK_GetInstanceExtensions( unsigned int *extensionCount, const char *extensions[] );
@@ -225,6 +237,7 @@ void Sys_SteamUpdateRichPresence(const char* pchKey, const char* pchValue, qbool
 #endif
 
 // Vulkan
+const char	*WIN_VK_LibraryPath(void);
 void		*WIN_VK_GetInstanceProcAddress(void);
 qboolean	WIN_VK_createSurfaceImpl(VkInstance instance, VkSurfaceKHR *surface);
 void		WIN_VK_destroyWindow(void);

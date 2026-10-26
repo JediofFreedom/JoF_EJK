@@ -33,6 +33,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "sys/sys_local.h"
 #include "sdl_icon.h"
 
+#ifdef MACOS_X
+#include <unistd.h>	// access(), for locating the bundled MoltenVK
+#endif
+
 enum rserr_t
 {
 	RSERR_OK,
@@ -73,6 +77,7 @@ cvar_t	*r_depthbits;
 cvar_t	*r_colorbits;
 cvar_t	*r_ignorehwgamma;
 cvar_t  *r_ext_multisample;
+cvar_t  *r_ext_multisample_default_fb;
 
 /*
 ** R_GetModeInfo
@@ -399,6 +404,8 @@ static rserr_t GLimp_CreateOpenGLWindow(
 
 	stencilBits = r_stencilbits->integer;
 	samples = r_ext_multisample->integer;
+	if (!r_ext_multisample_default_fb->integer)
+		samples = 0;
 
 	// Reset all SDL GL attributes to defaults before configuring.
 	// This prevents stale settings (e.g. rend2's Core Profile 3.2) from
@@ -471,64 +478,66 @@ static rserr_t GLimp_CreateOpenGLWindow(
 		else
 			perChannelColorBits = 4;
 
-		SDL_GL_SetAttribute( SDL_GL_RED_SIZE, perChannelColorBits );
-		SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, perChannelColorBits );
-		SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, perChannelColorBits );
-		SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, testDepthBits );
-		SDL_GL_SetAttribute( SDL_GL_STENCIL_SIZE, testStencilBits );
+		if (windowDesc->api == GRAPHICS_API_OPENGL) {
+			SDL_GL_SetAttribute( SDL_GL_RED_SIZE, perChannelColorBits );
+			SDL_GL_SetAttribute( SDL_GL_GREEN_SIZE, perChannelColorBits );
+			SDL_GL_SetAttribute( SDL_GL_BLUE_SIZE, perChannelColorBits );
+			SDL_GL_SetAttribute( SDL_GL_DEPTH_SIZE, testDepthBits );
+			SDL_GL_SetAttribute( SDL_GL_STENCIL_SIZE, testStencilBits );
 
-		SDL_GL_SetAttribute( SDL_GL_MULTISAMPLEBUFFERS, samples ? 1 : 0 );
-		SDL_GL_SetAttribute( SDL_GL_MULTISAMPLESAMPLES, samples );
+			SDL_GL_SetAttribute( SDL_GL_MULTISAMPLEBUFFERS, samples ? 1 : 0 );
+			SDL_GL_SetAttribute( SDL_GL_MULTISAMPLESAMPLES, samples );
 
-		if ( windowDesc->gl.majorVersion )
-		{
-			int compactVersion = windowDesc->gl.majorVersion * 100 + windowDesc->gl.minorVersion * 10;
-
-			SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, windowDesc->gl.majorVersion );
-			SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, windowDesc->gl.minorVersion );
-
-			if ( windowDesc->gl.profile == GLPROFILE_ES || compactVersion >= 320 )
+			if ( windowDesc->gl.majorVersion )
 			{
-				int profile;
-				switch ( windowDesc->gl.profile )
+				int compactVersion = windowDesc->gl.majorVersion * 100 + windowDesc->gl.minorVersion * 10;
+
+				SDL_GL_SetAttribute( SDL_GL_CONTEXT_MAJOR_VERSION, windowDesc->gl.majorVersion );
+				SDL_GL_SetAttribute( SDL_GL_CONTEXT_MINOR_VERSION, windowDesc->gl.minorVersion );
+
+				if ( windowDesc->gl.profile == GLPROFILE_ES || compactVersion >= 320 )
 				{
-				default:
-				case GLPROFILE_COMPATIBILITY:
-					profile = SDL_GL_CONTEXT_PROFILE_COMPATIBILITY;
-					break;
+					int profile;
+					switch ( windowDesc->gl.profile )
+					{
+					default:
+					case GLPROFILE_COMPATIBILITY:
+						profile = SDL_GL_CONTEXT_PROFILE_COMPATIBILITY;
+						break;
 
-				case GLPROFILE_CORE:
-					profile = SDL_GL_CONTEXT_PROFILE_CORE;
-					break;
+					case GLPROFILE_CORE:
+						profile = SDL_GL_CONTEXT_PROFILE_CORE;
+						break;
 
-				case GLPROFILE_ES:
-					profile = SDL_GL_CONTEXT_PROFILE_ES;
-					break;
+					case GLPROFILE_ES:
+						profile = SDL_GL_CONTEXT_PROFILE_ES;
+						break;
+					}
+
+					SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, profile );
 				}
-
-				SDL_GL_SetAttribute( SDL_GL_CONTEXT_PROFILE_MASK, profile );
 			}
-		}
 
-		if ( windowDesc->gl.contextFlags & GLCONTEXT_DEBUG )
-		{
-			SDL_GL_SetAttribute( SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG );
-		}
+			if ( windowDesc->gl.contextFlags & GLCONTEXT_DEBUG )
+			{
+				SDL_GL_SetAttribute( SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG );
+			}
 
-		if(r_stereo->integer)
-		{
-			glConfig->stereoEnabled = qtrue;
-			SDL_GL_SetAttribute(SDL_GL_STEREO, 1);
-		}
-		else
-		{
-			glConfig->stereoEnabled = qfalse;
-			SDL_GL_SetAttribute(SDL_GL_STEREO, 0);
-		}
+			if(r_stereo->integer)
+			{
+				glConfig->stereoEnabled = qtrue;
+				SDL_GL_SetAttribute(SDL_GL_STEREO, 1);
+			}
+			else
+			{
+				glConfig->stereoEnabled = qfalse;
+				SDL_GL_SetAttribute(SDL_GL_STEREO, 0);
+			}
 
-		SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
-		//SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, r_swapInterval->integer );
-		SDL_GL_SetAttribute( SDL_GL_ACCELERATED_VISUAL, !r_allowSoftwareGL->integer );
+			SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
+			//SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, r_swapInterval->integer );
+			SDL_GL_SetAttribute( SDL_GL_ACCELERATED_VISUAL, !r_allowSoftwareGL->integer );
+		}
 
 		if( ( screen = SDL_CreateWindow( windowTitle, x, y,
 				glConfig->vidWidth, glConfig->vidHeight, flags ) ) == NULL )
@@ -564,15 +573,17 @@ static rserr_t GLimp_CreateOpenGLWindow(
 			}
 		}
 
-		if( ( opengl_context = SDL_GL_CreateContext( screen ) ) == NULL )
-		{
-			Com_Printf( "SDL_GL_CreateContext failed: %s\n", SDL_GetError( ) );
-			continue;
-		}
+		if (windowDesc->api == GRAPHICS_API_OPENGL) {
+			if( ( opengl_context = SDL_GL_CreateContext( screen ) ) == NULL )
+			{
+				Com_Printf( "SDL_GL_CreateContext failed: %s\n", SDL_GetError( ) );
+				continue;
+			}
 
-		if ( SDL_GL_SetSwapInterval( r_swapInterval->integer ) == -1 )
-		{
-			Com_DPrintf( "SDL_GL_SetSwapInterval failed: %s\n", SDL_GetError() );
+			if ( SDL_GL_SetSwapInterval( r_swapInterval->integer ) == -1 )
+			{
+				Com_DPrintf( "SDL_GL_SetSwapInterval failed: %s\n", SDL_GetError() );
+			}
 		}
 
 		glConfig->colorBits = testColorBits;
@@ -584,12 +595,16 @@ static rserr_t GLimp_CreateOpenGLWindow(
 		break;
 	}
 
-	if (opengl_context == NULL) {
-		return RSERR_UNKNOWN;
+	if (windowDesc->api == GRAPHICS_API_OPENGL) {
+		if (opengl_context == NULL) {
+			return RSERR_UNKNOWN;
+		}
 	}
 
 	return RSERR_OK;
 }
+
+const char *WIN_VK_LibraryPath(void);
 
 /*
 ===============
@@ -617,11 +632,24 @@ static rserr_t GLimp_SetMode(
 		case GRAPHICS_API_OPENGL:
 			flags |= SDL_WINDOW_OPENGL;
 			break;
-#if WIN32
 		case GRAPHICS_API_VULKAN:
+			// Not Windows-only: without this flag SDL creates a plain window and
+			// SDL_Vulkan_CreateSurface() then fails, taking WIN_VK_createSurfaceImpl
+			// into Com_Error( ERR_FATAL ) during renderer init.
 			flags |= SDL_WINDOW_VULKAN;
+
+			// SDL_CreateWindow() with SDL_WINDOW_VULKAN calls
+			// SDL_Vulkan_LoadLibrary(NULL) itself, which only tries bare library
+			// names and so cannot see the MoltenVK we bundle inside the .app.  That
+			// made every window attempt fail with "Failed to load Vulkan Portability
+			// library" before the renderer got a chance to pass the real path in
+			// WIN_VK_GetInstanceProcAddress().  Load it here first; SDL refcounts
+			// repeat loads of the same path, so the later call is a no-op.
+			if ( SDL_Vulkan_LoadLibrary( WIN_VK_LibraryPath() ) < 0 )
+			{
+				Com_Printf( S_COLOR_YELLOW "SDL_Vulkan_LoadLibrary failed: %s\n", SDL_GetError() );
+			}
 			break;
-#endif
 		default:
 			break;
 	}
@@ -716,7 +744,11 @@ static rserr_t GLimp_SetMode(
 
 	if( fullscreen )
 	{
+#ifdef MACOS_X
+		flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+#else
 		flags |= SDL_WINDOW_FULLSCREEN;
+#endif
 		glConfig->isFullscreen = qtrue;
 	}
 	else
@@ -727,7 +759,7 @@ static rserr_t GLimp_SetMode(
 		glConfig->isFullscreen = qfalse;
 	}
 
-	if (windowDesc->api == GRAPHICS_API_OPENGL)
+	if (windowDesc->api == GRAPHICS_API_OPENGL || windowDesc->api == GRAPHICS_API_VULKAN)
 	{
 		const rserr_t rcode = GLimp_CreateOpenGLWindow(
 			windowTitle, x, y, windowDesc, flags, icon, glConfig);
@@ -899,6 +931,7 @@ window_t WIN_Init( const windowDesc_t *windowDesc, glconfig_t *glConfig )
 	Cvar_CheckRange(r_colorbits, 0, 31, qtrue); //max should be 24?
 	r_ignorehwgamma		= Cvar_Get( "r_ignorehwgamma",		"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
 	r_ext_multisample	= Cvar_Get( "r_ext_multisample",	"0",		CVAR_ARCHIVE_ND|CVAR_LATCH );
+	r_ext_multisample_default_fb = Cvar_Get("r_ext_multisample_default_fb", "1", CVAR_ROM);
 	Cvar_Get( "r_availableModes", "", CVAR_ROM );
 
 	// Create the window and set up the context
@@ -1046,6 +1079,110 @@ qboolean WIN_GL_ExtensionSupported( const char *extension )
 	return SDL_GL_ExtensionSupported( extension ) == SDL_TRUE ? qtrue : qfalse;
 }
 
+// Release the GL context from the calling thread so another thread can acquire it.
+void WIN_ReleaseGLContext( void )
+{
+	if ( opengl_context )
+		SDL_GL_MakeCurrent( screen, NULL );
+}
+
+// Make the main GL context current on the calling thread.
+// Returns qfalse if the context could not be made current (e.g. it was
+// invalidated by a display mode change while owned by another thread);
+// callers must not issue GL calls in that case.
+qboolean WIN_ReacquireGLContext( void )
+{
+	if ( !opengl_context )
+		return qtrue;
+	if ( SDL_GL_MakeCurrent( screen, opengl_context ) != 0 ) {
+		Com_Printf( S_COLOR_YELLOW "WIN_ReacquireGLContext: SDL_GL_MakeCurrent failed: %s\n", SDL_GetError() );
+		return qfalse;
+	}
+	return qtrue;
+}
+
+// Async map load hands the GL context to a worker thread. That is only safe
+// while no display mode change (ChangeDisplaySettingsEx on Windows) can occur,
+// because a mode change can invalidate a context that is current on another
+// thread and the next GL call then dies with an access violation.
+// WIN_BeginAsyncLoad sidesteps focus-driven mode changes by switching to
+// desktop fullscreen for the duration of the load, but that switch itself is a
+// real mode change whenever the exclusive fullscreen mode differs from the
+// desktop mode. On some display links (HDMI notably) a real mode change
+// re-syncs the link for seconds and can even flap a monitor
+// disconnect/reconnect mid-load. So async is only considered safe when the
+// window is not exclusive fullscreen, or its mode already matches the desktop
+// mode (the fullscreen-desktop round trip then changes nothing).
+qboolean WIN_AsyncLoadSafe( void )
+{
+	if ( !screen )
+		return qtrue;
+
+	Uint32 flags = SDL_GetWindowFlags( screen );
+	if ( ( flags & SDL_WINDOW_FULLSCREEN_DESKTOP ) != SDL_WINDOW_FULLSCREEN )
+		return qtrue; // windowed or desktop fullscreen: no mode change possible
+
+	int displayIndex = SDL_GetWindowDisplayIndex( screen );
+	SDL_DisplayMode fsMode, desktopMode;
+	if ( displayIndex < 0 ||
+		SDL_GetWindowDisplayMode( screen, &fsMode ) != 0 ||
+		SDL_GetDesktopDisplayMode( displayIndex, &desktopMode ) != 0 )
+	{
+		return qfalse; // can't verify the modes match: assume unsafe
+	}
+
+	if ( fsMode.w == desktopMode.w && fsMode.h == desktopMode.h &&
+		fsMode.refresh_rate == desktopMode.refresh_rate &&
+		fsMode.format == desktopMode.format )
+	{
+		return qtrue;
+	}
+	return qfalse;
+}
+
+static bool g_asyncLoadTemporaryDesktopFS = false;
+
+// Called on the main thread (which still owns the GL context) before handing
+// the GL context to the async load worker thread.
+//
+// Exclusive fullscreen (SDL_WINDOW_FULLSCREEN) makes SDL call
+// ChangeDisplaySettingsEx in its WM_ACTIVATEAPP handler — including on focus
+// GAIN to restore the fullscreen display mode — regardless of the
+// SDL_HINT_VIDEO_MINIMIZE_ON_FOCUS_LOSS hint.  That display-mode change can
+// invalidate a wglMakeCurrent'd context on another thread, producing an SEH
+// access violation that bypasses catch(int) and kills the process.
+//
+// Desktop fullscreen (SDL_WINDOW_FULLSCREEN_DESKTOP) is a borderless window
+// at the current desktop resolution; SDL never calls ChangeDisplaySettingsEx
+// for it, so focus events during the worker-thread load are safe.  We switch
+// to it here (main thread, GL context valid) and restore exclusive fullscreen
+// in WIN_EndAsyncLoad (main thread, after GL context is reclaimed).
+void WIN_BeginAsyncLoad( void )
+{
+	g_asyncLoadTemporaryDesktopFS = false;
+	if ( !screen )
+		return;
+	Uint32 flags = SDL_GetWindowFlags( screen );
+	// SDL_WINDOW_FULLSCREEN_DESKTOP == (SDL_WINDOW_FULLSCREEN | 0x1000).
+	// Match exactly SDL_WINDOW_FULLSCREEN to detect exclusive (not desktop) mode.
+	if ( ( flags & SDL_WINDOW_FULLSCREEN_DESKTOP ) == SDL_WINDOW_FULLSCREEN )
+	{
+		if ( SDL_SetWindowFullscreen( screen, SDL_WINDOW_FULLSCREEN_DESKTOP ) == 0 )
+			g_asyncLoadTemporaryDesktopFS = true;
+	}
+}
+
+// Called on the main thread after reclaiming the GL context from the async
+// load worker thread.  Restores exclusive fullscreen if WIN_BeginAsyncLoad
+// switched it away.
+void WIN_EndAsyncLoad( void )
+{
+	if ( !screen || !g_asyncLoadTemporaryDesktopFS )
+		return;
+	SDL_SetWindowFullscreen( screen, SDL_WINDOW_FULLSCREEN );
+	g_asyncLoadTemporaryDesktopFS = false;
+}
+
 //#if WIN32
 //qboolean WIN_VK_GetInstanceExtensions(
 //	unsigned int *extensionCount,
@@ -1086,10 +1223,43 @@ qboolean WIN_VK_IsMinimized(void) {
 	return qfalse;
 }
 
+/*
+===============
+WIN_VK_LibraryPath
+
+When looking for a Vulkan loader on its own, SDL only dlopen()s bare library
+names ("libvulkan.1.dylib", "libMoltenVK.dylib", ...), which never resolves to a
+file inside a .app bundle.  macOS has no system Vulkan, so we ship MoltenVK in
+Contents/Frameworks and point SDL straight at it -- otherwise the Vulkan
+renderer would only work for users who separately installed the Vulkan SDK.
+
+Returns NULL when there is no bundled copy, which leaves SDL to do its usual
+search.  That is always the case off macOS.
+===============
+*/
+const char *WIN_VK_LibraryPath(void)
+{
+#ifdef MACOS_X
+	static char path[MAX_OSPATH];
+
+	// Inside the .app, alongside the other bundled frameworks.
+	Com_sprintf(path, sizeof(path), "%s/../Frameworks/libMoltenVK.dylib", Sys_BinaryPath());
+	if (access(path, R_OK) == 0)
+		return path;
+
+	// Unbundled build: the dylib sits next to the binary.
+	Com_sprintf(path, sizeof(path), "%s/libMoltenVK.dylib", Sys_BinaryPath());
+	if (access(path, R_OK) == 0)
+		return path;
+#endif
+
+	return NULL;
+}
+
 void* WIN_VK_GetInstanceProcAddress(void)
 {
 
-	int code = SDL_Vulkan_LoadLibrary(NULL);
+	int code = SDL_Vulkan_LoadLibrary(WIN_VK_LibraryPath());
 
 	if (code) {
 		Com_Error(ERR_FATAL, "Failed to load Vulkan library (code %d): %s", code, SDL_GetError());

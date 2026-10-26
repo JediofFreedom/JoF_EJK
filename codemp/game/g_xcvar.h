@@ -33,6 +33,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 	#define XCVAR_DEF( name, defVal, update, flags, announce ) { & name , #name , defVal , update , flags , announce },
 #endif
 
+XCVAR_DEF( g_pickupConfirm, "3", NULL, CVAR_SERVERINFO|CVAR_ROM, qfalse )
+
 XCVAR_DEF( bg_fighterAltControl,		"0",			NULL,				CVAR_SYSTEMINFO,								qtrue )
 XCVAR_DEF( capturelimit,				"8",			NULL,				CVAR_SERVERINFO|CVAR_ARCHIVE|CVAR_NORESTART,	qtrue )
 XCVAR_DEF( com_optvehtrace,				"0",			NULL,				CVAR_NONE,										qtrue )
@@ -91,6 +93,12 @@ XCVAR_DEF( g_filterBan,					"1",			NULL,				CVAR_ARCHIVE,									qfalse )
 XCVAR_DEF( g_forceBasedTeams,			"0",			NULL,				CVAR_SERVERINFO|CVAR_ARCHIVE|CVAR_LATCH,		qfalse )
 XCVAR_DEF( g_forceClientUpdateRate,		"250",			NULL,				CVAR_NONE,										qfalse )
 XCVAR_DEF( g_forceDodge,				"1",			NULL,				CVAR_NONE,										qtrue )
+XCVAR_DEF( g_forceDestruction,         "0",    NULL, CVAR_ARCHIVE|CVAR_SERVERINFO, qtrue )
+XCVAR_DEF( g_forceDestructionCost,     "50",   NULL, CVAR_ARCHIVE, qtrue )
+XCVAR_DEF( g_forceDestructionDamage,   "90",   NULL, CVAR_ARCHIVE, qtrue )
+XCVAR_DEF( g_forceDestructionRadius,   "160",  NULL, CVAR_ARCHIVE, qtrue )
+XCVAR_DEF( g_forceDestructionSpeed,    "900",  NULL, CVAR_ARCHIVE, qtrue )
+XCVAR_DEF( g_forceDestructionCooldown, "4000", NULL, CVAR_ARCHIVE, qtrue )
 XCVAR_DEF( g_forcePowerDisable,			"0",			CVU_ForceDisable,	CVAR_SERVERINFO|CVAR_ARCHIVE/*|CVAR_LATCH*/,		qtrue )
 XCVAR_DEF( g_forcePowerDisableFFA,		"0",			NULL,				CVAR_ARCHIVE/*|CVAR_LATCH*/,					qtrue )
 XCVAR_DEF( g_forceRegenTime,			"200",			NULL,				CVAR_ARCHIVE,									qtrue )

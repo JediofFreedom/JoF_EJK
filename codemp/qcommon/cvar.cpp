@@ -52,6 +52,59 @@ static void Cvar_FreeString(char *string)
 }
 
 /*
+============
+Cvar_SetDescription
+============
+*/
+void Cvar_SetDescription( cvar_t *var, const char *description ) {
+	if ( !var ) {
+		return;
+	}
+
+	if ( var->description ) {
+		Cvar_FreeString( var->description );
+		var->description = NULL;
+	}
+
+	if ( VALIDSTRING( description ) ) {
+		var->description = CopyString( description );
+	}
+}
+
+/*
+============
+Cvar_ActivateRendererCvar
+============
+*/
+void Cvar_ActivateRendererCvar( cvar_t *var ) {
+	if ( !var ) {
+		return;
+	}
+
+	var->rendererOwned = qtrue;
+	var->rendererActive = qtrue;
+}
+
+/*
+============
+Cvar_DeactivateRendererCvars
+============
+*/
+void Cvar_DeactivateRendererCvars( void ) {
+	cvar_t *var;
+
+	for ( var = cvar_vars; var; var = var->next ) {
+		if ( var->rendererOwned ) {
+			var->rendererActive = qfalse;
+		}
+	}
+}
+
+static qboolean Cvar_IsConsoleVisible( const cvar_t *var ) {
+	return ( var && !( var->rendererOwned && !var->rendererActive ) ) ? qtrue : qfalse;
+}
+
+/*
 ================
 return a hash value for the filename
 ================
@@ -184,6 +237,10 @@ char *Cvar_DescriptionString( const cvar_t *var, qboolean enter = qfalse )
 {
 	static char description[2048];
 
+	if ( !Cvar_IsConsoleVisible( var ) ) {
+		return "";
+	}
+
 	// give UI a chance to fill description
 	description[0] = '\0';
 #ifndef DEDICATED
@@ -240,6 +297,11 @@ void	Cvar_CommandCompletion( callbackFunc_t callback ) {
 	cvar_t		*cvar;
 
 	for ( cvar = cvar_vars ; cvar ; cvar = cvar->next ) {
+		if ( !Cvar_IsConsoleVisible( cvar ) )
+		{
+			continue;
+		}
+
 		// Don't show internal cvars
 		if ( cvar->flags & CVAR_INTERNAL )
 		{
@@ -441,9 +503,7 @@ cvar_t *Cvar_Get( const char *var_name, const char *var_value, uint32_t flags, c
 
 		if ( var_desc && var_desc[0] != '\0' )
 		{
-			if(var->description )
-				Cvar_FreeString( var->description );
-			var->description = CopyString( var_desc );
+			Cvar_SetDescription( var, var_desc );
 		}
 
 		// ZOID--needs to be set so that cvars the game sets as
@@ -754,6 +814,34 @@ cvar_t *Cvar_SetSafe( const char *var_name, const char *value) {
 	return Cvar_Set2 (var_name, value, 0, qfalse);
 }
 
+static const char *Cvar_PreserveSaberCosmeticSuffix( const char *var_name, const char *value, char *buffer, int bufferSize )
+{
+	cvar_t *var;
+	const char *scan, *suffix;
+
+	if ( (Q_stricmp( var_name, "color1" ) && Q_stricmp( var_name, "color2" )) || !value || !value[0] )
+		return value;
+
+	// A value with its own suffix may be restoring an archived cosmetic selection.
+	for ( scan = value; *scan; scan++ )
+		if ( *scan < '0' || *scan > '9' )
+			return value;
+
+	var = Cvar_FindVar( var_name );
+	if ( !var || !var->string )
+		return value;
+
+	suffix = var->string;
+	while ( *suffix >= '0' && *suffix <= '9' )
+		suffix++;
+
+	if ( suffix == var->string || !suffix[0] )
+		return value;
+
+	Com_sprintf( buffer, bufferSize, "%s%s", value, suffix );
+	return buffer;
+}
+
 /*
 ============
 Cvar_User_Set
@@ -762,6 +850,9 @@ Same as Cvar_SetSafe, but have new cvars have user created flag.
 ============
 */
 cvar_t *Cvar_User_Set( const char *var_name, const char *value) {
+	char preservedValue[MAX_CVAR_VALUE_STRING];
+
+	value = Cvar_PreserveSaberCosmeticSuffix( var_name, value, preservedValue, sizeof( preservedValue ) );
 	return Cvar_Set2 (var_name, value, CVAR_USER_CREATED, qfalse);
 }
 
@@ -958,8 +1049,12 @@ qboolean Cvar_Command( void ) {
 
 	// check variables
 	v = Cvar_FindVar (Cmd_Argv(0));
-	if (!v) {
+	if ( !v ) {
 		return qfalse;
+	}
+	if ( !Cvar_IsConsoleVisible( v ) ) {
+		Com_Printf( "%s is not available with the active renderer.\n", v->name );
+		return qtrue;
 	}
 
 	// perform a variable print or set
@@ -1005,7 +1100,7 @@ void Cvar_Print_f(void)
 
 	cv = Cvar_FindVar(name);
 
-	if(cv)
+	if( Cvar_IsConsoleVisible( cv ) )
 		Cvar_Print(cv);
 	else
 		Com_Printf ("Cvar %s does not exist.\n", name);
@@ -1405,6 +1500,9 @@ void Cvar_List_f( void ) {
 		var=var->next, i++ )
 	{
 		if ( !var->name || (match && !Com_Filter( match, var->name, qfalse )) )
+			continue;
+
+		if ( !Cvar_IsConsoleVisible( var ) )
 			continue;
 
 		if (var->flags & CVAR_SERVERINFO)	Com_Printf( "S" );	else Com_Printf( " " );

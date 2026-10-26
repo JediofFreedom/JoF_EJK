@@ -73,6 +73,36 @@ if(NOT DEFINED JOF_VERSION_SUFFIX)
     set(JOF_VERSION_SUFFIX "")
 endif()
 
+# The exact release tag and channel, set by CI for release builds. The client's
+# updater compares the tag, so a build without one never offers an update.
+if(NOT DEFINED JOF_RELEASE_TAG)
+    set(JOF_RELEASE_TAG "")
+endif()
+
+if(NOT DEFINED JOF_RELEASE_CHANNEL)
+    set(JOF_RELEASE_CHANNEL "")
+endif()
+
+# The Ed25519 public keys update manifests may be signed with, one per line (a
+# second line lets the key be rotated, docs/updater.md). Pass
+# -DJOF_UPDATE_PUBKEY_HEX=<64 hex digits> to test against a throwaway key.
+set(JOF_UPDATE_PUBKEY_FILE "${CMAKE_SOURCE_DIR}/scripts/update/update-signing-key.pub")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${JOF_UPDATE_PUBKEY_FILE}")
+if(NOT DEFINED JOF_UPDATE_PUBKEY_HEX)
+    file(STRINGS "${JOF_UPDATE_PUBKEY_FILE}" JOF_UPDATE_PUBKEY_HEX REGEX "^[0-9a-fA-F]+$")
+endif()
+set(JOF_UPDATE_PUBKEYS "")
+foreach(_pubkey IN LISTS JOF_UPDATE_PUBKEY_HEX)
+    string(LENGTH "${_pubkey}" _pubkey_length)
+    if(NOT _pubkey_length EQUAL 64 OR NOT _pubkey MATCHES "^[0-9a-fA-F]+$")
+        message(FATAL_ERROR "Update signing keys must be 64 hex digits: ${JOF_UPDATE_PUBKEY_FILE}")
+    endif()
+    string(APPEND JOF_UPDATE_PUBKEYS "${_pubkey}")
+endforeach()
+if(NOT JOF_UPDATE_PUBKEYS)
+    message(FATAL_ERROR "No update signing key in ${JOF_UPDATE_PUBKEY_FILE}")
+endif()
+
 if(NOT DEFINED GIT_SHA)
     set(GIT_SHA "local")
 endif()
@@ -89,6 +119,14 @@ endif()
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/versionfile/jofversion.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/versionfile/jofversion.h
+    @ONLY
+)
+
+# Kept out of jofversion.h, which every module includes, so a new key only
+# rebuilds the updater.
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/versionfile/jofupdatekey.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/versionfile/jofupdatekey.h
     @ONLY
 )
 
@@ -485,6 +523,14 @@ if(BuildMPEngine)
 		endif()
 	endif()
 
+	# The updater (client/cl_update.cpp) and SJK chat (client/cl_sjk.cpp) are
+	# Windows-only for now: WinHTTP for the hub and the downloads, cJSON, Monocypher
+	# for the signatures, and BCrypt for SJK chat's SHA-256 and nonces.
+	if(WIN32)
+		set(MPEngineIncludeDirectories ${MPEngineIncludeDirectories} ${CJSON_INCLUDE_DIRS} ${MONOCYPHER_INCLUDE_DIRS})
+		set(MPEngineLibraries ${MPEngineLibraries} ${CJSON_LIBRARIES} ${MONOCYPHER_LIBRARIES} "winhttp" "bcrypt")
+	endif()
+
 	if(UseInternalSDL2)
 		if(CMAKE_SIZEOF_VOID_P EQUAL 4)
 			set(MPEngineLibraries
@@ -541,6 +587,8 @@ if(BuildMPEngine)
 		"${MPDir}/client/cl_ui.cpp"
 		"${MPDir}/client/cl_uiapi.cpp"
 		"${MPDir}/client/cl_uiapi.h"
+		"${MPDir}/client/cl_sjk.cpp"
+		"${MPDir}/client/cl_update.cpp"
 		"${MPDir}/client/FXExport.cpp"
 		"${MPDir}/client/FXExport.h"
 		"${MPDir}/client/FxPrimitives.cpp"
@@ -627,6 +675,7 @@ if(BuildMPEngine)
 		"${SharedDir}/sys/sys_public.h"
 		"${SharedDir}/sys/con_local.h"
 		"${SharedDir}/sys/con_log.cpp"
+		"${SharedDir}/sys/sys_crashdump.cpp"
 		)
 
 	if(WIN32)
@@ -689,10 +738,21 @@ if(BuildMPEngine)
 	endif(WIN32)
 
 	if(MakeApplicationBundles)
+		# A source-built SDL2 has an @rpath install name rather than an absolute
+		# one, which fixup_bundle cannot resolve on its own. Hand it the library
+		# directory explicitly; harmless when the install name is already absolute.
+		set(MPEngineBundleDirs "")
+		foreach(BundleLib ${SDL2_LIBRARY})
+			if(EXISTS "${BundleLib}")
+				get_filename_component(BundleLibDir "${BundleLib}" DIRECTORY)
+				list(APPEND MPEngineBundleDirs "${BundleLibDir}")
+			endif()
+		endforeach()
+		list(REMOVE_DUPLICATES MPEngineBundleDirs)
 		install(CODE "
 			include(BundleUtilities)
 			set(BU_CHMOD_BUNDLE_ITEMS ON)
-			fixup_bundle(\"${CMAKE_BINARY_DIR}/${MPEngine}.app\" \"\" \"\")
+			fixup_bundle(\"${CMAKE_BINARY_DIR}/${MPEngine}.app\" \"\" \"${MPEngineBundleDirs}\")
 			"
 			COMPONENT Runtime)
 		install(TARGETS ${MPEngine}
@@ -710,6 +770,50 @@ if(BuildMPEngine)
 				COMPONENT ${JKAMPClientComponent})
 		endif()
 	endif(MakeApplicationBundles)
+
+	# Sunny's prebuilt Vulkan renderer (rd-vulkan) and, on macOS, the MoltenVK
+	# that backs it.  Neither is built from source here -- this repo carries only
+	# the Vulkan headers the engine itself needs -- so CI fetches them and hands
+	# us the paths.  See .github/workflows/build.yml.
+	#
+	# Declared after the engine install above so these land in a bundle that
+	# already exists rather than relying on install-order merge behaviour.
+	if(NOT DEFINED EXTERNAL_RD_VULKAN_MODULE AND DEFINED EXTERNAL_RD_VULKAN_DLL)
+		# Backwards compatibility: the option was Windows-only, hence "DLL".
+		set(EXTERNAL_RD_VULKAN_MODULE "${EXTERNAL_RD_VULKAN_DLL}")
+	endif()
+
+	if(MakeApplicationBundles)
+		set(RDVulkanDestination "${JKAInstallDir}/${MPEngine}.app/Contents/MacOS")
+		set(MoltenVKDestination "${JKAInstallDir}/${MPEngine}.app/Contents/Frameworks")
+	else()
+		set(RDVulkanDestination "${JKAInstallDir}")
+		set(MoltenVKDestination "${JKAInstallDir}")
+	endif()
+
+	if(DEFINED EXTERNAL_RD_VULKAN_MODULE)
+		if(NOT EXISTS "${EXTERNAL_RD_VULKAN_MODULE}")
+			message(FATAL_ERROR
+				"EXTERNAL_RD_VULKAN_MODULE does not exist: ${EXTERNAL_RD_VULKAN_MODULE}")
+		endif()
+		# PROGRAMS rather than FILES so the module keeps its executable bit,
+		# matching the renderers that go through install(TARGETS ...).
+		install(PROGRAMS ${EXTERNAL_RD_VULKAN_MODULE}
+			DESTINATION ${RDVulkanDestination}
+			COMPONENT ${JKAMPClientComponent})
+		message(STATUS "Bundling prebuilt Vulkan renderer: ${EXTERNAL_RD_VULKAN_MODULE}")
+	endif()
+
+	if(DEFINED EXTERNAL_MOLTENVK_LIBRARY)
+		if(NOT EXISTS "${EXTERNAL_MOLTENVK_LIBRARY}")
+			message(FATAL_ERROR
+				"EXTERNAL_MOLTENVK_LIBRARY does not exist: ${EXTERNAL_MOLTENVK_LIBRARY}")
+		endif()
+		install(PROGRAMS ${EXTERNAL_MOLTENVK_LIBRARY}
+			DESTINATION ${MoltenVKDestination}
+			COMPONENT ${JKAMPClientComponent})
+		message(STATUS "Bundling MoltenVK: ${EXTERNAL_MOLTENVK_LIBRARY}")
+	endif()
 
 	set_target_properties(${MPEngine} PROPERTIES COMPILE_DEFINITIONS "${MPEngineDefines}")
 
@@ -790,6 +894,7 @@ if(BuildMPDed)
 			"${SharedDir}/sys/con_local.h"
 			"${SharedDir}/sys/con_log.cpp"
 			"${SharedDir}/sys/con_win32.cpp"
+			"${SharedDir}/sys/sys_crashdump.cpp"
 			)
 		set(MPDedLibraries ${MPDedLibraries} ${CMAKE_DL_LIBS})
 		source_group("sys" FILES ${MPDedSysFiles})
@@ -805,6 +910,7 @@ if(BuildMPDed)
 			"${SharedDir}/sys/con_local.h"
 			"${SharedDir}/sys/con_log.cpp"
 			"${SharedDir}/sys/con_tty.cpp"
+			"${SharedDir}/sys/sys_crashdump.cpp"
 			)
 		set(MPDedLibraries ${MPDedLibraries} ${CMAKE_DL_LIBS})
 		source_group("sys" FILES ${MPDedSysFiles})
@@ -867,10 +973,21 @@ set(GameLibFullPaths)
 		COMPONENT ${JKAMPCoreComponent})
 endif()
 
+# Track asset groups that are edited in-tree and need to rebuild the archive.
+file(GLOB_RECURSE JAPRO_MENU_FILES CONFIGURE_DEPENDS
+	"${CMAKE_SOURCE_DIR}/assets/japro/ui/*"
+	"${CMAKE_SOURCE_DIR}/assets/japro/gfx/menus/*"
+	"${CMAKE_SOURCE_DIR}/assets/japro/ext_data/*")
 add_zip_command(japro-assets.pk3
-	FILES ${CMAKE_SOURCE_DIR}/assets/japro/*)
+	FILES *
+	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/assets/japro
+	DEPENDS ${JAPRO_MENU_FILES})
+file(GLOB_RECURSE JOFCLIENT_ASSET_FILES CONFIGURE_DEPENDS
+	"${CMAKE_SOURCE_DIR}/assets/jofclient/*")
 add_zip_command(jofclient-assets.pk3
-	FILES ${CMAKE_SOURCE_DIR}/assets/jofclient/*)
+	FILES *
+	WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/assets/jofclient
+	DEPENDS ${JOFCLIENT_ASSET_FILES})
 add_custom_target(Assets
 	ALL
 	DEPENDS japro-assets.pk3 jofclient-assets.pk3)

@@ -23,6 +23,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // Created 3/13/03 by Brian Osman (VV) - Split Zone/Hunk from common
 
 #include "client/client.h" // hi i'm bad
+#include <mutex>
 
 ////////////////////////////////////////////////
 //
@@ -94,6 +95,8 @@ typedef struct zone_s
 cvar_t	*com_validateZone;
 
 zone_t	TheZone = {};
+
+static std::recursive_mutex g_zoneMutex;
 
 
 // Scans through the linked list of mallocs and makes sure no data has been overwritten
@@ -282,37 +285,35 @@ void *Z_Malloc(int iSize, memtag_t eTag, qboolean bZeroit /* = qfalse */, int iU
 		}
 	}
 
-	// Link in
-	pMemory->iMagic	= ZONE_MAGIC;
-	pMemory->eTag	= eTag;
-	pMemory->iSize	= iSize;
-	pMemory->pNext  = TheZone.Header.pNext;
-	TheZone.Header.pNext = pMemory;
-	if (pMemory->pNext)
+	// Link in (mutex protects linked list and stats from concurrent CM_LoadMap thread)
 	{
-		pMemory->pNext->pPrev = pMemory;
-	}
-	pMemory->pPrev = &TheZone.Header;
-	//
-	// add tail...
-	//
-	ZoneTailFromHeader(pMemory)->iMagic = ZONE_MAGIC;
+		std::lock_guard<std::recursive_mutex> lock(g_zoneMutex);
+		pMemory->iMagic	= ZONE_MAGIC;
+		pMemory->eTag	= eTag;
+		pMemory->iSize	= iSize;
+		pMemory->pNext  = TheZone.Header.pNext;
+		TheZone.Header.pNext = pMemory;
+		if (pMemory->pNext)
+		{
+			pMemory->pNext->pPrev = pMemory;
+		}
+		pMemory->pPrev = &TheZone.Header;
+		ZoneTailFromHeader(pMemory)->iMagic = ZONE_MAGIC;
 
-	// Update stats...
-	//
-	TheZone.Stats.iCurrent += iSize;
-	TheZone.Stats.iCount++;
-	TheZone.Stats.iSizesPerTag	[eTag] += iSize;
-	TheZone.Stats.iCountsPerTag	[eTag]++;
+		TheZone.Stats.iCurrent += iSize;
+		TheZone.Stats.iCount++;
+		TheZone.Stats.iSizesPerTag	[eTag] += iSize;
+		TheZone.Stats.iCountsPerTag	[eTag]++;
 
-	if (TheZone.Stats.iCurrent > TheZone.Stats.iPeak)
-	{
-		TheZone.Stats.iPeak	= TheZone.Stats.iCurrent;
-	}
+		if (TheZone.Stats.iCurrent > TheZone.Stats.iPeak)
+		{
+			TheZone.Stats.iPeak	= TheZone.Stats.iCurrent;
+		}
 
 #ifdef DETAILED_ZONE_DEBUG_CODE
-	mapAllocatedZones[pMemory]++;
+		mapAllocatedZones[pMemory]++;
 #endif
+	}
 
 	Z_Validate();	// check for corruption
 
@@ -349,21 +350,10 @@ void Z_MorphMallocTag( void *pvAddress, memtag_t eDesiredTag )
 		return;	// won't get here
 	}
 
-	// DEC existing tag stats...
-	//
-//	TheZone.Stats.iCurrent	- unchanged
-//	TheZone.Stats.iCount	- unchanged
+	std::lock_guard<std::recursive_mutex> lock(g_zoneMutex);
 	TheZone.Stats.iSizesPerTag	[pMemory->eTag] -= pMemory->iSize;
 	TheZone.Stats.iCountsPerTag	[pMemory->eTag]--;
-
-	// morph...
-	//
 	pMemory->eTag = eDesiredTag;
-
-	// INC new tag stats...
-	//
-//	TheZone.Stats.iCurrent	- unchanged
-//	TheZone.Stats.iCount	- unchanged
 	TheZone.Stats.iSizesPerTag	[pMemory->eTag] += pMemory->iSize;
 	TheZone.Stats.iCountsPerTag	[pMemory->eTag]++;
 }
@@ -372,38 +362,37 @@ static void Zone_FreeBlock(zoneHeader_t *pMemory)
 {
 	if (pMemory->eTag != TAG_STATIC)	// belt and braces, should never hit this though
 	{
-		// Update stats...
-		//
-		TheZone.Stats.iCount--;
-		TheZone.Stats.iCurrent -= pMemory->iSize;
-		TheZone.Stats.iSizesPerTag	[pMemory->eTag] -= pMemory->iSize;
-		TheZone.Stats.iCountsPerTag	[pMemory->eTag]--;
-
-		// Sanity checks...
-		//
-		assert(pMemory->pPrev->pNext == pMemory);
-		assert(!pMemory->pNext || (pMemory->pNext->pPrev == pMemory));
-
-		// Unlink and free...
-		//
-		pMemory->pPrev->pNext = pMemory->pNext;
-		if(pMemory->pNext)
 		{
-			pMemory->pNext->pPrev = pMemory->pPrev;
-		}
-		free (pMemory);
+			std::lock_guard<std::recursive_mutex> lock(g_zoneMutex);
+			// Update stats...
+			TheZone.Stats.iCount--;
+			TheZone.Stats.iCurrent -= pMemory->iSize;
+			TheZone.Stats.iSizesPerTag	[pMemory->eTag] -= pMemory->iSize;
+			TheZone.Stats.iCountsPerTag	[pMemory->eTag]--;
 
+			// Sanity checks...
+			assert(pMemory->pPrev->pNext == pMemory);
+			assert(!pMemory->pNext || (pMemory->pNext->pPrev == pMemory));
 
-		#ifdef DETAILED_ZONE_DEBUG_CODE
-		// this has already been checked for in execution order, but wtf?
-		int& iAllocCount = mapAllocatedZones[pMemory];
-		if (iAllocCount == 0)
-		{
-			Com_Error(ERR_FATAL, "Zone_FreeBlock(): Double-freeing block!");
-			return;
+			// Unlink...
+			pMemory->pPrev->pNext = pMemory->pNext;
+			if(pMemory->pNext)
+			{
+				pMemory->pNext->pPrev = pMemory->pPrev;
+			}
+
+			#ifdef DETAILED_ZONE_DEBUG_CODE
+			int& iAllocCount = mapAllocatedZones[pMemory];
+			if (iAllocCount == 0)
+			{
+				Com_Error(ERR_FATAL, "Zone_FreeBlock(): Double-freeing block!");
+				return;
+			}
+			iAllocCount--;
+			#endif
 		}
-		iAllocCount--;
-		#endif
+		// free() is thread-safe; keep outside the mutex to avoid holding it during OS call
+		free(pMemory);
 	}
 }
 

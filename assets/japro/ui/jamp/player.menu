@@ -16,6 +16,8 @@
 		onOpen
 		{ 
 			uiScript		update  "ui_GetName" 
+			uiScript		clearModelSearch
+			uiScript		"updateplayerpreview"
 		}
 									
 		onESC 
@@ -28,6 +30,7 @@
 		onClose 
 		{ 
 			uiScript		update  "ui_SetName" 
+			uiScript		clearModelSearch
 		}
 
 
@@ -426,7 +429,7 @@
 			textaligny 			-5
 			font				2
 			textscale			1
-			forecolor			.615 .615 .956 1
+			forecolor			1 .682 0 1
 			outlinecolor 		1 .5 .5 .5
 			backcolor 			0 0 0 0
 			border 			0
@@ -477,15 +480,15 @@
 			name				modelname
 			style				0	
 			cvar				model
-			rect				50 50 160 20
+			rect				30 50 210 20
 			textalign			ITEM_ALIGN_LEFT
-			textalignx			-20
+			textalignx			0
 			textaligny			366
 			outlinecolor		1 .5 .5 .5
 			backcolor			0 0 0 0
 			font				2
 			textscale			.6
-			forecolor			.615 .615 .956 1
+			forecolor			1 .682 0 1
 			border				0
 			bordercolor			0 0 0 0
 			//descText			"Currently selected model"
@@ -502,6 +505,29 @@
 			}
 		}
 
+		itemDef
+		{
+			name				modelSearch
+			type				ITEM_TYPE_EDITFIELD
+			text				"Search:"
+			cvar				ui_modelSearch
+			rect				240 408 194 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
+			textaligny			8
+			font				2
+			textscale			.6
+			forecolor			1 .682 0 1
+			maxChars			32
+			maxPaintChars		18
+			visible				1
+			descText			"Filter player models by model or skin name."
+			action
+			{
+				play			"sound/interface/button1.wav"
+			}
+		}
+
 // Skin/Team Color Chooser
 		itemDef 
 		{
@@ -509,7 +535,7 @@
 			style				0	
 			text				@MENUS_TEAM_COLOR
 			ownerdraw			UI_SKIN_COLOR
-			rect				50 209 160 20
+			rect				30 209 210 20
 			textalign			ITEM_ALIGN_LEFT
 			textalignx			0
 			textaligny			-5
@@ -517,7 +543,7 @@
 			backcolor			0 0 0 0
 			font				2
 			textscale			.9
-			forecolor			.615 .615 .956 1
+			forecolor			1 .682 0 1
 			border				0
 			bordercolor			0 0 0 0
 			descText			@MENUS_CHOOSE_THE_COLOR_FOR
@@ -529,15 +555,46 @@
 		}
 
 // Scroll box with portraits.
+		itemDef
+		{
+			name				showCustomSkins
+			type				ITEM_TYPE_MULTI
+			text				"Show Hidden Skins:"
+			cvar				ui_showAllSkins
+			cvarFloatList
+			{
+				@MENUS_OFF 0
+				@MENUS_ON 1
+				"All" 2
+			}
+			rect				200 209 210 20
+			textalign			ITEM_ALIGN_LEFT
+			textalignx			0
+			textaligny			-5
+			outlinecolor		1 .5 .5 .5
+			backcolor			0 0 0 0
+			font				2
+			textscale			.8
+			forecolor			1 .682 0 1
+			border				0
+			bordercolor			0 0 0 0
+			visible				1
+			descText			"Shows or hides the icons of models that aren't default, team or RGB, as well as missing icons."
+			action
+			{
+				play			"sound/interface/button1.wav" ;
+			}
+		}
+
 		itemDef 
 		{
 			name 				headlist
-			rect 				30 224 404 194
+			rect 				30 224 306 194
 //			rect 				126 215 80 200
 			type 				ITEM_TYPE_LISTBOX
 			style 				WINDOW_STYLE_FILLED
-			elementwidth 			64
-			elementheight 			64
+			elementwidth 			32
+			elementheight 			32
 			elementtype 			LISTBOX_IMAGE
 			feeder 				FEEDER_Q3HEADS
 //			horizontalscroll
@@ -562,14 +619,34 @@
 			}
 		}
 
+		// Transparent walking preview; uses the same model widget as custom character creation.
+		itemDef
+		{
+			name				character
+			group				models
+			type 				ITEM_TYPE_MODEL
+			rect				304 186 200 245
+			model_g2anim 		"BOTH_WALK1"
+			asset_model			"ui_char_model"
+			model_angle			180
+			model_g2mins		-30 -15 -14
+			model_g2maxs		20 15 30
+			model_rotation		50
+			model_fovx			50
+			model_fovy			50
+			isCharacter			1
+			visible				1
+			decoration
+		}
+
 // Custom skin
 
 		itemDef 
 		{
 			name				customtitle
 			style				0	
-			text				@MENUS_CUSTOM
-			rect				425 250 200 26
+			text				"Custom"
+			rect				425 184 200 0
 			textalign			ITEM_ALIGN_CENTER
 			textalignx			100
 			textaligny			-3
@@ -582,6 +659,32 @@
 			decoration
 		}
 
+		itemDef
+		{
+			name				cosmeticsbutton
+			group				none
+			text				"Cosmetics"
+			descText			"Wear a hat or a cape."
+			type				ITEM_TYPE_BUTTON
+			style				WINDOW_STYLE_EMPTY
+			rect				425 250 200 26
+			textalign			ITEM_ALIGN_CENTER
+			textalignx			100
+			textaligny			2
+			font				2
+			textscale			.9
+			backcolor			0 0 0 0
+			forecolor			1 .682 0 1
+			visible				1
+
+			action
+			{
+				play			"sound/interface/button1.wav"
+				setcvar			ui_cosmeticsMain "1"
+				open			ingame_cosmetics
+			}
+		}
+
 		itemDef 
 		{
 			name				custom
@@ -590,7 +693,7 @@
 			descText			@MENUS_CUSTOMPLAYER_DESC
 			type				ITEM_TYPE_BUTTON
 			style				WINDOW_STYLE_SHADER
-			rect				480 280 96 96 
+			rect				480 280 96 96
 			font				3
 			textscale			1
 			textalignx			65
@@ -615,8 +718,7 @@
 			}  	  
 		}
 
-
-		itemDef 
+		itemDef
 		{
 			name				next_glow
 			group				mods

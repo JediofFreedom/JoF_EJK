@@ -23,6 +23,26 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #pragma once
 
+// Optional binocular telemetry, negotiated with the binoScan userinfo key.
+#define MAX_BINOCULAR_TARGETS 32
+#define BINOCULAR_UPDATE_MSEC 200
+#define BINOCULAR_EXPIRE_MSEC 600
+#define BINOCULAR_RANGE 8192.0f
+#define MAX_MISSION_PARTY 7
+#define MISSION_PARTY_UPDATE_MSEC 250
+#define MISSION_PARTY_EXPIRE_MSEC 1500
+#define MISSION_PARTY_DEAD_MSEC 8000
+
+typedef struct binocularTarget_s {
+	int entityNum;
+	int health;
+	int maxHealth;
+	int armor;
+	int force;
+	int maxForce;
+	char name[64]; // Optional binoNames extension; empty when unavailable.
+} binocularTarget_t;
+
 // bg_public.h -- definitions shared by both the server game and client game modules
 
 // because games can change separately from the main system version, we need a
@@ -372,7 +392,7 @@ typedef struct animevent_s
 	animEventType_t	eventType;
 	unsigned short	keyFrame;			//Frame to play event on
 	signed short	eventData[AED_ARRAY_SIZE];	//Unique IDs, can be soundIndex of sound file to play OR effect index or footstep type, etc.
-	char			*stringData;		//we allow storage of one string, temporarily (in case we have to look up an index later, then make sure to set stringData to NULL so we only do the look-up once)
+	char			*stringData;		//Effect bolt name for deferred lookup, or custom sound name retained for per-actor playback.
 } animevent_t;
 
 typedef struct bgLoadedAnim_s {
@@ -667,6 +687,7 @@ extern	pmove_t		*pm;
 #define SETANIM_FLAG_HOLD		2//Set the new timer
 #define SETANIM_FLAG_RESTART	4//Allow restarting the anim if playing the same one (weapon fires)
 #define SETANIM_FLAG_HOLDLESS	8//Set the new timer
+#define SETANIM_FLAG_PACE		16//Restart only after the current animation has finished
 
 
 // if a full pmove isn't done on the client, you can just update the angles
@@ -753,7 +774,7 @@ typedef enum {
 #define EF_ALT_FIRING			(1<<10)		// for alt-fires, mostly for lightning guns though
 #define	EF_JETPACK_ACTIVE		(1<<11)		//jetpack is activated
 
-#define EF_NOT_USED_1			(1<<12)		// not used
+#define EF_NOT_USED_1			(1<<12)		// not used here; JA+ servers set it on players without a saber
 
 #define	EF_TALK					(1<<13)		// draw a talk balloon
 #define	EF_CONNECTION			(1<<14)		// draw a connection trouble sprite
@@ -766,7 +787,7 @@ typedef enum {
 #define	EF_NOT_USED_6			(1<<15)		// not used
 #define	EF_GRAPPLE_SWING		(1<<16)		// not used
 #define	EF_BOBAFIRE				(1<<17)		
-#define	EF_NOT_USED_4			(1<<18)		// not used
+#define	EF_EMPOWERED			(1<<18)		// JoF - player is amempowered (set alongside EF_BODYPUSH)
 
 #define	EF_BODYPUSH				(1<<19)		//rww - claiming this for fullbody push effect
 
@@ -784,7 +805,7 @@ typedef enum {
 #define EF_JETPACK				(1<<29)		//rww - wearing a jetpack
 #define EF_JETPACK_FLAMING		(1<<30)		//rww - jetpack fire effect
 
-#define	EF_NOT_USED_5			(1<<31)		// not used
+#define EF_NPC_FLIPKICKABLE		(1<<31)		// NPC opts into player flipkick, fall damage and head-standing rules
 
 //These new EF2_??? flags were added for NPCs, they really should not be used often.
 //NOTE: we only allow 10 of these!
@@ -1735,6 +1756,7 @@ typedef struct saberInfo_s {
 	qhandle_t		skin;									// registered skin id
 	int				soundOn;								// game soundindex for turning on sound
 	int				soundLoop;								// game soundindex for hum/loop sound
+	qboolean		soundLoopCustom;						// hilt uses a non-stock hum or an explicit silent loop
 	int				soundOff;								// game soundindex for turning off sound
 	int				numBlades;
 	bladeInfo_t		blade[MAX_BLADES];						// blade info - like length, trail, origin, dir, etc.
@@ -1809,6 +1831,13 @@ typedef struct saberInfo_s {
 
 
 bgEntity_t *PM_BGEntForNum( int num );
+
+//playermodel blacklisting: ext_data/modelblacklist/*.txt, "notInMP 1" in
+//models/players/<model>/settings.txt, or a user list cvar
+void BG_LoadModelBlacklist( void );
+qboolean BG_ModelIsNPCOnly( const char *modelName );
+qboolean BG_ModelInList( const char *modelName, const char *list );
+
 qboolean BG_KnockDownable(playerState_t *ps);
 qboolean BG_LegalizedForcePowers(char *powerOut, size_t powerOutSize, int maxRank, qboolean freeSaber, int teamForce, int gametype, int fpDisabled);
 qboolean BG_LegalizedForcePowers2(char* powerOut, size_t powerOutSize, int maxRank, qboolean freeSaber, int teamForce, int gametype, int fpDisabled, qboolean forceTeamForces);
@@ -1849,6 +1878,7 @@ qboolean BG_SaberInKata( int saberMove );
 qboolean BG_InKataAnim(int anim);
 qboolean BG_KickingAnim( int anim );
 int BG_InGrappleMove(int anim);
+qboolean BG_IsGrappleSoundAnim(int anim);
 int BG_BrokenParryForAttack( int move );
 int BG_BrokenParryForParry( int move );
 int BG_KnockawayForParry( int move );
@@ -1856,6 +1886,8 @@ qboolean BG_InRoll( playerState_t *ps, int anim );
 qboolean BG_InDeathAnim( int anim );
 qboolean BG_InSaberLockOld( int anim );
 qboolean BG_InSaberLock( int anim );
+qboolean BG_LightningDeflectBreakPose( const playerState_t *ps, int time );
+qboolean BG_SaberLockMovement( const playerState_t *ps, int time );
 
 void BG_SaberStartTransAnim( int clientNum, int saberAnimLevel, int weapon, int anim, float *animSpeed, int broken );
 
@@ -1915,6 +1947,9 @@ void BG_ClearRocketLock( playerState_t *ps );
 
 extern int WeaponReadyAnim[WP_NUM_WEAPONS];
 extern int WeaponAttackAnim[WP_NUM_WEAPONS];
+qboolean BG_WeaponIsVehicleGun(int weapon);
+qboolean BG_IsDroidClass(class_t npcClass);
+qboolean BG_IsFlipkickableNPC( const entityState_t *state );
 
 extern int forcePowerDarkLight[NUM_FORCE_POWERS];
 

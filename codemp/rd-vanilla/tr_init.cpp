@@ -113,6 +113,7 @@ cvar_t	*r_DynamicGlowSoft;
 cvar_t	*r_DynamicGlowWidth;
 cvar_t	*r_DynamicGlowHeight;
 cvar_t	*r_DynamicGlowScale;
+static cvar_t *r_dynamicGlowVanilla;
 
 cvar_t	*r_smartpicmip;
 
@@ -1212,7 +1213,7 @@ void R_ScreenShotPNG_f (void) {
 	R_TakeScreenshotPNG( 0, 0, glConfig.vidWidth, glConfig.vidHeight, checkname );
 
 	if ( !silent )
-		ri.Printf( PRINT_ALL, "[skipnotify]Wrote %s\n", checkname );
+		ri.Printf( PRINT_ALL, "Wrote %s\n", checkname );
 }
 
 void R_ScreenShot_f (void) {
@@ -1247,7 +1248,7 @@ void R_ScreenShot_f (void) {
 	R_TakeScreenshotJPEG( 0, 0, glConfig.vidWidth, glConfig.vidHeight, checkname );
 
 	if ( !silent )
-		ri.Printf( PRINT_ALL, "[skipnotify]Wrote %s\n", checkname );
+		ri.Printf( PRINT_ALL, "Wrote %s\n", checkname );
 }
 
 /*
@@ -1548,20 +1549,44 @@ void R_AtiHackToggle_f(void)
 }
 
 void R_RemapSkyShader_f (void) {
-	int num;
-	char *newSky = ri.Cmd_Argv(1);
+	char newSky[MAX_QPATH];
+	const char *arg = ri.Cmd_Argv(1);
+	shader_t *newSkyShader;
+	qhandle_t handle;
+	int num, numShaders;
 
-	if (ri.Cmd_Argc() != 2 || !strlen(newSky)) {
+	if (ri.Cmd_Argc() != 2 || !arg[0]) {
 		ri.Printf(PRINT_ALL, "Usage: /remapSky <new>\n");
 		return;
 	}
 
-	if (Q_stricmp(newSky, "clear") && !strchr(newSky, '/'))
-		newSky = va("textures/skies/%s", ri.Cmd_Argv(1));
+	if (Q_stricmp(arg, "clear") && !strchr(arg, '/')) {
+		Com_sprintf(newSky, sizeof(newSky), "textures/skies/%s", arg);
+	} else {
+		Q_strncpyz(newSky, arg, sizeof(newSky));
+	}
 
-	for (num = 0; num < tr.numShaders; num++) {
+	// Resolve the replacement before walking tr.shaders. Registration may add a
+	// shader, and va() storage may be overwritten during shader/image loading.
+	newSkyShader = R_FindShaderByName(newSky);
+	if (newSkyShader == tr.defaultShader) {
+		handle = RE_RegisterShaderLightMap(newSky, lightmapsNone, stylesDefault);
+		newSkyShader = R_GetShaderByHandle(handle);
+	}
+
+	if (newSkyShader == tr.defaultShader || newSkyShader->defaultShader) {
+		ri.Printf(PRINT_ALL, S_COLOR_YELLOW "WARNING: /remapSky shader %s not found\n", newSky);
+		return;
+	}
+	if (Q_stricmp(newSky, "clear") && !newSkyShader->sky) {
+		ri.Printf(PRINT_ALL, S_COLOR_YELLOW "WARNING: /remapSky shader %s is not a sky shader\n", newSky);
+		return;
+	}
+
+	numShaders = tr.numShaders;
+	for (num = 0; num < numShaders; num++) {
 		if (tr.shaders[num]->sky) {
-			R_RemapShader(tr.shaders[num]->name, newSky, NULL);
+			R_RemapShader(tr.shaders[num]->name, newSkyShader->name, NULL);
 		}
 	}
 }
@@ -1624,9 +1649,13 @@ void R_Register( void )
 	r_ext_compiled_vertex_array			= ri.Cvar_Get( "r_ext_compiled_vertex_array",		"1",						CVAR_ARCHIVE_ND|CVAR_LATCH, "" );
 	r_ext_texture_env_add				= ri.Cvar_Get( "r_ext_texture_env_add",				"1",						CVAR_ARCHIVE_ND|CVAR_LATCH, "" );
 	r_ext_texture_filter_anisotropic	= ri.Cvar_Get( "r_ext_texture_filter_anisotropic",	"16",						CVAR_ARCHIVE_ND, "" );
+	// MSAA shall be computed on OpenGls default framebuffer
+	ri.Cvar_Set("r_ext_multisample_default_fb", "1");
 	r_gammaShaders						= ri.Cvar_Get( "r_gammaShaders",					"1",						CVAR_ARCHIVE_ND|CVAR_LATCH, "Set gamma using pixel shaders inside the game window only." );
 	r_environmentMapping				= ri.Cvar_Get( "r_environmentMapping",				"1",						CVAR_ARCHIVE_ND, "" );
 	r_DynamicGlow						= ri.Cvar_Get( "r_DynamicGlow",						"0",						CVAR_ARCHIVE_ND, "" );
+	r_dynamicGlowVanilla				= ri.Cvar_Get( "r_dynamicGlowVanilla",				r_DynamicGlow->string,		CVAR_ARCHIVE, "Saved dynamic glow mode for the vanilla renderer." );
+	ri.Cvar_Set( "r_DynamicGlow", r_dynamicGlowVanilla->string );
 	r_DynamicGlowPasses					= ri.Cvar_Get( "r_DynamicGlowPasses",				"5",						CVAR_ARCHIVE_ND, "" );
 	r_DynamicGlowDelta					= ri.Cvar_Get( "r_DynamicGlowDelta",				"0.8f",						CVAR_ARCHIVE_ND, "" );
 	r_DynamicGlowIntensity				= ri.Cvar_Get( "r_DynamicGlowIntensity",			"1.13f",					CVAR_ARCHIVE_ND, "" );
@@ -1875,6 +1904,22 @@ RE_Shutdown
 void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 
 //	ri.Printf( PRINT_ALL, "RE_Shutdown( %i )\n", destroyWindow );
+
+	if ( r_DynamicGlow )
+	{
+		// r_DynamicGlow is shared by all renderer DLLs. Preserve vanilla's
+		// mode, but translate it to Rend2's mode range before another
+		// renderer can inherit the cvar.
+		ri.Cvar_Set( "r_dynamicGlowVanilla", r_DynamicGlow->string );
+		if ( r_DynamicGlow->integer == 1 || r_DynamicGlow->integer == 2 )
+		{
+			ri.Cvar_Set( "r_DynamicGlow", "1" );
+		}
+		else if ( r_DynamicGlow->integer == 3 )
+		{
+			ri.Cvar_Set( "r_DynamicGlow", "2" );
+		}
+	}
 
 	for ( size_t i = 0; i < numCommands; i++ )
 		ri.Cmd_RemoveCommand( commands[i].cmd );

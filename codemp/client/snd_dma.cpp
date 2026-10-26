@@ -1673,10 +1673,8 @@ void S_StartSound(const vec3_t origin, int entityNum, int entchannel, sfxHandle_
 		return;
 	}
 
-	if ( (com_minimized->integer || com_unfocused->integer) && snd_mute_losefocus->integer ) { //entchannel != CHAN_MUSIC ?
-		return;
-	}
-
+	// Do not discard server-triggered sounds while unfocused. The output backend
+	// mutes them while keeping the sound timeline advancing, so restore stays in sync.
 	if ( !origin && ( entityNum < 0 || entityNum >= MAX_GENTITIES ) ) {
 		Com_Error( ERR_DROP, "S_StartSound: bad entitynum %i", entityNum );
 	}
@@ -1840,6 +1838,20 @@ float S_GetSampleLengthInMilliSeconds( sfxHandle_t sfxHandle)
 	float f = (float)sfx->iSoundLengthInSamples / (float)dma.speed;
 
 	return (f * 1000);
+}
+
+// cgame's view of the same length: 0 whenever it isn't really known - no sound system, or the
+// placeholder a missing file registers as - so the caller falls back on its own guess instead of
+// taking the 512 second stand-in above.
+int S_GetSampleLengthMs( sfxHandle_t sfxHandle )
+{
+	if ( !s_soundStarted || sfxHandle <= 0 || sfxHandle >= s_numSfx )
+		return 0;
+
+	if ( s_knownSfx[ sfxHandle ].bDefaultSound )
+		return 0;
+
+	return (int)S_GetSampleLengthInMilliSeconds( sfxHandle );
 }
 
 

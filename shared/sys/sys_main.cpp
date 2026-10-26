@@ -418,8 +418,10 @@ static void *Sys_LoadDllFromPaths( const char *filename, const char *gamedir, co
 
 			fn = FS_BuildOSPath( libDir, gamedir, filename );
 			libHandle = Sys_LoadLibrary( fn );
-			if ( libHandle )
+			if ( libHandle ) {
+				FS_NoteGameModule( filename, gamedir );
 				return libHandle;
+			}
 
 			Com_Printf( "%s(%s) failed: \"%s\"\n", callerName, fn, Sys_LibraryError() );
 		}
@@ -435,8 +437,10 @@ static void *Sys_LoadDllFromPaths( const char *filename, const char *gamedir, co
 
 			fn = FS_BuildOSPath(libDir, ETERNALJKGAME, filename);
 			libHandle = Sys_LoadLibrary(fn);
-			if (libHandle)
+			if (libHandle) {
+				FS_NoteGameModule(filename, ETERNALJKGAME);
 				return libHandle;
+			}
 
 			Com_Printf("%s(%s) failed: \"%s\"\n", callerName, fn, Sys_LibraryError());
 		}
@@ -452,8 +456,10 @@ static void *Sys_LoadDllFromPaths( const char *filename, const char *gamedir, co
 
 			fn = FS_BuildOSPath( libDir, BASEGAME, filename );
 			libHandle = Sys_LoadLibrary( fn );
-			if ( libHandle )
+			if ( libHandle ) {
+				FS_NoteGameModule( filename, BASEGAME );
 				return libHandle;
+			}
 
 			Com_Printf( "%s(%s) failed: \"%s\"\n", callerName, fn, Sys_LibraryError() );
 		}
@@ -469,8 +475,10 @@ static void *Sys_LoadDllFromPaths( const char *filename, const char *gamedir, co
 
 			fn = va( "%s%c%s", libDir, PATH_SEP, filename );
 			libHandle = Sys_LoadLibrary( fn );
-			if ( libHandle )
+			if ( libHandle ) {
+				FS_NoteGameModule( filename, "" );
 				return libHandle;
+			}
 
 			Com_Printf( "%s(%s) failed: \"%s\"\n", callerName, fn, Sys_LibraryError() );
 		}
@@ -740,6 +748,8 @@ int main ( int argc, char* argv[] )
 	int		i;
 	char	commandLine[ MAX_STRING_CHARS ] = { 0 };
 
+	Sys_InstallCrashHandler();
+
 	Sys_PlatformInit();
 #if defined(_DEBUG) && !defined(DEDICATED) && defined(WIN32)
 	CON_CreateConsoleWindow();
@@ -758,6 +768,11 @@ int main ( int argc, char* argv[] )
 	Sys_SetBinaryPath( Sys_Dirname( argv[ 0 ] ) );
 	Sys_SetDefaultInstallPath( DEFAULT_BASEDIR );
 
+#ifndef DEDICATED
+	// Before Com_Init opens any pk3: Windows cannot replace a file in use.
+	CL_Update_ApplyPending();
+#endif
+
 	// Concatenate the command line for passing to Com_Init
 	for( i = 1; i < argc; i++ )
 	{
@@ -774,6 +789,10 @@ int main ( int argc, char* argv[] )
 	}
 
 	Com_Init (commandLine);
+
+	// Re-install: overlays/drivers loaded during Com_Init (Discord, Steam,
+	// GPU drivers) can replace the unhandled exception filter with their own.
+	Sys_InstallCrashHandler();
 
 #ifndef DEDICATED
 

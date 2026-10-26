@@ -27,6 +27,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // It also handles local physics interaction, like fragments bouncing off walls
 
 #include "cg_local.h"
+#include "game/bg_pickup.h"
 
 static	pmove_t		cg_pmove;
 
@@ -69,12 +70,27 @@ static QINLINE qboolean CG_IsPredictedWeaponAttackAnim(int weapon, int torsoAnim
 	return torsoAnim == WeaponAttackAnim[weapon];
 }
 
-static QINLINE void CG_RestorePredictedWeaponAttackAnim(playerState_t *ps, int savedWeapon, int savedWeaponTime, int savedTorsoAnim)
+static QINLINE qboolean CG_IsVehicleGunAttackAnim(int torsoAnim)
 {
-	if (savedWeaponTime <= 0)
-		return;
-	
+	return torsoAnim == BOTH_VS_ATF_G || torsoAnim == BOTH_VS_ATL_G || torsoAnim == BOTH_VS_ATR_G ||
+		torsoAnim == BOTH_VT_ATF_G || torsoAnim == BOTH_VT_ATL_G || torsoAnim == BOTH_VT_ATR_G;
+}
+
+static QINLINE void CG_RestorePredictedWeaponAttackAnim(playerState_t *ps, int savedWeapon,
+	int savedWeaponState, int savedWeaponTime, int savedVehicleNum, int savedTorsoAnim, qboolean savedTorsoFlip)
+{
 	if (ps->weapon != savedWeapon)
+		return;
+
+	if (savedWeapon == WP_BOWCASTER && savedWeaponState == WEAPON_CHARGING &&
+		savedVehicleNum && CG_IsVehicleGunAttackAnim(savedTorsoAnim))
+	{
+		ps->torsoAnim = savedTorsoAnim;
+		ps->torsoFlip = savedTorsoFlip;
+		return;
+	}
+
+	if (savedWeaponTime <= 0)
 		return;
 
 	if (!CG_IsPredictedWeaponAttackAnim(savedWeapon, savedTorsoAnim))
@@ -258,7 +274,7 @@ extern void BG_VehicleAdjustBBoxForOrientation( Vehicle_t *veh, vec3_t origin, v
 										int clientNum, int tracemask,
 										void (*localTrace)(trace_t *results, const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end, int passEntityNum, int contentMask)); // bg_pmove.c
 static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const vec3_t maxs, const vec3_t end,
-							int skipNumber, int mask, trace_t *tr, qboolean g2Check, qboolean crosshairTrace ) {
+							int skipNumber, int skipNumber2, int mask, trace_t *tr, qboolean g2Check, qboolean crosshairTrace ) {
 	int			i, x, zd, zu;
 	trace_t		trace, oldTrace;
 	entityState_t	*ent;
@@ -277,7 +293,7 @@ static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const
 		cent = cg_solidEntities[ i ];
 		ent = &cent->currentState;
 
-		if ( ent->number == skipNumber ) {
+		if ( ent->number == skipNumber || ent->number == skipNumber2 ) {
 			continue;
 		}
 
@@ -452,8 +468,18 @@ void	CG_Trace( trace_t *result, const vec3_t start, const vec3_t mins, const vec
 	trap->CM_Trace ( &t, start, end, mins, maxs, 0, mask, 0);
 	t.entityNum = t.fraction != 1.0 ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	// check all other solid models
-	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, mask, &t, qfalse, qfalse);
+	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, ENTITYNUM_NONE, mask, &t, qfalse, qfalse);
 
+	*result = t;
+}
+
+void CG_TraceSkipEntity( trace_t *result, const vec3_t start, const vec3_t mins, const vec3_t maxs,
+		const vec3_t end, int skipNumber, int skipNumber2, int mask ) {
+	trace_t t;
+
+	trap->CM_Trace( &t, start, end, mins, maxs, 0, mask, 0 );
+	t.entityNum = t.fraction != 1.0f ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
+	CG_ClipMoveToEntities( start, mins, maxs, end, skipNumber, skipNumber2, mask, &t, qfalse, qfalse );
 	*result = t;
 }
 
@@ -469,7 +495,7 @@ void	CG_G2Trace( trace_t *result, const vec3_t start, const vec3_t mins, const v
 	trap->CM_Trace ( &t, start, end, mins, maxs, 0, mask, 0);
 	t.entityNum = t.fraction != 1.0 ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	// check all other solid models
-	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, mask, &t, qtrue, qfalse);
+	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, ENTITYNUM_NONE, mask, &t, qtrue, qfalse);
 
 	*result = t;
 }
@@ -481,7 +507,7 @@ void CG_CrosshairTrace( trace_t *result, const vec3_t start, const vec3_t mins, 
 	trap->CM_Trace ( &t, start, end, mins, maxs, 0, CONTENTS_SOLID|CONTENTS_BODY, 0);
 	t.entityNum = t.fraction != 1.0 ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	// check all other solid models
-	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, CONTENTS_SOLID|CONTENTS_BODY, &t, g2Check, qtrue);
+	CG_ClipMoveToEntities (start, mins, maxs, end, skipNumber, ENTITYNUM_NONE, CONTENTS_SOLID|CONTENTS_BODY, &t, g2Check, qtrue);
 
 	*result = t;
 }
@@ -682,6 +708,9 @@ static void CG_TouchItem( centity_t *cent ) {
 	}
 
 	item = &bg_itemlist[ cent->currentState.modelindex ];
+	if (CG_UsesPickupConfirmation() && BG_ConfirmedPickupType(item->giType)) {
+		return; // Only this server's accepted pickups produce local feedback.
+	}
 
 	//Currently there is no reliable way of knowing if the client has touched a certain item before another if they are next to each other, or rather
 	//if the server has touched them in the same order. This results often in grabbing an item in the prediction and the server giving you the other
@@ -1041,10 +1070,142 @@ static QINLINE int FindGrappleHook( int clientNum ) {
 }
 #endif
 
+extern qboolean PM_InKnockDown( playerState_t *ps ); //bg_panimate.c
+extern qboolean BG_InKnockDown( int anim ); //bg_pmove.c
+
+// True from the moment we're knocked down until the get-up animation has fully
+// played out. PM_InKnockDown alone isn't enough: JA+ can play the get-up on the
+// torso channel while the legs are already free, so check both channels.
+static qboolean CG_InKnockDownState( playerState_t *ps )
+{
+	if ( ps->forceHandExtend == HANDEXTEND_KNOCKDOWN )
+	{
+		return qtrue;
+	}
+	if ( PM_InKnockDown( ps ) )
+	{
+		return qtrue;
+	}
+	if ( BG_InKnockDown( ps->legsAnim ) && ps->legsTimer > 0 )
+	{
+		return qtrue;
+	}
+	if ( BG_InKnockDown( ps->torsoAnim ) && ps->torsoTimer > 0 )
+	{
+		return qtrue;
+	}
+	// JA+ kicks use these custom falling/get-up anims (seen with fhe already
+	// cleared); BG_InKnockDown only counts them on JA Pro servers, so handle
+	// them here explicitly.
+	switch ( ps->legsAnim )
+	{
+	case BOTH_BACK_FALLING:
+	case BOTH_BACK_FALLING_GETUP:
+	case BOTH_BACK_FALLING_GETUP_SLOW:
+		return qtrue;
+	default:
+		break;
+	}
+	switch ( ps->torsoAnim )
+	{
+	case BOTH_BACK_FALLING:
+	case BOTH_BACK_FALLING_GETUP:
+	case BOTH_BACK_FALLING_GETUP_SLOW:
+		return qtrue;
+	default:
+		break;
+	}
+	return qfalse;
+}
+
+static qboolean CG_InMeleeGrappleVictimState( const playerState_t *ps )
+{
+	if ( ps->stats[STAT_HEALTH] <= 0 )
+	{
+		return qfalse;
+	}
+
+	// JA+'s A + melee carry uses KNEES1 rather than a PA grapple animation.
+	// The server positions and turns its victim, including before it sets the
+	// holder's entity number. Keep PRETHROWN as the primary carry marker: the
+	// six-bit heldByClient wire field can wrap an NPC's entity+1 link to zero.
+	if ( ps->forceHandExtend == HANDEXTEND_PRETHROWN ||
+		(ps->heldByClient > 0 && ps->heldByClient <= ENTITYNUM_WORLD) )
+	{
+		return qtrue;
+	}
+
+	// The side kata's throw is ballistic once released. A channel can still
+	// contain the hold animation during the transition to the flight animation.
+	if ( (ps->legsAnim == BOTH_PLAYER_PA_3_FLY && ps->legsTimer > 0) ||
+		(ps->torsoAnim == BOTH_PLAYER_PA_3_FLY && ps->torsoTimer > 0) )
+	{
+		return qfalse;
+	}
+
+	return (BG_InGrappleMove( ps->legsAnim ) == 3 && ps->legsTimer > 0) ||
+		(BG_InGrappleMove( ps->torsoAnim ) == 3 && ps->torsoTimer > 0);
+}
+
+static void CG_PreserveMeleeKataFlightAnimation( playerState_t *predicted,
+	const playerState_t *server )
+{
+	if ( server->stats[STAT_HEALTH] <= 0 )
+	{
+		return;
+	}
+
+	// Predict the throw's movement, but keep the server's flight animation.
+	// Replayed movement/weapon commands can otherwise replace it with an idle
+	// or air animation. Only restore channels still marked as flight by the server.
+	if ( server->legsAnim == BOTH_PLAYER_PA_3_FLY && server->legsTimer > 0 )
+	{
+		predicted->legsAnim = server->legsAnim;
+		predicted->legsFlip = server->legsFlip;
+	}
+	if ( server->torsoAnim == BOTH_PLAYER_PA_3_FLY && server->torsoTimer > 0 )
+	{
+		predicted->torsoAnim = server->torsoAnim;
+		predicted->torsoFlip = server->torsoFlip;
+	}
+}
+
+// JA+ marks victims of its added side/back kicks with forceDodgeAnim 4/5 and
+// then plays this custom falling/get-up sequence. Ordinary knockdowns do not
+// use these markers, so only the added kick mechanic takes the special path.
+static qboolean CG_InJAPlusSpecialKickState( playerState_t *ps )
+{
+	int anims[2] = { ps->legsAnim, ps->torsoAnim };
+	int i;
+
+	if ( ps->forceDodgeAnim == 4 || ps->forceDodgeAnim == 5 )
+	{
+		return qtrue;
+	}
+
+	for ( i = 0; i < 2; i++ )
+	{
+		switch ( anims[i] )
+		{
+		case BOTH_BACK_FALLING:
+		case BOTH_BACK_FALLING_GETUP:
+		case BOTH_BACK_FALLING_GETUP_SLOW:
+		case BOTH_JUMP_BACKFLIP_ATCKEE:
+		case BOTH_JUMP_BACKFLIP_ATCKEE_FALL:
+			return qtrue;
+		default:
+			break;
+		}
+	}
+
+	return qfalse;
+}
+
 void CG_PredictPlayerState( void ) {
 	int			cmdNum, current, i;
 	playerState_t	oldPlayerState;
 	playerState_t	oldVehicleState;
+	const playerState_t *predictionPS;
 	qboolean	moved;
 	usercmd_t	oldestCmd;
 	usercmd_t	latestCmd;
@@ -1076,9 +1237,51 @@ void CG_PredictPlayerState( void ) {
 		return;
 	}
 
+	// Use the same snapshot as command replay below, including the first frame
+	// of a grab or release that has only arrived in nextSnap so far.
+	predictionPS = &cg.snap->ps;
+	if ( cg.nextSnap && !cg.nextFrameTeleport && !cg.thisFrameTeleport )
+	{
+		predictionPS = &cg.nextSnap->ps;
+	}
+
+	// Grapple victims are positioned and turned by the server (player or NPC).
+	// Keep its state while held, including when hilt changes reset one channel
+	// or replayed WASD commands would run past the end of an animation timer.
+	if ( CG_InMeleeGrappleVictimState( predictionPS ) )
+	{
+		oldPlayerState = cg.predictedPlayerState;
+		VectorClear( cg.predictedError );
+		cg.predictedErrorTime = 0;
+		cg.predictedTimeFrac = 0.0f;
+		CG_InterpolatePlayerState( qfalse );
+		if ( !cg_noPredict.integer && !g_synchronousClients.integer && !CG_UsingEWeb() )
+		{
+			// With prediction disabled, CG_TransitionSnapshot already does this.
+			CG_TransitionPlayerState( &cg.predictedPlayerState, &oldPlayerState );
+		}
+		return;
+	}
+
 	// non-predicting local movement will grab the latest angles
 	if ( cg_noPredict.integer || g_synchronousClients.integer || CG_UsingEWeb() ) {
 		CG_InterpolatePlayerState( qtrue );
+		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
+		{
+			CG_InterpolateVehiclePlayerState(qtrue);
+		}
+		return;
+	}
+
+	// JA+ added side/back-kick knockdowns: the server runs its own knockdown/get-up rules that our
+	// bg_pmove doesn't replicate, so while we're down every movement input mispredicts
+	// and the constant error corrections make the camera stutter. We can't actually
+	// move during the knockdown anyway, so prediction buys nothing there: fall back to
+	// authoritative snapshot interpolation until we're back on our feet. Keep the
+	// server angles as well because JA+ controls the victim's view during this state.
+	if ( cgs.serverMod == SVMOD_JAPLUS && CG_InJAPlusSpecialKickState( &cg.snap->ps ) )
+	{
+		CG_InterpolatePlayerState( qfalse );
 		if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 		{
 			CG_InterpolateVehiclePlayerState(qtrue);
@@ -1126,6 +1329,27 @@ void CG_PredictPlayerState( void ) {
 	if ( cg.snap->ps.persistant[PERS_TEAM] == TEAM_SPECTATOR || cg.snap->ps.pm_type == PM_SPECTATOR ) {
 		cg_pmove.tracemask &= ~CONTENTS_BODY;	// spectators can fly through bodies
 	}
+	// JA+ makes a player non-solid in several places - "amghost", the grace after unghosting
+	// inside someone, the walk-apart at the end of a duel - and in all of them the server's
+	// clipmask loses CONTENTS_BODY and CONTENTS_PLAYERCLIP and it walks us straight through other
+	// players while an unaware client still collides with them. Every overlap ends with the client
+	// blocked and the server several units further along, and cg_errorDecay smears the corrections
+	// that follow into the view - the stuttering, clonky movement people reported while ghosted.
+	//
+	// The server tells us outright: it sets GHOST_KNOWN_FLAG in the playerState every ClientThink
+	// from that same clipmask decision, so this is not an amghost flag and must not be narrowed
+	// into one - it covers every reason the server passes us through, self-heals across respawns,
+	// and picks up new ones with no client change. Read it off the snapshot rather than
+	// predictedPlayerState, which is ours to scribble on. An unpatched client ignores the bit.
+	//
+	// Duels are the layer below this: CG_ClipMoveToEntities skips duelists per entity, which only
+	// ever removes collisions too, so the two compose and neither can re-solidify the other.
+	if ( (cg.snap->ps.fd.forcePowersKnown & GHOST_KNOWN_FLAG)
+		&& cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR
+		&& cg_pmove.ps->pm_type != PM_DEAD )
+	{
+		cg_pmove.tracemask &= ~(CONTENTS_BODY | CONTENTS_PLAYERCLIP);
+	}
 	cg_pmove.noFootsteps = ( cgs.dmflags & DF_NO_FOOTSTEPS ) > 0;
 
 	// save the state before the pmove so we can detect transitions
@@ -1162,8 +1386,11 @@ void CG_PredictPlayerState( void ) {
 
 		// Save client-predicted torso animation before server overwrites it
 		int savedTorsoAnim = cg.predictedPlayerState.torsoAnim;
+		qboolean savedTorsoFlip = cg.predictedPlayerState.torsoFlip;
 		int savedWeapon = cg.predictedPlayerState.weapon;
+		int savedWeaponState = cg.predictedPlayerState.weaponstate;
 		int savedWeaponTime = cg.predictedPlayerState.weaponTime;
+		int savedVehicleNum = cg.predictedPlayerState.m_iVehicleNum;
 
 		cg.predictedPlayerState = cg.nextSnap->ps;
 		if (CG_Piloting(cg.nextSnap->ps.m_iVehicleNum))
@@ -1174,14 +1401,18 @@ void CG_PredictPlayerState( void ) {
 
 		// Restore client-predicted weapon attack animation if still firing
 		// This prevents non-JaPRO servers from overwriting our correct prediction
-		CG_RestorePredictedWeaponAttackAnim(&cg.predictedPlayerState, savedWeapon, savedWeaponTime, savedTorsoAnim);
+		CG_RestorePredictedWeaponAttackAnim(&cg.predictedPlayerState, savedWeapon, savedWeaponState,
+			savedWeaponTime, savedVehicleNum, savedTorsoAnim, savedTorsoFlip);
 	} else {
 		cg.snap->ps.slopeRecalcTime = cg.predictedPlayerState.slopeRecalcTime; //this is the only value we want to maintain seperately on server/client
 
 		// Save client-predicted torso animation before server overwrites it
 		int savedTorsoAnim = cg.predictedPlayerState.torsoAnim;
+		qboolean savedTorsoFlip = cg.predictedPlayerState.torsoFlip;
 		int savedWeapon = cg.predictedPlayerState.weapon;
+		int savedWeaponState = cg.predictedPlayerState.weaponstate;
 		int savedWeaponTime = cg.predictedPlayerState.weaponTime;
+		int savedVehicleNum = cg.predictedPlayerState.m_iVehicleNum;
 
 		cg.predictedPlayerState = cg.snap->ps;
 		if (CG_Piloting(cg.snap->ps.m_iVehicleNum))
@@ -1192,7 +1423,8 @@ void CG_PredictPlayerState( void ) {
 
 		// Restore client-predicted weapon attack animation if still firing
 		// This prevents non-JaPRO servers from overwriting our correct prediction
-		CG_RestorePredictedWeaponAttackAnim(&cg.predictedPlayerState, savedWeapon, savedWeaponTime, savedTorsoAnim);
+		CG_RestorePredictedWeaponAttackAnim(&cg.predictedPlayerState, savedWeapon, savedWeaponState,
+			savedWeaponTime, savedVehicleNum, savedTorsoAnim, savedTorsoFlip);
 	}
 
 	//JAPRO - Clientside - Unlock Pmove bounds - Start
@@ -1353,7 +1585,12 @@ void CG_PredictPlayerState( void ) {
 				len = VectorLength( delta );
 				if ( len > 0.1 ) {
 					if ( cg_showMiss.integer ) {
-						trap->Print("Prediction miss: %f\n", len);
+						// dump the snapshot anim state too, to identify states (e.g. JA+
+						// knockdown get-ups) that slip past the knockdown prediction gate
+						trap->Print("Prediction miss: %f (legsAnim %d legsTimer %d torsoAnim %d torsoTimer %d fhe %d pm_type %d)\n",
+							len, cg.snap->ps.legsAnim, cg.snap->ps.legsTimer,
+							cg.snap->ps.torsoAnim, cg.snap->ps.torsoTimer,
+							cg.snap->ps.forceHandExtend, cg.snap->ps.pm_type);
 					}
 					if ( cg_errorDecay.integer ) {
 						int		t;
@@ -1631,6 +1868,8 @@ void CG_PredictPlayerState( void ) {
 		//CG_CheckChangedPredictableEvents(&cg.predictedPlayerState);
 	}
 
+	CG_PreserveMeleeKataFlightAnimation( &cg.predictedPlayerState, predictionPS );
+
 	if ( cg_showMiss.integer == 2 ) {
 		trap->Print( "[%i : %i] ", cg_pmove.cmd.serverTime, cg.time );
 	}
@@ -1641,6 +1880,8 @@ void CG_PredictPlayerState( void ) {
 		}
 		goto revertES;
 	}
+
+	CG_PreserveMeleeKataFlightAnimation( &cg.predictedPlayerState, &cg.snap->ps );
 
 	if (CG_Piloting(cg.predictedPlayerState.m_iVehicleNum))
 	{

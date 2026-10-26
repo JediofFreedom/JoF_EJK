@@ -124,7 +124,7 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Download Sunny's Vulkan DLL
+      - name: Download Sunny's Vulkan renderer
         shell: bash
         run: |
           mkdir -p external
@@ -138,7 +138,7 @@ jobs:
           curl -L -o external/$ZIP_NAME \
             https://github.com/JKSunny/EternalJK/releases/download/latest/$ZIP_NAME
           unzip -j external/$ZIP_NAME "$DLL_NAME" -d external
-          echo "RD_VULKAN_DLL=${{ github.workspace }}/external/$DLL_NAME" >> $GITHUB_ENV
+          echo "RD_VULKAN_MODULE=${{ github.workspace }}/external/$DLL_NAME" >> $GITHUB_ENV
 
       - name: Create build directory
         run: cmake -E make_directory build
@@ -152,9 +152,11 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DJOF_VERSION_STRING="${{ needs.beta-version.outputs.base_version }}" \
             -DJOF_VERSION_SUFFIX="${{ needs.beta-version.outputs.version_suffix }}" \
+            -DJOF_RELEASE_TAG="${{ needs.beta-version.outputs.tag_version }}" \
+            -DJOF_RELEASE_CHANNEL=beta \
             -DGIT_SHA=${{ github.sha }} \
             -DGIT_BRANCH=${{ github.ref_name }} \
-            -DEXTERNAL_RD_VULKAN_DLL="$RD_VULKAN_DLL"
+            -DEXTERNAL_RD_VULKAN_MODULE="$RD_VULKAN_MODULE"
 
       - name: Build
         working-directory: ${{ github.workspace }}/build
@@ -181,6 +183,24 @@ jobs:
           name: JoF-beta-windows-${{ matrix.arch }}
           path: build/bin
           if-no-files-found: error
+
+      # Linked .pdb files for every module we build. Kept out of build/bin,
+      # which is the player download - attached to the release separately
+      # so crash dumps can be opened at the source line. Symbols are never
+      # allowed to block a release, hence if-no-files-found: warn below.
+      - name: Collect debug symbols
+        shell: bash
+        run: |
+          mkdir -p symbols
+          find build -name '*.pdb' -not -path 'build/bin/*' -not -path '*.dir/*' -exec cp {} symbols/ \;
+          ls -l symbols
+
+      - name: Upload debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: JoF-beta-windows-${{ matrix.arch }}-symbols
+          path: symbols
+          if-no-files-found: warn
 
   linux:
     if: github.ref == 'refs/heads/beta' && github.event_name == 'push'
@@ -210,6 +230,22 @@ jobs:
             sudo apt-get -y install libjpeg-dev libpng-dev zlib1g-dev libsdl2-dev
           fi
 
+      - name: Download Sunny's Vulkan renderer
+        shell: bash
+        run: |
+          mkdir -p external
+          # Upstream names the 32-bit module i386, which is also what our own
+          # ${Architecture} resolves to on that target (see CMakeLists.txt).
+          if [ "${{ matrix.arch }}" = "x86" ]; then
+            SO_NAME=rd-vulkan_i386.so
+          else
+            SO_NAME=rd-vulkan_${{ matrix.arch }}.so
+          fi
+          curl -fL -o external/EternalJK.tar.gz \
+            https://github.com/JKSunny/EternalJK/releases/download/latest/EternalJK-linux-${{ matrix.arch }}.tar.gz
+          tar xzf external/EternalJK.tar.gz -C external "$SO_NAME"
+          echo "RD_VULKAN_MODULE=${{ github.workspace }}/external/$SO_NAME" >> $GITHUB_ENV
+
       - name: Create build directory
         run: cmake -E make_directory build
 
@@ -224,8 +260,11 @@ jobs:
             -DBuildPortableVersion=OFF
             "-DJOF_VERSION_STRING=${{ needs.beta-version.outputs.base_version }}"
             "-DJOF_VERSION_SUFFIX=${{ needs.beta-version.outputs.version_suffix }}"
+            "-DJOF_RELEASE_TAG=${{ needs.beta-version.outputs.tag_version }}"
+            -DJOF_RELEASE_CHANNEL=beta
             -DGIT_SHA=${{ github.sha }}
             -DGIT_BRANCH=${{ github.ref_name }}
+            "-DEXTERNAL_RD_VULKAN_MODULE=$RD_VULKAN_MODULE"
           )
           if [ "${{ matrix.arch }}" = "x86" ]; then
             OPTIONS+=(-DCMAKE_TOOLCHAIN_FILE=cmake/Toolchains/linux-i686.cmake)
@@ -286,10 +325,55 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Install dependencies
+      - name: Build SDL2 from source
+        shell: bash
         run: |
-          brew install sdl2
+          # Homebrew's `sdl2` formula is now an alias for `sdl2-compat`, which is
+          # an SDL2 shim over SDL3. It dlopen()s "libSDL3.dylib" at runtime, so
+          # fixup_bundle cannot see that dependency and never copies it into the
+          # .app -- users without Homebrew's sdl3 then get "Failed loading SDL3
+          # library." Build genuine SDL2 ourselves so the bundle stays complete.
+          SDL2_VERSION=2.32.10
+          curl -L -o SDL2.tar.gz \
+            https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz
+          tar xzf SDL2.tar.gz
+          cmake -S SDL2-${SDL2_VERSION} -B sdl2-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/sdl2-prefix \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9 \
+            -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST=OFF
+          cmake --build sdl2-build -j $(sysctl -n hw.ncpu)
+          cmake --install sdl2-build
+          echo "SDL2DIR=${{ github.workspace }}/sdl2-prefix" >> $GITHUB_ENV
           cmake -E make_directory build
+
+      - name: Download Sunny's Vulkan renderer
+        shell: bash
+        run: |
+          mkdir -p external
+          DYLIB_NAME=rd-vulkan_${{ matrix.arch }}.dylib
+          # Upstream ships the module inside its own .app bundle, so strip the
+          # bundle path back off and keep just the dylib.
+          curl -fL -o external/EternalJK.tar.gz \
+            https://github.com/JKSunny/EternalJK/releases/download/latest/EternalJK-macos-${{ matrix.arch }}.tar.gz
+          tar xzf external/EternalJK.tar.gz -C external --strip-components=3 \
+            "eternaljk.${{ matrix.arch }}.app/Contents/MacOS/$DYLIB_NAME"
+          echo "RD_VULKAN_MODULE=${{ github.workspace }}/external/$DYLIB_NAME" >> $GITHUB_ENV
+
+      - name: Bundle MoltenVK
+        shell: bash
+        run: |
+          # macOS has no system Vulkan, so the renderer needs MoltenVK (Vulkan
+          # over Metal) shipped inside the .app -- otherwise only players who
+          # separately installed the Vulkan SDK could use it.
+          brew install molten-vk
+          MOLTENVK_LIB="$(brew --prefix molten-vk)/lib/libMoltenVK.dylib"
+          if [ ! -f "$MOLTENVK_LIB" ]; then
+            echo "libMoltenVK.dylib not found at $MOLTENVK_LIB" >&2
+            exit 1
+          fi
+          echo "MOLTENVK_LIBRARY=$MOLTENVK_LIB" >> $GITHUB_ENV
 
       - name: Configure CMake
         working-directory: ${{ github.workspace }}/build
@@ -302,8 +386,12 @@ jobs:
             -DBuildPortableVersion=OFF \
             -DJOF_VERSION_STRING="${{ needs.beta-version.outputs.base_version }}" \
             -DJOF_VERSION_SUFFIX="${{ needs.beta-version.outputs.version_suffix }}" \
+            -DJOF_RELEASE_TAG="${{ needs.beta-version.outputs.tag_version }}" \
+            -DJOF_RELEASE_CHANNEL=beta \
             -DGIT_SHA=${{ github.sha }} \
-            -DGIT_BRANCH=${{ github.ref_name }}
+            -DGIT_BRANCH=${{ github.ref_name }} \
+            -DEXTERNAL_RD_VULKAN_MODULE="$RD_VULKAN_MODULE" \
+            -DEXTERNAL_MOLTENVK_LIBRARY="$MOLTENVK_LIBRARY"
 
       - name: Build
         working-directory: ${{ github.workspace }}/build
@@ -368,6 +456,15 @@ jobs:
           mv JoF-beta-macos-x86_64/JoF-beta-macos-x86_64.tar.gz JoF-macos-x86_64.tar.gz
           mv JoF-beta-macos-arm64/JoF-beta-macos-arm64.tar.gz   JoF-macos-arm64.tar.gz
 
+          # Symbols are optional - never let them fail a release.
+          for arch in x86 x86_64; do
+            if [ -d "JoF-beta-windows-$arch-symbols" ]; then
+              zip -r "JoF-windows-$arch-symbols.zip" "JoF-beta-windows-$arch-symbols"
+            else
+              echo "::warning::No debug symbols for windows-$arch"
+            fi
+          done
+
       - name: Setup git authentication for tag push
         run: |
           git config --global user.name "github-actions[bot]"
@@ -421,6 +518,8 @@ jobs:
           files: |
             JoF-windows-x86.zip
             JoF-windows-x86_64.zip
+            JoF-windows-x86-symbols.zip
+            JoF-windows-x86_64-symbols.zip
             JoF-linux-x86.tar.gz
             JoF-linux-x86_64.tar.gz
             JoF-macos-x86_64.tar.gz
@@ -445,6 +544,39 @@ jobs:
             --arg desc "A new beta build is available for download." \
             '{username:"JoF Releases", embeds:[{title:$title, url:$url, description:$desc, color:15844367}]}')
           curl -sf -H "Content-Type: application/json" -X POST -d "$payload" "$DISCORD_WEBHOOK"
+
+  # The in-client updater's files for the release (docs/updater.md). A job of its
+  # own: the signing key lives in the release-signing environment, which only
+  # master and beta may use, and a failure here never holds the release back.
+  update-files-beta:
+    if: github.ref == 'refs/heads/beta' && github.event_name == 'push'
+    name: Signed Update Files (Beta)
+    needs: [beta-version, publish-beta]
+    runs-on: ubuntu-22.04
+    environment: release-signing
+    steps:
+      - name: Checkout triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Download Windows x86 build
+        uses: actions/download-artifact@v4
+        with:
+          name: JoF-beta-windows-x86
+          path: artifacts/windows-x86
+
+      - name: Download Windows x86_64 build
+        uses: actions/download-artifact@v4
+        with:
+          name: JoF-beta-windows-x86_64
+          path: artifacts/windows-x86_64
+
+      - name: Build, sign and attach the update files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: bash scripts/update/publish-update-files.sh "${{ needs.beta-version.outputs.tag_version }}" beta artifacts
 
   # =========================
   # MASTER (nightly/manual, only if changes)
@@ -489,7 +621,7 @@ jobs:
 
           # Ignore docs/md/.gitignore changes
           CHANGES=$(git diff --name-only "$LAST_COMMIT" HEAD \
-            | grep -vE '(\.md$|^\.gitignore$|^docs/|^\.github/)' || true)
+            | grep -vE '(\.md$|^\.gitignore$|^docs/)' || true)
 
           if [ -z "$CHANGES" ]; then
             echo "No relevant changes; skipping nightly/manual build."
@@ -558,7 +690,7 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Download Sunny's Vulkan DLL
+      - name: Download Sunny's Vulkan renderer
         shell: bash
         run: |
           mkdir -p external
@@ -572,7 +704,7 @@ jobs:
           curl -L -o external/$ZIP_NAME \
             https://github.com/JKSunny/EternalJK/releases/download/latest/$ZIP_NAME
           unzip -j external/$ZIP_NAME "$DLL_NAME" -d external
-          echo "RD_VULKAN_DLL=${{ github.workspace }}/external/$DLL_NAME" >> $GITHUB_ENV
+          echo "RD_VULKAN_MODULE=${{ github.workspace }}/external/$DLL_NAME" >> $GITHUB_ENV
 
       - name: Create build directory
         run: cmake -E make_directory build
@@ -585,9 +717,11 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=bin \
             -DCMAKE_BUILD_TYPE=Release \
             -DJOF_VERSION_STRING="${{ needs.master-version.outputs.version }}" \
+            -DJOF_RELEASE_TAG="${{ needs.master-version.outputs.version }}" \
+            -DJOF_RELEASE_CHANNEL=stable \
             -DGIT_SHA=${{ github.sha }} \
             -DGIT_BRANCH=${{ github.ref_name }} \
-            -DEXTERNAL_RD_VULKAN_DLL="$RD_VULKAN_DLL"
+            -DEXTERNAL_RD_VULKAN_MODULE="$RD_VULKAN_MODULE"
 
       - name: Build
         working-directory: ${{ github.workspace }}/build
@@ -614,6 +748,24 @@ jobs:
           name: JoF-master-windows-${{ matrix.arch }}
           path: build/bin
           if-no-files-found: error
+
+      # Linked .pdb files for every module we build. Kept out of build/bin,
+      # which is the player download - attached to the release separately
+      # so crash dumps can be opened at the source line. Symbols are never
+      # allowed to block a release, hence if-no-files-found: warn below.
+      - name: Collect debug symbols
+        shell: bash
+        run: |
+          mkdir -p symbols
+          find build -name '*.pdb' -not -path 'build/bin/*' -not -path '*.dir/*' -exec cp {} symbols/ \;
+          ls -l symbols
+
+      - name: Upload debug symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: JoF-master-windows-${{ matrix.arch }}-symbols
+          path: symbols
+          if-no-files-found: warn
 
   linux-master:
     if: needs.check-master-changes.outputs.should_run == 'true'
@@ -643,6 +795,22 @@ jobs:
             sudo apt-get -y install libjpeg-dev libpng-dev zlib1g-dev libsdl2-dev
           fi
 
+      - name: Download Sunny's Vulkan renderer
+        shell: bash
+        run: |
+          mkdir -p external
+          # Upstream names the 32-bit module i386, which is also what our own
+          # ${Architecture} resolves to on that target (see CMakeLists.txt).
+          if [ "${{ matrix.arch }}" = "x86" ]; then
+            SO_NAME=rd-vulkan_i386.so
+          else
+            SO_NAME=rd-vulkan_${{ matrix.arch }}.so
+          fi
+          curl -fL -o external/EternalJK.tar.gz \
+            https://github.com/JKSunny/EternalJK/releases/download/latest/EternalJK-linux-${{ matrix.arch }}.tar.gz
+          tar xzf external/EternalJK.tar.gz -C external "$SO_NAME"
+          echo "RD_VULKAN_MODULE=${{ github.workspace }}/external/$SO_NAME" >> $GITHUB_ENV
+
       - name: Create build directory
         run: cmake -E make_directory build
 
@@ -656,8 +824,11 @@ jobs:
             -DUseInternalLibs=OFF
             -DBuildPortableVersion=OFF
             "-DJOF_VERSION_STRING=${{ needs.master-version.outputs.version }}"
+            "-DJOF_RELEASE_TAG=${{ needs.master-version.outputs.version }}"
+            -DJOF_RELEASE_CHANNEL=stable
             -DGIT_SHA=${{ github.sha }}
             -DGIT_BRANCH=${{ github.ref_name }}
+            "-DEXTERNAL_RD_VULKAN_MODULE=$RD_VULKAN_MODULE"
           )
           if [ "${{ matrix.arch }}" = "x86" ]; then
             OPTIONS+=(-DCMAKE_TOOLCHAIN_FILE=cmake/Toolchains/linux-i686.cmake)
@@ -718,10 +889,55 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Install dependencies
+      - name: Build SDL2 from source
+        shell: bash
         run: |
-          brew install sdl2
+          # Homebrew's `sdl2` formula is now an alias for `sdl2-compat`, which is
+          # an SDL2 shim over SDL3. It dlopen()s "libSDL3.dylib" at runtime, so
+          # fixup_bundle cannot see that dependency and never copies it into the
+          # .app -- users without Homebrew's sdl3 then get "Failed loading SDL3
+          # library." Build genuine SDL2 ourselves so the bundle stays complete.
+          SDL2_VERSION=2.32.10
+          curl -L -o SDL2.tar.gz \
+            https://github.com/libsdl-org/SDL/releases/download/release-${SDL2_VERSION}/SDL2-${SDL2_VERSION}.tar.gz
+          tar xzf SDL2.tar.gz
+          cmake -S SDL2-${SDL2_VERSION} -B sdl2-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/sdl2-prefix \
+            -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9 \
+            -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST=OFF
+          cmake --build sdl2-build -j $(sysctl -n hw.ncpu)
+          cmake --install sdl2-build
+          echo "SDL2DIR=${{ github.workspace }}/sdl2-prefix" >> $GITHUB_ENV
           cmake -E make_directory build
+
+      - name: Download Sunny's Vulkan renderer
+        shell: bash
+        run: |
+          mkdir -p external
+          DYLIB_NAME=rd-vulkan_${{ matrix.arch }}.dylib
+          # Upstream ships the module inside its own .app bundle, so strip the
+          # bundle path back off and keep just the dylib.
+          curl -fL -o external/EternalJK.tar.gz \
+            https://github.com/JKSunny/EternalJK/releases/download/latest/EternalJK-macos-${{ matrix.arch }}.tar.gz
+          tar xzf external/EternalJK.tar.gz -C external --strip-components=3 \
+            "eternaljk.${{ matrix.arch }}.app/Contents/MacOS/$DYLIB_NAME"
+          echo "RD_VULKAN_MODULE=${{ github.workspace }}/external/$DYLIB_NAME" >> $GITHUB_ENV
+
+      - name: Bundle MoltenVK
+        shell: bash
+        run: |
+          # macOS has no system Vulkan, so the renderer needs MoltenVK (Vulkan
+          # over Metal) shipped inside the .app -- otherwise only players who
+          # separately installed the Vulkan SDK could use it.
+          brew install molten-vk
+          MOLTENVK_LIB="$(brew --prefix molten-vk)/lib/libMoltenVK.dylib"
+          if [ ! -f "$MOLTENVK_LIB" ]; then
+            echo "libMoltenVK.dylib not found at $MOLTENVK_LIB" >&2
+            exit 1
+          fi
+          echo "MOLTENVK_LIBRARY=$MOLTENVK_LIB" >> $GITHUB_ENV
 
       - name: Configure CMake
         working-directory: ${{ github.workspace }}/build
@@ -733,8 +949,12 @@ jobs:
             -DUseInternalLibs=OFF \
             -DBuildPortableVersion=OFF \
             -DJOF_VERSION_STRING="${{ needs.master-version.outputs.version }}" \
+            -DJOF_RELEASE_TAG="${{ needs.master-version.outputs.version }}" \
+            -DJOF_RELEASE_CHANNEL=stable \
             -DGIT_SHA=${{ github.sha }} \
-            -DGIT_BRANCH=${{ github.ref_name }}
+            -DGIT_BRANCH=${{ github.ref_name }} \
+            -DEXTERNAL_RD_VULKAN_MODULE="$RD_VULKAN_MODULE" \
+            -DEXTERNAL_MOLTENVK_LIBRARY="$MOLTENVK_LIBRARY"
 
       - name: Build
         working-directory: ${{ github.workspace }}/build
@@ -798,6 +1018,15 @@ jobs:
           mv JoF-master-macos-x86_64/JoF-master-macos-x86_64.tar.gz JoF-macos-x86_64.tar.gz
           mv JoF-master-macos-arm64/JoF-master-macos-arm64.tar.gz   JoF-macos-arm64.tar.gz
 
+          # Symbols are optional - never let them fail a release.
+          for arch in x86 x86_64; do
+            if [ -d "JoF-master-windows-$arch-symbols" ]; then
+              zip -r "JoF-windows-$arch-symbols.zip" "JoF-master-windows-$arch-symbols"
+            else
+              echo "::warning::No debug symbols for windows-$arch"
+            fi
+          done
+
       - name: Setup git authentication for tag push
         run: |
           git config --global user.name "github-actions[bot]"
@@ -821,6 +1050,8 @@ jobs:
           files: |
             JoF-windows-x86.zip
             JoF-windows-x86_64.zip
+            JoF-windows-x86-symbols.zip
+            JoF-windows-x86_64-symbols.zip
             JoF-linux-x86.tar.gz
             JoF-linux-x86_64.tar.gz
             JoF-macos-x86_64.tar.gz
@@ -844,3 +1075,34 @@ jobs:
             --arg desc "A new stable build is available for download." \
             '{username:"JoF Releases", embeds:[{title:$title, url:$url, description:$desc, color:5763719}]}')
           curl -sf -H "Content-Type: application/json" -X POST -d "$payload" "$DISCORD_WEBHOOK"
+
+  # As update-files-beta, for the stable release.
+  update-files-master:
+    if: needs.check-master-changes.outputs.should_run == 'true'
+    name: Signed Update Files (Master)
+    needs: [check-master-changes, master-version, publish-master]
+    runs-on: ubuntu-22.04
+    environment: release-signing
+    steps:
+      - name: Checkout triggering commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Download Windows x86 build
+        uses: actions/download-artifact@v4
+        with:
+          name: JoF-master-windows-x86
+          path: artifacts/windows-x86
+
+      - name: Download Windows x86_64 build
+        uses: actions/download-artifact@v4
+        with:
+          name: JoF-master-windows-x86_64
+          path: artifacts/windows-x86_64
+
+      - name: Build, sign and attach the update files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: bash scripts/update/publish-update-files.sh "${{ needs.master-version.outputs.version }}" stable artifacts

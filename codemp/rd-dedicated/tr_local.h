@@ -537,10 +537,17 @@ typedef struct trRefdef_s {
 //=================================================================================
 
 // skins allow models to be retextured without modifying the model file
-typedef struct skinSurface_s {
+typedef struct {
 	char		name[MAX_QPATH];
 	shader_t	*shader;
 } skinSurface_t;
+
+typedef struct skin_s {
+	char		name[MAX_QPATH];		// game path, including extension
+	int			numSurfaces;
+	skinSurface_t	*surfaces[128];
+} skin_t;
+
 
 typedef struct fog_s {
 	int			originalBrushNumber;
@@ -892,7 +899,7 @@ void		R_Modellist_f (void);
 
 #define	MAX_DRAWIMAGES			2048
 #define	MAX_LIGHTMAPS			256
-#define	MAX_SKINS				1024
+#define	MAX_SKINS				4096
 
 
 #define	MAX_DRAWSURFS			0x10000

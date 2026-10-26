@@ -2187,6 +2187,8 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	if ( !attacker )
 		return;
 
+	G_ClearMissionPartyTags(self);
+
 	if (g_duelRespawn.integer && level.gametype == GT_FFA && self->client->ps.duelInProgress && !self->client->pers.noDuelTele && (meansOfDeath != MOD_SUICIDE) && (meansOfDeath != MOD_TEAM_CHANGE)) {
 		VectorCopy(self->client->ps.origin, self->client->pers.respawnLocation);
 		self->client->pers.respawnAngle = self->client->ps.viewangles[YAW];
@@ -3502,7 +3504,8 @@ void G_GetDismemberBolt(gentity_t *self, vec3_t boltPoint, int limbType)
 			te->s.angles[1] = 1;
 		}
 
-		te->s.eventParm = 16; //lots of sparks
+		// Droids use the metal impact path; organic characters use the flesh-spark path.
+		te->s.eventParm = BG_IsDroidClass(self->client->NPC_class) ? 0 : 16;
 	}
 }
 

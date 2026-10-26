@@ -1,5 +1,8 @@
 #pragma once
 
+// gsl-lite.h includes <cstdint> inside namespace gsl, which breaks compilers
+// (GCC 13+, recent clang) whose other headers no longer include it first.
+#include <cstdint>
 // central point of include to simplify possible future swap for Microsoft's implementation
 #include <gsl/gsl-lite.h>
 

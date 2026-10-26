@@ -42,6 +42,7 @@ field_t		historyEditLines[COMMAND_HISTORY];
 field_t		chatField;
 qboolean	chat_team;
 int			chat_playerNum;
+qboolean	chat_sjk;
 
 keyGlobals_t	kg;
 
@@ -389,6 +390,107 @@ keyname_t keynames[MAX_KEYS] =
 };
 static const size_t numKeynames = ARRAY_LEN( keynames );
 
+// --- Key combo bindings (bind G+H say blabla) ---
+
+#define MAX_KEY_COMBOS 256
+
+typedef struct keyCombo_s {
+	int  key1;    // normalized: key1 <= key2
+	int  key2;
+	char *binding;
+} keyCombo_t;
+
+static keyCombo_t g_keyCombos[MAX_KEY_COMBOS];
+static int        g_numKeyCombos = 0;
+static int        g_keyActiveCombo[MAX_KEYS]; // index into g_keyCombos, -1 = none
+
+static void Key_InitCombos( void ) {
+	memset( g_keyCombos, 0, sizeof( g_keyCombos ) );
+	g_numKeyCombos = 0;
+	for ( int i = 0; i < MAX_KEYS; i++ )
+		g_keyActiveCombo[i] = -1;
+}
+
+static int Key_FindCombo( int k1, int k2 ) {
+	if ( k1 > k2 ) { int t = k1; k1 = k2; k2 = t; }
+	for ( int i = 0; i < g_numKeyCombos; i++ )
+		if ( g_keyCombos[i].key1 == k1 && g_keyCombos[i].key2 == k2 )
+			return i;
+	return -1;
+}
+
+static void Key_SetComboBinding( int k1, int k2, const char *binding ) {
+	if ( k1 > k2 ) { int t = k1; k1 = k2; k2 = t; }
+
+	int idx = Key_FindCombo( k1, k2 );
+
+	if ( !VALIDSTRING( binding ) ) {
+		// unbind: remove from array
+		if ( idx < 0 )
+			return;
+		if ( g_keyCombos[idx].binding )
+			Z_Free( g_keyCombos[idx].binding );
+		// fill gap by swapping with last entry
+		int movedFrom = --g_numKeyCombos;
+		g_keyCombos[idx] = g_keyCombos[movedFrom];
+		memset( &g_keyCombos[movedFrom], 0, sizeof( g_keyCombos[0] ) );
+		// fix up any live g_keyActiveCombo entries that pointed to the moved slot
+		for ( int i = 0; i < MAX_KEYS; i++ ) {
+			if ( g_keyActiveCombo[i] == movedFrom )
+				g_keyActiveCombo[i] = idx;
+			else if ( g_keyActiveCombo[i] == idx )
+				g_keyActiveCombo[i] = -1; // the removed combo was active; invalidate
+		}
+		cvar_modifiedFlags |= CVAR_ARCHIVE;
+		return;
+	}
+
+	if ( idx < 0 ) {
+		if ( g_numKeyCombos >= MAX_KEY_COMBOS ) {
+			Com_Printf( "Key_SetComboBinding: MAX_KEY_COMBOS (%d) reached\n", MAX_KEY_COMBOS );
+			return;
+		}
+		idx = g_numKeyCombos++;
+		g_keyCombos[idx].key1    = k1;
+		g_keyCombos[idx].key2    = k2;
+		g_keyCombos[idx].binding = NULL;
+	}
+
+	if ( g_keyCombos[idx].binding )
+		Z_Free( g_keyCombos[idx].binding );
+
+	g_keyCombos[idx].binding = CopyString( binding );
+	cvar_modifiedFlags |= CVAR_ARCHIVE;
+}
+
+// Parse "K1+K2" from str. Returns qtrue and fills k1/k2 if valid combo, qfalse otherwise.
+static qboolean Key_ParseComboString( char *str, int *k1, int *k2 ) {
+	char buf[MAX_STRING_CHARS];
+	Q_strncpyz( buf, str, sizeof( buf ) );
+
+	// Use strrchr so that key names containing '+' (e.g. the plus key itself written as "+")
+	// are treated as key1; the separator is the last '+' in the string.
+	char *plus = strrchr( buf, '+' );
+	if ( !plus || plus == buf )
+		return qfalse;
+
+	*plus = '\0';
+	char *part1 = buf;
+	char *part2 = plus + 1;
+
+	if ( !part2[0] )
+		return qfalse;
+
+	int a = Key_StringToKeynum( part1 );
+	int b = Key_StringToKeynum( part2 );
+
+	if ( a < 0 || b < 0 || a == b )
+		return qfalse;
+
+	*k1 = a;
+	*k2 = b;
+	return qtrue;
+}
 
 
 /*
@@ -516,6 +618,11 @@ void Field_Paste( field_t *edit ) {
 	Z_Free( cbd );
 }
 
+// Same boundary set as the ctrl-backspace word-delete below, for consistency.
+static qboolean Field_IsWordBoundary( char c ) {
+	return ( c == ' ' || c == '/' || c == '_' || c == '-' ) ? qtrue : qfalse;
+}
+
 /*
 =================
 Field_KeyDownEvent
@@ -574,13 +681,25 @@ void Field_KeyDownEvent( field_t *edit, int key ) {
 			break;
 
 		case A_CURSOR_RIGHT:
-			if ( edit->cursor < len ) {
+			if ( kg.keys[A_CTRL].down ) {
+				// Skip the rest of the current word, then any separators after it.
+				while ( edit->cursor < len && !Field_IsWordBoundary( edit->buffer[edit->cursor] ) )
+					edit->cursor++;
+				while ( edit->cursor < len && Field_IsWordBoundary( edit->buffer[edit->cursor] ) )
+					edit->cursor++;
+			} else if ( edit->cursor < len ) {
 				edit->cursor++;
 			}
 			break;
 
 		case A_CURSOR_LEFT:
-			if ( edit->cursor > 0 ) {
+			if ( kg.keys[A_CTRL].down ) {
+				// Skip separators immediately to the left, then the word behind them.
+				while ( edit->cursor > 0 && Field_IsWordBoundary( edit->buffer[edit->cursor - 1] ) )
+					edit->cursor--;
+				while ( edit->cursor > 0 && !Field_IsWordBoundary( edit->buffer[edit->cursor - 1] ) )
+					edit->cursor--;
+			} else if ( edit->cursor > 0 ) {
 				edit->cursor--;
 			}
 			break;
@@ -874,6 +993,45 @@ void Console_Key( int key ) {
 
 /*
 ================
+CL_SayToServer
+
+Says text in the game server's chat, to everyone, quoted as Message_Key quotes the
+All channel (" as '' and % as the sequence the cgame turns back), without the chat
+style: SJK chat's copy of a line (cl_sjk.cpp)
+================
+*/
+void CL_SayToServer( const char *text ) {
+	char quoted[MAX_STRING_CHARS];
+	char command[MAX_STRING_CHARS];
+	size_t w = 0;
+
+	for ( const char *r = text; *r && w + 4 < sizeof( quoted ); r++ ) {
+		switch ( *r ) {
+			case '%':
+				quoted[w++] = '\xb0';
+				quoted[w++] = '/';
+				quoted[w++] = '.';
+				break;
+			case '"':
+				quoted[w++] = '\'';
+				quoted[w++] = '\'';
+				break;
+			default:
+				quoted[w++] = *r;
+				break;
+		}
+	}
+	quoted[w] = 0;
+
+	if ( cls.JKVersion != VERSION_1_01_CONSOLE )
+		Com_sprintf( command, sizeof( command ), "say \"%s\"\n", quoted );
+	else
+		Com_sprintf( command, sizeof( command ), "say %s", quoted );
+	CL_AddReliableCommand( command, qfalse );
+}
+
+/*
+================
 Message_Key
 
 In game talk message
@@ -887,6 +1045,33 @@ void Message_Key( int key ) {
 	if ( key == A_ESCAPE ) {
 		Key_SetCatcher( Key_GetCatcher() & ~KEYCATCH_MESSAGE );
 		Field_Clear( &chatField );
+		return;
+	}
+
+	// Tab goes round the channels: All, Team, SJK (while SJK chat is on); a whisper
+	// goes back to All. What is typed stays.
+	if ( key == A_TAB ) {
+		if ( chat_playerNum != -1 || chat_sjk ) {
+			chat_playerNum = -1;
+			chat_team = qfalse;
+			chat_sjk = qfalse;
+		} else if ( !chat_team ) {
+			chat_team = qtrue;
+		} else {
+			chat_team = qfalse;
+			chat_sjk = (qboolean)( Cvar_VariableIntegerValue( "cl_sjkChat" ) != 0 );
+		}
+		return;
+	}
+
+	// SJK chat goes to the SJK hub (cl_sjk.cpp) as typed, in a match or not; in a
+	// match it is said in the server's chat too, so its other players read it.
+	if ( chat_sjk && ( key == A_ENTER || key == A_KP_ENTER ) ) {
+		if ( chatField.buffer[0] )
+			CL_SJK_SayText( chatField.buffer );
+		Key_SetCatcher( Key_GetCatcher() & ~KEYCATCH_MESSAGE );
+		Field_Clear( &chatField );
+		cls.afkTime = cls.realtime;
 		return;
 	}
 
@@ -1194,7 +1379,17 @@ Key_Unbind_f
 */
 void Key_Unbind_f( void ) {
 	if ( Cmd_Argc() != 2 ) {
-		Com_Printf( "unbind <key> : remove commands from a key\n" );
+		Com_Printf( "unbind <key> : remove commands from a key\nfor combos use: unbind K1+K2\n" );
+		return;
+	}
+
+	int k1, k2;
+	if ( Key_ParseComboString( Cmd_Argv(1), &k1, &k2 ) ) {
+		if ( Key_FindCombo( k1, k2 ) < 0 ) {
+			Com_Printf( "\"%s\" is not bound\n", Cmd_Argv(1) );
+			return;
+		}
+		Key_SetComboBinding( k1, k2, "" );
 		return;
 	}
 
@@ -1217,6 +1412,16 @@ void Key_Unbindall_f( void ) {
 		if ( kg.keys[i].binding )
 			Key_SetBinding( i, "" );
 	}
+	// clear all combo bindings and active-combo tracking
+	for ( int i = 0; i < g_numKeyCombos; i++ ) {
+		if ( g_keyCombos[i].binding ) {
+			Z_Free( g_keyCombos[i].binding );
+			g_keyCombos[i].binding = NULL;
+		}
+	}
+	g_numKeyCombos = 0;
+	for ( int i = 0; i < MAX_KEYS; i++ )
+		g_keyActiveCombo[i] = -1;
 }
 
 /*
@@ -1228,7 +1433,26 @@ void Key_Bind_f( void ) {
 	int c = Cmd_Argc();
 
 	if ( c < 2 ) {
-		Com_Printf( "bind <key> [command] : attach a command to a key\n" );
+		Com_Printf( "bind <key> [command] : attach a command to a key\nfor combos use: bind K1+K2 command\n" );
+		return;
+	}
+
+	// Check for combo bind: "K1+K2"
+	int k1, k2;
+	if ( Key_ParseComboString( Cmd_Argv(1), &k1, &k2 ) ) {
+		if ( c == 2 ) {
+			int idx = Key_FindCombo( k1, k2 );
+			if ( idx >= 0 && VALIDSTRING(g_keyCombos[idx].binding) ) {
+				char name1buf[16];
+				Q_strncpyz( name1buf, Key_KeynumToString(k1), sizeof(name1buf) );
+				Com_Printf( S_COLOR_GREY "Bind " S_COLOR_WHITE "%s+%s = " S_COLOR_GREY "\"" S_COLOR_WHITE "%s" S_COLOR_GREY "\"" S_COLOR_WHITE "\n",
+					name1buf, Key_KeynumToString(k2), g_keyCombos[idx].binding );
+			} else {
+				Com_Printf( "\"%s\" is not bound\n", Cmd_Argv(1) );
+			}
+			return;
+		}
+		Key_SetComboBinding( k1, k2, Cmd_ArgsFrom( 2 ) );
 		return;
 	}
 
@@ -1318,6 +1542,15 @@ void Key_WriteBindings( fileHandle_t f ) {
 				FS_Printf( f, "bind \"%s\" \"%s\"\n", name, kg.keys[i].binding );
 		}
 	}
+	// write combo bindings
+	for ( int i = 0; i < g_numKeyCombos; i++ ) {
+		if ( VALIDSTRING( g_keyCombos[i].binding ) ) {
+			char name1buf[16];
+			Q_strncpyz( name1buf, Key_KeynumToString( g_keyCombos[i].key1 ), sizeof(name1buf) );
+			FS_Printf( f, "bind \"%s+%s\" \"%s\"\n",
+				name1buf, Key_KeynumToString( g_keyCombos[i].key2 ), g_keyCombos[i].binding );
+		}
+	}
 }
 
 /*
@@ -1330,6 +1563,15 @@ void Key_Bindlist_f( void ) {
 	for ( size_t i=0; i<MAX_KEYS; i++ ) {
 		if ( kg.keys[i].binding && kg.keys[i].binding[0] )
 			Com_Printf( S_COLOR_GREY "Key " S_COLOR_WHITE "%s (%s) = " S_COLOR_GREY "\"" S_COLOR_WHITE "%s" S_COLOR_GREY "\"" S_COLOR_WHITE "\n", Key_KeynumToAscii( i ), Key_KeynumToString( i ), kg.keys[i].binding );
+	}
+	// list combo bindings
+	for ( int i = 0; i < g_numKeyCombos; i++ ) {
+		if ( VALIDSTRING( g_keyCombos[i].binding ) ) {
+			char name1buf[16];
+			Q_strncpyz( name1buf, Key_KeynumToString( g_keyCombos[i].key1 ), sizeof(name1buf) );
+			Com_Printf( S_COLOR_GREY "Key " S_COLOR_WHITE "%s+%s = " S_COLOR_GREY "\"" S_COLOR_WHITE "%s" S_COLOR_GREY "\"" S_COLOR_WHITE "\n",
+				name1buf, Key_KeynumToString( g_keyCombos[i].key2 ), g_keyCombos[i].binding );
+		}
 	}
 }
 
@@ -1414,6 +1656,8 @@ CL_InitKeyCommands
 ===================
 */
 void CL_InitKeyCommands( void ) {
+	Key_InitCombos();
+
 	// register our functions
 	Cmd_AddCommand( "bind", Key_Bind_f, "Bind a key to a console command" );
 	Cmd_SetCommandCompletionFunc( "bind", Key_CompleteBind );
@@ -1459,23 +1703,53 @@ void CL_ParseBinding( int key, qboolean down, unsigned time )
 	if( cls.state == CA_DISCONNECTED && Key_GetCatcher( ) == 0 )
 		return;
 
-	// for rshift/ralt/rctrl, prefer the specific rshift/rctrl/ralt bind if
-	// it exists; otherwise, fallback to the generic shift/ctrl/alt bind
-	const char *binding;
-	int genericKey = 0;
-	switch (key) {
-		case A_SHIFT2:	genericKey = A_SHIFT;	break;
-		case A_CTRL2:	genericKey = A_CTRL;	break;
-		case A_ALT2:	genericKey = A_ALT;		break;
+	int upperKey = keynames[key].upper;
+	const char *binding = NULL;
+
+	if ( down ) {
+		// Check combo bindings: if any K1+K2 combo exists where the other key is held
+		g_keyActiveCombo[upperKey] = -1;
+		for ( int i = 0; i < g_numKeyCombos; i++ ) {
+			keyCombo_t *c = &g_keyCombos[i];
+			int otherKey = -1;
+			if ( c->key1 == upperKey )      otherKey = c->key2;
+			else if ( c->key2 == upperKey ) otherKey = c->key1;
+
+			if ( otherKey >= 0 && kg.keys[otherKey].down && VALIDSTRING(c->binding) ) {
+				binding = c->binding;
+				g_keyActiveCombo[upperKey] = i;
+				break;
+			}
+		}
+	} else {
+		// Key up: fire combo key-up (for +commands) if a combo was triggered
+		if ( g_keyActiveCombo[upperKey] >= 0 ) {
+			int ci = g_keyActiveCombo[upperKey];
+			if ( VALIDSTRING(g_keyCombos[ci].binding) )
+				binding = g_keyCombos[ci].binding;
+			g_keyActiveCombo[upperKey] = -1;
+		}
 	}
-	if (genericKey) {
-		if (VALIDSTRING(kg.keys[keynames[key].upper].binding))
-			binding = kg.keys[keynames[key].upper].binding;
-		else
-			binding = kg.keys[keynames[genericKey].upper].binding;
-	}
-	else {
-		binding = kg.keys[keynames[key].upper].binding;
+
+	// Fall back to normal single-key binding if no combo matched
+	if ( !binding ) {
+		// for rshift/ralt/rctrl, prefer the specific rshift/rctrl/ralt bind if
+		// it exists; otherwise, fallback to the generic shift/ctrl/alt bind
+		int genericKey = 0;
+		switch (key) {
+			case A_SHIFT2:	genericKey = A_SHIFT;	break;
+			case A_CTRL2:	genericKey = A_CTRL;	break;
+			case A_ALT2:	genericKey = A_ALT;		break;
+		}
+		if (genericKey) {
+			if (VALIDSTRING(kg.keys[keynames[key].upper].binding))
+				binding = kg.keys[keynames[key].upper].binding;
+			else
+				binding = kg.keys[keynames[genericKey].upper].binding;
+		}
+		else {
+			binding = kg.keys[upperKey].binding;
+		}
 	}
 
 	if (!VALIDSTRING(binding))
@@ -1614,6 +1888,22 @@ void CL_KeyDownEvent( int key, unsigned time )
 			return;
 		}
 
+		// Keep download progress (and its Abort button) visible. Its cursor
+		// normally blocks UI keys, but Escape may close the menu behind it.
+		// Once that menu is closed, consume Escape rather than reopening a menu
+		// or disconnecting. The Yes/No download prompt remains modal.
+		if ( clc.downloadMenuActive ) {
+			if ( !clc.downloadWaitingOnUser ) {
+				if ( Key_GetCatcher() & KEYCATCH_CGAME ) {
+					Key_SetCatcher( Key_GetCatcher() & ~KEYCATCH_CGAME );
+					CGVM_EventHandling( CGAME_EVENT_NONE );
+				} else if ( cls.uiStarted && (Key_GetCatcher() & KEYCATCH_UI) ) {
+					UIVM_KeyEvent( key, qtrue );
+				}
+			}
+			return;
+		}
+
 		// escape always gets out of CGAME stuff
 		if ( Key_GetCatcher() & KEYCATCH_CGAME ) {
 			Key_SetCatcher( Key_GetCatcher( ) & ~KEYCATCH_CGAME );
@@ -1635,25 +1925,28 @@ void CL_KeyDownEvent( int key, unsigned time )
 			return;
 		}
 
-		UIVM_KeyEvent( key, qtrue );
+		if ( !cls.cursorActive ) UIVM_KeyEvent( key, qtrue );
 		return;
 	}
 
 	// send the bound action
-	CL_ParseBinding( key, qtrue, time );
+	if ( !cls.cursorActive ) CL_ParseBinding( key, qtrue, time );
 
 	// distribute the key down event to the appropriate handler
 	// console
 	if ( Key_GetCatcher() & KEYCATCH_CONSOLE )
 		Console_Key( key );
+	else if ( cls.cursorActive ) {
+		CL_CursorButton( key );
+	}
 	// ui
 	else if ( Key_GetCatcher() & KEYCATCH_UI ) {
-		if ( cls.uiStarted )
+		if ( cls.uiStarted && !cls.cursorActive )
 			UIVM_KeyEvent( key, qtrue );
 	}
 	// cgame
 	else if ( Key_GetCatcher() & KEYCATCH_CGAME ) {
-		if ( cls.cgameStarted )
+		if ( cls.cgameStarted && !cls.cursorActive )
 			CGVM_KeyEvent( key, qtrue );
 	}
 	// chatbox

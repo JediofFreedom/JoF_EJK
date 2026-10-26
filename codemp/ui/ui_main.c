@@ -90,6 +90,7 @@ enum
 	MD_SINGLE_STRONG,
 	MD_DUAL_SABERS,
 	MD_SABER_STAFF,
+	MD_MELEE,
 	MD_MOVE_TITLE_MAX
 };
 
@@ -103,6 +104,7 @@ const char *datapadMoveTitleData[MD_MOVE_TITLE_MAX] =
 "@MENUS_SINGLE_STRONG",
 "@MENUS_DUAL_SABERS",
 "@MENUS_SABER_STAFF",
+"Melee & other attacks",
 };
 
 const char *datapadMoveTitleBaseAnims[MD_MOVE_TITLE_MAX] =
@@ -113,6 +115,7 @@ const char *datapadMoveTitleBaseAnims[MD_MOVE_TITLE_MAX] =
 "BOTH_SABERSLOW_STANCE",
 "BOTH_SABERDUAL_STANCE",
 "BOTH_SABERSTAFF_STANCE",
+"BOTH_WALK1",
 };
 
 #define MAX_MOVES 16
@@ -125,115 +128,96 @@ typedef struct datpadmovedata_s
 	short	sound;
 } datpadmovedata_t;
 
+// Move titles, descriptions, animations and sounds from JA+ clientPlugin_v1.4B4.
 static datpadmovedata_t datapadMoveData[MD_MOVE_TITLE_MAX][MAX_MOVES] = {
-	{// Acrobatics
-		{ "@MENUS_FORCE_JUMP1",				"@MENUS_FORCE_JUMP1_DESC",				"BOTH_FORCEJUMP1",				MDS_FORCE_JUMP },
-		{ "@MENUS_FORCE_FLIP",				"@MENUS_FORCE_FLIP_DESC",				"BOTH_FLIP_F",					MDS_FORCE_JUMP },
-		{ "@MENUS_ROLL",					"@MENUS_ROLL_DESC",						"BOTH_ROLL_F",					MDS_ROLL },
-		{ "@MENUS_BACKFLIP_OFF_WALL",		"@MENUS_BACKFLIP_OFF_WALL_DESC",		"BOTH_WALL_FLIP_BACK1",			MDS_FORCE_JUMP },
-		{ "@MENUS_SIDEFLIP_OFF_WALL",		"@MENUS_SIDEFLIP_OFF_WALL_DESC",		"BOTH_WALL_FLIP_RIGHT",			MDS_FORCE_JUMP },
-		{ "@MENUS_WALL_RUN",				"@MENUS_WALL_RUN_DESC",					"BOTH_WALL_RUN_RIGHT",			MDS_FORCE_JUMP },
-		{ "@MENUS_WALL_GRAB_JUMP",			"@MENUS_WALL_GRAB_JUMP_DESC",			"BOTH_FORCEWALLREBOUND_FORWARD",MDS_FORCE_JUMP },
-		{ "@MENUS_RUN_UP_WALL_BACKFLIP",	"@MENUS_RUN_UP_WALL_BACKFLIP_DESC",		"BOTH_FORCEWALLRUNFLIP_START",	MDS_FORCE_JUMP },
-		{ "@MENUS_JUMPUP_FROM_KNOCKDOWN",	"@MENUS_JUMPUP_FROM_KNOCKDOWN_DESC",	"BOTH_KNOCKDOWN3",				MDS_NONE },
-		{ "@MENUS_JUMPKICK_FROM_KNOCKDOWN",	"@MENUS_JUMPKICK_FROM_KNOCKDOWN_DESC",	"BOTH_KNOCKDOWN2",				MDS_NONE },
-		{ "@MENUS_ROLL_FROM_KNOCKDOWN",		"@MENUS_ROLL_FROM_KNOCKDOWN_DESC",		"BOTH_KNOCKDOWN1",				MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
+	{ // Acrobatics
+		{ "@MENUS_FORCE_JUMP1", "@MENUS_FORCE_JUMP1_DESC", "BOTH_FORCEJUMP1", MDS_FORCE_JUMP },
+		{ "@MENUS_FORCE_FLIP", "@MENUS_FORCE_FLIP_DESC", "BOTH_FLIP_F", MDS_FORCE_JUMP },
+		{ "@MENUS_ROLL", "@MENUS_ROLL_DESC", "BOTH_ROLL_F", MDS_ROLL },
+		{ "@MENUS_BACKFLIP_OFF_WALL", "@MENUS_BACKFLIP_OFF_WALL_DESC", "BOTH_WALL_FLIP_BACK1", MDS_FORCE_JUMP },
+		{ "@MENUS_SIDEFLIP_OFF_WALL", "@MENUS_SIDEFLIP_OFF_WALL_DESC", "BOTH_WALL_FLIP_RIGHT", MDS_FORCE_JUMP },
+		{ "@MENUS_WALL_RUN", "@MENUS_WALL_RUN_DESC", "BOTH_WALL_RUN_RIGHT", MDS_FORCE_JUMP },
+		{ "@MENUS_WALL_GRAB_JUMP", "@MENUS_WALL_GRAB_JUMP_DESC", "BOTH_FORCEWALLREBOUND_FORWARD", MDS_FORCE_JUMP },
+		{ "@MENUS_RUN_UP_WALL_BACKFLIP", "@MENUS_RUN_UP_WALL_BACKFLIP_DESC", "BOTH_FORCEWALLRUNFLIP_START", MDS_FORCE_JUMP },
+		{ "@MENUS_JUMPUP_FROM_KNOCKDOWN", "@MENUS_JUMPUP_FROM_KNOCKDOWN_DESC", "BOTH_KNOCKDOWN3", MDS_NONE },
+		{ "@MENUS_JUMPKICK_FROM_KNOCKDOWN", "@MENUS_JUMPKICK_FROM_KNOCKDOWN_DESC", "BOTH_KNOCKDOWN2", MDS_NONE },
+		{ "@MENUS_ROLL_FROM_KNOCKDOWN", "@MENUS_ROLL_FROM_KNOCKDOWN_DESC", "BOTH_KNOCKDOWN1", MDS_NONE },
+		{ "@MENUS_LONG_JUMP", "@MENUS_LONG_JUMP_DESC", "BOTH_FORCELONGLEAP_START", MDS_FORCE_JUMP },
 	},
-	{//Single Saber, Fast Style
-		{ "@MENUS_STAB_BACK",				"@MENUS_STAB_BACK_DESC",				"BOTH_A2_STABBACK1",			MDS_SABER },
-		{ "@MENUS_LUNGE_ATTACK",			"@MENUS_LUNGE_ATTACK_DESC",				"BOTH_LUNGE2_B__T_",			MDS_SABER },
-		{ "@MENUS_FAST_ATTACK_KATA",		"@MENUS_FAST_ATTACK_KATA_DESC",			"BOTH_A1_SPECIAL",				MDS_SABER },
-		{ "@MENUS_ATTACK_ENEMYONGROUND",	"@MENUS_ATTACK_ENEMYONGROUND_DESC",		"BOTH_STABDOWN",				MDS_FORCE_JUMP },
-		{ "@MENUS_CARTWHEEL",				"@MENUS_CARTWHEEL_DESC",				"BOTH_ARIAL_RIGHT",				MDS_FORCE_JUMP },
-		{ "@MENUS_BOTH_ROLL_STAB",			"@MENUS_BOTH_ROLL_STAB2_DESC",			"BOTH_ROLL_STAB",				MDS_SABER },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
+	{ // Single Saber, Fast Style
+		{ "@MENUS_STAB_BACK", "@MENUS_STAB_BACK_DESC", "BOTH_A2_STABBACK1", MDS_SABER },
+		{ "@MENUS_LUNGE_ATTACK", "@MENUS_LUNGE_ATTACK_DESC", "BOTH_LUNGE2_B__T_", MDS_SABER },
+		{ "@MENUS_FAST_ATTACK_KATA", "@MENUS_FAST_ATTACK_KATA_DESC", "BOTH_A1_SPECIAL", MDS_SABER },
+		{ "@MENUS_ATTACK_ENEMYONGROUND", "@MENUS_ATTACK_ENEMYONGROUND_DESC", "BOTH_STABDOWN", MDS_FORCE_JUMP },
+		{ "@MENUS_CARTWHEEL", "@MENUS_CARTWHEEL_DESC", "BOTH_ARIAL_RIGHT", MDS_FORCE_JUMP },
+		{ "@MENUS_BOTH_ROLL_STAB", "@MENUS_BOTH_ROLL_STAB2_DESC", "BOTH_ROLL_STAB", MDS_SABER },
+		{ "@MENUS_FORCE_PULL_IMPALE", "@MENUS_FORCE_PULL_IMPALE_DESC", "BOTH_PULL_IMPALE_STAB", MDS_SABER },
 	},
-	{//Single Saber, Medium Style
-		{ "@MENUS_SLASH_BACK",				"@MENUS_SLASH_BACK_DESC",				"BOTH_ATTACK_BACK",				MDS_SABER },
-		{ "@MENUS_FLIP_ATTACK",				"@MENUS_FLIP_ATTACK_DESC",				"BOTH_JUMPFLIPSLASHDOWN1",		MDS_FORCE_JUMP },
-		{ "@MENUS_MEDIUM_ATTACK_KATA",		"@MENUS_MEDIUM_ATTACK_KATA_DESC",		"BOTH_A2_SPECIAL",				MDS_SABER },
-		{ "@MENUS_ATTACK_ENEMYONGROUND",	"@MENUS_ATTACK_ENEMYONGROUND_DESC",		"BOTH_STABDOWN",				MDS_FORCE_JUMP },
-		{ "@MENUS_CARTWHEEL",				"@MENUS_CARTWHEEL_DESC",				"BOTH_ARIAL_RIGHT",				MDS_FORCE_JUMP },
-		{ "@MENUS_BOTH_ROLL_STAB",			"@MENUS_BOTH_ROLL_STAB2_DESC",			"BOTH_ROLL_STAB",				MDS_SABER },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
+	{ // Single Saber, Medium Style
+		{ "@MENUS_SLASH_BACK", "@MENUS_SLASH_BACK_DESC", "BOTH_ATTACK_BACK", MDS_SABER },
+		{ "@MENUS_FLIP_ATTACK", "@MENUS_FLIP_ATTACK_DESC", "BOTH_JUMPFLIPSLASHDOWN1", MDS_FORCE_JUMP },
+		{ "@MENUS_MEDIUM_ATTACK_KATA", "@MENUS_MEDIUM_ATTACK_KATA_DESC", "BOTH_A2_SPECIAL", MDS_SABER },
+		{ "@MENUS_ATTACK_ENEMYONGROUND", "@MENUS_ATTACK_ENEMYONGROUND_DESC", "BOTH_STABDOWN", MDS_FORCE_JUMP },
+		{ "@MENUS_CARTWHEEL", "@MENUS_CARTWHEEL_DESC", "BOTH_ARIAL_RIGHT", MDS_FORCE_JUMP },
+		{ "@MENUS_BOTH_ROLL_STAB", "@MENUS_BOTH_ROLL_STAB2_DESC", "BOTH_ROLL_STAB", MDS_SABER },
+		{ "@MENUS_FORCE_PULL_SLASH", "@MENUS_FORCE_PULL_SLASH_DESC", "BOTH_PULL_IMPALE_SWING", MDS_SABER },
+		{ "Jump Grab Back Kick", "Forward + Jump + Alt attack when you are in front of you ennemy", "BOTH_JUMP_BACKFLIP_ATCK", MDS_FORCE_JUMP },
 	},
-	{//Single Saber, Strong Style
-		{ "@MENUS_SLASH_BACK",				"@MENUS_SLASH_BACK_DESC",				"BOTH_ATTACK_BACK",				MDS_SABER },
-		{ "@MENUS_JUMP_ATTACK",				"@MENUS_JUMP_ATTACK_DESC",				"BOTH_FORCELEAP2_T__B_",		MDS_FORCE_JUMP },
-		{ "@MENUS_STRONG_ATTACK_KATA",		"@MENUS_STRONG_ATTACK_KATA_DESC",		"BOTH_A3_SPECIAL",				MDS_SABER },
-		{ "@MENUS_ATTACK_ENEMYONGROUND",	"@MENUS_ATTACK_ENEMYONGROUND_DESC",		"BOTH_STABDOWN",				MDS_FORCE_JUMP },
-		{ "@MENUS_CARTWHEEL",				"@MENUS_CARTWHEEL_DESC",				"BOTH_ARIAL_RIGHT",				MDS_FORCE_JUMP },
-		{ "@MENUS_BOTH_ROLL_STAB",			"@MENUS_BOTH_ROLL_STAB2_DESC",			"BOTH_ROLL_STAB",				MDS_SABER },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
+	{ // Single Saber, Strong Style
+		{ "@MENUS_SLASH_BACK", "@MENUS_SLASH_BACK_DESC", "BOTH_ATTACK_BACK", MDS_SABER },
+		{ "@MENUS_JUMP_ATTACK", "@MENUS_JUMP_ATTACK_DESC", "BOTH_FORCELEAP2_T__B_", MDS_FORCE_JUMP },
+		{ "@MENUS_STRONG_ATTACK_KATA", "@MENUS_STRONG_ATTACK_KATA_DESC", "BOTH_A3_SPECIAL", MDS_SABER },
+		{ "@MENUS_ATTACK_ENEMYONGROUND", "@MENUS_ATTACK_ENEMYONGROUND_DESC", "BOTH_STABDOWN", MDS_FORCE_JUMP },
+		{ "@MENUS_CARTWHEEL", "@MENUS_CARTWHEEL_DESC", "BOTH_ARIAL_RIGHT", MDS_FORCE_JUMP },
+		{ "@MENUS_BOTH_ROLL_STAB", "@MENUS_BOTH_ROLL_STAB2_DESC", "BOTH_ROLL_STAB", MDS_SABER },
+		{ "@MENUS_FORCE_PULL_SLASH", "@MENUS_FORCE_PULL_SLASH_DESC", "BOTH_PULL_IMPALE_SWING", MDS_SABER },
+		{ "New Spin Attack", "JUMP + FORWARD + ATTACK\nWhen you are in front of your ennemy", "BOTH_BUTTERFLY_LEFT", MDS_FORCE_JUMP },
+		{ "New Saber Flip stab", "Forward + Jump + Alt attack", "BOTH_FLIP_STAB", MDS_SABER },
+		{ "New Pull Impale attack", "while Pulling in front of an enemy, press attack", "BOTH_NEW_STABER", MDS_SABER },
 	},
-	{//Dual Sabers
-		{ "@MENUS_SLASH_BACK",				"@MENUS_SLASH_BACK_DESC",				"BOTH_ATTACK_BACK",				MDS_SABER },
-		{ "@MENUS_FLIP_FORWARD_ATTACK",		"@MENUS_FLIP_FORWARD_ATTACK_DESC",		"BOTH_JUMPATTACK6",				MDS_FORCE_JUMP },
-		{ "@MENUS_DUAL_SABERS_TWIRL",		"@MENUS_DUAL_SABERS_TWIRL_DESC",		"BOTH_SPINATTACK6",				MDS_SABER },
-		{ "@MENUS_ATTACK_ENEMYONGROUND",	"@MENUS_ATTACK_ENEMYONGROUND_DESC",		"BOTH_STABDOWN_DUAL",			MDS_FORCE_JUMP },
-		{ "@MENUS_DUAL_SABER_BARRIER",		"@MENUS_DUAL_SABER_BARRIER_DESC",		"BOTH_A6_SABERPROTECT",			MDS_SABER },
-		{ "@MENUS_DUAL_STAB_FRONT_BACK",	"@MENUS_DUAL_STAB_FRONT_BACK_DESC",		"BOTH_A6_FB",					MDS_SABER },
-		{ "@MENUS_DUAL_STAB_LEFT_RIGHT",	"@MENUS_DUAL_STAB_LEFT_RIGHT_DESC",		"BOTH_A6_LR",					MDS_SABER },
-		{ "@MENUS_CARTWHEEL",				"@MENUS_CARTWHEEL_DESC",				"BOTH_ARIAL_RIGHT",				MDS_FORCE_JUMP },
-		{ "@MENUS_BOTH_ROLL_STAB",			"@MENUS_BOTH_ROLL_STAB_DESC",			"BOTH_ROLL_STAB",				MDS_SABER },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
+	{ // Dual Sabers
+		{ "@MENUS_SLASH_BACK", "@MENUS_SLASH_BACK_DESC", "BOTH_ATTACK_BACK", MDS_SABER },
+		{ "@MENUS_FLIP_FORWARD_ATTACK", "@MENUS_FLIP_FORWARD_ATTACK_DESC", "BOTH_JUMPATTACK6", MDS_FORCE_JUMP },
+		{ "@MENUS_DUAL_SABERS_TWIRL", "@MENUS_DUAL_SABERS_TWIRL_DESC", "BOTH_SPINATTACK6", MDS_SABER },
+		{ "@MENUS_ATTACK_ENEMYONGROUND", "@MENUS_ATTACK_ENEMYONGROUND_DESC", "BOTH_STABDOWN_DUAL", MDS_FORCE_JUMP },
+		{ "@MENUS_DUAL_SABER_BARRIER", "@MENUS_DUAL_SABER_BARRIER_DESC", "BOTH_A6_SABERPROTECT", MDS_SABER },
+		{ "@MENUS_DUAL_STAB_FRONT_BACK", "@MENUS_DUAL_STAB_FRONT_BACK_DESC", "BOTH_A6_FB", MDS_SABER },
+		{ "@MENUS_DUAL_STAB_LEFT_RIGHT", "@MENUS_DUAL_STAB_LEFT_RIGHT_DESC", "BOTH_A6_LR", MDS_SABER },
+		{ "@MENUS_CARTWHEEL", "@MENUS_CARTWHEEL_DESC", "BOTH_ARIAL_RIGHT", MDS_FORCE_JUMP },
+		{ "@MENUS_BOTH_ROLL_STAB", "@MENUS_BOTH_ROLL_STAB_DESC", "BOTH_ROLL_STAB", MDS_SABER },
+		{ "New Spin Attack", "JUMP + FORWARD + ATTACK\nWhen you are in front of your ennemy", "BOTH_ALORA_SPIN_SLASH", MDS_FORCE_JUMP },
+		{ "Jump Spin Back Kick", "Forward + Jump + Alt attack using single saber style", "BOTH_JUMP_BACKKICK_SPIN", MDS_FORCE_JUMP },
+		{ "Jump Grab Back Kick", "Forward + Jump + Alt attack using dual stance when you are in front of you ennemy", "BOTH_JUMP_BACKFLIP_ATCK", MDS_FORCE_JUMP },
+		{ "New Pull Impale attack", "while Pulling in front of an enemy, press attack", "BOTH_NEW_STABER", MDS_SABER },
 	},
-	{// Saber Staff
-		{ "@MENUS_STAB_BACK",				"@MENUS_STAB_BACK_DESC",				"BOTH_A2_STABBACK1",			MDS_SABER },
-		{ "@MENUS_BACK_FLIP_ATTACK",		"@MENUS_BACK_FLIP_ATTACK_DESC",			"BOTH_JUMPATTACK7",				MDS_FORCE_JUMP },
-		{ "@MENUS_SABER_STAFF_TWIRL",		"@MENUS_SABER_STAFF_TWIRL_DESC",		"BOTH_SPINATTACK7",				MDS_SABER },
-		{ "@MENUS_ATTACK_ENEMYONGROUND",	"@MENUS_ATTACK_ENEMYONGROUND_DESC",		"BOTH_STABDOWN_STAFF",			MDS_FORCE_JUMP },
-		{ "@MENUS_SPINNING_KATA",			"@MENUS_SPINNING_KATA_DESC",			"BOTH_A7_SOULCAL",				MDS_SABER },
-		{ "@MENUS_KICK1",					"@MENUS_KICK1_DESC",					"BOTH_A7_KICK_F",				MDS_FORCE_JUMP },
-		{ "@MENUS_JUMP_KICK",				"@MENUS_JUMP_KICK_DESC",				"BOTH_A7_KICK_F_AIR",			MDS_FORCE_JUMP },
-		{ "@MENUS_BUTTERFLY_ATTACK",		"@MENUS_BUTTERFLY_ATTACK_DESC",			"BOTH_BUTTERFLY_FR1",			MDS_SABER },
-		{ "@MENUS_BOTH_ROLL_STAB",			"@MENUS_BOTH_ROLL_STAB2_DESC",			"BOTH_ROLL_STAB",				MDS_SABER },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE },
-		{ NULL,								NULL,									NULL,							MDS_NONE }
-	}
+	{ // Saber Staff
+		{ "@MENUS_STAB_BACK", "@MENUS_STAB_BACK_DESC", "BOTH_A2_STABBACK1", MDS_SABER },
+		{ "@MENUS_BACK_FLIP_ATTACK", "@MENUS_BACK_FLIP_ATTACK_DESC", "BOTH_JUMPATTACK7", MDS_FORCE_JUMP },
+		{ "@MENUS_SABER_STAFF_TWIRL", "@MENUS_SABER_STAFF_TWIRL_DESC", "BOTH_SPINATTACK7", MDS_SABER },
+		{ "@MENUS_ATTACK_ENEMYONGROUND", "@MENUS_ATTACK_ENEMYONGROUND_DESC", "BOTH_STABDOWN_STAFF", MDS_FORCE_JUMP },
+		{ "@MENUS_SPINNING_KATA", "@MENUS_SPINNING_KATA_DESC", "BOTH_A7_SOULCAL", MDS_SABER },
+		{ "@MENUS_KICK1", "@MENUS_KICK1_DESC", "BOTH_A7_KICK_F", MDS_FORCE_JUMP },
+		{ "@MENUS_JUMP_KICK", "@MENUS_JUMP_KICK_DESC", "BOTH_A7_KICK_F_AIR", MDS_FORCE_JUMP },
+		{ "@MENUS_BUTTERFLY_ATTACK", "@MENUS_BUTTERFLY_ATTACK_DESC", "BOTH_BUTTERFLY_FR1", MDS_SABER },
+		{ "@MENUS_BOTH_ROLL_STAB", "@MENUS_BOTH_ROLL_STAB2_DESC", "BOTH_ROLL_STAB", MDS_SABER },
+		{ "@MENUS_SPLIT_KICK", "@MENUS_SPLIT_KICK_DESC", "BOTH_A7_KICK_RL", MDS_FORCE_JUMP },
+		{ "@MENUS_SPIN_KICK", "@MENUS_SPIN_KICK_DESC", "BOTH_A7_KICK_S", MDS_FORCE_JUMP },
+		{ "@MENUS_FLIP_KICK", "@MENUS_FLIP_KICK_DESC", "BOTH_A7_KICK_BF", MDS_FORCE_JUMP },
+		{ "New Spin Attack", "JUMP + FORWARD + ATTACK\nWhen you are in front of your ennemy", "BOTH_FJSS_TR_BL", MDS_FORCE_JUMP },
+		{ "New Kick Forward", "FORWARD + ALT ATTACK\nWhen you are in front of your ennemy", "BOTH_A7_HILT", MDS_SABER },
+		{ "Jump Spin Back Kick", "Forward + Jump + Alt attack", "BOTH_JUMP_BACKKICK_SPIN", MDS_FORCE_JUMP },
+		{ "New Pull Impale attack", "while Pulling in front of an enemy, press attack", "BOTH_NEW_STABER", MDS_SABER },
+	},
+	{ // Melee & other attacks
+		{ "Melee Punch", "Weapon melee + attack + alt attack + forward\nin front for your ennemy", "BOTH_KYLE_PA_1", MDS_NONE },
+		{ "Melee kick, knee", "Weapon melee + attack + alt attack + backward\nin front for your ennemy", "BOTH_KYLE_PA_2", MDS_NONE },
+		{ "Melee  throttling", "Weapon melee + attack + alt attack \nin front for your ennemy", "BOTH_KYLE_PA_3", MDS_NONE },
+		{ "Melee throw", "Weapon melee + attack + alt attack + right\nin front for your ennemy", "BOTH_A3_TL_BR", MDS_NONE },
+		{ "Sith Kiss", "Weapon Melee + DRAIN level 2 minimum\nin front of your ennemy", "BOTH_FORCE_DRAIN_GRAB_START", MDS_NONE },
+		{ "Jedi Tornado", "Weapon Melee + PUSH level 2 minimum\n in front of your ennemy\n only for jedi", "BOTH_ALORA_SPIN_THROW", MDS_NONE },
+		{ "Back Kick", "Weapon Melee or Staff + forward + right + alt attack", "BOTH_MELEE_BACKKICK", MDS_SABER },
+		{ "Spin kick", "Weapon Melee or Staff + forward + left + alt attack", "BOTH_MELEE_SPINKICK", MDS_SABER },
+	},
 };
 
 static siegeClassDesc_t g_UIClassDescriptions[MAX_SIEGE_CLASSES];
@@ -679,6 +663,8 @@ void UI_UpdateCurrentServerInfo(void) { //parses server info to contextually hid
 	char *value = NULL;
 
 	trap->Cvar_Set("ui_isJAPro", "0");
+	trap->Cvar_Set("ui_isJAPlus", "0");
+	trap->Cvar_Set("ui_isJoFJAPlus", "0");
 	trap->Cvar_Set("ui_raceMode", "0");
 	trap->Cvar_Set("ui_allowRegistration", "0");
 	trap->Cvar_Set("ui_allowSaberSwitch", "0");
@@ -696,6 +682,7 @@ void UI_UpdateCurrentServerInfo(void) { //parses server info to contextually hid
 	if (!Q_stricmpn(value, "JA+ Mod", 7) || !Q_stricmpn(value, "^4U^3A^5Galaxy", 14) || !Q_stricmpn(value, "AbyssMod", 8))
 	{
 		trap->Cvar_Set("ui_allowSaberSwitch", "1");
+		trap->Cvar_Set("ui_isJAPlus", "1");
 	}
 	else if (!Q_stricmpn(value, "japro", 5)) {
 		int jcinfo2;
@@ -710,6 +697,11 @@ void UI_UpdateCurrentServerInfo(void) { //parses server info to contextually hid
 
 		if (trap->Cvar_VariableValue("g_gametype") < GT_TEAM && jcinfo2 & (1 << 2)) //allow /saber switch cmd
 			trap->Cvar_Set("ui_allowSaberSwitch", "1");
+	}
+
+	//JoF JA+ servers advertise this exact version string in serverinfo, mirrors CL_JoFTrustedServer() in cl_main.cpp
+	if (!Q_stricmp(Info_ValueForKey(info, "V"), "2.5B0")) {
+		trap->Cvar_Set("ui_isJoFJAPlus", "1");
 	}
 
 	//parse system info
@@ -1018,6 +1010,120 @@ static void UI_FreeSpecies( playerSpeciesInfo_t *species )
 	memset(species, 0, sizeof(playerSpeciesInfo_t));
 }
 
+static int uiSpeciesBrowserIndices[MAX_Q3PLAYERMODELS];
+static int uiSpeciesBrowserCount;
+
+static void UI_SpeciesBrowserDisplayName(int speciesIndex, char *displayName, int displayNameSize)
+{
+	char stringRef[MAX_QPATH + 7];
+
+	if (speciesIndex < 0 || speciesIndex >= uiInfo.playerSpeciesCount)
+	{
+		displayName[0] = '\0';
+		return;
+	}
+
+	Com_sprintf(stringRef, sizeof(stringRef), "MENUS_%s", uiInfo.playerSpecies[speciesIndex].Name);
+	Q_strupr(stringRef);
+	if (!trap->SE_GetStringTextString(stringRef, displayName, displayNameSize) || !displayName[0])
+	{
+		Q_strncpyz(displayName, uiInfo.playerSpecies[speciesIndex].Name, displayNameSize);
+	}
+}
+
+static int UI_CompareSpeciesBrowserIndices(const void *left, const void *right)
+{
+	const int leftIndex = *(const int *)left;
+	const int rightIndex = *(const int *)right;
+	char leftName[MAX_STRING_CHARS];
+	char rightName[MAX_STRING_CHARS];
+
+	UI_SpeciesBrowserDisplayName(leftIndex, leftName, sizeof(leftName));
+	UI_SpeciesBrowserDisplayName(rightIndex, rightName, sizeof(rightName));
+	return Q_stricmp(leftName, rightName);
+}
+
+static int UI_SpeciesBrowserActualIndex(int index)
+{
+	if (index < 0 || index >= uiSpeciesBrowserCount)
+	{
+		return -1;
+	}
+
+	return uiSpeciesBrowserIndices[index];
+}
+
+void UI_UpdateSpeciesBrowser(void)
+{
+	menuDef_t *menu;
+	int i;
+	int selectedIndex = -1;
+
+	uiSpeciesBrowserCount = 0;
+	for (i = 0; i < uiInfo.playerSpeciesCount && uiSpeciesBrowserCount < MAX_Q3PLAYERMODELS; i++)
+	{
+		char displayName[MAX_STRING_CHARS];
+
+		UI_SpeciesBrowserDisplayName(i, displayName, sizeof(displayName));
+		if (!ui_speciesSearch.string[0]
+			|| Q_stristr(displayName, ui_speciesSearch.string)
+			|| Q_stristr(uiInfo.playerSpecies[i].Name, ui_speciesSearch.string))
+		{
+			uiSpeciesBrowserIndices[uiSpeciesBrowserCount++] = i;
+		}
+	}
+
+	qsort(uiSpeciesBrowserIndices, uiSpeciesBrowserCount, sizeof(uiSpeciesBrowserIndices[0]),
+		UI_CompareSpeciesBrowserIndices);
+
+	for (i = 0; i < uiSpeciesBrowserCount; i++)
+	{
+		if (uiSpeciesBrowserIndices[i] == uiInfo.playerSpeciesIndex)
+		{
+			selectedIndex = i;
+			break;
+		}
+	}
+
+	trap->Cvar_SetValue("ui_speciesSearchCount", (float)uiSpeciesBrowserCount);
+	trap->Cvar_Update(&ui_speciesSearchCount);
+
+	menu = Menus_FindByName("ingame_species_browser");
+	if (menu)
+	{
+		for (i = 0; i < menu->itemCount; i++)
+		{
+			itemDef_t *item = menu->items[i];
+
+			if ((int)item->special == FEEDER_PLAYER_SPECIES_BROWSER)
+			{
+				listBoxDef_t *list = item->typeData.listbox;
+
+				item->cursorPos = selectedIndex;
+				if (list)
+				{
+					int startPos = 0;
+
+					list->cursorPos = selectedIndex;
+					if (selectedIndex >= 0 && list->elementHeight > 0.0f)
+					{
+						const int visibleRows = (int)(item->window.rect.h / list->elementHeight);
+						const int maxStart = uiSpeciesBrowserCount > visibleRows
+							? uiSpeciesBrowserCount - visibleRows : 0;
+
+						startPos = selectedIndex - visibleRows / 2;
+						if (startPos < 0)
+							startPos = 0;
+						else if (startPos > maxStart)
+							startPos = maxStart;
+					}
+					list->startPos = startPos;
+				}
+			}
+		}
+	}
+}
+
 /*
 =================
 UI_BuildPlayerModel_List
@@ -1048,6 +1154,9 @@ void UI_BuildPlayerModel_List( qboolean inGameLoad )
 		dirListSize = sizeof(stackDirList);
 	}
 
+	//re-read the blacklist files, so pk3s loaded since the last build are picked up
+	BG_LoadModelBlacklist();
+
 	uiInfo.playerSpeciesCount = 0;
 	uiInfo.playerSpeciesIndex = 0;
 	uiInfo.playerSpeciesMax = 8;
@@ -1076,6 +1185,10 @@ void UI_BuildPlayerModel_List( qboolean inGameLoad )
 		}
 
 		if (!Q_stricmp(dirptr, ".") || !Q_stricmp(dirptr, ".."))
+			continue;
+
+		//models that are off limits to players don't belong in the picker
+		if (BG_ModelIsNPCOnly(dirptr) || BG_ModelInList(dirptr, cg_modelBlacklist.string))
 			continue;
 
 		Com_sprintf(fpath, sizeof(fpath), "models/players/%s/PlayerChoice.txt", dirptr);
@@ -1215,6 +1328,8 @@ void UI_BuildPlayerModel_List( qboolean inGameLoad )
 	{
 		free(dirlist);
 	}
+
+	UI_UpdateSpeciesBrowser();
 }
 
 void UI_SetActiveMenu( uiMenuCommand_t menu ) {
@@ -1382,13 +1497,24 @@ uiQ3ModelBuild_t uiQ3ModelBuild;
 void UI_CleanupGhoul2(void);
 void UI_FreeAllSpecies(void);
 
+static void UI_CancelQ3ModelListBuild(void)
+{
+	if (uiQ3ModelBuild.fileJob)
+	{
+		trap->FS_AsyncFree(uiQ3ModelBuild.fileJob);
+	}
+	if (uiQ3ModelBuild.dirJob)
+	{
+		trap->FS_AsyncFree(uiQ3ModelBuild.dirJob);
+	}
+	memset(&uiQ3ModelBuild, 0, sizeof(uiQ3ModelBuild));
+}
+
 void UI_Shutdown( void ) {
 	trap->LAN_SaveCachedServers();
 	UI_CleanupGhoul2();
 	UI_FreeAllSpecies();
-	uiQ3ModelBuild.inProgress = qfalse;
-	if (uiQ3ModelBuild.dirJob)
-		trap->FS_AsyncFree( uiQ3ModelBuild.dirJob );
+	UI_CancelQ3ModelListBuild();
 }
 
 char *defaultMenu = NULL;
@@ -6993,6 +7119,10 @@ const char *UI_GetModelWithSkin(char *model) {
 	return modelWithSkin;
 }
 
+static qboolean UI_HeadMatchesSearch(const char *model) {
+	return !ui_modelSearch.string[0] || Q_stristr(model, ui_modelSearch.string) != NULL;
+}
+
 int UI_HeadIndexForModel(const char *model) {
 	char *teamname;
 	int i;
@@ -7056,7 +7186,7 @@ int UI_HeadIndexForModel(const char *model) {
 			matchesTeam = qtrue;
 		}
 
-		if (matchesTeam) {
+		if (matchesTeam && UI_HeadMatchesSearch(uiInfo.q3HeadNames[i])) {
 			if (!Q_stricmp(uiInfo.q3HeadNames[i], model)) {
 				return c;
 			}
@@ -7447,12 +7577,20 @@ static void UI_UpdateSaberCvars ( void )
 	trap->Cvar_Set ( "saber1", UI_Cvar_VariableString ( "ui_saber" ) );
 	trap->Cvar_Set ( "saber2", UI_Cvar_VariableString ( "ui_saber2" ) );
 
+	//re-attach the hat/cape names UI_GetSaberCvars stashed, so applying a saber colour here
+	//doesn't quietly take the player's cosmetics off
 	colorI = TranslateSaberColor( UI_Cvar_VariableString ( "ui_saber_color" ) );
-	trap->Cvar_SetValue( "color1", (float)colorI);
+	if ( uiInfo.hat[0] )
+		trap->Cvar_Set( "color1", va( "%d%s", (int)colorI, uiInfo.hat ) );
+	else
+		trap->Cvar_SetValue( "color1", (float)colorI);
 	trap->Cvar_Set ( "g_saber_color", UI_Cvar_VariableString ( "ui_saber_color" ));
 
 	colorI = TranslateSaberColor( UI_Cvar_VariableString ( "ui_saber2_color" ) );
-	trap->Cvar_SetValue( "color2", (float)colorI );
+	if ( uiInfo.cape[0] )
+		trap->Cvar_Set( "color2", va( "%d%s", (int)colorI, uiInfo.cape ) );
+	else
+		trap->Cvar_SetValue( "color2", (float)colorI );
 	trap->Cvar_Set ( "g_saber2_color", UI_Cvar_VariableString ( "ui_saber2_color" ));
 
 	if (ui_allowSaberSwitch.integer) {
@@ -7540,6 +7678,103 @@ static void UI_SetSaberBoxesandHilts (void)
 extern qboolean UI_SaberSkinForSaber( const char *saberName, char *saberSkin );
 extern qboolean ItemParse_asset_model_go( itemDef_t *item, const char *name,int *runTimeLength );
 extern qboolean ItemParse_model_g2skin_go( itemDef_t *item, const char *skinName );
+extern qboolean ItemParse_model_g2anim_go( itemDef_t *item, const char *animName );
+
+static qboolean UI_LoadNormalMenuCharacter( itemDef_t *item, const char *modelSpec )
+{
+	char modelName[MAX_QPATH];
+	char modelPath[MAX_QPATH];
+	char skinPath[MAX_QPATH];
+	char *skin;
+	int animRunLength;
+
+	if ( !modelSpec || !modelSpec[0] )
+	{
+		return qfalse;
+	}
+
+	Q_strncpyz( modelName, modelSpec, sizeof(modelName) );
+	skin = strchr( modelName, '/' );
+	if ( skin )
+	{
+		*skin++ = '\0';
+	}
+
+	if ( !skin || !skin[0] )
+	{
+		skin = "default";
+	}
+
+	if ( strchr( skin, '|' ) )
+	{
+		Com_sprintf( skinPath, sizeof(skinPath), "models/players/%s/|%s", modelName, skin );
+	}
+	else
+	{
+		Com_sprintf( skinPath, sizeof(skinPath), "models/players/%s/model_%s.skin", modelName, skin );
+	}
+	Com_sprintf( modelPath, sizeof(modelPath), "models/players/%s/model.glm", modelName );
+
+	ItemParse_asset_model_go( item, modelPath, &animRunLength );
+	if ( !(item->flags & ITF_G2VALID) )
+	{
+		return qfalse;
+	}
+
+	ItemParse_model_g2skin_go( item, skinPath );
+	return qtrue;
+}
+
+/*
+ * Keep the profile preview on the regular ITEM_TYPE_MODEL path used by the
+ * custom-character menu. Adapted from github.com/Razish/japp's player
+ * selection preview; JAPP attributes the original approach to JA+.
+ */
+static qboolean UI_UpdateNormalMenuCharacter( void )
+{
+	menuDef_t *menu;
+	itemDef_t *item;
+	char modelName[MAX_QPATH];
+	char defaultModel[MAX_QPATH];
+
+	menu = Menu_GetFocused();
+	if ( !menu )
+	{
+		return qtrue;
+	}
+
+	item = (itemDef_t *)Menu_FindItemByName( menu, "character" );
+	if ( !item )
+	{
+		return qtrue;
+	}
+
+	ItemParse_model_g2anim_go( item, ui_char_anim.string );
+
+	trap->Cvar_VariableStringBuffer( "model", modelName, sizeof(modelName) );
+	if ( UI_LoadNormalMenuCharacter( item, modelName ) )
+	{
+		return qtrue;
+	}
+
+	trap->Cvar_VariableStringBuffer( "cg_defaultModel", defaultModel, sizeof(defaultModel) );
+	if ( !defaultModel[0] )
+	{
+		Q_strncpyz( defaultModel, DEFAULT_MODEL, sizeof(defaultModel) );
+	}
+
+	if ( Q_stricmp( modelName, defaultModel ) && UI_LoadNormalMenuCharacter( item, defaultModel ) )
+	{
+		return qtrue;
+	}
+
+	if ( Q_stricmp( defaultModel, DEFAULT_MODEL ) )
+	{
+		return UI_LoadNormalMenuCharacter( item, DEFAULT_MODEL );
+	}
+
+	return qfalse;
+}
 
 static void UI_UpdateSaberType( void )
 {
@@ -7626,6 +7861,8 @@ const char *SaberColorToString( saber_colors_t color );
 
 static void UI_GetSaberCvars ( void )
 {
+	char color[MAX_COSMETIC_LENGTH * 2];
+
 //	trap->Cvar_Set ( "ui_saber_type", UI_Cvar_VariableString ( "g_saber_type" ) );
 	trap->Cvar_Set ( "ui_saber", UI_Cvar_VariableString ( "saber1" ) );
 	trap->Cvar_Set ( "ui_saber2", UI_Cvar_VariableString ( "saber2" ));
@@ -7633,23 +7870,25 @@ static void UI_GetSaberCvars ( void )
 	trap->Cvar_Set("g_saber_color", SaberColorToString(trap->Cvar_VariableValue("color1")));
 	trap->Cvar_Set("g_saber2_color", SaberColorToString(trap->Cvar_VariableValue("color2")));
 
+	//remember any hat/cape hanging off the colour so UI_UpdateSaberCvars can put it back
+	trap->Cvar_VariableStringBuffer( "color1", color, sizeof( color ) );
+	Q_StripDigits( color, uiInfo.hat, sizeof( uiInfo.hat ), REMOVE_DIGITS_INITIAL );
+
+	trap->Cvar_VariableStringBuffer( "color2", color, sizeof( color ) );
+	Q_StripDigits( color, uiInfo.cape, sizeof( uiInfo.cape ), REMOVE_DIGITS_INITIAL );
+
 	trap->Cvar_Set ( "ui_saber_color", UI_Cvar_VariableString ( "g_saber_color" ) );
 	trap->Cvar_Set ( "ui_saber2_color", UI_Cvar_VariableString ( "g_saber2_color" ) );
 }
 
-extern qboolean ItemParse_model_g2anim_go( itemDef_t *item, const char *animName );
-
-void UI_UpdateCharacterSkin( void )
+static void UI_UpdateCharacterSkinForMenu(menuDef_t *menu)
 {
-	menuDef_t *menu;
 	itemDef_t *item;
 	char skin[MAX_QPATH];
 	char model[MAX_QPATH];
 	char head[MAX_QPATH];
 	char torso[MAX_QPATH];
 	char legs[MAX_QPATH];
-
-	menu = Menu_GetFocused();	// Get current menu
 
 	if (!menu)
 	{
@@ -7678,14 +7917,15 @@ void UI_UpdateCharacterSkin( void )
 	ItemParse_model_g2skin_go( item, skin );
 }
 
-static void UI_ResetCharacterListBoxes( void )
+void UI_UpdateCharacterSkin( void )
 {
+	UI_UpdateCharacterSkinForMenu(Menu_GetFocused());
+}
 
+static void UI_ResetCharacterListBoxesForMenu(menuDef_t *menu)
+{
 	itemDef_t *item;
-	menuDef_t *menu;
 	listBoxDef_t *listPtr;
-
-	menu = Menu_GetFocused();
 
 	if (menu)
 	{
@@ -7735,20 +7975,22 @@ static void UI_ResetCharacterListBoxes( void )
 	}
 }
 
+static void UI_ResetCharacterListBoxes( void )
+{
+	UI_ResetCharacterListBoxesForMenu(Menu_GetFocused());
+}
+
 const char *saberSingleHiltInfo [MAX_SABER_HILTS];
 const char *saberStaffHiltInfo [MAX_SABER_HILTS];
 
 qboolean UI_SaberProperNameForSaber( const char *saberName, char *saberProperName );
 void WP_SaberGetHiltInfo( const char *singleHilts[MAX_SABER_HILTS], const char *staffHilts[MAX_SABER_HILTS] );
 
-static void UI_UpdateCharacter( qboolean changedModel )
+static void UI_UpdateCharacterForMenu(menuDef_t *menu, qboolean changedModel)
 {
-	menuDef_t *menu;
 	itemDef_t *item;
 	char modelPath[MAX_QPATH];
 	int	animRunLength;
-
-	menu = Menu_GetFocused();	// Get current menu
 
 	if (!menu)
 	{
@@ -7775,7 +8017,12 @@ static void UI_UpdateCharacter( qboolean changedModel )
 		UI_FeederSelection(FEEDER_PLAYER_SKIN_LEGS, 0, item);
 		UI_FeederSelection(FEEDER_COLORCHOICES, 0, item);
 	}
-	UI_UpdateCharacterSkin();
+	UI_UpdateCharacterSkinForMenu(menu);
+}
+
+static void UI_UpdateCharacter( qboolean changedModel )
+{
+	UI_UpdateCharacterForMenu(Menu_GetFocused(), changedModel);
 }
 
 /*
@@ -8113,6 +8360,9 @@ void UI_UpdateSaberHiltInfo( void ) {
 	WP_SaberGetHiltInfo(saberSingleHiltInfo, saberStaffHiltInfo);
 }
 
+static void UI_SJKChatSay( void );
+static void UI_SJKChatOpen( void );
+
 static void UI_RunMenuScript(char **args)
 {
 	const char *name, *name2;
@@ -8120,7 +8370,32 @@ static void UI_RunMenuScript(char **args)
 
 	if (String_Parse(args, &name))
 	{
-		if (Q_stricmp(name, "StartServer") == 0)
+		if (Q_stricmp(name, "clearcosmetics") == 0)
+		{
+			UI_ClearCosmetics();
+		}
+		else if (Q_stricmp(name, "sjkSay") == 0)
+		{
+			UI_SJKChatSay();
+		}
+		else if (Q_stricmp(name, "sjkChatOpen") == 0)
+		{
+			UI_SJKChatOpen();
+		}
+		else if (Q_stricmp(name, "getcosmetics") == 0)
+		{
+			UI_GetCosmeticCvars();
+		}
+		else if (Q_stricmp(name, "cosmeticsmodel") == 0)
+		{
+			UI_UpdateCosmeticsCharacter();
+		}
+		else if (Q_stricmp(name, "updateplayerpreview") == 0)
+		{
+			UI_GetCosmeticCvars();
+			UI_UpdateNormalMenuCharacter();
+		}
+		else if (Q_stricmp(name, "StartServer") == 0)
 		{
 			int i, added = 0;
 			float skill;
@@ -8242,8 +8517,31 @@ static void UI_RunMenuScript(char **args)
 			Controls_SetConfig();
 		} else if (Q_stricmp(name, "loadControls") == 0) {
 			Controls_GetConfig();
+		} else if (Q_stricmp(name, "refreshModTabs") == 0) {
+			//JAPRO - show the JAPLUS controls tab only when connected to a detected
+			//JA+ server, and JAPRO otherwise. In the disconnected main menu (controlsMenu)
+			//we don't know what we'll connect to next, so show both tabs.
+			//ui_isJAPlus/ui_isJAPro are refreshed by UI_UpdateCurrentServerInfo()
+			//on the relevant menu transitions.
+			menuDef_t *menu = Menu_GetFocused();
+			if (menu) {
+				if (menu->window.name && !Q_stricmp(menu->window.name, "controlsMenu")) {
+					Menu_ShowGroup(menu, "japlusbutton", qtrue);
+					Menu_ShowGroup(menu, "japrobutton", qtrue);
+				} else {
+					qboolean isJaPlus = ui_isJAPlus.integer ? qtrue : qfalse;
+					Menu_ShowGroup(menu, "japlusbutton", isJaPlus);
+					Menu_ShowGroup(menu, "japrobutton", isJaPlus ? qfalse : qtrue);
+				}
+			}
 		} else if (Q_stricmp(name, "clearError") == 0) {
 			trap->Cvar_Set("com_errorMessage", "");
+		} else if (Q_stricmp(name, "clearModelSearch") == 0) {
+			trap->Cvar_Set("ui_modelSearch", "");
+		} else if (Q_stricmp(name, "prepareSpeciesBrowser") == 0) {
+			trap->Cvar_Set("ui_speciesSearch", "");
+			trap->Cvar_Update(&ui_speciesSearch);
+			UI_UpdateSpeciesBrowser();
 		} else if (Q_stricmp(name, "loadGameInfo") == 0) {
 			UI_ParseGameInfo("ui/jamp/gameinfo.txt");
 		} else if (Q_stricmp(name, "RefreshServers") == 0) {
@@ -8729,16 +9027,11 @@ static void UI_RunMenuScript(char **args)
 					modelPtr = item->typeData.model;
 					if (modelPtr)
 					{
-						char modelPath[MAX_QPATH];
-
 						uiInfo.movesBaseAnim = datapadMoveTitleBaseAnims[uiInfo.movesTitleIndex];
 						ItemParse_model_g2anim_go( item,  uiInfo.movesBaseAnim );
 						uiInfo.moveAnimTime = 0 ;
 
-						Com_sprintf( modelPath, sizeof( modelPath ), "models/players/%s/model.glm", UI_Cvar_VariableString ( "ui_char_model" ) );
-						ItemParse_asset_model_go( item, modelPath, &animRunLength);
-
-						UI_UpdateCharacterSkin();
+						UI_UpdateWornCharacter( item, &animRunLength );
 						UI_SaberAttachToChar( item );
 					}
 				}
@@ -9673,6 +9966,7 @@ static int UI_HeadCountByColor(void) {
 	int v = (int)trap->Cvar_VariableValue("cg_defaultModelRandom");
 	char *teamname;
 	char *skinName = NULL;
+	qboolean valid;
 
 	c = 0;
 
@@ -9709,6 +10003,7 @@ static int UI_HeadCountByColor(void) {
 	{
 		if (uiInfo.q3HeadNames[i][0] && Q_stristr(uiInfo.q3HeadNames[i], "/") != NULL)
 		{
+			valid = qfalse;
 			skinName = uiInfo.q3HeadNames[i];
 			while (*skinName != '/') {
 				*skinName++;
@@ -9719,20 +10014,25 @@ static int UI_HeadCountByColor(void) {
 			if (uiSkinColor == TEAM_FREE)
 			{
 				if (!Q_stricmp(skinName, teamname))
-					c++;
+					valid = qtrue;
 				else if (!ui_sv_pure.integer && !Q_stricmp(skinName, "/sp") && Q_stricmp(uiInfo.q3HeadNames[i], "trandoshan/sp") && Q_stricmp(uiInfo.q3HeadNames[i], "weequay/sp"))
-					c++;
+					valid = qtrue;
 				else if (!ui_sv_pure.integer &&  ui_showAllSkins.integer && Q_stricmpn(uiInfo.q3HeadNames[i], "default", 7) && Q_stricmp(skinName, "/red") && Q_stricmp(skinName, "/blue") && Q_stricmp(skinName, "/sp") && Q_stricmpn(skinName, "/rgb", 4))
-					c++;
+					valid = qtrue;
 			}
 			else if (uiSkinColor == 3)
 			{
 				if (!Q_stricmpn(skinName, teamname, strlen(teamname)))
-					c++;
+					valid = qtrue;
 				else if (!ui_sv_pure.integer && !Q_stricmp(skinName, "/sp") && (!Q_stricmp(uiInfo.q3HeadNames[i], "trandoshan/sp") || !Q_stricmp(uiInfo.q3HeadNames[i], "weequay/sp")))
-					c++;
+					valid = qtrue;
 			}
 			else if (!Q_stricmp(skinName, teamname))
+			{
+				valid = qtrue;
+			}
+
+			if (valid && UI_HeadMatchesSearch(uiInfo.q3HeadNames[i]))
 			{
 				c++;
 			}
@@ -10357,6 +10657,589 @@ static void UI_BuildServerStatus(qboolean force) {
 UI_FeederCount
 ==================
 */
+/*
+=================
+UI_LoadCosmetics
+
+The UI is its own module and cannot reach cgame's cosmetic registry, so it scans the same
+folders itself. Rules match CG_LoadCosmetics: the name has to survive a trip through the
+saber colour userinfo key, so it must fit MAX_COSMETIC_LENGTH and must not start with a
+digit (the receiving atoi() would swallow it).
+=================
+*/
+static void UI_LoadCosmeticsIn( const char *path, int *totalOut, uiCosmeticItem_t **storeOut )
+{
+	char			fileList[MAX_QPATH * 256];
+	char			name[MAX_QPATH];
+	uiCosmeticItem_t *items;
+	char			*ptr;
+	int				fileCnt, i, j = 0;
+	size_t			fileLen = 0;
+
+	*storeOut = NULL;
+	*totalOut = 0;
+
+	fileCnt = trap->FS_GetFileList( path, ".md3", fileList, sizeof( fileList ) );
+	if ( !fileCnt )
+		return;
+
+	items = (uiCosmeticItem_t *)malloc( fileCnt * sizeof( *items ) );
+	if ( !items )
+		return;
+
+	ptr = fileList;
+	for ( i = 0; i < fileCnt; i++, ptr += fileLen + 1 )
+	{
+		fileLen = strlen( ptr );
+
+		Q_strncpyz( name, ptr, sizeof( name ) );
+		COM_StripExtension( name, name, sizeof( name ) );
+
+		if ( strlen( name ) >= MAX_COSMETIC_LENGTH || isdigit( (unsigned char)name[0] ) )
+			continue;
+
+		Q_strncpyz( items[j].name, name, sizeof( items[j].name ) );
+		items[j].handle = trap->R_RegisterModel( va( "%s%s.md3", path, name ) );
+		j++;
+	}
+
+	if ( !j )
+	{
+		free( items );
+		return;
+	}
+
+	*storeOut = items;
+	*totalOut = j;
+}
+
+// The launcher/cloud catalog is larger than the assets shipped in the base pk3.
+// Keep those names visible so an uninstalled item explains where to obtain it.
+static const char *uiKnownHats[] = { "afro", "beard", "bucket", "cap", "cringe", "crown", "fedora", "fedora2", "fedora3", "fedora4", "glasses", "gradcap", "headcrab", "horns", "mario", "mask", "metalhelm", "plaguemask", "predatorhelm", "pumpkin", "santahat", "sombrero", "supersaiyan", "tophat" };
+static const char *uiKnownCapes[] = { "ak47", "crowbar", "goose", "grogucape", "royalcape", "rpg", "vadercape", "yodacape" };
+
+static void UI_CosmeticDisplayName( const char *name, char *displayName, int displayNameSize )
+{
+	int i;
+
+	Q_strncpyz( displayName, name, displayNameSize );
+	for ( i = 0; displayName[i]; i++ )
+	{
+		if ( displayName[i] == '_' || displayName[i] == '-' )
+			displayName[i] = ' ';
+	}
+	if ( displayName[0] )
+		displayName[0] = (char)toupper( (unsigned char)displayName[0] );
+}
+
+static int QDECL UI_CosmeticCompare( const void *left, const void *right )
+{
+	char leftName[MAX_COSMETIC_LENGTH], rightName[MAX_COSMETIC_LENGTH];
+	const uiCosmeticItem_t *leftItem = (const uiCosmeticItem_t *)left;
+	const uiCosmeticItem_t *rightItem = (const uiCosmeticItem_t *)right;
+
+	UI_CosmeticDisplayName( leftItem->name, leftName, sizeof( leftName ) );
+	UI_CosmeticDisplayName( rightItem->name, rightName, sizeof( rightName ) );
+	return Q_stricmp( leftName, rightName );
+}
+
+static void UI_AddKnownCosmetics( const char *path, const char *legacyPath, const char **names, int nameCount, int *totalOut, uiCosmeticItem_t **storeOut )
+{
+	int i, j;
+	uiCosmeticItem_t *items;
+
+	items = (uiCosmeticItem_t *)realloc( *storeOut, ( *totalOut + nameCount ) * sizeof( *items ) );
+	if ( !items )
+		return;
+	*storeOut = items;
+	for ( i = 0; i < nameCount; i++ )
+	{
+		qboolean found = qfalse;
+		for ( j = 0; j < *totalOut; j++ )
+			if ( !Q_stricmp( items[j].name, names[i] ) ) { found = qtrue; break; }
+		if ( found ) continue;
+		Q_strncpyz( items[*totalOut].name, names[i], sizeof( items[*totalOut].name ) );
+		items[*totalOut].handle = trap->R_RegisterModel( va( "%s%s.md3", path, names[i] ) );
+		if ( !items[*totalOut].handle && legacyPath )
+			items[*totalOut].handle = trap->R_RegisterModel( va( "%s%s.md3", legacyPath, names[i] ) );
+		(*totalOut)++;
+	}
+}
+
+void UI_LoadCosmetics( void )
+{
+	UI_LoadCosmeticsIn( UI_COSMETIC_HATS_PATH, &uiInfo.totalHats, &uiInfo.hats );
+	UI_LoadCosmeticsIn( UI_COSMETIC_CAPES_PATH, &uiInfo.totalCapes, &uiInfo.capes );
+	//Older bundled packs used models/players/{hats,capes}; keep those cosmetics visible.
+	if ( !uiInfo.totalHats )
+		UI_LoadCosmeticsIn( UI_COSMETIC_HATS_LEGACY_PATH, &uiInfo.totalHats, &uiInfo.hats );
+	if ( !uiInfo.totalCapes )
+		UI_LoadCosmeticsIn( UI_COSMETIC_CAPES_LEGACY_PATH, &uiInfo.totalCapes, &uiInfo.capes );
+	UI_AddKnownCosmetics( UI_COSMETIC_HATS_PATH, UI_COSMETIC_HATS_LEGACY_PATH, uiKnownHats, ARRAY_LEN( uiKnownHats ), &uiInfo.totalHats, &uiInfo.hats );
+	UI_AddKnownCosmetics( UI_COSMETIC_CAPES_PATH, UI_COSMETIC_CAPES_LEGACY_PATH, uiKnownCapes, ARRAY_LEN( uiKnownCapes ), &uiInfo.totalCapes, &uiInfo.capes );
+	if ( uiInfo.totalHats > 1 )
+		qsort( uiInfo.hats, uiInfo.totalHats, sizeof( *uiInfo.hats ), UI_CosmeticCompare );
+	if ( uiInfo.totalCapes > 1 )
+		qsort( uiInfo.capes, uiInfo.totalCapes, sizeof( *uiInfo.capes ), UI_CosmeticCompare );
+}
+
+//Equipping is just a cvar edit - the name is appended to the saber colour in color1/color2,
+//which is what carries it to every other player. Clearing truncates back to the bare number.
+static void UI_SetCosmetic( const char *cvarName, const char *cosmeticName )
+{
+	char value[MAX_COSMETIC_LENGTH * 2];
+
+	trap->Cvar_VariableStringBuffer( cvarName, value, sizeof( value ) );
+
+	if ( cosmeticName && cosmeticName[0] )
+		trap->Cvar_Set( cvarName, va( "%d%s", atoi( value ), cosmeticName ) );
+	else
+		trap->Cvar_Set( cvarName, va( "%d", atoi( value ) ) );
+}
+
+static void UI_HighlightWornCosmetics( void );
+
+void UI_ClearCosmetics( void )
+{
+	UI_SetCosmetic( "color1", NULL );
+	UI_SetCosmetic( "color2", NULL );
+	uiInfo.hat[0] = uiInfo.cape[0] = '\0';
+
+	UI_HighlightWornCosmetics();	//nothing worn now, so drop both highlights
+}
+
+/*
+=================
+UI_UpdateWornCharacter
+
+Point a preview at the model the player is actually wearing, preserving its requested animation.
+
+The customise screen's ui_char_model is no good for this: getcharcvars only keeps it when the
+model is a multipart custom jedi or a known species, and silently resets it to the default
+jedi for an ordinary model like "kyle/default". So read the "model" cvar - the real one, the
+same string that goes out in userinfo - and drive the preview item from that.
+=================
+*/
+void UI_UpdateWornCharacter( itemDef_t *item, int *animRunLength )
+{
+	char		model[MAX_QPATH], modelPath[MAX_QPATH], skinPath[MAX_QPATH];
+	char		*parts, *skin;
+
+	*animRunLength = 0;
+	if ( !item )
+	{
+		return;
+	}
+
+	trap->Cvar_VariableStringBuffer( "model", model, sizeof( model ) );
+	if ( !model[0] )
+		Q_strncpyz( model, "kyle/default", sizeof( model ) );
+
+	parts = strchr( model, '|' );
+	if ( parts )
+	{	//multipart custom jedi: "jedi_hm/head_a1|torso_a1|lower_a1"
+		//Split at the slash, not the first pipe: the latter would leave the head skin
+		//attached to the model directory and make the GLM lookup fail.
+		skin = strrchr( model, '/' );
+		if ( skin && skin < parts )
+		{
+			*skin = '\0';
+			parts = skin + 1;
+		}
+		else
+		{	//also tolerate the older "model|head|torso|lower" spelling
+			*parts = '\0';
+			parts++;
+		}
+		Com_sprintf( skinPath, sizeof( skinPath ), "models/players/%s/|%s", model, parts );
+	}
+	else
+	{	//ordinary "model/skin", or a bare model name meaning the default skin
+		skin = strrchr( model, '/' );
+		if ( skin )
+		{
+			*skin = '\0';
+			skin++;
+		}
+		if ( !skin || !skin[0] )
+			skin = "default";
+
+		Com_sprintf( skinPath, sizeof( skinPath ), "models/players/%s/model_%s.skin", model, skin );
+	}
+
+	Com_sprintf( modelPath, sizeof( modelPath ), "models/players/%s/model.glm", model );
+
+	//asset_model_go re-applies the anim the .menu asked for, so no need to set it again here
+	ItemParse_asset_model_go( item, modelPath, animRunLength );
+	ItemParse_model_g2skin_go( item, skinPath );
+
+	//asset_model_go swallows a failed load (its Com_Error is commented out). Rendering an
+	//invalid model handle produces the RGB axis placeholder, so retry with the default male.
+	if ( !(item->flags & ITF_G2VALID) )
+	{
+		Com_sprintf( modelPath, sizeof( modelPath ), "models/players/%s/model.glm", DEFAULT_MODEL );
+		Com_sprintf( skinPath, sizeof( skinPath ), "models/players/%s/model_default.skin", DEFAULT_MODEL );
+		ItemParse_asset_model_go( item, modelPath, animRunLength );
+		ItemParse_model_g2skin_go( item, skinPath );
+	}
+}
+
+void UI_UpdateCosmeticsCharacter( void )
+{
+	menuDef_t *menu = Menus_FindByName( "ingame_cosmetics" );
+	int animRunLength;
+
+	if ( menu )
+	{
+		UI_UpdateWornCharacter( Menu_FindItemByName( menu, "character" ), &animRunLength );
+	}
+}
+
+static int UI_InstalledCosmeticCount( const uiCosmeticItem_t *items, int total )
+{
+	int count = 0, i;
+
+	for ( i = 0; i < total; i++ )
+		if ( items[i].handle )
+			count++;
+
+	return count;
+}
+
+static int UI_InstalledCosmeticIndex( const uiCosmeticItem_t *items, int total, int visibleIndex )
+{
+	int i;
+
+	for ( i = 0; i < total; i++ )
+	{
+		if ( !items[i].handle )
+			continue;
+		if ( visibleIndex-- == 0 )
+			return i;
+	}
+
+	return -1;
+}
+
+//The listbox draws a filled bar behind the row in item->cursorPos (see Item_ListBox_Paint),
+//so parking the cursor on what the player is already wearing is what makes the menu show it.
+//-1 means nothing worn, and so nothing highlighted.
+static void UI_HighlightWornCosmetic( const char *itemName, const uiCosmeticItem_t *items, int total, const char *worn )
+{
+	menuDef_t	*menu;
+	itemDef_t	*item;
+	int			i, visibleIndex = 0;
+
+	menu = Menus_FindByName( "ingame_cosmetics" );
+	if ( !menu )
+		return;
+
+	item = (itemDef_t *)Menu_FindItemByName( menu, itemName );
+	if ( !item )
+		return;
+
+	item->cursorPos = -1;
+
+	if ( !worn[0] )
+		return;
+
+	for ( i = 0; i < total; i++ )
+	{
+		if ( !items[i].handle )
+			continue;
+		if ( !Q_stricmp( items[i].name, worn ) )
+		{
+			item->cursorPos = visibleIndex;
+			return;
+		}
+		visibleIndex++;
+	}
+}
+
+static void UI_HighlightWornCosmetics( void )
+{
+	UI_HighlightWornCosmetic( "hatlist", uiInfo.hats, uiInfo.totalHats, uiInfo.hat );
+	UI_HighlightWornCosmetic( "capelist", uiInfo.capes, uiInfo.totalCapes, uiInfo.cape );
+}
+
+//color1/color2 are the source of truth - the console command writes them too, so read them
+//back whenever the menu opens rather than trusting whatever the UI last remembered
+void UI_GetCosmeticCvars( void )
+{
+	char value[MAX_COSMETIC_LENGTH * 2];
+
+	trap->Cvar_VariableStringBuffer( "color1", value, sizeof( value ) );
+	Q_StripDigits( value, uiInfo.hat, sizeof( uiInfo.hat ), REMOVE_DIGITS_INITIAL );
+
+	trap->Cvar_VariableStringBuffer( "color2", value, sizeof( value ) );
+	Q_StripDigits( value, uiInfo.cape, sizeof( uiInfo.cape ), REMOVE_DIGITS_INITIAL );
+
+	UI_HighlightWornCosmetics();
+}
+
+/*
+=================
+UI_DrawCosmeticsOnCharacter
+
+Bolts the hat and cape onto the character preview so the menu shows what you'll actually
+look like. Mirrors what cgame does on the live player, using the same bolts.
+=================
+*/
+void UI_DrawCosmeticsOnCharacter( itemDef_t *item, vec3_t origin, vec3_t angles )
+{
+	int i;
+
+	for ( i = 0; i < 2; i++ )
+	{
+		const qboolean	isHat = (qboolean)(i == 0);
+		const char		*wanted = isHat ? uiInfo.hat : uiInfo.cape;
+		uiCosmeticItem_t *items = isHat ? uiInfo.hats : uiInfo.capes;
+		int				total = isHat ? uiInfo.totalHats : uiInfo.totalCapes;
+		qhandle_t		model = 0;
+		mdxaBone_t		boltMatrix;
+		refEntity_t		ent;
+		vec3_t			boltOrg;
+		int				bolt, c;
+
+		if ( !wanted[0] )
+			continue;
+
+		for ( c = 0; c < total; c++ )
+		{
+			if ( !Q_stricmp( items[c].name, wanted ) )
+			{
+				model = items[c].handle;
+				break;
+			}
+		}
+
+		if ( !model )
+			continue;
+
+		bolt = trap->G2API_AddBolt( item->ghoul2, 0, isHat ? "*head_top" : "*back" );
+		if ( bolt == -1 )
+			continue;
+
+		trap->G2API_GetBoltMatrix( item->ghoul2, 0, bolt, &boltMatrix, angles, origin,
+			uiInfo.uiDC.realTime, NULL, vec3_origin );
+
+		memset( &ent, 0, sizeof( ent ) );
+		BG_GiveMeVectorFromMatrix( &boltMatrix, ORIGIN, boltOrg );
+		BG_GiveMeVectorFromMatrix( &boltMatrix, POSITIVE_X, ent.axis[0] );
+		BG_GiveMeVectorFromMatrix( &boltMatrix, POSITIVE_Y, ent.axis[1] );
+		BG_GiveMeVectorFromMatrix( &boltMatrix, POSITIVE_Z, ent.axis[2] );
+
+		VectorMA( boltOrg, -2, ent.axis[2], boltOrg );
+
+		ent.hModel = model;
+		VectorCopy( boltOrg, ent.origin );
+		VectorCopy( boltOrg, ent.lightingOrigin );
+		ent.renderfx = RF_LIGHTING_ORIGIN | RF_NOSHADOW | RF_NOLOD;
+
+		trap->R_AddRefEntityToScene( &ent );
+	}
+}
+
+/*
+=================
+SJK chat menu (ui/jamp/sjkchat.menu): the engine's SJK chat history (client/cl_sjk.cpp)
+in a list, wrapped to the list's width, each message after the icon of the client it
+came from, its sender's name and the label, in SJK's golds (UI_FeederItemPaint); its
+field says a line on SJK chat. Only with an engine that has it (cl_sjkChatUI): an older
+one ends the import table before these.
+=================
+*/
+#define SJK_CHAT_ROWS_MAX	400
+#define SJK_CHAT_LIST		"sjkchat_list"	// the list's name in sjkchat.menu
+#define SJK_CHAT_FIELD		"sjkchat_field"	// and its field's
+#define SJK_CHAT_WIDTH		510				// its text's room there, the scroll bar left out
+#define SJK_CHAT_SCALE		0.85f			// and its textscale
+#define SJK_CHAT_FONT		4				// and its font
+
+typedef struct sjkChatRow_s {
+	char		who[64];	// a message's first row: who said it, with colours, before the label
+	char		text[256];
+	qhandle_t	icon;
+	qboolean	message;	// a message's row, its text in SJK's gold; else a notice's, game text
+	qboolean	inAll;		// the label reads ALL/SJK: said in All chat too
+} sjkChatRow_t;
+
+static sjkChatRow_t	sjkChatRows[SJK_CHAT_ROWS_MAX];
+static int			sjkChatRowCount;
+static int			sjkChatRevision = -1;
+static qboolean		sjkChatToBottom;	// the menu opened: show the newest rows
+
+static qboolean UI_SJKChatAvailable( void ) {
+	return (qboolean)( trap->Cvar_VariableValue( "cl_sjkChatUI" ) != 0 );
+}
+
+static void UI_SJKChatAddRow( const sjkChatRow_t *row ) {
+	if ( sjkChatRowCount == SJK_CHAT_ROWS_MAX ) {
+		memmove( sjkChatRows, sjkChatRows + 1, sizeof( sjkChatRows ) - sizeof( sjkChatRows[0] ) );
+		sjkChatRowCount--;
+	}
+	sjkChatRows[sjkChatRowCount++] = *row;
+}
+
+static float UI_SJKChatWidth( const char *text ) {
+	return trap->ext.R_Font_StrLenPixels( text, MenuFontToHandle( SJK_CHAT_FONT ), SJK_CHAT_SCALE );
+}
+
+// One line of the history's text as rows of the list's width, the first firstRoom wide
+// (what its sender's name and label leave), cut at a space where one is near and never
+// between "^" and its digit, each after the colour the last one ended in. The first
+// row is first with the text's start; the rest are of the same kind, with no icon.
+static void UI_SJKChatWrap( const sjkChatRow_t *first, const char *line, float firstRoom ) {
+	sjkChatRow_t rest = *first;
+	char *row = rest.text;
+	char colour = 0;
+	const char *at = line;
+	float room = firstRoom;
+
+	while ( *at ) {
+		const int prefix = colour ? 2 : 0;
+		int take = 0, fitted, i;
+
+		row[0] = Q_COLOR_ESCAPE;
+		row[1] = colour;
+		// The longest start of what is left that fits the width.
+		while ( at[take] && prefix + take + 1 < (int)sizeof( rest.text ) ) {
+			memcpy( row + prefix, at, take + 1 );
+			row[prefix + take + 1] = '\0';
+			if ( UI_SJKChatWidth( row ) > room )
+				break;
+			take++;
+		}
+		fitted = take;
+		if ( at[take] ) {
+			for ( i = take; i > fitted / 2; i-- ) {
+				if ( at[i] == ' ' ) {
+					take = i;
+					break;
+				}
+			}
+			if ( take > 1 && at[take - 1] == Q_COLOR_ESCAPE )
+				take--;
+		}
+		if ( take < 1 )
+			take = 1;
+		memcpy( row + prefix, at, take );
+		row[prefix + take] = '\0';
+		UI_SJKChatAddRow( &rest );
+		rest.who[0] = '\0';
+		rest.icon = -1;
+		rest.inAll = qfalse;
+		room = SJK_CHAT_WIDTH;
+		for ( i = 0; i + 1 < take; i++ ) {
+			if ( at[i] == Q_COLOR_ESCAPE && at[i + 1] >= '0' && at[i + 1] <= '9' )
+				colour = at[i + 1];
+		}
+		at += take;
+		while ( *at == ' ' )
+			at++;
+	}
+}
+
+// The history's rows, rebuilt when the engine's history changed; a list scrolled to its
+// newest row stays there.
+static void UI_SJKChatRefresh( void ) {
+	static qhandle_t sjkIcon, ejkIcon;
+	char who[64], text[1024], client[16];
+	int revision = 0, count, i;
+	itemDef_t *list;
+	int oldMax = 0;
+
+	if ( !UI_SJKChatAvailable() )
+		return;
+	count = trap->ext.SJK_ChatLineCount( &revision );
+	if ( revision == sjkChatRevision )
+		return;
+	sjkChatRevision = revision;
+	if ( !sjkIcon ) {
+		sjkIcon = trap->R_RegisterShaderNoMip( "gfx/sjk/sjk" );
+		ejkIcon = trap->R_RegisterShaderNoMip( "gfx/sjk/ejk" );
+	}
+
+	list = Menu_FindItemByName( Menus_FindByName( "sjkchat" ), SJK_CHAT_LIST );
+	if ( list && list->typeData.listbox && list->typeData.listbox->elementHeight > 0 )
+		oldMax = sjkChatRowCount - (int)( list->window.rect.h / list->typeData.listbox->elementHeight ) + 1;
+
+	sjkChatRowCount = 0;
+	for ( i = 0; i < count; i++ ) {
+		sjkChatRow_t row;
+		qboolean inAll;
+		qhandle_t icon;
+
+		if ( !trap->ext.SJK_ChatLine( i, who, sizeof( who ), text, sizeof( text ), client, sizeof( client ), &inAll ) )
+			break;
+		icon = !strcmp( client, "sjk" ) ? sjkIcon : !strcmp( client, "ejk" ) ? ejkIcon : 0;
+		memset( &row, 0, sizeof( row ) );
+		row.icon = icon ? icon : -1;
+		if ( who[0] ) {
+			Q_strncpyz( row.who, who, sizeof( row.who ) );
+			row.message = qtrue;
+			row.inAll = inAll;
+			UI_SJKChatWrap( &row, text, SJK_CHAT_WIDTH - UI_SJKChatWidth( va( "%s %s: ", who, inAll ? "ALL/SJK" : "SJK" ) ) );
+		} else {
+			UI_SJKChatWrap( &row, text, SJK_CHAT_WIDTH );
+		}
+	}
+
+	if ( list && list->typeData.listbox && list->typeData.listbox->elementHeight > 0 ) {
+		listBoxDef_t *listPtr = list->typeData.listbox;
+		const int newMax = sjkChatRowCount - (int)( list->window.rect.h / listPtr->elementHeight ) + 1;
+
+		if ( sjkChatToBottom || listPtr->startPos >= oldMax )
+			listPtr->startPos = newMax > 0 ? newMax : 0;
+		sjkChatToBottom = qfalse;
+	}
+}
+
+// The menu opened: its list is built again and shows the newest rows, and its field takes
+// what is typed straight away.
+static void UI_SJKChatOpen( void ) {
+	sjkChatRevision = -1;
+	sjkChatToBottom = qtrue;
+	Item_TextField_Begin( Menu_FindItemByName( Menus_FindByName( "sjkchat" ), SJK_CHAT_FIELD ) );
+}
+
+// The field's line (ui_sjkChatText) on SJK chat; the field empties.
+static void UI_SJKChatSay( void ) {
+	char text[MAX_CVAR_VALUE_STRING];
+
+	trap->Cvar_VariableStringBuffer( "ui_sjkChatText", text, sizeof( text ) );
+	if ( text[0] && UI_SJKChatAvailable() )
+		trap->ext.SJK_SayText( text );
+	trap->Cvar_Set( "ui_sjkChatText", "" );
+}
+
+// The SJK chat menu's list draws a message's row itself (feederItemPaint): its sender's
+// name in its colours, the label and ": ", then the text, the label and the text in SJK's
+// golds (as the chat box, cgame's sjkLabelColor and sjkTextColor). The font draws at
+// whole units, so a part after a space goes at the one after where the space ends. A
+// notice's row it leaves to the list.
+static qboolean UI_FeederItemPaint( float feederID, int index, int column, float x, float y, float scale, vec4_t color, int style, int iMenuFont ) {
+	static vec4_t labelColor = { 0.9098f, 0.7216f, 0.2902f, 1.0f };	// #E8B84A
+	static vec4_t textColor = { 0.9608f, 0.7804f, 0.3373f, 1.0f };	// #F5C756
+	const sjkChatRow_t *row;
+
+	if ( feederID != FEEDER_SJK_CHAT || column != 0 || index < 0 || index >= sjkChatRowCount || !sjkChatRows[index].message )
+		return qfalse;
+	row = &sjkChatRows[index];
+	if ( row->who[0] ) {
+		const char *label = row->inAll ? "ALL/SJK" : "SJK";
+
+		Text_Paint( x, y, scale, color, row->who, 0, 0, style, iMenuFont );
+		x = ceilf( x + UI_SJKChatWidth( va( "%s ", row->who ) ) );
+		Text_Paint( x, y, scale, labelColor, label, 0, 0, style, iMenuFont );
+		x += UI_SJKChatWidth( label );
+		Text_Paint( x, y, scale, color, ": ", 0, 0, style, iMenuFont );
+		x = ceilf( x + UI_SJKChatWidth( ": " ) );
+	}
+	Text_Paint( x, y, scale, textColor, row->text, 0, 0, style, iMenuFont );
+	return qtrue;
+}
+
 static int UI_FeederCount(float feederID)
 {
 	int team,baseClass,count=0,i;
@@ -10364,6 +11247,18 @@ static int UI_FeederCount(float feederID)
 
 	switch ( (int)feederID )
 	{
+		case FEEDER_COSMETIC_HATS:
+			count = UI_InstalledCosmeticCount( uiInfo.hats, uiInfo.totalHats );
+			return count + ( count < uiInfo.totalHats );
+
+		case FEEDER_COSMETIC_CAPES:
+			count = UI_InstalledCosmeticCount( uiInfo.capes, uiInfo.totalCapes );
+			return count + ( count < uiInfo.totalCapes );
+
+		case FEEDER_SJK_CHAT:
+			UI_SJKChatRefresh();
+			return sjkChatRowCount;
+
 		case FEEDER_SABER_SINGLE_INFO:
 
 			for (i=0;i<MAX_SABER_HILTS;i++)
@@ -10482,6 +11377,9 @@ static int UI_FeederCount(float feederID)
 
 		case FEEDER_PLAYER_SPECIES:
 			return uiInfo.playerSpeciesCount;
+
+		case FEEDER_PLAYER_SPECIES_BROWSER:
+			return uiSpeciesBrowserCount;
 
 		case FEEDER_PLAYER_SKIN_HEAD:
 			return uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinHeadCount;
@@ -10638,7 +11536,7 @@ static const char *UI_SelectedTeamHead(int index, int *actual) {
 				valid = qtrue;
 			}
 
-			if (valid)
+			if (valid && UI_HeadMatchesSearch(uiInfo.q3HeadNames[i]))
 			{
 				if (c==index)
 				{
@@ -10698,6 +11596,46 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 	static int lastColumn = -1;
 	static int lastTime = 0;
 	*handle1 = *handle2 = *handle3 = -1;
+
+	// The SJK chat menu's list: the row in its first column, with the client's icon, which
+	// the list draws just before where its second, empty column starts.
+	if (feederID == FEEDER_SJK_CHAT)
+	{
+		if ( index < 0 || index >= sjkChatRowCount || column != 0 )
+			return "";
+		*handle1 = sjkChatRows[index].icon;
+		return sjkChatRows[index].text;
+	}
+
+	if (feederID == FEEDER_COSMETIC_HATS)
+	{
+		const int installed = UI_InstalledCosmeticCount( uiInfo.hats, uiInfo.totalHats );
+		static char displayName[MAX_COSMETIC_LENGTH];
+
+		if ( index >= 0 && index < installed )
+		{
+			UI_CosmeticDisplayName( uiInfo.hats[UI_InstalledCosmeticIndex( uiInfo.hats, uiInfo.totalHats, index )].name, displayName, sizeof( displayName ) );
+			return displayName;
+		}
+		if ( index == installed && installed < uiInfo.totalHats )
+			return "^3Get Hats from JoF Launcher or Cloud^7";
+		return "";
+	}
+
+	if (feederID == FEEDER_COSMETIC_CAPES)
+	{
+		const int installed = UI_InstalledCosmeticCount( uiInfo.capes, uiInfo.totalCapes );
+		static char displayName[MAX_COSMETIC_LENGTH];
+
+		if ( index >= 0 && index < installed )
+		{
+			UI_CosmeticDisplayName( uiInfo.capes[UI_InstalledCosmeticIndex( uiInfo.capes, uiInfo.totalCapes, index )].name, displayName, sizeof( displayName ) );
+			return displayName;
+		}
+		if ( index == installed && installed < uiInfo.totalCapes )
+			return "^3Get Capes from JoF Launcher or Cloud^7";
+		return "";
+	}
 
 	if (feederID == FEEDER_SABER_SINGLE_INFO)
 	{
@@ -10978,6 +11916,17 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 		if (index >= 0 && index < uiInfo.playerSpeciesCount)
 		{
 			return uiInfo.playerSpecies[index].Name;
+		}
+	}
+	else if (feederID == FEEDER_PLAYER_SPECIES_BROWSER)
+	{
+		const int actualIndex = UI_SpeciesBrowserActualIndex(index);
+		static char displayName[MAX_STRING_CHARS];
+
+		if (actualIndex >= 0)
+		{
+			UI_SpeciesBrowserDisplayName(actualIndex, displayName, sizeof(displayName));
+			return displayName;
 		}
 	}
 	else if (feederID == FEEDER_LANGUAGES)
@@ -11458,6 +12407,43 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 	static char info[MAX_STRING_CHARS];
 	const int feederID = feederFloat;
 
+	//clicking a cosmetic puts it on straight away - the preview and the live player both
+	//follow color1/color2, so there is no separate state to keep in step
+	if (feederID == FEEDER_COSMETIC_HATS || feederID == FEEDER_COSMETIC_CAPES)
+	{
+		const qboolean	isHat = (qboolean)(feederID == FEEDER_COSMETIC_HATS);
+		uiCosmeticItem_t *items = isHat ? uiInfo.hats : uiInfo.capes;
+		const int		total = isHat ? uiInfo.totalHats : uiInfo.totalCapes;
+		char			*worn = isHat ? uiInfo.hat : uiInfo.cape;
+		const char		*cvarName = isHat ? "color1" : "color2";
+
+		//Expose installed rows, followed by one hint in place of any uninstalled
+		//catalog entries. Mapping the visible row skips those hidden entries.
+		index = UI_InstalledCosmeticIndex( items, total, index );
+
+		if (index < 0 || index >= total)
+			return qfalse;
+
+		if (!Q_stricmp(worn, items[index].name))	//clicking what you already wear takes it off
+		{
+			worn[0] = '\0';
+			UI_SetCosmetic(cvarName, NULL);
+
+			//the listbox has already parked its cursor on the row we just clicked; move it off
+			//so nothing shows as selected. Returning qfalse would instead restore the previous
+			//row, which is not what "took it off" should look like.
+			if (item)
+				item->cursorPos = -1;
+		}
+		else
+		{
+			Q_strncpyz(worn, items[index].name, MAX_COSMETIC_LENGTH);
+			UI_SetCosmetic(cvarName, items[index].name);
+		}
+
+		return qtrue;
+	}
+
 	if (feederID == FEEDER_Q3HEADS)
 	{
 		int actual = 0;
@@ -11489,6 +12475,16 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 				trap->Cvar_Set("char_color_green", "255");
 				trap->Cvar_Set("char_color_blue", "255");
 			}
+
+			trap->Cvar_Set("ui_char_color_red", UI_Cvar_VariableString("char_color_red"));
+			trap->Cvar_Set("ui_char_color_green", UI_Cvar_VariableString("char_color_green"));
+			trap->Cvar_Set("ui_char_color_blue", UI_Cvar_VariableString("char_color_blue"));
+			trap->Cvar_Update(&ui_char_color_red);
+			trap->Cvar_Update(&ui_char_color_green);
+			trap->Cvar_Update(&ui_char_color_blue);
+
+			// Razish/JAPP: update the same walking character widget used by custom character creation.
+			UI_UpdateNormalMenuCharacter();
 		}
 	}
 	else if (feederID == FEEDER_MOVES)
@@ -11507,14 +12503,11 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 				modelPtr = item->typeData.model;
 				if (modelPtr)
 				{
-					char modelPath[MAX_QPATH];
 					int animRunLength;
 
 					ItemParse_model_g2anim_go( item,  datapadMoveData[uiInfo.movesTitleIndex][index].anim );
 
-					Com_sprintf( modelPath, sizeof( modelPath ), "models/players/%s/model.glm", UI_Cvar_VariableString ( "ui_char_model" ) );
-					ItemParse_asset_model_go( item, modelPath, &animRunLength );
-					UI_UpdateCharacterSkin();
+					UI_UpdateWornCharacter( item, &animRunLength );
 
 					uiInfo.moveAnimTime = uiInfo.uiDC.realTime + animRunLength;
 
@@ -11588,16 +12581,12 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 				modelPtr = item->typeData.model;
 				if (modelPtr)
 				{
-					char modelPath[MAX_QPATH];
 					int	animRunLength;
 
 					uiInfo.movesBaseAnim = datapadMoveTitleBaseAnims[uiInfo.movesTitleIndex];
 					ItemParse_model_g2anim_go( item,  uiInfo.movesBaseAnim );
 
-					Com_sprintf( modelPath, sizeof( modelPath ), "models/players/%s/model.glm", UI_Cvar_VariableString ( "ui_char_model" ) );
-					ItemParse_asset_model_go( item, modelPath, &animRunLength );
-
-					UI_UpdateCharacterSkin();
+					UI_UpdateWornCharacter( item, &animRunLength );
 
 				}
 			}
@@ -11766,8 +12755,31 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 			uiInfo.playerSpeciesIndex = index;
 		}
 	}
+	else if (feederID == FEEDER_PLAYER_SPECIES_BROWSER)
+	{
+		const int actualIndex = UI_SpeciesBrowserActualIndex(index);
+
+		if (actualIndex >= 0 && actualIndex != uiInfo.playerSpeciesIndex)
+		{
+			menuDef_t *browserMenu = Menus_FindByName("ingame_species_browser");
+			menuDef_t *characterMenu = Menus_FindByName("ingame_player2");
+			if (!characterMenu)
+			{
+				characterMenu = Menus_FindByName("playerMenu2");
+			}
+
+			uiInfo.playerSpeciesIndex = actualIndex;
+			trap->Cvar_Set("ui_char_model", uiInfo.playerSpecies[actualIndex].Name);
+
+			UI_UpdateCharacterForMenu(browserMenu, qtrue);
+			UI_ResetCharacterListBoxesForMenu(characterMenu);
+			UI_UpdateCharacterForMenu(characterMenu, qfalse);
+		}
+	}
 	else if (feederID == FEEDER_LANGUAGES)
 	{
+		// Position in the sorted Text selector, not an engine language index,
+		// so don't pass it to SE_GetLanguageName.
 		uiInfo.languageCountIndex = index;
 	}
 	else if (feederID == FEEDER_SCREEN_RESOLUTIONS)
@@ -12472,14 +13484,16 @@ void UI_BuildQ3Model_List_Process()
 
 void UI_BuildQ3Model_List_Async(void)
 {
-	if (uiInfo.q3HeadCount > 0)
-		return;
-	
-	memset(&uiQ3ModelBuild, 0, sizeof(uiQ3ModelBuild));
+	UI_CancelQ3ModelListBuild();
 	uiInfo.q3HeadCount = 0;
 	uiQ3ModelBuild.dirCount = -1;
 	uiQ3ModelBuild.dirJob = trap->FS_GetFileListAsync("models/players", "/", sizeof(uiQ3ModelBuild.dirList));
-	uiQ3ModelBuild.inProgress = qtrue;
+	uiQ3ModelBuild.inProgress = uiQ3ModelBuild.dirJob > 0;
+	if (!uiQ3ModelBuild.inProgress)
+	{
+		uiQ3ModelBuild.dirJob = 0;
+		UI_BuildQ3Model_List(uiQ3ModelBuild.dirList, uiQ3ModelBuild.fileList, sizeof(uiQ3ModelBuild.fileList));
+	}
 	trap->Cvar_Set("ui_hasStartedAsyncQ3ModelBuild", "1");
 }
 
@@ -12664,6 +13678,7 @@ void UI_Init( qboolean inGameLoad ) {
 	uiInfo.uiDC.feederItemImage					= &UI_FeederItemImage;
 	uiInfo.uiDC.feederItemText					= &UI_FeederItemText;
 	uiInfo.uiDC.feederSelection					= &UI_FeederSelection;
+	uiInfo.uiDC.feederItemPaint					= &UI_FeederItemPaint;
 	uiInfo.uiDC.setBinding						= trap->Key_SetBinding;
 	uiInfo.uiDC.getBindingBuf					= trap->Key_GetBindingBuf;
 	uiInfo.uiDC.keynumToStringBuf				= trap->Key_KeynumToStringBuf;
@@ -12684,6 +13699,11 @@ void UI_Init( qboolean inGameLoad ) {
 	Init_Display(&uiInfo.uiDC);
 
 	UI_RegisterCvars();
+	// A rank change belongs to the connection that sent it; the server resends
+	// it on every join. One left over from the last session would be applied on
+	// the main menu, where the free-saber rule is unknown, and trim the build.
+	if (!inGameLoad)
+		trap->Cvar_Set("ui_rankChange", "0");
 	UI_Set2DRatio();
 
 	String_Init();
@@ -12694,6 +13714,9 @@ void UI_Init( qboolean inGameLoad ) {
 		uiQ3ModelBuild.fileList,
 		sizeof(uiQ3ModelBuild.fileList)) : UI_BuildQ3Model_List_Async();
 	UI_BuildPlayerModel_List(inGameLoad);
+
+	//scan models/cosmetics/ so the cosmetics menu has something to list
+	UI_LoadCosmetics();
 
 	uiInfo.uiDC.cursor	= trap->R_RegisterShaderNoMip( "menu/art/3_cursor2" );
 	uiInfo.uiDC.whiteShader = trap->R_RegisterShaderNoMip( "white" );

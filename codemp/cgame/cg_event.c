@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // cg_event.c -- handle entity events at snapshot or playerstate transitions
 
 #include "cg_local.h"
+#include "game/bg_pickup.h"
 #include "fx_local.h"
 #include "ui/ui_shared.h"
 #include "ui/ui_public.h"
@@ -153,6 +154,7 @@ static void CG_Obituary( entityState_t *ent ) {
 	if ( !targetInfo || !targetInfo->infoValid ) {
 		return;
 	}
+
 	Com_sprintf(targetName, sizeof(targetName), "%s%s", targetInfo->name, S_COLOR_WHITE);
 	targetInfo->deaths++;
 
@@ -467,13 +469,23 @@ clientkilled:
 
 void CG_ToggleBinoculars(centity_t *cent, int forceZoom)
 {
+	playerState_t *eventPlayerState;
+
 	if (cent->currentState.number != cg.snap->ps.clientNum)
 	{
 		return;
 	}
 
-	if (cg.snap->ps.weaponstate != WEAPON_READY)
-	{ //So we can't fool it and reactivate while switching to the saber or something.
+	eventPlayerState = cent->playerState ? cent->playerState : &cg.snap->ps;
+
+	// A nonzero forceZoom comes from the server after ItemUse_Binoculars has
+	// already accepted and applied the toggle. Do not reject its sound because
+	// another snapshot still carries a transient forced-state weapon timer. For
+	// predicted item use, validate the player state that produced the event.
+	if (!forceZoom && (eventPlayerState->weaponTime > 0 ||
+		eventPlayerState->weaponstate == WEAPON_CHARGING ||
+		eventPlayerState->weaponstate == WEAPON_CHARGING_ALT))
+	{ //Still block unconfirmed predicted uses during genuine weapon activity.
 		return;
 	}
 
@@ -604,9 +616,67 @@ CG_ItemPickup
 A new item was picked up this frame
 ================
 */
+static qboolean CG_PickupHandshakeSupported(void) {
+	// Require the same JoF JA+ identity used by the engine and UI.
+	return cg_pickupConfirm.integer == 1 &&
+		!Q_stricmp(Info_ValueForKey(CG_ConfigString(CS_SERVERINFO), "V"), "2.5B0") &&
+		!strcmp(Info_ValueForKey(CG_ConfigString(CS_SERVERINFO), "g_pickupConfirm"), "3");
+}
+
+void CG_UpdatePickupHandshake(void) {
+	if (cg.demoPlayback || !CG_PickupHandshakeSupported()) {
+		cg.pickupHandshakeActive = qfalse;
+		cg.pickupConfirmed = qfalse;
+		return;
+	}
+	if (!cg.pickupHandshakeActive) {
+		// One attempt per module/map. A flood-filtered request safely leaves
+		// ordinary feedback enabled; never compete with gameplay commands.
+		trap->SendClientCommand("jof_pickupReady 3");
+		cg.pickupHandshakeActive = qtrue;
+	}
+}
+
+void CG_PickupReady_f(void) {
+	if (cg.pickupHandshakeActive && CG_PickupHandshakeSupported() &&
+		!strcmp(CG_Argv(1), "3") && !CG_Argv(2)[0])
+		cg.pickupConfirmed = qtrue;
+}
+
+qboolean CG_UsesPickupConfirmation( void ) {
+	return CG_PickupHandshakeSupported() && cg.pickupConfirmed;
+}
+
+void CG_AdvancePickupQueue( void ) {
+	if (!CG_UsesPickupConfirmation()) {
+		cg.pickupQueueHead = cg.pickupQueueCount = 0;
+		return;
+	}
+	if (cg.pickupQueueCount &&
+		(!cg.itemPickup || cg.time - cg.itemPickupTime >= 750)) {
+		cg.itemPickup = cg.pickupQueue[cg.pickupQueueHead];
+		cg.pickupQueueHead = (cg.pickupQueueHead + 1) % ARRAY_LEN(cg.pickupQueue);
+		cg.pickupQueueCount--;
+		cg.itemPickupTime = cg.time;
+	}
+}
+
+static void CG_QueuePickupNotification( int itemNum ) {
+	if (CG_UsesPickupConfirmation() && cg.itemPickup && cg.time - cg.itemPickupTime < 3000) {
+		// Bounded HUD backlog; console/sound still report every confirmation.
+		if (cg.pickupQueueCount == ARRAY_LEN(cg.pickupQueue)) {
+			cg.pickupQueueHead = (cg.pickupQueueHead + 1) % ARRAY_LEN(cg.pickupQueue);
+			cg.pickupQueueCount--;
+		}
+		cg.pickupQueue[(cg.pickupQueueHead + cg.pickupQueueCount++) % ARRAY_LEN(cg.pickupQueue)] = itemNum;
+	} else {
+		cg.itemPickup = itemNum;
+		cg.itemPickupTime = cg.time;
+	}
+}
+
 static void CG_ItemPickup( int itemNum ) {
-	cg.itemPickup = itemNum;
-	cg.itemPickupTime = cg.time;
+	CG_QueuePickupNotification(itemNum);
 	cg.itemPickupBlendTime = cg.time;
 	// see if it should be the grabbed weapon
 	if ( cg.snap && bg_itemlist[itemNum].giType == IT_WEAPON ) {
@@ -686,6 +756,258 @@ static void CG_ItemPickup( int itemNum ) {
 }
 
 
+// cg_tauntAntiSpam: model voice lines carry no rate limit of their own, so any line a player
+// can retrigger at will plays as often as the event fires - a taunt bind machine gunning the
+// same line, or a player bobbing at a water surface gasping on every frame the head clears.
+//
+// Lines fall into two classes:
+//   VOICE_LINE_TAUNT    every taunt family line shares one timer, so cycling between taunt,
+//                       bow, flourish and gloat does not get around the limit; it holds for
+//                       as long as the line that got through takes to play
+//   the rest            one fixed timer per line, so a gasp spammed at a water surface does
+//                       not also silence that player's jump or roll grunts
+//
+// Only the audio is suppressed; the animation still plays.
+typedef enum {
+	VOICE_LINE_TAUNT,
+	VOICE_LINE_GASP,
+	VOICE_LINE_JUMP,
+	VOICE_LINE_ROLL,
+	VOICE_LINE_LAND,
+	NUM_VOICE_LINES
+} voiceLine_t;
+
+// A taunt holds the next one back until it has finished playing, so a long line is never cut
+// off and a short one never makes the player wait - the taunt entry here is only the fallback
+// for when the length can't be read (an engine without cl_soundLength, or no sound system).
+// The rest are roughly the length of the stock line, so a line never layers over itself
+// while ordinary play - a bunny hop, a hard landing - still gets its grunt.
+static const int cg_voiceLineDebounce[NUM_VOICE_LINES] = {
+	2500,	// VOICE_LINE_TAUNT (fallback)
+	2000,	// VOICE_LINE_GASP
+	1000,	// VOICE_LINE_JUMP
+	1000,	// VOICE_LINE_ROLL
+	1000	// VOICE_LINE_LAND
+};
+
+typedef struct {
+	int		startTime;	// when the last line got through
+	int		holdTime;	// how long that line holds the next one back
+} voiceLineTimer_t;
+
+static voiceLineTimer_t cg_voiceLineTimer[MAX_CLIENTS][NUM_VOICE_LINES];
+
+// Engines older than the sound length extension end the import table before
+// trap->S_GetSampleLengthMs, so the cvar they never registered is the only safe way to tell.
+static int CG_SoundLengthMs( sfxHandle_t sfx ) {
+	char value[8];
+
+	if ( sfx <= 0 )
+		return 0;
+
+	trap->Cvar_VariableStringBuffer( "cl_soundLength", value, sizeof( value ) );
+	if ( atoi( value ) <= 0 || !trap->S_GetSampleLengthMs )
+		return 0;
+
+	return trap->S_GetSampleLengthMs( sfx );
+}
+
+// Returns qtrue (suppress the voice line) if this player's last line of this class is still
+// holding.  When the line is allowed through it starts a new hold: for the taunt family that is
+// the length of sfx, the sample about to play; the other lines ignore sfx and use their debounce.
+static qboolean CG_VoiceLineThrottled( int clientNum, voiceLine_t line, sfxHandle_t sfx ) {
+	voiceLineTimer_t *timer;
+	int length;
+
+	if ( !cg_tauntAntiSpam.integer )
+		return qfalse;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS )
+		return qfalse; // NPCs and world entities have their own cooldowns
+
+	timer = &cg_voiceLineTimer[clientNum][line];
+	if ( timer->startTime && cg.time >= timer->startTime && cg.time - timer->startTime < timer->holdTime )
+		return qtrue; // suppress
+
+	timer->startTime = cg.time;
+	timer->holdTime = cg_voiceLineDebounce[line];
+	if ( line == VOICE_LINE_TAUNT ) {
+		length = CG_SoundLengthMs( sfx );
+		if ( length > 0 )
+			timer->holdTime = length;
+	}
+	return qfalse;
+}
+
+// cg_saberAntiSpam: a bind or script can turn a saber on and off every server frame, or loop
+// weapon switches onto it, and every ignition and shutdown plays.  Each player gets a small
+// budget instead: a burst of toggles plays as usual, so quick toggling by hand is never cut,
+// and once it is spent one toggle sounds per interval for as long as the spam goes on.
+// Every sound of one toggle (both hilts of a dual or staff) gets the same answer, so a toggle is
+// heard whole or not at all, and every toggle pays for itself, however they arrive:
+//   - a weapon switch, the JA+ staff put-away and EV_SABER_UNHOLSTER voice a whole toggle in
+//     one call;
+//   - the server's toggle is one G_Sound per hilt, each its own temp entity. Several toggles can
+//     first arrive in one snapshot (a server sending snapshots slower than it runs, a client's
+//     rate), and several snapshots can be run in one frame. So a hilt's sound joins the toggle
+//     before it only from the same snapshot, the same way (on or off), and a hilt that toggle
+//     has not sounded yet; anything else is a new toggle.
+//
+// Only the audio is suppressed; the saber still lights and goes out as the server says.
+#define SABER_TOGGLE_BURST		4
+#define SABER_TOGGLE_INTERVAL	500
+
+typedef struct {
+	qboolean	seen;
+	int			due;		// when the next toggle would be on schedule
+	int			lastSnap;	// serverTime of the snapshot of the latest toggle sound
+	int			lastTime;	// cg.time it was asked at
+	// the G_Sound toggle the next hilt's sound may belong to
+	qboolean	grouping;
+	int			groupWay;	// 1 on, 2 off, 3 a sound used both ways
+	int			groupHilts;	// hilt bits already sounded in it
+	qboolean	groupQuiet;
+} saberToggleBudget_t;
+
+static saberToggleBudget_t cg_saberToggleBudget[MAX_CLIENTS];
+
+// This player's budget, emptied when time goes back (a map restart, a demo seeking back), or NULL.
+static saberToggleBudget_t *CG_SaberToggleBudget( int clientNum, int snap ) {
+	saberToggleBudget_t *budget;
+
+	if ( !cg_saberAntiSpam.integer )
+		return NULL;
+
+	if ( clientNum < 0 || clientNum >= MAX_CLIENTS )
+		return NULL; // NPCs are not bound to keys
+
+	budget = &cg_saberToggleBudget[clientNum];
+	if ( budget->seen && ( cg.time < budget->lastTime || snap < budget->lastSnap ) )
+		memset( budget, 0, sizeof( *budget ) );
+	return budget;
+}
+
+// Pays for one toggle; qtrue (suppress) if the budget is spent.
+static qboolean CG_SaberTogglePay( saberToggleBudget_t *budget, int snap ) {
+	qboolean quiet = (qboolean)( budget->seen && budget->due - ( SABER_TOGGLE_BURST - 1 ) * SABER_TOGGLE_INTERVAL > cg.time );
+
+	if ( !quiet )
+		budget->due = ( budget->seen && budget->due > cg.time ? budget->due : cg.time ) + SABER_TOGGLE_INTERVAL;
+	budget->seen = qtrue;
+	budget->lastSnap = snap;
+	budget->lastTime = cg.time;
+	budget->grouping = qfalse;
+	return quiet;
+}
+
+// Returns qtrue (suppress) if a whole toggle of this player's, voiced in this one call, is past the
+// budget. Ask only once a sound is really about to play: every call pays.
+qboolean CG_SaberToggleThrottled( int clientNum ) {
+	int snap = cg.snap ? cg.snap->serverTime : cg.time;
+	saberToggleBudget_t *budget = CG_SaberToggleBudget( clientNum, snap );
+
+	return budget ? CG_SaberTogglePay( budget, snap ) : qfalse;
+}
+
+// The same for one hilt's sound of a toggle: `way` 1 on, 2 off, 3 a sound used both ways, and
+// `hilts` the bits of the hilts that could have played it.
+static qboolean CG_SaberToggleHiltThrottled( int clientNum, int way, int hilts ) {
+	int snap = cg.snap ? cg.snap->serverTime : cg.time;
+	saberToggleBudget_t *budget = CG_SaberToggleBudget( clientNum, snap );
+	int hilt;
+
+	if ( !budget )
+		return qfalse;
+
+	if ( !hilts )
+		hilts = 1;
+
+	if ( budget->grouping && budget->lastSnap == snap && budget->groupWay == way
+		&& ( hilts & ~budget->groupHilts ) ) {
+		hilts &= ~budget->groupHilts;
+		budget->groupHilts |= hilts & -hilts; // another hilt of the same toggle
+		return budget->groupQuiet;
+	}
+
+	hilt = hilts & -hilts;
+	budget->groupQuiet = CG_SaberTogglePay( budget, snap );
+	budget->grouping = qtrue;
+	budget->groupWay = way;
+	budget->groupHilts = hilt;
+	return budget->groupQuiet;
+}
+
+// G_Sound puts a saber toggle on a temp entity with no owner, at the player's feet.  The owner is
+// the nearest player whose hilt plays that sound (the forced-hilt case keeps the server's own).
+static qboolean CG_SaberToggleSoundThrottled( vec3_t origin, sfxHandle_t sfx ) {
+	int		i, j, best = -1, bestOn = 0, bestOff = 0;
+	float	bestDistSq = 64.0f * 64.0f, distSq;
+
+	if ( !cg_saberAntiSpam.integer || !sfx || !cg.snap )
+		return qfalse;
+
+	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+		clientInfo_t *ci = &cgs.clientinfo[i];
+		int on = 0, off = 0;
+
+		if ( !ci->infoValid )
+			continue;
+		for ( j = 0; j < MAX_SABERS; j++ ) {
+			if ( sfx == ci->saber[j].soundOn || sfx == ci->serverSaberSoundOn[j] )
+				on |= 1 << j;
+			if ( sfx == ci->saber[j].soundOff || sfx == ci->serverSaberSoundOff[j] )
+				off |= 1 << j;
+		}
+		if ( !on && !off )
+			continue;
+
+		distSq = DistanceSquared( i == cg.snap->ps.clientNum ? cg.snap->ps.origin : cg_entities[i].currentState.pos.trBase, origin );
+		if ( distSq <= bestDistSq ) {
+			bestDistSq = distSq;
+			best = i;
+			bestOn = on;
+			bestOff = off;
+		}
+	}
+
+	if ( best < 0 )
+		return qfalse;
+	return CG_SaberToggleHiltThrottled( best, ( bestOn ? 1 : 0 ) | ( bestOff ? 2 : 0 ), bestOn | bestOff );
+}
+// Model voice lines a player can fire off at will.  Servers that route these through a
+// generic sound event still land here, so they share the same per-player debounce.
+static qboolean CG_ClassifyVoiceLine( const char *soundName, voiceLine_t *line ) {
+	static const struct {
+		const char	*prefix;
+		voiceLine_t	line;
+	} voiceLines[] = {
+		{ "taunt",		VOICE_LINE_TAUNT },
+		{ "anger",		VOICE_LINE_TAUNT },
+		{ "gloat",		VOICE_LINE_TAUNT },
+		{ "victory",	VOICE_LINE_TAUNT },
+		{ "deflect",	VOICE_LINE_TAUNT },
+		{ "respect",	VOICE_LINE_TAUNT },
+		{ "meditate",	VOICE_LINE_TAUNT },
+		{ "gasp",		VOICE_LINE_GASP },
+		{ "jump",		VOICE_LINE_JUMP },
+		{ "roll",		VOICE_LINE_ROLL },
+		{ "land",		VOICE_LINE_LAND }
+	};
+	size_t i;
+
+	if ( !soundName || soundName[0] != '*' )
+		return qfalse;
+
+	soundName++;
+	for ( i = 0; i < ARRAY_LEN( voiceLines ); i++ ) {
+		if ( !Q_stricmpn( soundName, voiceLines[i].prefix, strlen( voiceLines[i].prefix ) ) ) {
+			*line = voiceLines[i].line;
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
 /*
 ================
 CG_PainEvent
@@ -693,6 +1015,28 @@ CG_PainEvent
 Also called by playerstate transition
 ================
 */
+void CG_ConfirmedPickup_f( void ) {
+	const char *arg;
+	int index = 0;
+	if (!CG_UsesPickupConfirmation() || CG_Argv(2)[0]) {
+		return;
+	}
+	arg = CG_Argv(1);
+	if (!arg[0]) return;
+	while (*arg) {
+		if (*arg < '0' || *arg > '9' || index >= bg_numItems) return;
+		index = index * 10 + (*arg++ - '0');
+	}
+	if (index < 1 || index >= bg_numItems || !BG_ConfirmedPickupType(bg_itemlist[index].giType)) return;
+	// Commands are executed once in reliable sequence order, not per prediction
+	// frame. Do not apply the legacy entity-based 500ms suppression here.
+	if (cg.snap && cg.snap->ps.clientNum != cg.clientNum) return;
+	if (bg_itemlist[index].pickup_sound && bg_itemlist[index].pickup_sound[0]) {
+		trap->S_StartLocalSound(trap->S_RegisterSound(bg_itemlist[index].pickup_sound), CHAN_AUTO);
+	}
+	CG_ItemPickup(index);
+}
+
 void CG_PainEvent( centity_t *cent, int health ) {
 	char	*snd;
 
@@ -979,15 +1323,17 @@ void DoFall(centity_t *cent, entityState_t *es, int clientNum)
 	else if (delta > 50)
 	{
 		trap->S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.fallSound );
-		trap->S_StartSound( NULL, cent->currentState.number, CHAN_VOICE,
-			CG_CustomSound( cent->currentState.number, "*land1.wav" ) );
+		if ( !CG_VoiceLineThrottled( cent->currentState.number, VOICE_LINE_LAND, 0 ) )
+			trap->S_StartSound( NULL, cent->currentState.number, CHAN_VOICE,
+				CG_CustomSound( cent->currentState.number, "*land1.wav" ) );
 		cent->pe.painTime = cg.time;	// don't play a pain sound right after this
 	}
 	else if (delta > 44)
 	{
 		trap->S_StartSound (NULL, es->number, CHAN_AUTO, cgs.media.fallSound );
-		trap->S_StartSound( NULL, cent->currentState.number, CHAN_VOICE,
-			CG_CustomSound( cent->currentState.number, "*land1.wav" ) );
+		if ( !CG_VoiceLineThrottled( cent->currentState.number, VOICE_LINE_LAND, 0 ) )
+			trap->S_StartSound( NULL, cent->currentState.number, CHAN_VOICE,
+				CG_CustomSound( cent->currentState.number, "*land1.wav" ) );
 		cent->pe.painTime = cg.time;	// don't play a pain sound right after this
 	}
 	else
@@ -1465,6 +1811,94 @@ static qboolean isGlobalVGS(const char *s) {
 	return qfalse;
 }
 
+// Toggle sounds sent by G_Sound contain the server hilt's sound, not the
+// client-only override. Do not globally replace that sound for other players.
+void CG_PrepareForceOwnSaberSounds(const playerState_t *ps, const playerState_t *oldPs) {
+	int active, oldActive;
+	memset(cg.forceSaberSoundPending, 0, sizeof(cg.forceSaberSoundPending));
+	memset(cg.forceSaberSoundUsed, 0, sizeof(cg.forceSaberSoundUsed));
+	if (!oldPs || ps->clientNum != cg.clientNum || oldPs->clientNum != cg.clientNum)
+		return;
+	// For duals: 0 = both active, 1 = primary only, 2 = both off.
+	active = ps->saberHolstered == 2 ? 0 : ps->saberHolstered == 1 ? 1 : 3;
+	oldActive = oldPs->saberHolstered == 2 ? 0 : oldPs->saberHolstered == 1 ? 1 : 3;
+	cg.forceSaberSoundPending[0] = active & ~oldActive;
+	cg.forceSaberSoundPending[1] = oldActive & ~active;
+}
+
+static sfxHandle_t CG_ForceOwnSaberSound(const entityState_t *es, int source, sfxHandle_t sound) {
+	clientInfo_t *ci;
+	int matches[2] = {0, 0}, available[2], preferred[2];
+	int i, j;
+	vec3_t delta;
+	float distance;
+
+	if (!sound || !cg.snap || cg.clientNum < 0 || cg.clientNum >= MAX_CLIENTS ||
+		cg.snap->ps.clientNum != cg.clientNum || !cg_forceOwnSaber.string[0] ||
+		!Q_stricmp(cg_forceOwnSaber.string, "none")) {
+		return sound;
+	}
+	if (source != cg.clientNum) {
+		if (source < MAX_CLIENTS || es->eType != ET_EVENTS + EV_GENERAL_SOUND) {
+			return sound;
+		}
+		// Vanilla G_Sound uses an anonymous, snapped-position temp entity.
+		// Use authoritative positions, not the local player's predicted origin.
+		VectorSubtract(es->pos.trBase, cg.snap->ps.origin, delta);
+		distance = VectorLengthSquared(delta);
+		if (distance > 32 * 32) {
+			return sound;
+		}
+		for (i = 0; i < cg.snap->numEntities; i++) {
+			const entityState_t *other = &cg.snap->entities[i];
+			if (other->number == cg.clientNum ||
+				(other->eType != ET_PLAYER && other->eType != ET_NPC)) {
+				continue;
+			}
+			VectorSubtract(es->pos.trBase, other->pos.trBase, delta);
+			if (VectorLengthSquared(delta) <= distance + 3) {
+				return sound; // Another player is closer, or ownership is ambiguous.
+			}
+		}
+	}
+	ci = &cgs.clientinfo[cg.clientNum];
+	for (i = 0; i < MAX_SABERS; i++) {
+		for (j = 0; j < 2; j++) {
+			sfxHandle_t original = j ? ci->serverSaberSoundOff[i] : ci->serverSaberSoundOn[i];
+			if (original == sound && ci->saber[i].model[0])
+				matches[j] |= 1 << i;
+		}
+	}
+	for (j = 0; j < 2; j++) {
+		available[j] = matches[j] & ~cg.forceSaberSoundUsed[j];
+		preferred[j] = available[j] & cg.forceSaberSoundPending[j];
+	}
+	if (preferred[0] || preferred[1]) {
+		available[0] = preferred[0];
+		available[1] = preferred[1];
+	} else if (!available[0] && !available[1]) {
+		available[0] = matches[0];
+		available[1] = matches[1];
+	}
+	// If the same file is used for ignition AND shutdown, require an actual
+	// state transition to distinguish them rather than guessing a sound type.
+	if ((available[0] && available[1]) || (!available[0] && !available[1]))
+		return sound;
+	j = available[1] ? 1 : 0;
+	if (available[j] == 3 && cg.snap->ps.saberHolstered == 1)
+		available[j] = j ? 2 : 1;
+	// Shared server sounds are emitted once per hilt for a full dual toggle.
+	// Consume each matching slot once so different forced hilts both get heard.
+	for (i = 0; i < MAX_SABERS; i++) {
+		if (available[j] & (1 << i)) {
+			sfxHandle_t custom = j ? ci->saber[i].soundOff : ci->saber[i].soundOn;
+			cg.forceSaberSoundUsed[j] |= 1 << i;
+			return custom ? custom : sound;
+		}
+	}
+	return sound;
+}
+
 static qboolean CG_ProximityCheck(vec3_t pos1, vec3_t pos2) { //Returns qtrue if two vectors are within 32 of eachother in every way?
 	int i;
 	for (i = 0; i <= 2; i++) {
@@ -1488,7 +1922,6 @@ extern int cg_dueltypes[MAX_CLIENTS];//JAPRO - Clientside - Fullforce Duels
 void CG_GibPlayer( vec3_t playerOrigin );
 
 #define	DEBUGNAME(x) if(cg_debugEvents.integer){trap->Print(x"\n");}
-extern void CG_ChatBox_AddString(char *chatStr); //cg_draw.c
 void CG_SpotIcon( int client, vec3_t org );
 void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	entityState_t	*es;
@@ -1499,6 +1932,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	int				eID = 0;
 	int				isnd = 0;
 	centity_t		*cl_ent;
+	voiceLine_t		voiceLine;
 
 	es = &cent->currentState;
 	event = es->event & ~EV_EVENT_BITS;
@@ -1739,6 +2173,20 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			break;
 		}
 
+		if (cgs.serverMod == SVMOD_JAPLUS && es->number == cg.clientNum) {
+			cg.endDuelCameraTime = 0;
+			// JA+ starts Plugin 2 from EV_PRIVATE_DUEL 0, not an obituary.
+			// The survivor can receive this before prediction clears duelInProgress.
+			if (!es->eventParm &&
+				(cp_pluginDisable.integer & JAPRO_PLUGIN_ENDDUELROTATION) &&
+				!(cg.snap->ps.pm_flags & PMF_FOLLOW) &&
+				cg.snap->ps.persistant[PERS_TEAM] != TEAM_SPECTATOR &&
+				cg.snap->ps.stats[STAT_HEALTH] > 0) {
+				cg.endDuelCameraTime = cg.time;
+				cg.endDuelCameraSpawnCount = cg.snap->ps.persistant[PERS_SPAWN_COUNT];
+			}
+		}
+
 //JAPRO - Clientside - Fullforce Duels - Start
 		if (es->eventParm)
 		{ //starting the duel
@@ -1782,6 +2230,9 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			break;
 
 		if ((cg.time - cent->pe.painTime) < 500) //don't play immediately after pain/fall sound?
+			break;
+
+		if (CG_VoiceLineThrottled(es->number, VOICE_LINE_JUMP, 0))
 			break;
 
 		//JAPRO - Clientside - Add jumpsounds options - Start
@@ -1832,20 +2283,23 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		if (es->eventParm) //fall-roll-in-one event
 			DoFall(cent, es, clientNum);
 
-		switch (cg_rollSounds.integer)
+		if (cg_rollSounds.integer && !CG_VoiceLineThrottled(es->number, VOICE_LINE_ROLL, 0))
 		{
-			default: break;
-			case 1://JAPRO - Clientside - Add rollsounds options
-				trap->S_StartSound(NULL, es->number, CHAN_VOICE, CG_CustomSound(es->number, "*roll"));
-				break;
-			case 2:
-				if (cg.snap->ps.clientNum != es->number)
+			switch (cg_rollSounds.integer)
+			{
+				default: break;
+				case 1://JAPRO - Clientside - Add rollsounds options
 					trap->S_StartSound(NULL, es->number, CHAN_VOICE, CG_CustomSound(es->number, "*roll"));
-				break;
-			case 3:
-				if (cg.snap->ps.clientNum == es->number)
-					trap->S_StartSound(NULL, es->number, CHAN_VOICE, CG_CustomSound(es->number, "*roll"));
-				break;
+					break;
+				case 2:
+					if (cg.snap->ps.clientNum != es->number)
+						trap->S_StartSound(NULL, es->number, CHAN_VOICE, CG_CustomSound(es->number, "*roll"));
+					break;
+				case 3:
+					if (cg.snap->ps.clientNum == es->number)
+						trap->S_StartSound(NULL, es->number, CHAN_VOICE, CG_CustomSound(es->number, "*roll"));
+					break;
+			}
 		}
 
 		trap->S_StartSound( NULL, es->number, CHAN_BODY, cgs.media.rollSound  );
@@ -1940,7 +2394,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			{
 				soundIndex = CG_CustomSound( es->number, "*taunt.wav" );
 			}
-			if ( soundIndex )
+			if ( soundIndex && !CG_VoiceLineThrottled( es->number, VOICE_LINE_TAUNT, soundIndex ) )
 			{
 				trap->S_StartSound (NULL, es->number, CHAN_VOICE, soundIndex );
 			}
@@ -2080,7 +2534,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	case EV_TAUNT2:
 	case EV_TAUNT3:
 		DEBUGNAME("EV_TAUNTx");
-		CG_TryPlayCustomSound( NULL, es->number, CHAN_VOICE, va("*taunt%i.wav", event - EV_TAUNT1 + 1) );
+		{
+			sfxHandle_t sfx = CG_CustomSound( es->number, va("*taunt%i.wav", event - EV_TAUNT1 + 1) );
+
+			if ( sfx > 0 && !CG_VoiceLineThrottled( es->number, VOICE_LINE_TAUNT, sfx ) )
+				trap->S_StartSound( NULL, es->number, CHAN_VOICE, sfx );
+		}
 		break;
 	case EV_JCHASE1:
 	case EV_JCHASE2:
@@ -2135,7 +2594,8 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		break;
 	case EV_WATER_CLEAR:
 		DEBUGNAME("EV_WATER_CLEAR");
-		trap->S_StartSound (NULL, es->number, CHAN_AUTO, CG_CustomSound( es->number, "*gasp.wav" ) );
+		if ( !CG_VoiceLineThrottled( es->number, VOICE_LINE_GASP, 0 ) )
+			trap->S_StartSound (NULL, es->number, CHAN_AUTO, CG_CustomSound( es->number, "*gasp.wav" ) );
 		break;
 
 	case EV_ITEM_PICKUP:
@@ -2148,7 +2608,14 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			int		index;
 			qboolean	newindex = qfalse;
 
+			if (es->eventParm < 0 || es->eventParm >= MAX_GENTITIES) {
+				break;
+			}
 			index = cg_entities[es->eventParm].currentState.modelindex;		// player predicted
+			if (es->number == cg.clientNum && CG_UsesPickupConfirmation() &&
+				index > 0 && index < bg_numItems && BG_ConfirmedPickupType(bg_itemlist[index].giType)) {
+				break; // Reliable jof_pickup is the sole local feedback source.
+			}
 
 			if (index < 1 && cg_entities[es->eventParm].currentState.isJediMaster)
 			{ //a holocron most likely
@@ -2755,9 +3222,12 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				ci = &cgs.clientinfo[es->number];
 			}
 
-			if (ci)
+			if (ci && !CG_SaberToggleThrottled( es->number ))
 			{
-				if (ci->saber[0].soundOn)
+				//a staff being drawn over a JA+ shoulder is not in his hand yet, so its ignition
+				//waits with the blade rather than going off on an empty hand
+				if (ci->saber[0].soundOn
+					&& !CG_StaffSwapHoldIgnitionSound( es->number, ci->saber[0].soundOn ))
 				{
 					trap->S_StartSound (NULL, es->number, CHAN_AUTO, ci->saber[0].soundOn );
 				}
@@ -2885,7 +3355,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		ByteToDir( es->eventParm, dir );
 		if (es->weapon)
 		{ //client
-			FX_DisruptorHitPlayer( cent->lerpOrigin, dir, qtrue );
+			FX_DisruptorHitPlayer( cent->lerpOrigin, dir, !CG_IsDroidEntity(es->otherEntityNum) );
 		}
 		else
 		{ //non-client
@@ -3368,6 +3838,17 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_MISSILE_MISS:
 		DEBUGNAME("EV_MISSILE_MISS");
+		if (es->weapon == WP_CONCUSSION && es->generic1 == DESTRUCTION_MISSILE_TAG)
+		{
+			// This is Force energy, not a gun impact: full-force duels must see it.
+			if (es->owner >= 0 && es->owner < MAX_GENTITIES &&
+				!CG_DuelCull(&cg_entities[es->owner]))
+			{
+				ByteToDir(es->eventParm, dir);
+				CG_PlayDestructionEffect(es, position, dir, qtrue);
+			}
+			break;
+		}
 		if (cgs.serverMod == SVMOD_JAPRO && cg.predictedPlayerState.stats[STAT_RACEMODE] && cg.predictedPlayerState.stats[STAT_MOVEMENTSTYLE] >= MV_COOP_JKA) {
 		}
 		else if (cg.predictedPlayerState.duelInProgress &&
@@ -3650,7 +4131,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				}
 				if (ci->team == ourTeam || isGlobalVGS(s)) //put it to console or.. just not at all?
 				{ //add to the chat box
-					CG_ChatBox_AddString(va("<%s^7: %s>", ci->name, descr));
+					CG_ChatBox_AddString(va("<%s^7: %s>", ci->name, descr), qfalse);
 				}
 
 				if (ci->team == ourTeam || isGlobalVGS(s))
@@ -3699,10 +4180,26 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			else
 			{
 				if ( cgs.gameSounds[ es->eventParm ] ) {
-					trap->S_StartSound (NULL, es->number, es->saberEntityNum, cgs.gameSounds[ es->eventParm ] );
+					if ( CG_SaberToggleSoundThrottled( es->pos.trBase, cgs.gameSounds[ es->eventParm ] ) )
+						break;
+					//the forced hilt's own sound is the one he is owed, so settle that first and
+					//hold that one - his saber info is what the staff swap matches against
+					sfxHandle_t sound = CG_ForceOwnSaberSound(es, es->number, cgs.gameSounds[ es->eventParm ]);
+					sound = CG_DestructionCastSound(es, sound);
+					//JA+ hands the saber ignition out this way, dropped at the owner's feet with
+					//nothing on it to say whose it is - hold it back if it belongs to a staff being
+					//drawn over a shoulder, so it lands with the blade
+					if ( CG_StaffSwapHoldGeneralSound( es->pos.trBase, sound ) )
+						break;
+					trap->S_StartSound (NULL, es->number, es->saberEntityNum, sound );
 				} else {
+					sfxHandle_t sfx;
+
 					s = CG_ConfigString( CS_SOUNDS + es->eventParm );
-					trap->S_StartSound (NULL, es->number, es->saberEntityNum, CG_CustomSound( es->number, s ) );
+					sfx = CG_CustomSound( es->number, s );
+					if ( CG_ClassifyVoiceLine( s, &voiceLine ) && CG_VoiceLineThrottled( es->number, voiceLine, sfx ) )
+						break;
+					trap->S_StartSound (NULL, es->number, es->saberEntityNum, sfx );
 				}
 			}
 
@@ -3796,10 +4293,16 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		DEBUGNAME("EV_ENTITY_SOUND");
 		//somewhat of a hack - weapon is the caller entity's index, trickedentindex is the proper sound channel
 		if ( cgs.gameSounds[ es->eventParm ] ) {
-			trap->S_StartSound (NULL, es->clientNum, es->trickedentindex, cgs.gameSounds[ es->eventParm ] );
+			trap->S_StartSound (NULL, es->clientNum, es->trickedentindex,
+				CG_ForceOwnSaberSound(es, es->clientNum, cgs.gameSounds[ es->eventParm ]) );
 		} else {
+			sfxHandle_t sfx;
+
 			s = CG_ConfigString( CS_SOUNDS + es->eventParm );
-			trap->S_StartSound (NULL, es->clientNum, es->trickedentindex, CG_CustomSound( es->clientNum, s ) );
+			sfx = CG_CustomSound( es->clientNum, s );
+			if ( CG_ClassifyVoiceLine( s, &voiceLine ) && CG_VoiceLineThrottled( es->clientNum, voiceLine, sfx ) )
+				break;
+			trap->S_StartSound (NULL, es->clientNum, es->trickedentindex, sfx );
 		}
 		break;
 
@@ -3898,7 +4401,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		if (cg.predictedPlayerState.duelInProgress && (cg.predictedPlayerState.clientNum != es->number && cg.predictedPlayerState.duelIndex != es->number))
 			break;
 
-		if (cg_blood.integer) {
+		if (cg_blood.integer && !CG_IsDroidEntity(es->number)) {
 			trap->S_StartSound(NULL, es->number, CHAN_BODY, cgs.media.gibSound);
 			CG_GibPlayer(cent->lerpOrigin);
 		}

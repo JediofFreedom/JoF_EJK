@@ -1093,6 +1093,8 @@ static void CG_General( centity_t *cent ) {
 		cent->currentState.weapon == G2_MODEL_PART)
 	{ //special case for client limbs
 		centity_t *clEnt;
+		int ownerNum = cent->currentState.modelindex >= 0 ?
+			cent->currentState.modelindex : cent->currentState.otherEntityNum2;
 		int dismember_settings = cg_dismember.integer;
 		float smoothFactor = 0.5f*timescale.value;
 		int k = 0;
@@ -1100,14 +1102,10 @@ static void CG_General( centity_t *cent ) {
 
 		doNotSetModel = qtrue;
 
-		if (cent->currentState.modelindex >= 0)
-		{
-			clEnt = &cg_entities[cent->currentState.modelindex];
+		if (ownerNum < 0 || ownerNum >= ENTITYNUM_NONE) {
+			return;
 		}
-		else
-		{
-			clEnt = &cg_entities[cent->currentState.otherEntityNum2];
-		}
+		clEnt = &cg_entities[ownerNum];
 
 		if (!dismember_settings)
 		{ //This client does not wish to see dismemberment.
@@ -1156,6 +1154,9 @@ static void CG_General( centity_t *cent ) {
 
 			cent->bolt4 = -1;
 			cent->trailTime = 0;
+			// Detached parts are ET_GENERAL, not ET_NPC. Keep the owner's type
+			// with the copied model so removal/reuse of the NPC cannot start blood.
+			cent->limbNoSmoke = CG_IsDroidEntity(ownerNum);
 
 			if (cent->currentState.modelGhoul2 == G2_MODELPART_HEAD)
 			{
@@ -1281,7 +1282,7 @@ static void CG_General( centity_t *cent ) {
 			}
 
 			newBolt = trap->G2API_AddBolt( cent->ghoul2, 0, limbTagName );
-			if ( newBolt != -1 )
+			if ( newBolt != -1 && !cent->limbNoSmoke )
 			{
 				vec3_t boltOrg, boltAng;
 
@@ -1308,7 +1309,7 @@ static void CG_General( centity_t *cent ) {
 			trap->G2API_SetSurfaceOnOff(clEnt->ghoul2, stubCapName, 0);
 
 			newBolt = trap->G2API_AddBolt( clEnt->ghoul2, 0, stubTagName );
-			if ( newBolt != -1 )
+			if ( newBolt != -1 && !cent->limbNoSmoke )
 			{
 				vec3_t boltOrg, boltAng;
 
@@ -1362,7 +1363,7 @@ static void CG_General( centity_t *cent ) {
 			cent->lerpOrigin[k]=cent->turAngles[k];
 		}
 
-		if (cent->ghoul2 && cent->bolt4 != -1 && cent->trailTime < cg.time)
+		if (!cent->limbNoSmoke && cent->ghoul2 && cent->bolt4 != -1 && cent->trailTime < cg.time)
 		{
 			if ( cent->bolt4 != -1 &&
 				(cent->currentState.pos.trDelta[0] || cent->currentState.pos.trDelta[1] || cent->currentState.pos.trDelta[2]) )
@@ -1459,12 +1460,22 @@ Ghoul2 Insert End
 		if (!cent->ghoul2 && !cent->currentState.bolt1)
 		{
 			char skinName[MAX_QPATH];
-			const char *modelName = CG_ConfigString( CS_MODELS+cent->currentState.modelindex );
+			qhandle_t hiltSkin;
+			//a saber entity is drawn with the hilt this client resolved for its owner,
+			//everything else with the model the server handed us
+			const char *modelName = CG_SaberEntityHiltModel( CG_SaberEntityOwnerSaber( cent ), cent, &hiltSkin );
 			int l;
 			int skin = 0;
 
-			trap->G2API_InitGhoul2Model(&cent->ghoul2, modelName, 0, 0, 0, 0, 0);
-			if (cent->ghoul2 && trap->G2API_SkinlessModel(cent->ghoul2, 0))
+			Q_strncpyz(cent->saberHiltModel, modelName, sizeof(cent->saberHiltModel));
+			cent->saberHiltSkin = hiltSkin;
+
+			trap->G2API_InitGhoul2Model(&cent->ghoul2, modelName, 0, hiltSkin, 0, 0, 0);
+			if (cent->ghoul2 && hiltSkin)
+			{
+				trap->G2API_SetSkin(cent->ghoul2, 0, hiltSkin, hiltSkin);
+			}
+			else if (cent->ghoul2 && trap->G2API_SkinlessModel(cent->ghoul2, 0))
 			{ //well, you'd never want a skinless model, so try to get his skin...
 				Q_strncpyz(skinName, modelName, MAX_QPATH);
 				l = strlen(skinName);
@@ -2050,6 +2061,15 @@ Ghoul2 Insert Start
 	}
 
 	item = &bg_itemlist[ es->modelindex ];
+
+	// The server only bakes the CS_ITEMS list (and thus the client's registered
+	// visuals) at map load. An item dropped at runtime whose type wasn't placed
+	// in the map (e.g. via /give all + drop) was never registered, so its model
+	// handle is 0 and it draws as nothing until something else registers it (such
+	// as the pickup icon). Register on demand here so it always renders.
+	if ( !cg_items[ es->modelindex ].registered ) {
+		CG_RegisterItemVisuals( es->modelindex );
+	}
 
 	if ((item->giType == IT_WEAPON || item->giType == IT_POWERUP) &&
 		!(cent->currentState.eFlags & EF_DROPPEDWEAPON) &&
@@ -2994,23 +3014,24 @@ static void CG_Missile( centity_t *cent ) {
 	{
 		if ((cent->currentState.modelindex != cent->serverSaberHitIndex || !cent->ghoul2) && !(s1->eFlags & EF_NODRAW))
 		{ //no g2, or server changed the model we are using
-			const char *saberModel = CG_ConfigString( CS_MODELS+cent->currentState.modelindex );
+			qhandle_t saberSkin;
+			const char *saberModel = CG_SaberEntityHiltModel( CG_SaberEntityOwnerSaber( cent ), cent, &saberSkin );
 
 			cent->serverSaberHitIndex = cent->currentState.modelindex;
+			Q_strncpyz(cent->saberHiltModel, saberModel, sizeof(cent->saberHiltModel));
+			cent->saberHiltSkin = saberSkin;
 
 			if (cent->ghoul2)
-			{ //clean if we already have one (because server changed model string index)
+			{ //clean if we already have one (because the hilt changed)
 				trap->G2API_CleanGhoul2Models(&(cent->ghoul2));
 				cent->ghoul2 = 0;
 			}
 
-			if (saberModel && saberModel[0])
+			trap->G2API_InitGhoul2Model(&cent->ghoul2, saberModel, 0, saberSkin, 0, 0, 0);
+
+			if (cent->ghoul2 && saberSkin)
 			{
-				trap->G2API_InitGhoul2Model(&cent->ghoul2, saberModel, 0, 0, 0, 0, 0);
-			}
-			else
-			{
-				trap->G2API_InitGhoul2Model(&cent->ghoul2, DEFAULT_SABER_MODEL, 0, 0, 0, 0, 0);
+				trap->G2API_SetSkin(cent->ghoul2, 0, saberSkin, saberSkin);
 			}
 			return;
 		}
@@ -3027,6 +3048,9 @@ static void CG_Missile( centity_t *cent ) {
 
 	// calculate the axis
 	VectorCopy( s1->angles, cent->lerpAngles);
+
+	if (CG_PlayDestructionEffect(s1, cent->lerpOrigin, s1->pos.trDelta, qfalse))
+		return;
 
 	if ( s1->otherEntityNum2 && s1->weapon != WP_SABER )
 	{//using an over-ridden trail effect!
@@ -3618,6 +3642,9 @@ CG_CalcEntityLerpPositions
 ===============
 */
 void CG_CalcEntityLerpPositions(centity_t* cent) {
+	const qboolean soloRace = cgs.serverMod == SVMOD_JAPRO && cg.snap->ps.stats[STAT_RACEMODE] &&
+		cg.snap->ps.stats[STAT_MOVEMENTSTYLE] != MV_COOP_JKA;
+
 	if (cent->currentState.eType == ET_NPC) {
 		cent->doLerp = qtrue;
 	}
@@ -3637,9 +3664,11 @@ void CG_CalcEntityLerpPositions(centity_t* cent) {
 		cent->doLerp = qfalse;
 	}
 
-	// if this player does not want to see extrapolated players
-	if (cent->doLerp) {
-		// make sure the clients use TR_INTERPOLATE
+	// TaystJK's cg_smoothClients switch: off (or solo race mode) forces client
+	// interpolation; on leaves client trajectories available for extrapolation.
+	// Keep this client's existing NPC interpolation independent of that switch.
+	if (cent->currentState.eType == ET_NPC ||
+		((!cg_smoothClients.integer || soloRace) && cent->currentState.number < MAX_CLIENTS)) {
 		cent->currentState.pos.trType = TR_INTERPOLATE;
 		cent->nextState.pos.trType = TR_INTERPOLATE;
 	}
@@ -3652,8 +3681,8 @@ void CG_CalcEntityLerpPositions(centity_t* cent) {
 
 		if (veh->currentState.owner == cg.predictedPlayerState.clientNum) {
 			// only do this if the vehicle is pilotted by this client and predicting properly
-			BG_EvaluateTrajectory(&cent->currentState.pos, cg.time, &cent->lerpOrigin);
-			BG_EvaluateTrajectory(&cent->currentState.apos, cg.time, &cent->lerpAngles);
+			BG_EvaluateTrajectory(&cent->currentState.pos, cg.time, cent->lerpOrigin);
+			BG_EvaluateTrajectory(&cent->currentState.apos, cg.time, cent->lerpAngles);
 			return;
 		}
 	}
@@ -3676,24 +3705,29 @@ void CG_CalcEntityLerpPositions(centity_t* cent) {
 
 	// first see if we can interpolate between two snaps for
 	// linear extrapolated clients
-	if (cent->interpolate && cent->currentState.pos.trType == TR_LINEAR_STOP && cent->doLerp) {
+	if (cent->interpolate && cent->currentState.pos.trType == TR_LINEAR_STOP &&
+		cent->currentState.number < MAX_CLIENTS) {
 		CG_InterpolateEntityPosition(cent);
 		return;
 	}
 	else {
 		// just use the current frame and evaluate as best we can
-		BG_EvaluateTrajectory(&cent->currentState.pos, cg.time, &cent->lerpOrigin);
-		BG_EvaluateTrajectory(&cent->currentState.apos, cg.time, &cent->lerpAngles);
+		BG_EvaluateTrajectory(&cent->currentState.pos, cg.time, cent->lerpOrigin);
+		BG_EvaluateTrajectory(&cent->currentState.apos, cg.time, cent->lerpAngles);
+	}
+	if (cent->currentState.number == cg.clientNum) {
+		VectorCopy(cg.predictedPlayerState.origin, cent->lerpOrigin);
+		VectorCopy(cg.predictedPlayerState.origin, cent->currentState.pos.trBase);
 	}
 
 	// adjust for riding a mover if it wasn't rolled into the predicted player state
 	if (cent->currentState.number != cg.predictedPlayerState.clientNum) {
 		CG_AdjustPositionForMover(
-			&cent->lerpOrigin,
+			cent->lerpOrigin,
 			cent->currentState.groundEntityNum,
 			cg.snap->serverTime,
 			cg.time,
-			&cent->lerpOrigin
+			cent->lerpOrigin
 		);
 	}
 }
@@ -3919,6 +3953,26 @@ void CG_ManualEntityRender(centity_t *cent)
 	CG_AddCEntity(cent);
 }
 
+static void CG_AddPredictedPlayerEntity(void)
+{
+	const int smoothClients = cg_smoothClients.integer;
+	centity_t *cent = &cg_entities[cg.predictedPlayerState.clientNum];
+	const qboolean interpolate = cent->interpolate;
+
+	// TaystJK disables smoothing while rendering the predicted local player
+	// to avoid jitter, then restores the player's setting for packet entities.
+	if (smoothClients) {
+		cg_smoothClients.integer = 0;
+	}
+	// Its origin/angles already come from prediction (or hold interpolation).
+	// Interpolating that state toward nextState again makes the rendered body
+	// drift ahead of the camera, then snap back at every snapshot boundary.
+	cent->interpolate = qfalse;
+	CG_AddCEntity(cent);
+	cent->interpolate = interpolate;
+	cg_smoothClients.integer = smoothClients;
+}
+
 /*
 ===============
 CG_AddPacketEntities
@@ -3975,8 +4029,16 @@ void CG_AddPacketEntities( qboolean isPortal ) { //base JKA function, probably s
 
 		if (veh->currentState.owner == cg.predictedPlayerState.clientNum)
 		{
+			//the vehicle's own predicted playerstate (vps) never carries iModelScale over the network
+			//(see vehPlayerStateFields in msg.cpp), so BG_PlayerStateToEntityState() below would zero out
+			//the scale that already arrived correctly via the normal entity snapshot. Preserve it across
+			//the overwrite so a scaled vehicle (set via "scale" in its .npc file) renders correctly for
+			//its own rider too, not just for observers.
+			int savedModelScale = veh->currentState.iModelScale;
+
 			BG_PlayerStateToEntityState( &cg.predictedVehicleState, &veh->currentState, qfalse );
 			veh->currentState.eType = ET_NPC;
+			veh->currentState.iModelScale = savedModelScale;
 
 			veh->currentState.pos.trType = TR_INTERPOLATE;
 		}
@@ -3984,7 +4046,7 @@ void CG_AddPacketEntities( qboolean isPortal ) { //base JKA function, probably s
 		veh->bodyHeight = cg.time; //indicate we have already been added
 	}
 
-	CG_AddCEntity( &cg_entities[cg.predictedPlayerState.clientNum] );
+	CG_AddPredictedPlayerEntity();
 
 	/*
 	// lerp the non-predicted value for lightning gun origins
@@ -4087,8 +4149,16 @@ void CG_AddPacketEntities( qboolean isPortal ) {
 
 		if (veh->currentState.owner == cg.predictedPlayerState.clientNum)
 		{
+			//the vehicle's own predicted playerstate (vps) never carries iModelScale over the network
+			//(see vehPlayerStateFields in msg.cpp), so BG_PlayerStateToEntityState() below would zero out
+			//the scale that already arrived correctly via the normal entity snapshot. Preserve it across
+			//the overwrite so a scaled vehicle (set via "scale" in its .npc file) renders correctly for
+			//its own rider too, not just for observers.
+			int savedModelScale = veh->currentState.iModelScale;
+
 			BG_PlayerStateToEntityState( &cg.predictedVehicleState, &veh->currentState, qfalse );
 			veh->currentState.eType = ET_NPC;
+			veh->currentState.iModelScale = savedModelScale;
 
 			veh->currentState.pos.trType = TR_INTERPOLATE;
 		}
@@ -4096,7 +4166,7 @@ void CG_AddPacketEntities( qboolean isPortal ) {
 		veh->bodyHeight = cg.time; //indicate we have already been added
 	}
 
-	CG_AddCEntity( &cg_entities[cg.predictedPlayerState.clientNum] );
+	CG_AddPredictedPlayerEntity();
 	/*
 	// lerp the non-predicted value for lightning gun origins
 	CG_CalcEntityLerpPositions( &cg_entities[ cg.snap->ps.clientNum ] );

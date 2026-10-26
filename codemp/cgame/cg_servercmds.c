@@ -27,6 +27,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // be a valid snapshot this frame
 
 #include "cg_local.h"
+#include "cg_dialogue.h"
 #include "ui/menudef.h"
 #include "ghoul2/G2.h"
 #include "ui/ui_public.h"
@@ -39,14 +40,22 @@ CG_ParseScores
 */
 static void CG_ParseScores( void ) {
 	int		i, powerups, readScores, scoreOffset;//JAPRO - Clientside - Scoreboard Deaths
-	
+	qboolean hasDeaths, weIdentifyAsJapro;
+
 	int argc = trap->Cmd_Argc();
 
-	if (cgs.serverMod == SVMOD_JAPLUS || cgs.serverMod == SVMOD_JAPRO)
-		scoreOffset = 15;
-	else
-		scoreOffset = 14;
-	
+	// Per-client stride, computed once and used for every CG_Argv() index.
+	// Only JAPRO-derived game modules append the deaths field, and only for
+	// clients whose cjp_client userinfo they recognize (g_client.c, g_cmds.c).
+	// Our own server advertises gamename "japro" (GAMEVERSION) and is detected
+	// as SVMOD_JAPRO. Basejka, OpenJK base and unknown mods always send 14
+	// fields, so they must not be treated as 15 based on cjp_client alone -
+	// cjp_client is ROM and always holds one of the recognized strings.
+	weIdentifyAsJapro = ( !Q_stricmp( cjp_client.string, "1.4JAPRO" ) ) || ( !Q_stricmp( cjp_client.string, JOFCLIENTVERSION ) );
+	hasDeaths = ( cgs.serverMod == SVMOD_JAPLUS && weIdentifyAsJapro )
+		|| cgs.serverMod == SVMOD_JAPRO;
+	scoreOffset = hasDeaths ? 15 : 14;
+
 	int actualSent = (argc - 4) / scoreOffset;
 
 	if (actualSent < 0)
@@ -69,12 +78,9 @@ static void CG_ParseScores( void ) {
 	memset( cg.scores, 0, sizeof( cg.scores ) );
 	for ( i=0; i<readScores; i++ ) {
 //JAPRO - Clientside - Scoreboard Deaths - Start
-		if (cgs.serverMod == SVMOD_JAPLUS && ((!Q_stricmp(cjp_client.string, "1.4JAPRO")) || (!Q_stricmp(cjp_client.string, JOFCLIENTVERSION))) || cgs.serverMod == SVMOD_JAPRO) {
-			scoreOffset = 15;
+		if (hasDeaths) {
 			cg.scores[i].deaths = atoi(CG_Argv(i * scoreOffset + 18));
 		}
-		else
-			scoreOffset = 14;
 
 		cg.scores[i].client = atoi( CG_Argv( i * scoreOffset + 4 ) );
 		cg.scores[i].score = atoi( CG_Argv( i * scoreOffset + 5 ) );
@@ -196,6 +202,8 @@ void CG_ParseServerinfo( void ) {
 
 	cgs.showDuelHealths = atoi( Info_ValueForKey( info, "g_showDuelHealths" ) );
 
+	cgs.empowerEffect = atoi( Info_ValueForKey( info, "jp_empowerEffect" ) );	// JoF
+
 	cgs.gametype = atoi( Info_ValueForKey( info, "g_gametype" ) );
 	trap->Cvar_Set("g_gametype", va("%i", cgs.gametype));
 	cgs.needpass = atoi( Info_ValueForKey( info, "g_needpass" ) );
@@ -219,6 +227,7 @@ void CG_ParseServerinfo( void ) {
 	}
 
 	cgs.fDisable = atoi( Info_ValueForKey( info, "g_forcePowerDisable" ) );
+	cgs.forceDestruction = atoi(Info_ValueForKey(info, "g_forceDestruction")) != 0;
 	cgs.dmflags = atoi( Info_ValueForKey( info, "dmflags" ) );
 	cgs.duel_fraglimit = atoi( Info_ValueForKey( info, "duel_fraglimit" ) );
 	cgs.capturelimit = atoi( Info_ValueForKey( info, "capturelimit" ) );
@@ -264,6 +273,7 @@ void CG_ParseServerinfo( void ) {
 			cgs.cinfo = atoi(Info_ValueForKey(info, "jp_cinfo"));//[JAPRO - Clientside - All - Add jp_cinfo variable to get cinfo from japlus servers]
 			cgs.hookpull = 800;
 			cgs.pluginSet = qtrue;
+			trap->Cvar_Set("cjp_client", JOFCLIENTVERSION);
 		}
 		else if (!Q_stricmpn(gamename, "japro", 5)) {
 			cgs.serverMod = SVMOD_JAPRO;
@@ -584,10 +594,12 @@ static void CG_RegisterCustomSounds(clientInfo_t *ci, int setType, const char *p
 			char modifiedSound[MAX_QPATH];
 			char *p;
 
-			strcpy(modifiedSound, s);
-			p = strchr(modifiedSound,'.');
+			COM_StripExtension( s, modifiedSound, sizeof( modifiedSound ) );
+			// Custom sound tables use extensionless names. Inspect the final
+			// character rather than looking for a dot that is never present.
+			p = modifiedSound + strlen( modifiedSound );
 
-			if (p)
+			if (p > modifiedSound)
 			{
 				char testNumber[2];
 				p--;
@@ -599,9 +611,7 @@ static void CG_RegisterCustomSounds(clientInfo_t *ci, int setType, const char *p
 				testNumber[1] = 0;
 				if (atoi(testNumber))
 				{
-					*p = 0;
-
-					strcat(modifiedSound, "1.wav");
+					*p = '1';
 
 					hSFX = trap->S_RegisterSound( va("sound/chars/%s/misc/%s", psDir, modifiedSound) );
 				}
@@ -1091,6 +1101,8 @@ void CG_KillCEntityG2(int entNum)
 
 			j++;
 		}
+
+		CG_CleanHolsteredSabers( ci );
 	}
 
 	if (cent->ghoul2 && trap->G2_HaveWeGhoul2Models(cent->ghoul2))
@@ -1182,6 +1194,12 @@ require a reload of all the media
 static void CG_MapRestart( void ) {
 	int i;
 	clientInfo_t *ci;
+	cg.pickupQueueHead = cg.pickupQueueCount = 0;
+	CG_ResetPickupEventTracking();
+	if (CG_UsesPickupConfirmation()) {
+		cg.itemPickup = 0;
+	}
+	cg.pickupHandshakeActive = cg.pickupConfirmed = qfalse;
 	for (i = 0 ; i < MAX_CLIENTS ; i++)
 	{
 		ci = &cgs.clientinfo[i];
@@ -1213,6 +1231,9 @@ static void CG_MapRestart( void ) {
 	cg.timelimitWarnings = 0;
 
 	cg.intermissionStarted = qfalse;
+	cg.binocularTargetCount = 0;
+	cg.endDuelCameraTime = 0;
+	cg.missionPartyCount = 0;
 
 	cgs.voteTime = 0;
 
@@ -1680,19 +1701,33 @@ static void CG_Print_f( void ) {
 		CG_LogPrintf(cg.log.file, "%s\n", strEd); //Log server console prints?
 }
 
-void CG_ChatBox_AddString(char *chatStr);
 static void CG_Chat_f( void ) {
 	char cmd[MAX_STRING_CHARS] = {0}, text[MAX_NETNAME+MAX_SAY_TEXT] = {0}, logtext[MAX_NETNAME+MAX_SAY_TEXT] = {0};
+	qboolean isPrivate;
 
 	trap->Cmd_Argv( 0, cmd, sizeof( cmd ) );
 
 	if (cmd[0] != 'l') { // normal chat ?/}
 
 		trap->Cmd_Argv( 1, text, sizeof( text ) );
-
-		if ( !Q_stricmp( cmd, "chat" ) && !cg_teamChatsOnly.integer )
+		// The server marks both received tells and sent-message echoes before the name.
+		// Check before stripping escape characters; message text/colors can be faked.
+		isPrivate = !Q_stricmp( cmd, "chat" ) && text[0] == '\x19' && text[1] == '[';
+		if ( cg.pmOnlyChat && !isPrivate )
 		{
-			CG_RemoveChatEscapeChar( text );
+			return;
+		}
+		CG_RemoveChatEscapeChar( text );
+
+		if ( !Q_stricmp( cmd, "chat" ) &&
+			(!cg_teamChatsOnly.integer || cg.pmOnlyChat) )
+		{
+			// The server's copy of an SJK chat message waits for the message (cg_draw.c).
+			// A server says whose line it is after it.
+			char sender[8] = { 0 };
+			trap->Cmd_Argv( 2, sender, sizeof( sender ) );
+			if ( CG_SJKServerLine( text, isPrivate, sender[0] >= '0' && sender[0] <= '9' ? atoi( sender ) : -1 ) )
+				return;
 
 			if (cg_cleanChatbox.integer) {
 				char cleanMsg[MAX_NETNAME + MAX_SAY_TEXT];
@@ -1715,7 +1750,7 @@ static void CG_Chat_f( void ) {
 			//New msg
 			//JAPRO - Clientside - Chatsounds options
 			if (cg_chatSounds.integer == 2) {
-				if (Q_stristr(text, "^7]: ^6")) //pm
+				if (isPrivate)
 					trap->S_StartLocalSound(cgs.media.privateChatSound, CHAN_LOCAL_SOUND);
 				else //all chat
 					trap->S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
@@ -1724,13 +1759,11 @@ static void CG_Chat_f( void ) {
 				trap->S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
 			}
 
-			CG_ChatBox_AddString(text);
+			CG_ChatBox_AddString(text, isPrivate);
 			Q_strncpyz(cg.lastChatMsg, text, sizeof(cg.lastChatMsg));
 		}
 		else if ( !Q_stricmp( cmd, "tchat" ) )
 		{
-			CG_RemoveChatEscapeChar( text );
-
 			if (cg_cleanChatbox.integer && !Q_strncmp(text, cg.lastChatMsg, strlen(text))) {//Same exact msg/sender as previous //replace this with q_strcmp in entire function..?
 				return;
 			}
@@ -1739,7 +1772,7 @@ static void CG_Chat_f( void ) {
 				trap->S_StartLocalSound(cgs.media.teamChatSound, CHAN_LOCAL_SOUND);
 			else if (cg_chatSounds.integer)
 				trap->S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
-			CG_ChatBox_AddString(text);
+			CG_ChatBox_AddString(text, qfalse);
 		}
 	}
 	else
@@ -1747,13 +1780,18 @@ static void CG_Chat_f( void ) {
 		char	name[MAX_NETNAME]={0},	loc[MAX_STRING_CHARS]={0},
 				color[8]={0},			message[MAX_STRING_CHARS]={0};
 
-		if ( trap->Cmd_Argc() < 4 )
+		if ( trap->Cmd_Argc() < 5 )
 			return;
 
 		trap->Cmd_Argv( 1, name, sizeof( name ) );
 		trap->Cmd_Argv( 2, loc, sizeof( loc ) );
 		trap->Cmd_Argv( 3, color, sizeof( color ) );
 		trap->Cmd_Argv( 4, message, sizeof( message ) );
+		isPrivate = !Q_stricmp( cmd, "lchat" ) && name[0] == '\x19' && name[1] == '[';
+		if ( cg.pmOnlyChat && !isPrivate )
+		{
+			return;
+		}
 
 		//get localized text
 		if (loc[0] == '@')
@@ -1762,15 +1800,16 @@ static void CG_Chat_f( void ) {
 		if (cg_chatSounds.integer)//JAPRO - Clientside - Chatsounds option
 			trap->S_StartLocalSound(cgs.media.talkSound, CHAN_LOCAL_SOUND);
 
-		if ( !Q_stricmp( cmd, "lchat" ) && !cg_teamChatsOnly.integer ) {
+		if ( !Q_stricmp( cmd, "lchat" ) &&
+			(!cg_teamChatsOnly.integer || cg.pmOnlyChat) ) {
 			Com_sprintf( text, sizeof( text ), "%s" S_COLOR_WHITE "<%s> ^%s%s", name, loc, color, message );
 			CG_RemoveChatEscapeChar( text );
-			CG_ChatBox_AddString( text );
+			CG_ChatBox_AddString( text, isPrivate );
 		}
 		else if ( !Q_stricmp( cmd, "ltchat" ) ) {
 			Com_sprintf( text, sizeof( text ), "%s" S_COLOR_WHITE "<%s> ^%s%s", name, loc, color, message );
 			CG_RemoveChatEscapeChar( text );
-			CG_ChatBox_AddString( text );
+			CG_ChatBox_AddString( text, qfalse );
 		}
 	}
 }
@@ -1781,6 +1820,9 @@ static void CG_RemapShader_f( void ) {
 
 		trap->Cmd_Argv( 1, shader1, sizeof( shader1 ) );
 		trap->Cmd_Argv( 2, shader2, sizeof( shader2 ) );
+		// cg_remaps: 0 off, 1 map only (block player model remaps), 2 map + model
+		if ( cg_remaps.integer == 1 && !Q_stricmpn( shader1, "models/players/", 15 ) )
+			return;
 		if ( cg_remaps.integer )//JAPRO - Clientside - Allow noremaps
 			trap->R_RemapShader( shader1, shader2, CG_Argv( 3 ) );
 	}
@@ -1797,17 +1839,170 @@ typedef struct serverCommand_s {
 	void		(*func)(void);
 } serverCommand_t;
 
+// Reject malformed/overflowing fields before using network data as entity indices.
+static int CG_BinocularIntArg(int arg) {
+	const char *text = CG_Argv(arg);
+	int value = 0;
+	if (!*text)
+		return -1;
+	for (; *text; text++) {
+		int digit = *text - '0';
+		if (digit < 0 || digit > 9 || value > (INT_MAX - digit) / 10)
+			return -1;
+		value = value * 10 + digit;
+	}
+	return value;
+}
+
+// binoStats <server time> <count> [<entity> <health> <max health> <armor>]...
+static void CG_BinocularStats_f( void ) {
+	int i, count, serverTime;
+	binocularTarget_t targets[MAX_BINOCULAR_TARGETS];
+	memset(targets, 0, sizeof(targets));
+	cg.binocularTargetCount = 0;
+	if (trap->Cmd_Argc() < 3)
+		return;
+	serverTime = CG_BinocularIntArg(1);
+	count = CG_BinocularIntArg(2);
+	if (serverTime < 0 || count < 0 || count > MAX_BINOCULAR_TARGETS || trap->Cmd_Argc() != 3 + count * 4)
+		return;
+	for (i = 0; i < count; i++) {
+		binocularTarget_t *target = &targets[i];
+		target->entityNum = CG_BinocularIntArg(3 + i * 4);
+		target->health = CG_BinocularIntArg(4 + i * 4);
+		target->maxHealth = CG_BinocularIntArg(5 + i * 4);
+		target->armor = CG_BinocularIntArg(6 + i * 4);
+		if (target->entityNum < 0 || target->entityNum >= ENTITYNUM_WORLD ||
+			target->health <= 0 || target->maxHealth <= 0 || target->armor < 0)
+			return;
+	}
+	memcpy(cg.binocularTargets, targets, count * sizeof(targets[0]));
+	cg.binocularUpdateTime = serverTime;
+	cg.binocularTargetCount = count;
+}
+
+// Optional names for the immediately preceding stats update. Multiple bounded
+// commands may carry one update; names never create contacts or extend expiry.
+static void CG_BinocularNames_f(void) {
+	int arg, i, argc = trap->Cmd_Argc();
+	if (argc < 4 || (argc - 2) % 2 ||
+		CG_BinocularIntArg(1) != cg.binocularUpdateTime)
+		return;
+	for (arg = 2; arg < argc; arg += 2) {
+		int entityNum = CG_BinocularIntArg(arg);
+		for (i = 0; i < cg.binocularTargetCount; i++) {
+			if (cg.binocularTargets[i].entityNum == entityNum) {
+				char *name = cg.binocularTargets[i].name;
+				int j;
+				Q_strncpyz(name, CG_Argv(arg + 1), sizeof(cg.binocularTargets[i].name));
+				Q_CleanStr(name);
+				for (j = 0; name[j]; j++) {
+					if ((unsigned char)name[j] < 32 || name[j] == 127)
+						name[j] = ' ';
+				}
+				break;
+			}
+		}
+	}
+}
+
+// partyStats <server time> <count>
+// [<entity> <health> <max health> <armor> <force> <max force>]...
+static void CG_MissionPartyStats_f(void) {
+	int i, count, serverTime;
+	binocularTarget_t members[MAX_MISSION_PARTY];
+	memset(members, 0, sizeof(members));
+	if (trap->Cmd_Argc() < 3)
+		return;
+	serverTime = CG_BinocularIntArg(1);
+	count = CG_BinocularIntArg(2);
+	if (serverTime < 0 || count < 0 || count > MAX_MISSION_PARTY ||
+		trap->Cmd_Argc() != 3 + count * 6)
+		return;
+	for (i = 0; i < count; i++) {
+		binocularTarget_t *member = &members[i];
+		member->entityNum = CG_BinocularIntArg(3 + i * 6);
+		member->health = CG_BinocularIntArg(4 + i * 6);
+		member->maxHealth = CG_BinocularIntArg(5 + i * 6);
+		member->armor = CG_BinocularIntArg(6 + i * 6);
+		member->force = CG_BinocularIntArg(7 + i * 6);
+		member->maxForce = CG_BinocularIntArg(8 + i * 6);
+		if (member->entityNum < 0 || member->entityNum >= ENTITYNUM_WORLD ||
+			member->health < 0 || member->maxHealth <= 0 || member->armor < 0 ||
+			member->force < 0 || member->maxForce <= 0)
+			return;
+		// Player display names are already available locally and do not need to
+		// consume reliable-command bandwidth.
+		if (member->entityNum < MAX_CLIENTS && cgs.clientinfo[member->entityNum].infoValid) {
+			Q_strncpyz(member->name, cgs.clientinfo[member->entityNum].name, sizeof(member->name));
+			Q_CleanStr(member->name);
+		}
+	}
+	memcpy(cg.missionParty, members, count * sizeof(members[0]));
+	cg.missionPartyUpdateTime = serverTime;
+	cg.missionPartyCount = count;
+}
+
+static void CG_MissionPartyNames_f(void) {
+	int arg, i, argc = trap->Cmd_Argc();
+	if (argc < 4 || (argc - 2) % 2 ||
+		CG_BinocularIntArg(1) != cg.missionPartyUpdateTime)
+		return;
+	for (arg = 2; arg < argc; arg += 2) {
+		int entityNum = CG_BinocularIntArg(arg);
+		for (i = 0; i < cg.missionPartyCount; i++) {
+			if (cg.missionParty[i].entityNum == entityNum) {
+				char *name = cg.missionParty[i].name;
+				int j;
+				Q_strncpyz(name, CG_Argv(arg + 1), sizeof(cg.missionParty[i].name));
+				Q_CleanStr(name);
+				for (j = 0; name[j]; j++) {
+					if ((unsigned char)name[j] < 32 || name[j] == 127)
+						name[j] = ' ';
+				}
+				break;
+			}
+		}
+	}
+}
+
+// Force Stasis (JoF JA+ V58): the server sends a reliable "stasis" command when the
+// power fires (only to clients that advertised the "jofejk" userinfo key). Play the
+// local feedback sound, with a client-side cooldown so bursts / replayed snapshots
+// don't spam it.
+static void CG_Stasis_f( void ) {
+	static int s_lastStasisSnd = 0;
+	if ( cg.time - s_lastStasisSnd < 250 )
+		return;
+	s_lastStasisSnd = cg.time;
+	trap->S_StartLocalSound( cgs.media.stasisSound, CHAN_LOCAL );
+}
+
+// Force Repulse (JoF JA+ V71): same pattern as Stasis — server sends "repulse" on fire.
+static void CG_Repulse_f( void ) {
+	static int s_lastRepulseSnd = 0;
+	if ( cg.time - s_lastRepulseSnd < 250 )
+		return;
+	s_lastRepulseSnd = cg.time;
+	trap->S_StartLocalSound( cgs.media.repulseSound, CHAN_LOCAL );
+}
+
 int svcmdcmp( const void *a, const void *b ) {
 	return Q_stricmp( (const char *)a, ((serverCommand_t*)b)->cmd );
 }
 
 static serverCommand_t	commands[] = {
+	{ "binoStats", CG_BinocularStats_f },
+	{ "binoNames", CG_BinocularNames_f },
+	{ "partyStats", CG_MissionPartyStats_f },
+	{ "partyNames", CG_MissionPartyNames_f },
 	{ "chat",				CG_Chat_f },
 	{ "clientLevelShot",	CG_ClientLevelShot_f },
 	{ "cp",					CG_CenterPrint_f },
 	{ "cps",				CG_CenterPrintSE_f },
 	{ "cs",					CG_ConfigStringModified },
 	{ "ircg",				CG_RestoreClientGhoul_f },
+	{ "jof_dialogue",		CG_DialogueServerCommand },
 	{ "kg2",				CG_KillGhoul2_f },
 	{ "kls",				CG_KillLoopSounds_f },
 	{ "lchat",				CG_Chat_f },
@@ -1823,6 +2018,8 @@ static serverCommand_t	commands[] = {
 	{ "scl",				CG_SiegeClassSelect_f },
 	{ "scores",				CG_ParseScores },
 	{ "spc",				CG_SiegeProfileMenu_f },
+	{ "repulse",			CG_Repulse_f },
+	{ "stasis",				CG_Stasis_f },
 	{ "sxd",				CG_ParseSiegeExtendedData },
 	{ "tchat",				CG_Chat_f },
 	{ "tinfo",				CG_ParseTeamInfo },
@@ -1842,6 +2039,14 @@ Cmd_Argc() / Cmd_Argv()
 static void CG_ServerCommand( void ) {
 	const char		*cmd = CG_Argv( 0 );
 	serverCommand_t	*command = NULL;
+	if (!Q_stricmp(cmd, "jof_pickupReady")) {
+		CG_PickupReady_f();
+		return;
+	}
+	if (!Q_stricmp(cmd, "jof_pickup")) {
+		CG_ConfirmedPickup_f();
+		return;
+	}
 
 	if ( !cmd[0] ) {
 		// server claimed the command

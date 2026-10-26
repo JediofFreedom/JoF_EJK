@@ -406,6 +406,44 @@ typedef enum
 	NUM_FORCE_POWERS
 } forcePowers_t;
 
+// Force Stasis (JoF JA+ V58) client integration.
+// Stasis is NOT a real force power and must never be stored in / sent through the
+// playerState force arrays. These constants only describe the spare signalling bits
+// the server already uses, plus a client-only pseudo-slot for the force wheel UI.
+#define STASIS_KNOWN_BIT	NUM_FORCE_POWERS		// spare forcePowersKnown bit (18) the server sets while stasis is granted
+#define STASIS_WHEEL_SLOT	NUM_FORCE_POWERS		// client-only pseudo-slot (18) for the force wheel; display only, never networked
+#define STASIS_ENGAGE_BTN	14						// usercmd button bit the server reads (mask 0x4000) to engage stasis
+
+// Force Repulse (JoF JA+ V71) client integration.
+// Same rules as Stasis: not a real power, never resizes playerState arrays, never sent as forcesel.
+#define REPULSE_KNOWN_BIT	(NUM_FORCE_POWERS + 1)	// spare forcePowersKnown bit (19) the server sets while repulse is granted
+#define REPULSE_WHEEL_SLOT	(NUM_FORCE_POWERS + 1)	// client-only pseudo-slot (19) for the force wheel; display only, never networked
+
+// Force Dash (JoF JA+ V69) client integration.
+// Same rules as Stasis / Repulse: not a real power, never resizes playerState arrays, never sent as forcesel.
+#define DASH_KNOWN_BIT		(NUM_FORCE_POWERS + 2)	// spare forcePowersKnown bit (20) the server sets while dash is granted
+#define DASH_WHEEL_SLOT		(NUM_FORCE_POWERS + 2)	// client-only pseudo-slot (20) for the force wheel; display only, never networked
+
+// Server-granted Force Destruction. Keep the stock force arrays/protocol intact.
+#define DESTRUCTION_KNOWN_BIT	(NUM_FORCE_POWERS + 3)
+#define DESTRUCTION_KNOWN_FLAG	(1u << DESTRUCTION_KNOWN_BIT)
+#define DESTRUCTION_HAND_FLAG	(1u << DESTRUCTION_KNOWN_BIT) // in forcePowersActive, not forcePowersKnown
+#define DESTRUCTION_WHEEL_SLOT	(NUM_FORCE_POWERS + 3)
+#define FORCE_WHEEL_CAPACITY		(NUM_FORCE_POWERS + 4)
+// Identifies our concussion-compatible missile/impact; generic1 is an 8-bit field.
+#define DESTRUCTION_MISSILE_TAG	213
+
+// Client movement prediction: the server is not clipping us against other players.
+// Not just /amghost - the server derives this bit from its own clipmask every ClientThink, so it
+// covers every reason it makes us non-solid (the ghost, the unghost overlap grace, the walk-apart
+// after a duel) and anything added later comes out predicted correctly without a client change.
+// Drop the same contents from the pmove tracemask and the client stops fighting the corrections.
+// It is not a power and nothing draws it - the force wheel only reads bits 0-17. The top of
+// forcePowersKnown is reserved for client-side flags like this one; powers the server grants keep
+// allocating upward from the pseudo-slots above.
+#define GHOST_KNOWN_BIT		31						// spare forcePowersKnown bit the server sets while it is walking us through players
+#define GHOST_KNOWN_FLAG	(1u << GHOST_KNOWN_BIT)	// bit 31 is the sign bit, so keep the shift unsigned
+
 typedef enum forcePowerLevels_e {
 	FORCE_LEVEL_0,
 	FORCE_LEVEL_1,
@@ -777,6 +815,8 @@ typedef struct cvar_s {
 	struct cvar_s	*next, *prev;
 	struct cvar_s	*hashNext, *hashPrev;
 	int				hashIndex;
+	qboolean		rendererOwned;		// registered through the renderer import table
+	qboolean		rendererActive;		// available through the currently loaded renderer
 } cvar_t;
 
 #define	MAX_CVAR_VALUE_STRING	256

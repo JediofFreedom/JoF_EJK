@@ -382,6 +382,41 @@ void Q_StripColor(char *text)
 }
 
 /*
+Q_StripDigits
+
+Copies input to output with digits removed - either every digit
+(REMOVE_DIGITS_ALL) or just the leading run of them (REMOVE_DIGITS_INITIAL).
+
+The cosmetics code uses REMOVE_DIGITS_INITIAL to pull the hat/cape name back out
+of a "color1" style value, where a saber colour integer is prefixed to the name:
+"8santahat" -> "santahat".
+*/
+void Q_StripDigits( const char *input, char *output, int len, int mode )
+{
+	int j = 0;
+	qboolean seenNonDigit = qfalse;
+
+	if ( !output || len <= 0 )
+		return;
+
+	memset( output, 0, len );
+
+	if ( !input )
+		return;
+
+	while ( *input && j < (len - 1) )
+	{
+		if ( !isdigit( (unsigned char)*input ) || (mode == REMOVE_DIGITS_INITIAL && seenNonDigit) )
+		{
+			output[j++] = *input;
+			seenNonDigit = qtrue;
+		}
+		input++;
+	}
+	output[j] = '\0';
+}
+
+/*
 Q_strstrip
 
 Description:	Replace strip[x] in string with repl[x] or remove characters entirely

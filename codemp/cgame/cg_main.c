@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 // cg_main.c -- initialization and primary entry point for cgame
 #include "cg_local.h"
+#include "cg_dialogue.h"
 
 #include "ui/ui_shared.h"
 // display context for new ui stuff
@@ -91,6 +92,10 @@ qboolean CG_NoUseableForce(void)
 		}
 		i++;
 	}
+
+	// Also count JoF pseudo-powers (stasis/repulse/dash live in bits beyond NUM_FORCE_POWERS).
+	if ( CG_HasStasis() || CG_HasRepulse() || CG_HasDash() || CG_HasDestruction() )
+		return qfalse;
 
 	//no useable force powers, I guess.
 	return qtrue;
@@ -536,14 +541,49 @@ static void CG_AS_Register(void)
 	trap->AS_ParseSets();
 }
 
+//every rain variant the world effect system knows about
+static qboolean CG_WeatherIsRain(const char *token)
+{
+	return (qboolean)(!Q_stricmp(token, "rain") || !Q_stricmp(token, "lightrain") ||
+		!Q_stricmp(token, "heavyrain") || !Q_stricmp(token, "heavyrainfog") ||
+		!Q_stricmp(token, "acidrain"));
+}
+
 //a global weather effect (rain, snow, etc)
 void CG_ParseWeatherEffect(const char *str)
 {
 	char *sptr = (char *)str;
+	qboolean isRain = qfalse;
 	sptr++; //pass the '*'
 
-	if (Q_stricmpn(sptr, "die", 3) && Q_stricmpn(sptr, "clear", 5) && Q_stricmpn(sptr, "freeze", 6)
-	&& Q_stricmpn(sptr, "zone", 4) && Q_stricmpn(sptr, "acidrain", 8) && Q_stricmpn(sptr, "spacedust", 9)
+	// Weather commands accumulate clouds; snow/wind do not remove existing rain.
+	{
+		const char *command = sptr;
+		const char *token = COM_ParseExt(&command, qfalse);
+		isRain = CG_WeatherIsRain(token);
+		if (!Q_stricmp(token, "die") || !Q_stricmp(token, "clear"))
+		{
+			cg.saberRainActive = qfalse;
+			if (!Q_stricmp(token, "die"))
+				cg.saberRainFrozen = qfalse;
+		}
+		else if (!Q_stricmp(token, "freeze"))
+		{
+			cg.saberRainFrozen = !cg.saberRainFrozen;
+		}
+		else if (!Q_stricmp(token, "rain") || !Q_stricmp(token, "acidrain") ||
+			!Q_stricmp(token, "lightrain") || !Q_stricmp(token, "heavyrain"))
+		{
+			cg.saberRainActive = qtrue;
+		}
+	}
+
+	if (isRain)
+	{ //rain is wet, not cold - kill the puffs even if something earlier turned them on
+		cg.coldBreathEffects = qfalse;
+	}
+	else if (Q_stricmpn(sptr, "die", 3) && Q_stricmpn(sptr, "clear", 5) && Q_stricmpn(sptr, "freeze", 6)
+	&& Q_stricmpn(sptr, "zone", 4) && Q_stricmpn(sptr, "spacedust", 9)
 	&& Q_stricmpn(sptr, "sand", 4) && Q_stricmpn(sptr, "outsideshake", 12) && Q_stricmpn(sptr, "outsidepain", 11))
 	{ //should come with a better way to detect this...
 		cg.coldBreathEffects = qtrue;
@@ -645,6 +685,9 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.jetpackOn2Sound = trap->S_RegisterSound( "sound/chars/boba/jeton.wav" );
 	cgs.media.jetpackHoverSound = trap->S_RegisterSound( "sound/chars/boba/jethover.wav" );
 	cgs.media.jetpackHover2Sound = trap->S_RegisterSound( "sound/chars/boba/bf_jetpack_lp.wav" );
+
+	cgs.media.stasisSound   = trap->S_RegisterSound( "sound/jof/stasis.wav" );   // Force Stasis "it fired" feedback (shipped in jofclient-assets.pk3)
+	cgs.media.repulseSound  = trap->S_RegisterSound( "sound/jof/repulse.wav" );  // Force Repulse "it fired" feedback (shipped in jofclient-assets.pk3)
 
 	cgs.media.hackerIconShader			= trap->R_RegisterShaderNoMip("gfx/mp/c_icon_tech");
 
@@ -782,9 +825,18 @@ static void CG_RegisterSounds( void ) {
 	trap->S_RegisterSound("sound/weapons/force/see.wav");
 	trap->S_RegisterSound("sound/weapons/force/rage.wav");
 	trap->S_RegisterSound("sound/weapons/force/lightning");
-	trap->S_RegisterSound("sound/weapons/force/lightninghit1");
-	trap->S_RegisterSound("sound/weapons/force/lightninghit2");
-	trap->S_RegisterSound("sound/weapons/force/lightninghit3");
+	cgs.media.forceLightningImpactSounds[0] = trap->S_RegisterSound("sound/weapons/force/lightninghit1");
+	cgs.media.forceLightningImpactSounds[1] = trap->S_RegisterSound("sound/weapons/force/lightninghit2");
+	cgs.media.forceLightningImpactSounds[2] = trap->S_RegisterSound("sound/weapons/force/lightninghit3");
+	// Environment impacts use the stock spark sounds.
+	// Environmental arcs use three dedicated sound variants.
+	// Separate asset names preserve player-hit audio.
+	for (i = 0; i < ARRAY_LEN(cgs.media.forceLightningEnvironmentArcSounds); i++) {
+		cgs.media.forceLightningEnvironmentArcSounds[i] = trap->S_RegisterSound(va("sound/weapons/force/lightningenv%i.mp3", i + 1));
+	}
+	for (i = 0; i < ARRAY_LEN(cgs.media.forceLightningEnvironmentSounds); i++) {
+		cgs.media.forceLightningEnvironmentSounds[i] = trap->S_RegisterSound(va("sound/ambience/spark%i.wav", i + 1));
+	}
 	trap->S_RegisterSound("sound/weapons/force/drain.wav");
 	trap->S_RegisterSound("sound/weapons/force/jumpbuild.wav");
 	trap->S_RegisterSound("sound/weapons/force/distract.wav");
@@ -1129,6 +1181,94 @@ static void CG_RegisterSounds( void ) {
 }
 
 
+static void CG_RegisterDestructionEffects(void)
+{
+	fxHandle_t effect;
+	sfxHandle_t sound;
+
+	// Always preload the stock effects, including on saber-only maps. These
+	// handles are local and do not replace the server's shared FX registrations.
+	cgs.effects.destructionProjectile = trap->FX_RegisterEffect("concussion/shot");
+	cgs.effects.destructionImpact = trap->FX_RegisterEffect("concussion/explosion");
+	cgs.effects.destructionCustomProjectile = qfalse;
+	cgs.effects.destructionCustomImpact = qfalse;
+
+	effect = trap->FX_RegisterEffect("forcedestruction/destruction");
+	if (effect)
+	{
+		cgs.effects.destructionProjectile = effect;
+		cgs.effects.destructionCustomProjectile = qtrue;
+	}
+	// Optional bigger orb for Super Destruction (server marks it with iModelScale 115). 0 = normal orb.
+	cgs.effects.destructionSuper = trap->FX_RegisterEffect("forcedestruction/destruction_super");
+	// Charge hand: the Drain hand effect.
+	cgs.effects.destructionDrainHand = trap->FX_RegisterEffect("force/drain_hand");
+	effect = trap->FX_RegisterEffect("forcedestruction/destruction_explode_enhanced2");
+	if (!effect)
+		effect = trap->FX_RegisterEffect("forcedestruction/destruction_explode");
+	if (effect)
+	{
+		cgs.effects.destructionImpact = effect;
+		cgs.effects.destructionCustomImpact = qtrue;
+	}
+
+	cgs.media.destructionIcon = trap->R_RegisterShaderNoMip("gfx/forcedestruction/force_destruction.tga");
+	if (!cgs.media.destructionIcon)
+		cgs.media.destructionIcon = cgs.media.forcePowerIcons[FP_LIGHTNING];
+
+	// Choose audio independently of visuals: partial packs must not leave silent
+	// casts or impacts. Optional custom impact EFX must leave audio to cgame.
+	cgs.media.destructionCastSound = trap->S_RegisterSound("sound/forcedestruction/destruction.mp3");
+	if (!cgs.media.destructionCastSound)
+		cgs.media.destructionCastSound = trap->S_RegisterSound("sound/weapons/force/push.wav");
+	sound = trap->S_RegisterSound("sound/vehicles/weapons/mine/impact.wav");
+	cgs.media.destructionImpactSounds[0] = trap->S_RegisterSound("sound/forcedestruction/forcedestruct01.wav");
+	cgs.media.destructionImpactSounds[1] = trap->S_RegisterSound("sound/forcedestruction/forcedestruct02.wav");
+	if (!cgs.media.destructionImpactSounds[0])
+		cgs.media.destructionImpactSounds[0] = cgs.media.destructionImpactSounds[1];
+	if (!cgs.media.destructionImpactSounds[1])
+		cgs.media.destructionImpactSounds[1] = cgs.media.destructionImpactSounds[0];
+	if (!cgs.media.destructionImpactSounds[0])
+		cgs.media.destructionImpactSounds[0] = cgs.media.destructionImpactSounds[1] = sound;
+}
+
+sfxHandle_t CG_DestructionCastSound(const entityState_t *state, sfxHandle_t fallback)
+{
+	if (state->weapon == WP_CONCUSSION && state->generic1 == DESTRUCTION_MISSILE_TAG &&
+		cgs.media.destructionCastSound)
+		return cgs.media.destructionCastSound;
+	return fallback;
+}
+
+qboolean CG_PlayDestructionEffect(const entityState_t *state, vec3_t origin,
+	const vec3_t direction, qboolean impact)
+{
+	vec3_t forward;
+
+	if (state->weapon != WP_CONCUSSION || state->generic1 != DESTRUCTION_MISSILE_TAG)
+		return qfalse;
+
+	if (VectorNormalize2(direction, forward) == 0.0f)
+		forward[2] = 1.0f;
+	if (impact)
+		trap->FX_PlayEffectID(cgs.effects.destructionImpact, origin, forward, -1, -1, qfalse);
+	else
+	{
+		int i;
+		// Stack the custom orb like MB2; keep the additive stock shot at one layer.
+		fxHandle_t fx = cgs.effects.destructionProjectile;
+
+		// Super Destruction (cast with melee): the server sends iModelScale 115 on the orb.
+		if (state->iModelScale > 100 && cgs.effects.destructionSuper && cgs.effects.destructionCustomProjectile)
+			fx = cgs.effects.destructionSuper;
+		for (i = 0; i < (cgs.effects.destructionCustomProjectile ? DESTRUCTION_EFX_LAYERS : 1); i++)
+			trap->FX_PlayEffectID(fx, origin, forward, -1, -1, qfalse);
+	}
+	if (impact && cgs.effects.destructionCustomImpact && cgs.media.destructionImpactSounds[state->number & 1])
+		trap->S_StartSound(origin, state->number, CHAN_AUTO, cgs.media.destructionImpactSounds[state->number & 1]);
+	return qtrue;
+}
+
 //-------------------------------------
 // CG_RegisterEffects
 //
@@ -1176,6 +1316,7 @@ static void CG_RegisterEffects( void )
 	cgs.effects.acidSplash = trap->FX_RegisterEffect( "env/acid_splash" );
 	cgs.effects.heal2FX = trap->FX_RegisterEffect("force/heal2");
 	cgs.effects.rageFX = trap->FX_RegisterEffect("force/rage2");
+	CG_RegisterDestructionEffects();
 
 }
 
@@ -1184,6 +1325,17 @@ static void CG_RegisterEffects( void )
 extern char *forceHolocronModels[];
 int CG_HandleAppendedSkin(char *modelName);
 void CG_CacheG2AnimInfo(char *modelName);
+
+// The reference-lightning asset pack is optional and distributed separately.
+static fxHandle_t CG_RegisterOptionalLightningEffect(const char *path) {
+	fileHandle_t file = 0;
+	trap->FS_Open(path, &file, FS_READ);
+	if (!file)
+		return 0;
+	trap->FS_Close(file);
+	return trap->FX_RegisterEffect(path);
+}
+
 /*
 =================
 CG_RegisterGraphics
@@ -1315,6 +1467,7 @@ static void CG_RegisterGraphics( void )
 	cgs.effects.mTurretMuzzleFlash = trap->FX_RegisterEffect("effects/turret/muzzle_flash.efx");
 	cgs.effects.mSparks = trap->FX_RegisterEffect("sparks/spark_nosnd.efx"); //sparks/spark.efx
 	cgs.effects.mSaberCut = trap->FX_RegisterEffect("saber/saber_cut.efx");
+	cgs.effects.mSaberRainSteam = trap->FX_RegisterEffect("saber/fizz.efx");
 	cgs.effects.mSaberBlock = trap->FX_RegisterEffect("saber/saber_block.efx");
 	cgs.effects.mSaberBloodSparks = trap->FX_RegisterEffect("saber/blood_sparks_mp.efx");
 	cgs.effects.mSaberBloodSparksSmall = trap->FX_RegisterEffect("saber/blood_sparks_25_mp.efx");
@@ -1327,6 +1480,17 @@ static void CG_RegisterGraphics( void )
 
 	cgs.effects.forceLightning		= trap->FX_RegisterEffect( "effects/force/lightning.efx" );
 	cgs.effects.forceLightningWide	= trap->FX_RegisterEffect( "effects/force/lightningwide.efx" );
+	cgs.effects.forceLightningEnvironmentImpact = trap->FX_RegisterEffect("effects/mp/lightning_environment_impact");
+	cgs.effects.demp2WallImpactEffectSmall = trap->FX_RegisterEffect( "effects/mp/wall_impact_small" );
+	cgs.effects.forceLightningBranch = trap->FX_RegisterEffect( "effects/mp/lightning_branch" );
+
+	cgs.effects.forceLightningDeflectArc = trap->FX_RegisterEffect("effects/mp/lightning_deflect_mb2/lightning_arc.efx");
+	cgs.effects.forceLightningDeflectFlare = trap->FX_RegisterEffect("effects/mp/lightning_deflect_mb2/lightning_flare.efx");
+	cgs.effects.forceLightningReference = trap->FX_RegisterEffect("effects/mp/lightning_reference/lightning");
+	cgs.effects.forceLightningReferenceWide = trap->FX_RegisterEffect("effects/mp/lightning_reference/lightningwide");
+	cgs.effects.forceLightningReferenceArc = trap->FX_RegisterEffect("effects/mp/lightning_reference/lightning_arc");
+
+	cgs.media.forceLightningFlashShader = trap->R_RegisterShader("gfx/misc/lightningFlash");
 	cgs.effects.forceDrain		= trap->FX_RegisterEffect( "effects/mp/drain.efx" );
 	cgs.effects.forceDrainWide	= trap->FX_RegisterEffect( "effects/mp/drainwide.efx" );
 	cgs.effects.forceDrainWideJaPRO	= trap->FX_RegisterEffect( "effects/mp/drainwide_japro.efx" );
@@ -1365,6 +1529,7 @@ static void CG_RegisterGraphics( void )
 	cgs.media.playerShieldDamage = trap->R_RegisterShader("gfx/misc/personalshield");
 	cgs.media.protectShader = trap->R_RegisterShader("gfx/misc/forceprotect");
 	cgs.media.forceSightBubble = trap->R_RegisterShader("gfx/misc/sightbubble");
+	cgs.media.forceSenseOverlay = trap->R_RegisterShader("gfx/2d/jsense");
 	cgs.media.forceShell = trap->R_RegisterShader("powerups/forceshell");
 	cgs.media.sightShell = trap->R_RegisterShader("powerups/sightshell");
 
@@ -2757,6 +2922,140 @@ forceTicPos_t ammoTicPos[] =
 	69,  34, -10,  10, "gfx/hud/ammo_tick7", 0,
 };
 
+cosmetics_t localCosmetics;
+
+/*
+=================
+CG_LoadCosmetics
+
+Scans a cosmetics folder for .md3 files and registers each one as a wearable item.
+There is no list to maintain: dropping a model in the folder is all it takes to add a
+hat, and any pk3 a player has can extend the set. Names longer than MAX_COSMETIC_LENGTH
+can't survive the trip through the saber colour userinfo key, and names starting with a
+digit would be eaten by the atoi() on the receiving end, so both are refused here.
+=================
+*/
+static void CG_LoadCosmetics(const char *path, size_t pathLen, int *totalCosmetics, cosmeticItem_t **storePtr)
+{
+	int fileCnt, i, j;
+	size_t fileLen = 0;
+	char cosmeticFiles[MAX_QPATH * 256]; //256 cosmetics per category is plenty
+	char cosmetic[MAX_QPATH];
+	cosmeticItem_t *cosmeticsPtr;
+	char *ptr;
+
+	*storePtr = NULL;
+	*totalCosmetics = 0;
+
+	fileCnt = trap->FS_GetFileList(path, ".md3", cosmeticFiles, sizeof(cosmeticFiles));
+	if (!fileCnt)
+		return;
+
+	cosmeticsPtr = (cosmeticItem_t *)malloc(fileCnt * sizeof(*cosmeticsPtr));
+	if (!cosmeticsPtr)
+		trap->Error(ERR_DROP, S_COLOR_RED "ERROR: Failed to allocate memory for cosmetics.\n");
+
+	ptr = cosmeticFiles;
+	j = 0;
+
+	for (i = 0; i < fileCnt; i++, ptr += fileLen + 1)
+	{
+		memset(cosmetic, 0, sizeof(cosmetic));
+		fileLen = strlen(ptr);
+
+		if ((pathLen + fileLen) > (size_t)(MAX_QPATH - 1))
+		{
+			Com_Printf(S_COLOR_YELLOW "WARNING: Cosmetic [%s] path exceeded max length of %d, skipping...\n", ptr, MAX_QPATH - 1);
+			continue;
+		}
+
+		Q_strncpyz(cosmetic, ptr, sizeof(cosmetic));
+		COM_StripExtension(cosmetic, cosmetic, sizeof(cosmetic));
+
+		if (strlen(cosmetic) > (MAX_COSMETIC_LENGTH - 1))
+		{
+			Com_Printf(S_COLOR_YELLOW "WARNING: Cosmetic [%s] filename exceeded max length of %d, skipping...\n", cosmetic, MAX_COSMETIC_LENGTH - 1);
+			continue;
+		}
+
+		if (isdigit((unsigned char)cosmetic[0]))
+		{
+			Com_Printf(S_COLOR_YELLOW "WARNING: Cosmetic [%s] filename starts with a digit, skipping...\n", cosmetic);
+			continue;
+		}
+
+		Q_strncpyz(cosmeticsPtr[j].name, cosmetic, sizeof(cosmeticsPtr[j].name));
+		cosmeticsPtr[j].handle = trap->R_RegisterModel(va("%s%s.md3", path, cosmetic));
+		j++;
+	}
+
+	if (!j)
+	{
+		free(cosmeticsPtr);
+		return;
+	}
+
+	if (j < fileCnt)
+	{
+		cosmeticItem_t *temp = (cosmeticItem_t *)realloc(cosmeticsPtr, j * sizeof(*cosmeticsPtr));
+		if (!temp)
+			trap->Error(ERR_DROP, S_COLOR_RED "ERROR: Failed to reallocate memory for cosmetics.\n");
+		cosmeticsPtr = temp;
+	}
+
+	*storePtr = cosmeticsPtr;
+	*totalCosmetics = j;
+}
+
+void CG_LoadAllCosmetics(void)
+{
+	CG_LoadCosmetics(COSMETIC_HATS_PATH, COSMETIC_HATS_PATH_LENGTH, &localCosmetics.totalHats, &localCosmetics.hats);
+	CG_LoadCosmetics(COSMETIC_CAPES_PATH, COSMETIC_CAPES_PATH_LENGTH, &localCosmetics.totalCapes, &localCosmetics.capes);
+	if ( !localCosmetics.totalHats )
+		CG_LoadCosmetics(COSMETIC_HATS_LEGACY_PATH, strlen(COSMETIC_HATS_LEGACY_PATH), &localCosmetics.totalHats, &localCosmetics.hats);
+	if ( !localCosmetics.totalCapes )
+		CG_LoadCosmetics(COSMETIC_CAPES_LEGACY_PATH, strlen(COSMETIC_CAPES_LEGACY_PATH), &localCosmetics.totalCapes, &localCosmetics.capes);
+	{
+		static const char *knownHats[] = { "afro", "beard", "bucket", "cap", "cringe", "crown", "fedora", "fedora2", "fedora3", "fedora4", "glasses", "gradcap", "headcrab", "horns", "mario", "mask", "metalhelm", "plaguemask", "predatorhelm", "pumpkin", "santahat", "sombrero", "supersaiyan", "tophat" };
+		static const char *knownCapes[] = { "ak47", "crowbar", "goose", "grogucape", "royalcape", "rpg", "vadercape", "yodacape" };
+		int i, j;
+		cosmeticItem_t *items;
+		items = (cosmeticItem_t *)realloc( localCosmetics.hats, ( localCosmetics.totalHats + ARRAY_LEN( knownHats ) ) * sizeof( *items ) );
+		if ( items ) {
+			localCosmetics.hats = items;
+			for ( i = 0; i < ARRAY_LEN( knownHats ); i++ ) {
+				qboolean found = qfalse;
+				for ( j = 0; j < localCosmetics.totalHats; j++ ) if ( !Q_stricmp( items[j].name, knownHats[i] ) ) { found = qtrue; break; }
+				if ( found ) continue;
+				Q_strncpyz( items[localCosmetics.totalHats].name, knownHats[i], sizeof( items[localCosmetics.totalHats].name ) );
+				items[localCosmetics.totalHats].handle = trap->R_RegisterModel( va( "%s%s.md3", COSMETIC_HATS_PATH, knownHats[i] ) );
+				if ( !items[localCosmetics.totalHats].handle ) items[localCosmetics.totalHats].handle = trap->R_RegisterModel( va( "%s%s.md3", COSMETIC_HATS_LEGACY_PATH, knownHats[i] ) );
+				localCosmetics.totalHats++;
+			}
+		}
+		items = (cosmeticItem_t *)realloc( localCosmetics.capes, ( localCosmetics.totalCapes + ARRAY_LEN( knownCapes ) ) * sizeof( *items ) );
+		if ( items ) {
+			localCosmetics.capes = items;
+			for ( i = 0; i < ARRAY_LEN( knownCapes ); i++ ) {
+				qboolean found = qfalse;
+				for ( j = 0; j < localCosmetics.totalCapes; j++ ) if ( !Q_stricmp( items[j].name, knownCapes[i] ) ) { found = qtrue; break; }
+				if ( found ) continue;
+				Q_strncpyz( items[localCosmetics.totalCapes].name, knownCapes[i], sizeof( items[localCosmetics.totalCapes].name ) );
+				items[localCosmetics.totalCapes].handle = trap->R_RegisterModel( va( "%s%s.md3", COSMETIC_CAPES_PATH, knownCapes[i] ) );
+				if ( !items[localCosmetics.totalCapes].handle ) items[localCosmetics.totalCapes].handle = trap->R_RegisterModel( va( "%s%s.md3", COSMETIC_CAPES_LEGACY_PATH, knownCapes[i] ) );
+				localCosmetics.totalCapes++;
+			}
+		}
+	}
+}
+
+void CG_FreeCosmetics(void)
+{
+	free(localCosmetics.hats);
+	free(localCosmetics.capes);
+	memset(&localCosmetics, 0, sizeof(localCosmetics));
+}
+
 /*
 =================
 CG_LoadEmojis
@@ -2872,6 +3171,9 @@ Ghoul2 Insert End
 	//Load emojis
 	CG_LoadEmojis();
 
+	//Scan the cosmetics folders for wearable hats and capes
+	CG_LoadAllCosmetics();
+
 	//Load sabers.cfg data
 	WP_SaberLoadParms();
 
@@ -2887,6 +3189,7 @@ Ghoul2 Insert End
 	cgDC.Assets.qhBigFont = cgDC.Assets.qhMediumFont;
 
 	memset( &cgs, 0, sizeof( cgs ) );
+	CG_DialogueReset();
 	memset( cg_weapons, 0, sizeof(cg_weapons) );
 	memset( cg_dueltypes, 0, sizeof(cg_dueltypes) );//JAPRO - Clientside - Fullforce Duels
 
@@ -2905,6 +3208,9 @@ Ghoul2 Insert End
 	// load a few needed things before we do any screen updates
 	cgs.media.charsetShader			= trap->R_RegisterShaderNoMip( "gfx/2d/charsgrid_med" );
 	cgs.media.whiteShader			= trap->R_RegisterShader( "white" );
+	// Keep the private stock OCR-A assets: HD atlas strokes can vanish at small HUD scales.
+	cgs.media.binocularHudFont		= trap->R_RegisterFont( "jof_binohud" );
+	cgs.media.missionPartyUnknownIcon = trap->R_RegisterShaderNoMip( "icons/icon_default_unknown" );
 
 	cgs.media.loadBarLED			= trap->R_RegisterShaderNoMip( "gfx/hud/load_tick" );
 	cgs.media.loadBarLEDCap			= trap->R_RegisterShaderNoMip( "gfx/hud/load_tick_cap" );
@@ -2979,6 +3285,10 @@ Ghoul2 Insert End
 		i++;
 	}
 	cgs.media.rageRecShader = trap->R_RegisterShaderNoMip("gfx/mp/f_icon_ragerec");
+	cgs.media.repulseIcon   = trap->R_RegisterShaderNoMip("gfx/jof/force_repulse.tga");	// JoF: Force Repulse wheel icon
+	cgs.media.dashIcon      = trap->R_RegisterShaderNoMip("gfx/jof/force_dash.tga");		// JoF: Force Dash wheel icon
+	trap->Cvar_Set("cl_destructionSelected", "0");
+	cgs.media.flamethrowerIcon = trap->R_RegisterShaderNoMip("gfx/jof/force_flamethrower.png");
 
 
 	//body decal shaders -rww
@@ -2988,6 +3298,8 @@ Ghoul2 Insert End
 	cgs.media.mSaberDamageGlow = trap->R_RegisterShader("gfx/effects/saberDamageGlow");
 
 	CG_RegisterCvars();
+	trap->Cvar_Set("cg_pickupConfirm", "1");
+	trap->Cvar_Set("cg_pickupReady", "3");
 
 	CG_InitConsoleCommands();
 
@@ -3017,8 +3329,8 @@ Ghoul2 Insert End
 
 	// get the rendering configuration from the client system
 	trap->GetGlconfig( &cgs.glconfig );
-	cgs.screenXScale = cgs.glconfig.vidWidth / SCREEN_WIDTH;
-	cgs.screenYScale = cgs.glconfig.vidHeight / SCREEN_HEIGHT;
+	cgs.screenXScale = (float)cgs.glconfig.vidWidth / SCREEN_WIDTH;
+	cgs.screenYScale = (float)cgs.glconfig.vidHeight / SCREEN_HEIGHT;
 	UI_Set2DRatio();
 
 	// get the gamestate from the client system
@@ -3107,6 +3419,20 @@ Ghoul2 Insert End
 
 	CG_ParseEntitiesFromString();
 
+	// SJK chat into the chat box, with an engine that has it (cl_sjkChatSink; an older
+	// one ends the import table before SJK_SetChatSink, a legacy table leaves it NULL),
+	// each message after the icon of the client it came from.
+	{
+		char sink[8];
+		trap->Cvar_VariableStringBuffer("cl_sjkChatSink", sink, sizeof(sink));
+		if (atoi(sink) && trap->SJK_SetChatSink) {
+			cgs.media.sjkClientIcon = trap->R_RegisterShaderNoMip("gfx/sjk/sjk");
+			cgs.media.ejkClientIcon = trap->R_RegisterShaderNoMip("gfx/sjk/ejk");
+			trap->SJK_SetChatSink(CG_SJKChatLine);
+			cgs.sjkChat = qtrue;
+		}
+	}
+
 #if 0
 	if (Q_strchrs(cgs.mapname, "ffa3")) {
 		Com_Printf("^3patching bugged ffa3 shaders\n");
@@ -3182,7 +3508,14 @@ Called before every level change or subsystem restart
 */
 void CG_Shutdown( void )
 {
+	trap->Cvar_Set("cl_destructionSelected", "0");
+	// Userinfo is handled by the engine even when game commands are flood
+	// filtered. Do not leave readiness behind for a subsequently loaded mod.
+	trap->Cvar_Set("cg_pickupReady", "0");
+	cg.pickupHandshakeActive = cg.pickupConfirmed = qfalse;
 	BG_ClearAnimsets(); //free all dynamic allocations made through the engine
+
+	CG_FreeCosmetics();
 
     CG_DestroyAllGhoul2();
 
@@ -3203,6 +3536,94 @@ void CG_Shutdown( void )
 	if (cg.log.started)
 		CG_LogPrintf( cg.log.file, "End log\n----------------------------------------------------------------\n\n" );
 	CG_CloseLog( &cg.log.file);
+}
+
+/*
+===============
+CG_HasStasis
+
+True only on a JoF JA+ server that has granted us Force Stasis (it re-asserts the
+spare forcePowersKnown bit every frame while granted). Doubles as the "is this a
+JoF JA+ server" gate for all of the stasis client UI.
+===============
+*/
+qboolean CG_HasStasis( void )
+{
+	return (cg.snap && (cg.snap->ps.fd.forcePowersKnown & (1 << STASIS_KNOWN_BIT))) ? qtrue : qfalse;
+}
+
+/*
+===============
+CG_HasRepulse
+
+True only on a JoF JA+ V71+ server that has granted us Force Repulse.
+===============
+*/
+qboolean CG_HasRepulse( void )
+{
+	return (cg.snap && (cg.snap->ps.fd.forcePowersKnown & (1 << REPULSE_KNOWN_BIT))) ? qtrue : qfalse;
+}
+
+/*
+===============
+CG_HasDash
+
+True only on a JoF JA+ V69+ server that has granted us Force Dash.
+===============
+*/
+qboolean CG_HasDash( void )
+{
+	return (cg.snap && (cg.snap->ps.fd.forcePowersKnown & (1 << DASH_KNOWN_BIT))) ? qtrue : qfalse;
+}
+
+qboolean CG_HasDestruction( void )
+{
+	return cgs.forceDestruction && cg.snap &&
+		cg.snap->ps.pm_type != PM_SPECTATOR && cg.snap->ps.pm_type != PM_DEAD &&
+		!(cg.snap->ps.pm_flags & PMF_FOLLOW) && cg.snap->ps.stats[STAT_HEALTH] > 0 &&
+		(cg.snap->ps.fd.forcePowersKnown & DESTRUCTION_KNOWN_FLAG) ? qtrue : qfalse;
+}
+
+/*
+===============
+CG_BuildForceWheel
+
+Builds the ordered list of selectable force-wheel entries: the valid real powers in
+display order, with the stasis and repulse pseudo-slots inserted right after Force
+Sense (FP_SEE) and the dash pseudo-slot inserted right before Speed (FP_SPEED), if
+granted. Destruction follows Repulse, before Lightning. All pseudo-slots use their
+anchor's position in forcePowerSorted even when the anchor power isn't owned.
+Returns the count and fills slots[] (must hold FORCE_WHEEL_CAPACITY entries).
+===============
+*/
+int CG_BuildForceWheel( int *slots )
+{
+	qboolean stasis = CG_HasStasis();
+	qboolean repulse = CG_HasRepulse();
+	qboolean dash = CG_HasDash();
+	qboolean destruction = CG_HasDestruction();
+	int n = 0, i;
+
+	for ( i = 0; i < NUM_FORCE_POWERS; i++ )
+	{
+		int p = forcePowerSorted[i];
+		// Use the anchor's position whether or not its real power is owned.
+		if ( dash && p == FP_SPEED )
+			slots[n++] = DASH_WHEEL_SLOT;
+		if ( destruction && p == FP_LIGHTNING )
+			slots[n++] = DESTRUCTION_WHEEL_SLOT;
+
+		if ( ForcePower_Valid( p ) )
+			slots[n++] = p;
+
+		if ( p == FP_SEE )
+		{
+			if ( stasis )  slots[n++] = STASIS_WHEEL_SLOT;
+			if ( repulse ) slots[n++] = REPULSE_WHEEL_SLOT;
+		}
+	}
+
+	return n;
 }
 
 /*
@@ -3235,19 +3656,22 @@ void CG_NextForcePower_f( void )
 		return;
 	}
 
-//	BG_CycleForce(&cg.snap->ps, 1);
-	if (cg.forceSelect != -1)
+	// Walk our own wheel order so pseudo-slots (stasis=18, repulse=19, dash=20) can be cycled
+	// onto/off of without ever putting them into the networked forcePowerSelected (kept 0-17).
 	{
-		cg.snap->ps.fd.forcePowerSelected = cg.forceSelect;
-	}
-
-	BG_CycleForce(&cg.snap->ps, 1);
-
-	if (cg.snap->ps.fd.forcePowersKnown & (1 << cg.snap->ps.fd.forcePowerSelected))
-	{
-		//Add a check for (if cgs.isjapro + g_forcepowerdisableFFA & power) -> return ? This requires forcepowerdisableFFA to be cvar_serverinfo :S
-		cg.forceSelect = cg.snap->ps.fd.forcePowerSelected;
-		cg.forceSelectTime = cg.time;
+		int slots[FORCE_WHEEL_CAPACITY], n = CG_BuildForceWheel( slots ), cur = -1, i;
+		for ( i = 0; i < n; i++ )
+		{
+			if ( slots[i] == cg.forceSelect ) { cur = i; break; }
+		}
+		if ( n > 0 )
+		{
+			cur = (cur + 1) % n;
+			cg.forceSelect = slots[cur];
+			cg.forceSelectTime = cg.time;
+			if ( cg.forceSelect < NUM_FORCE_POWERS )
+				cg.snap->ps.fd.forcePowerSelected = cg.forceSelect;
+		}
 	}
 }
 
@@ -3281,18 +3705,21 @@ void CG_PrevForcePower_f( void )
 		return;
 	}
 
-//	BG_CycleForce(&cg.snap->ps, -1);
-	if (cg.forceSelect != -1)
+	// Mirror of CG_NextForcePower_f, stepping the other way. See note there.
 	{
-		cg.snap->ps.fd.forcePowerSelected = cg.forceSelect;
-	}
-
-	BG_CycleForce(&cg.snap->ps, -1);
-
-	if (cg.snap->ps.fd.forcePowersKnown & (1 << cg.snap->ps.fd.forcePowerSelected))
-	{
-		cg.forceSelect = cg.snap->ps.fd.forcePowerSelected;
-		cg.forceSelectTime = cg.time;
+		int slots[FORCE_WHEEL_CAPACITY], n = CG_BuildForceWheel( slots ), cur = -1, i;
+		for ( i = 0; i < n; i++ )
+		{
+			if ( slots[i] == cg.forceSelect ) { cur = i; break; }
+		}
+		if ( n > 0 )
+		{
+			cur = (cur + n - 1) % n;
+			cg.forceSelect = slots[cur];
+			cg.forceSelectTime = cg.time;
+			if ( cg.forceSelect < NUM_FORCE_POWERS )
+				cg.snap->ps.fd.forcePowerSelected = cg.forceSelect;
+		}
 	}
 }
 

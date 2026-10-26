@@ -3811,7 +3811,8 @@ void RB_SurfaceGhoul( CRenderableSurface *surf )
 	// the glow is rendered _second_!!! If that changes, change this!
 	extern bool g_bRenderGlowingObjects;
 	extern bool g_bDynamicGlowSupported;
-	if ( !tess.shader->hasGlow || g_bRenderGlowingObjects || !g_bDynamicGlowSupported || !r_DynamicGlow->integer )
+	if ( !tess.shader->hasGlow || g_bRenderGlowingObjects || !g_bDynamicGlowSupported ||
+		 !r_DynamicGlow->integer || r_DynamicGlow->integer == 2 )
 	{
 		delete storeSurf;
 	}
@@ -4347,13 +4348,16 @@ qboolean R_LoadMDXM( model_t *mod, void *buffer, const char *mod_name, qboolean 
 
 			triCount += surf->numTriangles;
 
+			//a bad model must not drop the client; reject it and let the caller fall back
 			if ( surf->numVerts > SHADER_MAX_VERTEXES ) {
-				Com_Error (ERR_DROP, "R_LoadMDXM: %s has more than %i verts on a surface (%i)",
+				ri.Printf( PRINT_ALL, S_COLOR_YELLOW "R_LoadMDXM: %s has more than %i verts on a surface (%i)\n",
 					mod_name, SHADER_MAX_VERTEXES, surf->numVerts );
+				return qfalse;
 			}
 			if ( surf->numTriangles*3 > SHADER_MAX_INDEXES ) {
-				Com_Error (ERR_DROP, "R_LoadMDXM: %s has more than %i triangles on a surface (%i)",
+				ri.Printf( PRINT_ALL, S_COLOR_YELLOW "R_LoadMDXM: %s has more than %i triangles on a surface (%i)\n",
 					mod_name, SHADER_MAX_INDEXES / 3, surf->numTriangles );
+				return qfalse;
 			}
 
 			// change to surface identifier

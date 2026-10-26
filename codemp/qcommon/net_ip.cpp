@@ -1050,6 +1050,15 @@ void NET_Sleep( int msec ) {
 
 	FD_ZERO(&fdset);
 	if (ip_socket != INVALID_SOCKET) {
+#ifndef _WIN32
+		// on unix fd_set is a fixed size bitmask indexed by descriptor number,
+		// so a socket that landed above FD_SETSIZE (possible now that we raise
+		// RLIMIT_NOFILE at startup) cannot be waited on without corrupting it
+		if (ip_socket >= FD_SETSIZE) {
+			Sys_Sleep(msec);
+			return;
+		}
+#endif
 		FD_SET(ip_socket, &fdset); // network socket
 		highestfd = ip_socket;
 	}

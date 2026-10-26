@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #pragma once
 
 #define	CGAME_API_VERSION		2
+#define RADIAL_MENU_PAGE_COUNT 5
 
 #define	CMD_BACKUP			512//JAPRO - FPS UNLOCK ENGINE
 #define	CMD_MASK			(CMD_BACKUP - 1)
@@ -62,7 +63,8 @@ typedef enum cgameEvent_e {
 	CGAME_EVENT_TEAMMENU,
 	CGAME_EVENT_SCOREBOARD,
 	CGAME_EVENT_EDITHUD,
-	CGAME_EVENT_RADIALMENU
+	CGAME_EVENT_RADIALMENU,
+	CGAME_EVENT_DIALOGUE
 } cgameEvent_t;
 
 typedef struct autoMapInput_s {
@@ -475,6 +477,20 @@ typedef enum cgameExportLegacy_e {
 	CG_LAST_WHISPERER,
 } cgameExportLegacy_t;
 
+// A line of SJK chat the engine hands the cgame (SJK_SetChatSink), in game text. A
+// message: who said it (colours and a green + for a verified sender), its text (no colour
+// codes), the letters and digits of the sender's name and of the text in lower case (to
+// tell the game server's copy of it), the client it came from ("sjk", "ejk" or "") and
+// its id in the feed. SJK chat's own notice: text only, the rest "".
+typedef struct sjkChatLine_s {
+	const char		*who;
+	const char		*text;
+	const char		*nameWords;
+	const char		*words;
+	const char		*client;
+	const char		*id;
+} sjkChatLine_t;
+
 typedef struct cgameImport_s {
 	// common
 	void			(*Print)								( const char *msg, ... );
@@ -721,6 +737,18 @@ typedef struct cgameImport_s {
 	struct {
 		float		(*R_Font_StrLenPixels)					( const char *text, const int iFontIndex, const float scale );
 	} ext;
+	int				(*GetRadialMenuPage)					( void );
+
+	// New imports go at the very end, never inside ext or in front of an existing member:
+	// a cgame and an engine built from different commits only agree on the slots before the
+	// first change, so anything that moves shifts every slot after it.
+	// Only valid when the "cl_soundLength" cvar is non-zero: older engines end the table before this.
+	int				(*S_GetSampleLengthMs)					( sfxHandle_t sfx );
+	// Only valid when the "cl_sjkChatSink" cvar is non-zero, as are those after it. The
+	// engine hands SJK chat lines (client/cl_sjk.cpp) to sink until the cgame unloads.
+	void			(*SJK_SetChatSink)						( void (*sink)( const sjkChatLine_t *line ) );
+	// The cgame saw the game server's copy of message id: it was said in All chat too.
+	void			(*SJK_SaidInAll)						( const char *id );
 
 } cgameImport_t;
 

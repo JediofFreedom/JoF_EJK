@@ -72,6 +72,28 @@
 
 // EternalJK HUD cvars:
 
+XDOCS_CVAR_DEF("cg_saberRainSteam", "Steam on exposed lightsabers during rain",
+	SETTING("0", "Off") NL
+	SETTING("1", "On for everyone (default)") NL
+	SETTING("2", "Only on your own lightsabers")
+)
+
+XDOCS_CVAR_DEF("cg_tauntAntiSpam", "Throttle repeated model voice lines per player",
+	"A player's taunt, bow, meditate, flourish and gloat lines share one timer, so no single player can repeat them back to back." NL
+	"A taunt holds the next one back until it has finished playing, however long that model's line is." NL
+	"The gasp, jump, roll and landing grunts get a shorter timer of their own, so a player bobbing at a water surface cannot gasp on every frame, and one spammed line never silences the others." NL
+	SETTING("0", "Off, every voice line plays") NL
+	SETTING("1", "On, a player's next taunt waits for the last one to finish and no line is layered over itself (default)")
+)
+
+XDOCS_CVAR_DEF("cg_saberAntiSpam", "Throttle saber on/off sound spam per player",
+	"A bind or script that turns a saber on and off every frame, or loops weapon switches onto it, plays an ignition or shutdown each time." NL
+	"With this on, four toggles in a row play as usual, so quick toggling by hand is never cut; past that, one toggle sounds every half second while the spam goes on." NL
+	"Both hilts of a dual or staff toggle are heard together or not at all. Only the sound is held back: the saber still lights and goes out." NL
+	SETTING("0", "Off, every saber ignition and shutdown plays") NL
+	SETTING("1", "On, a player's saber toggle spam is held to one sound every half second (default)")
+)
+
 //XDOCS_CVAR_DEF("cg_", "Description",
 	//"More somethings if needed." NL
 	//SETTING("0", "something something probably (Base behavior)") NL
