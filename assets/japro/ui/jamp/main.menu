@@ -478,7 +478,7 @@
 			name				chatbutton
 			group				main_button
 			text				"CHAT"
-			descText			"Talk with SJK and JoF players, in a match or not"
+			descText			"Talk with SJK and JoF players, in a match or not."
 			style				WINDOW_STYLE_EMPTY
 			type				ITEM_TYPE_BUTTON
 			rect				97.8 375 130 24
