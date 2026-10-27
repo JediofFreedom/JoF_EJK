@@ -66,11 +66,13 @@ jobs:
           for attempt in $(seq 1 10); do
             git fetch --tags --force --quiet
 
-            # Highest number held by a published tag or an open reservation
+            # Highest number held by a published tag or an open reservation.
+            # The first beta after a release has none. grep exits 1 for no match,
+            # which the runner's bash -e treats as fatal, so only that is let through.
             LAST_BETA=$(
               git tag --list "${LAST_RELEASE}-beta.*" "reserve/${LAST_RELEASE}-beta.*" \
               | sed -E "s|^(reserve/)?${LAST_RELEASE}-beta\.||" \
-              | grep -E '^[0-9]+$' \
+              | { grep -E '^[0-9]+$' || [ $? -eq 1 ]; } \
               | sort -n | tail -1
             )
             if [ -z "$LAST_BETA" ]; then LAST_BETA=0; fi
@@ -660,8 +662,9 @@ jobs:
 
           # Count existing release tags for this MAJOR.MINOR to get next patch.
           # Must match X.Y.Z exactly: `grep -v beta` let -alpha.N tags through.
+          # grep -c prints 0 but exits 1 when nothing matches (a new MAJOR.MINOR).
           PATCH=$(git tag --list "${MAJOR}.${MINOR}.*" \
-            | grep -cE '^[0-9]+\.[0-9]+\.[0-9]+$')
+            | { grep -cE '^[0-9]+\.[0-9]+\.[0-9]+$' || [ $? -eq 1 ]; })
           VERSION="${MAJOR}.${MINOR}.${PATCH}"
 
           echo "version=$VERSION" >> $GITHUB_OUTPUT
