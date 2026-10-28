@@ -769,7 +769,7 @@
 			cvarTest			"cl_sjkChatUI"
 			showCvar			{ "1" }
 			visible			1
-			descText			"Configure SJK settings"
+			descText			"Configure SJK settings."
 
 			mouseEnter
 			{
@@ -5615,7 +5615,7 @@
 			textscale 			1
 			forecolor			.615 .615 .956 1
 			visible				0
-			descText			"Talk with SJK and JoF players on any server; off sends nothing to the SJK hub"
+			descText			"Talk with SJK and JoF players on any server. Off sends nothing to the SJK hub."
 			action				{ play "sound/interface/button1" }
 			mouseenter			{ show highlight1 }
 			mouseexit			{ hide highlight1 }
