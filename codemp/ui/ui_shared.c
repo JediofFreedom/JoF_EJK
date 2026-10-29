@@ -4945,15 +4945,19 @@ void Item_TextField_Paint(itemDef_t *item) {
 	cursor = DC->getOverstrikeMode() ? '_' : '|';
 	if ( Item_TextField_Boxed( item ) ) {
 		// the room after the label, leaving a left-aligned label's inset free on the right too
-		float pad = ( item->window.border ? item->window.borderSize : 0.0f ) + ( offset && item->textalignment == ITEM_ALIGN_LEFT ? item->textalignx : 0.0f );
+		float pad = ( item->window.border ? item->window.borderSize : 0.0f ) + ( offset && item->textalignment == ITEM_ALIGN_LEFT ? Q_max( item->textalignx, 0.0f ) : 0.0f );
 		float maxWidth = item->window.rect.x + item->window.rect.w - pad - x;
+		float cursorWidth = DC->textWidth( va( "%c", cursor ), item->textscale, item->iMenuFont );
 		int len = (int)strlen( buff );
 
 		if ( editPtr->paintOffset > len )
 			editPtr->paintOffset = len;
+		// bring earlier text back as the line gets shorter
+		while ( editPtr->paintOffset > 0
+			&& Item_TextField_Fit( buff + editPtr->paintOffset - 1, item->textscale, item->iMenuFont, maxWidth - cursorWidth ) > len - editPtr->paintOffset )
+			editPtr->paintOffset--;
 		if ( item->window.flags & WINDOW_HASFOCUS && g_editingField ) {
 			int cursorPos = Q_min( item->cursorPos, len );
-			float cursorWidth = DC->textWidth( va( "%c", cursor ), item->textscale, item->iMenuFont );
 
 			while ( editPtr->paintOffset < cursorPos
 				&& Item_TextField_Fit( buff + editPtr->paintOffset, item->textscale, item->iMenuFont, maxWidth - cursorWidth ) < cursorPos - editPtr->paintOffset )
