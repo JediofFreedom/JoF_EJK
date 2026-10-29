@@ -992,6 +992,16 @@ static const char *Con_ChatChannels( void ) {
 	return label;
 }
 
+// Room the chat line leaves for the HUD's top right (portrait, radar, FPS, timer).
+#define CHAT_UPPER_RIGHT_CHARS	11
+
+// Fits the chat field between its prompt and the top right, keeping the cursor in view.
+static void Con_FitChatField( int skip ) {
+	chatField.widthInChars = (int)( SCREEN_WIDTH / ( BIGCHAR_WIDTH * cls.widthRatioCoef ) ) - skip - CHAT_UPPER_RIGHT_CHARS;
+	if ( chatField.cursor >= chatField.scroll + chatField.widthInChars )
+		chatField.scroll = chatField.cursor - chatField.widthInChars + 1;
+}
+
 /*
 ================
 Con_DrawNotify
@@ -1141,6 +1151,7 @@ void Con_DrawNotify (void)
 		{
 			SCR_DrawStringExt2(8 * cls.widthRatioCoef, v, BIGCHAR_WIDTH * cls.widthRatioCoef, BIGCHAR_HEIGHT, chattext, chatColour, qfalse, qfalse);
 			skip = Q_PrintStrlen(chattext) + 1;
+			Con_FitChatField( skip );
 			Field_BigDraw(&chatField, skip * BIGCHAR_WIDTH, v,
 				SCREEN_WIDTH - (skip + 1) * BIGCHAR_WIDTH, qtrue, qtrue);
 

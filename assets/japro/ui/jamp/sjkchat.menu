@@ -198,7 +198,7 @@
 			border				1
 			bordercolor			0.2 0.2 0.5 0.5
 			maxChars			250
-			maxPaintChars			100
+			maxPaintChars			50
 			descText			"Enter says it on SJK chat, to SJK and JoF players on any server."
 			visible				1
 
