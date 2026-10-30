@@ -4884,10 +4884,34 @@ void Item_Text_Paint(itemDef_t *item) {
 	}
 }
 
+// Fields that draw their own box (a fill or border you can see) keep their text and cursor in it.
+static qboolean Item_TextField_Boxed( const itemDef_t *item ) {
+	return ( item->window.style == WINDOW_STYLE_FILLED && item->window.backColor[3] > 0.0f )
+		|| ( item->window.border && item->window.borderColor[3] > 0.0f );
+}
+
+// How many characters of text fit in maxWidth.
+static int Item_TextField_Fit( const char *text, float scale, int iMenuFont, float maxWidth ) {
+	char temp[1024];
+	int fit = 0, over = (int)strlen( text ) + 1;
+
+	while ( over - fit > 1 ) {
+		int mid = ( fit + over ) / 2;
+		Q_strncpyz( temp, text, Q_min( mid + 1, (int)sizeof( temp ) ) );
+		if ( DC->textWidth( temp, scale, iMenuFont ) <= maxWidth )
+			fit = mid;
+		else
+			over = mid;
+	}
+	return fit;
+}
+
 void Item_TextField_Paint(itemDef_t *item) {
 	char buff[1024];
 	vec4_t newColor, lowLight;
-	int offset;
+	int offset, limit;
+	float x;
+	char cursor;
 	menuDef_t *parent = (menuDef_t*)item->parent;
 	editFieldDef_t *editPtr = item->typeData.edit;
 
@@ -4916,11 +4940,36 @@ void Item_TextField_Paint(itemDef_t *item) {
 	}
 
 	offset = (item->text && *item->text) ? 8 : 0;
+	x = item->textRect.x + item->textRect.w + offset;
+	limit = item->window.rect.w;
+	cursor = DC->getOverstrikeMode() ? '_' : '|';
+	if ( Item_TextField_Boxed( item ) ) {
+		// the room after the label, leaving a left-aligned label's inset free on the right too
+		float pad = ( item->window.border ? item->window.borderSize : 0.0f ) + ( offset && item->textalignment == ITEM_ALIGN_LEFT ? Q_max( item->textalignx, 0.0f ) : 0.0f );
+		float maxWidth = item->window.rect.x + item->window.rect.w - pad - x;
+		float cursorWidth = DC->textWidth( va( "%c", cursor ), item->textscale, item->iMenuFont );
+		int len = (int)strlen( buff );
+
+		if ( editPtr->paintOffset > len )
+			editPtr->paintOffset = len;
+		// bring earlier text back as the line gets shorter
+		while ( editPtr->paintOffset > 0
+			&& Item_TextField_Fit( buff + editPtr->paintOffset - 1, item->textscale, item->iMenuFont, maxWidth - cursorWidth ) > len - editPtr->paintOffset )
+			editPtr->paintOffset--;
+		if ( item->window.flags & WINDOW_HASFOCUS && g_editingField ) {
+			int cursorPos = Q_min( item->cursorPos, len );
+
+			while ( editPtr->paintOffset < cursorPos
+				&& Item_TextField_Fit( buff + editPtr->paintOffset, item->textscale, item->iMenuFont, maxWidth - cursorWidth ) < cursorPos - editPtr->paintOffset )
+				editPtr->paintOffset++;
+		}
+		buff[editPtr->paintOffset + Item_TextField_Fit( buff + editPtr->paintOffset, item->textscale, item->iMenuFont, maxWidth )] = '\0';
+		limit = 0;
+	}
 	if (item->window.flags & WINDOW_HASFOCUS && g_editingField) {
-		char cursor = DC->getOverstrikeMode() ? '_' : '|';
-		DC->drawTextWithCursor(item->textRect.x + item->textRect.w + offset, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, item->cursorPos - editPtr->paintOffset , cursor, item->window.rect.w, item->textStyle, item->iMenuFont);
+		DC->drawTextWithCursor(x, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, item->cursorPos - editPtr->paintOffset , cursor, limit, item->textStyle, item->iMenuFont);
 	} else {
-		DC->drawText(item->textRect.x + item->textRect.w + offset, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, 0, item->window.rect.w, item->textStyle,item->iMenuFont);
+		DC->drawText(x, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, 0, limit, item->textStyle,item->iMenuFont);
 	}
 }
 
