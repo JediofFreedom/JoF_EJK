@@ -1,8 +1,8 @@
 // Checks SJK chat (codemp/client/cl_sjk.cpp) without the engine or a hub: the
 // signature against the hub protocol's test vector, SJK's key file, base64url, the
 // text the hub takes, the game's charset both ways, hub addresses, the User-Agent, how
-// a message of the feed reads, GIPHY links, the SJK chat menu's history and the
-// server's copy of a line.
+// a message of the feed reads, GIPHY links, the SJK chat menu's history, the
+// server's copy of a line and the slot claims.
 //
 //   sjk_chat_check
 
@@ -40,6 +40,7 @@ void Com_Printf( const char *fmt, ... ) {
 }
 qboolean CL_SJK_ToChatBox( const sjkChatLine_t * ) { return qfalse; }
 qboolean CL_SJK_ServerSession( char *, int, char *, int ) { return qfalse; }
+sjkPlaceKind_t CL_SJK_Place( char *, int, int *, char *, int ) { return SJK_PLACE_NONE; }
 void CL_SayToServer( const char * ) {}
 int Sys_Milliseconds( bool ) { return 0; }
 void Q_StripColor( char *text ) {	// as shared/qcommon/q_string.c does it
@@ -293,6 +294,139 @@ static void CheckServerCopy( void ) {
 	}
 }
 
+static void CheckClaims( void ) {
+	// The bodies: the server, the slot and the name as the game shows it, colours kept;
+	// never "active", which the hub counts play time from.
+	sjkPlace_t place;
+	place.server = "1.2.3.4:29070";
+	place.slot = 3;
+	place.name = "^1Sol";
+	require( SJK_ClaimBody( place ) == "{\"server\":\"1.2.3.4:29070\",\"slot\":3,\"name\":\"^1Sol\"}", "a claim: " + SJK_ClaimBody( place ) );
+	require( SJK_ReleaseBody( "1.2.3.4:29070" ) == "{\"server\":\"1.2.3.4:29070\"}", "a release: " + SJK_ReleaseBody( "1.2.3.4:29070" ) );
+
+	// The shown name in UTF-8, read as SJK reads it (decode_legacy_text): UTF-8 kept,
+	// else Windows-1251 when it reads as Russian, else Latin-1, whatever se_language says.
+	require( SJK_ShownName( "^1S^7ol" ) == "^1S^7ol", "colour codes kept" );
+	require( SJK_ShownName( "Ren\xe9" ) == "Ren\xc3\xa9", "Latin-1 to UTF-8" );
+	require( SJK_ShownName( "S\xc3\xb8l" ) == "S\xc3\xb8l", "a name in UTF-8 stays as it is" );
+	require( SJK_ShownName( "\xcf\xf0\xe8\xe2\xe5\xf2" ) == "\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82", "four high letters read as Russian" );
+	require( SJK_ShownName( "\xe4\xe0" ) == "\xd0\xb4\xd0\xb0", "two with a lower-case one read as Russian" );
+	require( SJK_ShownName( "\xc6\xd8" ) == "\xc3\x86\xc3\x98", "two capitals stay Latin-1" );
+	require( SJK_ShownName( "\xd0\xc4RK" ) == "\xc3\x90\xc3\x84RK", "high letters mixed with ASCII stay Latin-1" );
+	require( SJK_ShownName( "\x80Sol\x9f" ) == "Sol", "0x80..0x9F are Latin-1 control characters, dropped as SJK skips them" );
+	require( SJK_ShownName( "a\x01" "b\x7f" "c" ) == "abc", "control characters dropped" );
+
+	// Names the hub takes: not empty, at most 64 characters.
+	require( !SJK_ClaimableName( "" ), "an empty name is not claimed" );
+	require( SJK_ClaimableName( std::string( 64, 'a' ) ), "64 characters are claimed" );
+	require( !SJK_ClaimableName( std::string( 65, 'a' ) ), "65 are not" );
+	std::string wide;
+	for ( int i = 0; i < 64; i++ )
+		wide += "\xc3\xa9";
+	require( SJK_ClaimableName( wide ), "characters count, not bytes" );
+	require( SJK_ShownName( "\x01\x02" ).empty() && !SJK_ClaimableName( SJK_ShownName( "\x01\x02" ) ), "a name of control characters only is not claimed" );
+
+	// Where the player is: in the match, loading on the same server (kept), anywhere else.
+	const sjkPlace_t none;
+	sjkPlace_t at = SJK_NextPlace( SJK_PLACE_HERE, "1.2.3.4:29070", 3, "^1Sol", none );
+	require( at.SameClaim( place ), "in the match: the server, slot and name" );
+	require( SJK_NextPlace( SJK_PLACE_LOADING, "1.2.3.4:29070", 0, "", at ).SameClaim( place ), "a map change keeps the place" );
+	require( SJK_NextPlace( SJK_PLACE_LOADING, "5.6.7.8:29071", 0, "", at ).server.empty(), "loading on another server: no place" );
+	require( SJK_NextPlace( SJK_PLACE_NONE, "", 0, "", at ).server.empty(), "the menus: no place" );
+
+	// When the worker claims, renews, waits and withdraws.
+	sjkClaimer_t c;
+	sjkPlace_t here = place, menus;
+	require( SJK_ClaimNext( c, menus, true, 0 ) == SJK_CLAIM_WAIT, "in the menus with no claim, nothing" );
+	require( SJK_ClaimNext( c, here, false, 0 ) == SJK_CLAIM_WAIT, "an unregistered key waits" );
+	require( SJK_ClaimNext( c, here, true, 0 ) == SJK_CLAIM_SEND, "on a server, a claim at once" );
+	SJK_Claimed( &c, here, 90, 1000 );
+	require( c.held == here.server, "held once accepted" );
+	require( SJK_ClaimNext( c, here, true, 1000 + 45000 - 1 ) == SJK_CLAIM_WAIT, "renewed only halfway through the ttl" );
+	require( SJK_ClaimNext( c, here, true, 1000 + 45000 ) == SJK_CLAIM_SEND, "renewed at 45 s" );
+	require( SJK_ClaimWait( c, here, true, 2000 ) == 44000, "sleeps until the renewal" );
+	sjkPlace_t renamed = here;
+	renamed.name = "^2Sol";
+	require( SJK_ClaimNext( c, renamed, true, 1000 + SJK_CLAIM_GAP_MS - 1 ) == SJK_CLAIM_WAIT, "a new name waits for the gap" );
+	require( SJK_ClaimWait( c, renamed, true, 2000 ) == SJK_CLAIM_GAP_MS - 1000, "sleeps until the gap" );
+	require( SJK_ClaimNext( c, renamed, true, 1000 + SJK_CLAIM_GAP_MS ) == SJK_CLAIM_SEND, "a new name, claimed after the gap" );
+	sjkPlace_t moved = here;
+	moved.slot = 5;
+	require( SJK_ClaimNext( c, moved, true, 1000 + SJK_CLAIM_GAP_MS ) == SJK_CLAIM_SEND, "a new slot, claimed after the gap" );
+	require( SJK_ClaimNext( c, menus, true, 2000 ) == SJK_CLAIM_RELEASE, "left for the menus: withdrawn" );
+	require( SJK_ClaimNext( c, menus, false, 2000 ) == SJK_CLAIM_RELEASE, "withdrawn even unregistered" );
+	sjkPlace_t other = here;
+	other.server = "5.6.7.8:29071";
+	require( SJK_ClaimNext( c, other, true, 2000 ) == SJK_CLAIM_RELEASE, "another server: the old claim withdrawn first" );
+	sjkPlace_t nameless = here;
+	nameless.name = "";
+	require( SJK_ClaimNext( c, nameless, true, 2000 ) == SJK_CLAIM_RELEASE, "a name the hub refuses: withdrawn" );
+
+	// The ttl the hub answers sets the renewal, halfway, 10 to 45 s on.
+	sjkClaimer_t t;
+	SJK_Claimed( &t, here, 30, 0 );
+	require( t.due == 15000, "a 30 s claim is renewed at 15 s" );
+	SJK_Claimed( &t, here, 600, 0 );
+	require( t.due == SJK_CLAIM_EVERY_MS, "never later than 45 s" );
+	SJK_Claimed( &t, here, 4, 0 );
+	require( t.due == SJK_CLAIM_RETRY_MIN_MS, "never sooner than 10 s" );
+
+	// Only the hub's answer holds a claim.
+	sjkAnswer_t a;
+	a.status = 200;
+	a.body = "{\"ttl\":90}";
+	require( SJK_ClaimTTL( a ) == 90, "the hub's answer" );
+	a.body = "<html>welcome</html>";
+	require( SJK_ClaimTTL( a ) == 0, "a 200 that is not the hub's holds nothing" );
+	a.body = "{}";
+	require( SJK_ClaimTTL( a ) == 0, "no ttl, no claim" );
+	a.status = 409;
+	a.body = "{\"ttl\":90}";
+	require( SJK_ClaimTTL( a ) == 0, "a refusal holds nothing" );
+
+	// Refused (a slot another key holds, a full server): tried again after 10 s, doubled to
+	// 2 minutes, a new name or slot included; the worker never sleeps 0 ms meanwhile.
+	sjkClaimer_t r;
+	int64_t now = 0;
+	const int64_t waits[] = { 10000, 20000, 40000, 80000, 120000, 120000 };
+	for ( int64_t wait : waits ) {
+		require( SJK_ClaimNext( r, here, true, now ) == SJK_CLAIM_SEND, "tried again when due" );
+		SJK_Claimed( &r, here, 0, now );
+		require( r.held.empty(), "a refused claim is not held" );
+		require( SJK_ClaimNext( r, here, true, now + wait - 1 ) == SJK_CLAIM_WAIT, "no hammering: " + std::to_string( wait ) );
+		require( SJK_ClaimNext( r, renamed, true, now + wait - 1 ) == SJK_CLAIM_WAIT, "a new name waits too: " + std::to_string( wait ) );
+		now += wait;
+	}
+	SJK_Claimed( &r, here, 90, now );
+	require( r.backoff == SJK_CLAIM_RETRY_MIN_MS, "accepted: the wait starts over" );
+
+	// The busy loop: a refusal's retry falls due while the key is not registered (the
+	// hub is down, say). Nothing is sent, and the worker sleeps until it is registered.
+	sjkClaimer_t u;
+	SJK_Claimed( &u, here, 0, 0 );
+	require( SJK_ClaimNext( u, here, false, 60000 ) == SJK_CLAIM_WAIT, "unregistered: no claim though due" );
+	require( SJK_ClaimWait( u, here, false, 60000 ) == SJK_CLAIM_IDLE_MS, "unregistered: sleeps, does not spin" );
+	require( SJK_ClaimWait( u, menus, true, 60000 ) == SJK_CLAIM_IDLE_MS, "nowhere: sleeps" );
+	require( SJK_ClaimWait( u, here, true, 60000 ) > 0, "never 0 ms" );
+
+	// Refusals on one server hold up no claim on the next, nor back from the menus.
+	sjkClaimer_t m;
+	for ( int i = 0; i < 4; i++ )
+		SJK_Claimed( &m, here, 0, 0 );
+	SJK_ClaimFollow( &m, other );
+	require( m.backoff == SJK_CLAIM_RETRY_MIN_MS && SJK_ClaimNext( m, other, true, 1 ) == SJK_CLAIM_SEND, "another server: claimed at once" );
+	SJK_Claimed( &m, here, 0, 0 );
+	SJK_ClaimFollow( &m, here );
+	require( SJK_ClaimNext( m, here, true, 1 ) == SJK_CLAIM_WAIT, "the same server keeps its wait" );
+	SJK_ClaimFollow( &m, menus );
+	SJK_ClaimFollow( &m, here );
+	require( SJK_ClaimNext( m, here, true, 1 ) == SJK_CLAIM_SEND, "back from the menus: claimed at once" );
+	sjkClaimer_t h;
+	SJK_Claimed( &h, here, 90, 0 );
+	SJK_ClaimFollow( &h, menus );
+	require( SJK_ClaimNext( h, menus, true, 1 ) == SJK_CLAIM_RELEASE, "a held claim is withdrawn, not forgotten" );
+}
+
 int main( void ) {
 	CheckSignature();
 	CheckKeyFile();
@@ -306,6 +440,7 @@ int main( void ) {
 	CheckFeedAnswer();
 	CheckHistory();
 	CheckServerCopy();
+	CheckClaims();
 	printf( "sjk chat: %d checks passed\n", checks );
 	return 0;
 }

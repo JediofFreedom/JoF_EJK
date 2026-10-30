@@ -32,6 +32,16 @@ The standalone harness compiles the production SJK chat code,
   quoted (`%` takes 3), cut at spaces and never inside a colour code; and no copy at
   all without the hub's id. The cgame's side, holding and dropping the server's copy,
   is the manual test in [docs/sjk-chat.md](../../docs/sjk-chat.md#testing-locally).
+- slot claims: the claim's and the withdrawal's bodies (never `active`); the shown name
+  in UTF-8 as SJK decodes it (colour codes kept, UTF-8 kept as it is, else Windows-1251
+  when it reads as Russian, else Latin-1, control characters dropped) and which names
+  the hub takes (1 to 64 characters); where the player is (in the match, a map change
+  on the same server, elsewhere); only the hub's `{"ttl":..}` answer holding a claim,
+  renewed halfway through its life; when the claim worker claims (at once, a new slot
+  or name 5 seconds after the last claim), withdraws (leaving for the menus or another
+  server, or a name the hub refuses) and waits after a refusal (10 seconds, doubled
+  up to 2 minutes, starting over on another server or back from the menus); and how
+  long it sleeps: never 0 ms, a minute while the key is not registered.
 
 ```text
 cmake -S tests/sjk-chat -B build/sjk-chat-check
