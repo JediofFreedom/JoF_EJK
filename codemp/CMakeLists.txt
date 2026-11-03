@@ -531,6 +531,7 @@ if(BuildMPEngine)
 		"${MPDir}/client/cl_console.cpp"
 		"${MPDir}/client/cl_discordrpc.cpp"
 		"${MPDir}/client/cl_input.cpp"
+		"${MPDir}/client/cl_duelpartner.cpp"
 		"${MPDir}/client/cl_keys.cpp"
 		"${MPDir}/client/cl_lan.cpp"
 		"${MPDir}/client/cl_lan.h"
