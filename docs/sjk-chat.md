@@ -188,8 +188,9 @@ hub's protocol, as SJK's client implements it (Sol-Vulpes/SJK,
   - A claim never says `active`: the hub counts play time only from SJK builds (it
     ignores `active` from other agents since 27/10/2026), so JoF players get the mark only.
   - No claim in the menus, a demo, a listen server or a local game, nor with
-    `cl_sjkClaims 0`. A map change on the same server keeps the claim. A held claim
-    follows a new slot or name 5 seconds after its last claim at the soonest.
+    `cl_sjkClaims 0`. A map change on the same server keeps the claim. An accepted
+    claim follows a new slot or name 5 seconds after it at the soonest. After a failed
+    or refused claim, even one still held, a new slot or name waits out the backoff.
   - Leaving the server, or moving to another, withdraws the claim (`DELETE /v1/claim`
     with `{"server":".."}`) before anything else, as does SJK chat stopping. Neither
     the client nor `SJK_Stop` waits for it. A new session claims nothing until the last

@@ -400,6 +400,27 @@ static void CheckClaims( void ) {
 	SJK_Claimed( &r, here, 90, now );
 	require( r.backoff == SJK_CLAIM_RETRY_MIN_MS, "accepted: the wait starts over" );
 
+	// A held claim whose renewal fails keeps the backoff: a new name or slot does not
+	// skip it, however often it changes (review of #405).
+	sjkClaimer_t f;
+	SJK_Claimed( &f, here, 90, 0 );
+	now = 45000;
+	sjkPlace_t tried = here;
+	const int64_t failWaits[] = { 10000, 20000, 40000, 80000, 120000, 120000 };
+	for ( int64_t wait : failWaits ) {
+		require( SJK_ClaimNext( f, tried, true, now ) == SJK_CLAIM_SEND, "a failed renewal, tried again when due" );
+		SJK_Claimed( &f, tried, 0, now );
+		require( f.held == here.server, "a failed renewal keeps the claim to withdraw" );
+		tried.name = tried.name == renamed.name ? here.name : renamed.name;
+		tried.slot = tried.slot == moved.slot ? here.slot : moved.slot;
+		require( SJK_ClaimNext( f, tried, true, now + SJK_CLAIM_GAP_MS ) == SJK_CLAIM_WAIT, "a new name or slot waits out the backoff: " + std::to_string( wait ) );
+		require( SJK_ClaimNext( f, tried, true, now + wait - 1 ) == SJK_CLAIM_WAIT, "no hammering after a failed renewal: " + std::to_string( wait ) );
+		require( SJK_ClaimWait( f, tried, true, now ) == ( wait > SJK_CLAIM_IDLE_MS ? SJK_CLAIM_IDLE_MS : wait ), "sleeps out the backoff: " + std::to_string( wait ) );
+		now += wait;
+	}
+	SJK_Claimed( &f, tried, 90, now );
+	require( SJK_ClaimNext( f, renamed, true, now + SJK_CLAIM_GAP_MS ) == SJK_CLAIM_SEND, "accepted again: a new name after the gap" );
+
 	// The busy loop: a refusal's retry falls due while the key is not registered (the
 	// hub is down, say). Nothing is sent, and the worker sleeps until it is registered.
 	sjkClaimer_t u;

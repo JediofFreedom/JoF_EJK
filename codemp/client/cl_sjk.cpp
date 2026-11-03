@@ -85,8 +85,8 @@ static const size_t		SJK_ANSWER_MAX		= 256 * 1024;
 static const int		SJK_RANDOM_TRIES	= 3;		// for a request's nonce, then it fails
 // Slot claims, as SJK's client makes them (its docs/identity.md, "What happens"): a claim
 // lives as long as the hub's answer says (its ttl, 90 s) and is repeated halfway, at
-// most every 45 s; a refused or failed one waits 10 s, doubled up to 2 minutes. A held
-// claim follows a new slot or name at most every 5 s. The player's place is read twice
+// most every 45 s; a refused or failed one waits 10 s, doubled up to 2 minutes. An accepted
+// claim follows a new slot or name at most every 5 s; after a failure, it waits too. The player's place is read twice
 // a second. The hub takes names of up to 64 characters. A claim never says "active":
 // the hub counts play time toward holocrons only from SJK's own client, so a JoF player
 // gets the mark only.
@@ -1311,6 +1311,7 @@ struct sjkClaimer_t {
 	std::string		held;				// the server the hub holds the claim on, empty for none
 	sjkPlace_t		tried;				// the claim last sent
 	bool			sent = false;		// tried is set
+	bool			accepted = false;	// the hub took the claim last sent
 	int64_t			last = 0;			// when it went
 	int64_t			due = 0;			// when it goes again
 	int64_t			backoff = SJK_CLAIM_RETRY_MIN_MS;
@@ -1332,13 +1333,14 @@ static void SJK_ClaimFollow( sjkClaimer_t *c, const sjkPlace_t &place ) {
 	}
 }
 
-// When the claim goes next for the player at `place`: at once when none went yet; for a
-// held claim, a new slot or name SJK_CLAIM_GAP_MS after the last claim; else when it is
-// due (renewed, or tried again after a refusal).
+// When the claim goes next for the player at `place`: at once when none went yet; after
+// an accepted claim, a new slot or name SJK_CLAIM_GAP_MS after it; else when it is due
+// (renewed, or tried again after a refusal). A claim still held after a failed renewal
+// waits out the backoff like any refusal, a new name or slot included.
 static int64_t SJK_ClaimDueAt( const sjkClaimer_t &c, const sjkPlace_t &place ) {
 	if ( !c.sent )
 		return 0;
-	if ( !c.held.empty() && !c.tried.SameClaim( place ) && c.last + SJK_CLAIM_GAP_MS < c.due )
+	if ( c.accepted && !c.tried.SameClaim( place ) && c.last + SJK_CLAIM_GAP_MS < c.due )
 		return c.last + SJK_CLAIM_GAP_MS;
 	return c.due;
 }
@@ -1384,6 +1386,7 @@ static void SJK_Claimed( sjkClaimer_t *c, const sjkPlace_t &place, int ttl, int6
 	c->tried = place;
 	c->sent = true;
 	c->last = now;
+	c->accepted = ttl > 0;
 	if ( ttl > 0 ) {
 		const int64_t renew = (int64_t)ttl * 1000 / 2;
 		c->held = place.server;
@@ -1400,6 +1403,7 @@ static void SJK_ReleaseClaim( sjkSession_t *s, sjkClaimer_t *c ) {
 	SJK_Call( s, "DELETE", "/v1/claim", SJK_ReleaseBody( c->held ) );
 	c->held.clear();
 	c->sent = false;
+	c->accepted = false;
 	std::lock_guard<std::mutex> hold( s->lock );
 	s->claimStatus = "no claim";
 }

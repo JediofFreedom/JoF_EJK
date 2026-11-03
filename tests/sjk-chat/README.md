@@ -38,7 +38,8 @@ The standalone harness compiles the production SJK chat code,
   the hub takes (1 to 64 characters); where the player is (in the match, a map change
   on the same server, elsewhere); only the hub's `{"ttl":..}` answer holding a claim,
   renewed halfway through its life; when the claim worker claims (at once, a new slot
-  or name 5 seconds after the last claim), withdraws (leaving for the menus or another
+  or name 5 seconds after an accepted claim, not sooner than the backoff after a
+  failed renewal), withdraws (leaving for the menus or another
   server, or a name the hub refuses) and waits after a refusal (10 seconds, doubled
   up to 2 minutes, starting over on another server or back from the menus); and how
   long it sleeps: never 0 ms, a minute while the key is not registered.
