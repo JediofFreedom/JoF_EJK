@@ -110,6 +110,19 @@ typedef struct clientActive_s {
 									// causing immediate disconnects on continue
 	clSnapshot_t	snap;			// latest received from server
 
+	// Local training driver. Cleared with the connection on every new gamestate.
+	struct {
+		qboolean active;
+		qboolean release;
+		qboolean started;
+		int target;
+		int phase;
+		int phaseTime;
+		int serverId;
+		int snapFlags;
+		char targetInfo[MAX_INFO_STRING];
+	} duelPartner;
+
 	int			serverTime;			// may be paused during play
 	int			oldServerTime;		// to prevent time from flowing bakcwards
 	int			oldFrameServerTime;	// to check tournament restarts
@@ -622,6 +635,10 @@ typedef struct kbutton_s {
 } kbutton_t;
 
 void CL_InitInput (void);
+// Client-only sparring commands and usercmd override; no server bot or wire changes.
+void CL_InitDuelPartner(void);
+void CL_ShutdownDuelPartner(void);
+void CL_DuelPartnerMove(usercmd_t *cmd);
 void CL_ShutdownInput(void);
 void CL_SendCmd (void);
 void CL_ClearState (void);

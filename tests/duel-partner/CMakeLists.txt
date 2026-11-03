@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.16)
+project(duel_partner_check C CXX)
+set(root "${CMAKE_CURRENT_SOURCE_DIR}/../..")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/jofversion.h" "#define JOF_VERSION_STRING \"test\"\n#define JOF_VERSION_SUFFIX \"\"\n")
+add_executable(duel_partner_check check.cpp "${root}/shared/qcommon/q_math.c")
+target_include_directories(duel_partner_check PRIVATE "${root}/codemp" "${root}/shared"
+  "${root}/lib/gsl-lite/include" "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_definitions(duel_partner_check PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+if(NOT MSVC)
+  target_link_libraries(duel_partner_check m)
+endif()
+enable_testing()
+add_test(NAME duel_partner_check COMMAND duel_partner_check)
