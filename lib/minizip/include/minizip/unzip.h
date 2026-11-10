@@ -165,6 +165,9 @@ extern int ZEXPORT unzStringFileNameCompare OF ((const char* fileName1,
 
 extern unzFile ZEXPORT unzOpen OF((const char *path));
 extern unzFile ZEXPORT unzOpen64 OF((const void *path));
+/* Reopen the same, unchanged mounted archive with an independent stream and
+   decompressor, reusing only its validated immutable directory metadata. */
+extern unzFile ZEXPORT unzReOpen64 OF((const void *path, unzFile source));
 /*
   Open a Zip file. path contain the full pathname (by example,
      on a Windows XP computer "c:\\zlib\\zlib113.zip" or on an Unix computer

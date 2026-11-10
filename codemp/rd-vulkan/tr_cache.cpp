@@ -12,6 +12,8 @@ void NormalizePath( char *out, const char *path, size_t outSize )
 	assert(outSize == MAX_QPATH);
 	Q_strncpyz(out, path, outSize);
 	Q_strlwr(out);
+	for (char *ch = out; *ch; ++ch)
+		if (*ch == '\\') *ch = '/';
 }
 
 
@@ -245,11 +247,14 @@ qhandle_t CModelCacheManager::GetModelHandle( const char *fileName )
 
 		// The cache isn't cleared on map load unlike tr.models[], so a name can still be
 		// here pointing at a handle from the previous map - validate like rd-vanilla's
-		// mhHashTable does. A stale entry doesn't end the search: the same name may have
-		// been re-registered since, and that newer entry is the one we want.
+		// mhHashTable does. A still-valid slot may now belong to another filename.
 		if ( assets[i].handle < 1 || assets[i].handle >= tr.numModels
-			|| tr.models[assets[i].handle]->type == MOD_BAD )
+			|| !tr.models[assets[i].handle] || tr.models[assets[i].handle]->type == MOD_BAD )
 			continue;
+		char currentPath[MAX_QPATH];
+		NormalizePath(currentPath, tr.models[assets[i].handle]->name, sizeof(currentPath));
+		if (strcmp(currentPath, path) != 0)
+			continue; // A valid slot may have been reused for a different model.
 
 		return assets[i].handle;
 	}
@@ -263,11 +268,17 @@ void CModelCacheManager::InsertModelHandle( const char *fileName, qhandle_t hand
 	NormalizePath(path, fileName, sizeof(path));
 
 	const unsigned bucket = HashPath(path) & (ASSET_HASH_SIZE - 1);
+	for (int i = assetHashHeads[bucket]; i != -1; i = assets[i].hashNext) {
+		if (!strcmp(path, assets[i].path)) {
+			assets[i].handle = handle;
+			return;
+		}
+	}
 
 	Asset asset;
 	asset.handle = handle;
 	Q_strncpyz(asset.path, path, sizeof(asset.path));
-	// newest first, so a name re-registered on this map is found before any stale entry
+	// New filenames go at the head; existing filenames update their slot above.
 	asset.hashNext = assetHashHeads[bucket];
 	assets.emplace_back(asset);
 	assetHashHeads[bucket] = (int)( assets.size() - 1 );

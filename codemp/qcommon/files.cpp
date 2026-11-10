@@ -1457,9 +1457,11 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 
 	FS_AssertInitialised();
 
-	if ( file == NULL ) {
-		Com_Error( ERR_FATAL, "FS_FOpenFileRead: NULL 'file' parameter passed\n" );
-	}
+	// A null output requests metadata only, through the same search/pure rules.
+	// UI catalogues can check thousands of files without opening ZIP streams.
+	const bool queryOnly = file == NULL;
+	fileHandle_t queryHandle = 0;
+	if (queryOnly) file = &queryHandle;
 
 	if ( !filename ) {
 		Com_Error( ERR_FATAL, "FS_FOpenFileRead: NULL 'filename' parameter passed\n" );
@@ -1492,8 +1494,10 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 	// search through the path, one element at a time
 	//
 
-	*file = FS_HandleForFile();
-	fsh[*file].handleFiles.unique = uniqueFILE;
+	if (!queryOnly) {
+		*file = FS_HandleForFile();
+		fsh[*file].handleFiles.unique = uniqueFILE;
+	}
 
 	// this new bool is in for an optimisation, if you (eg) opened a BSP file under fs_copyfiles==2,
 	//	then it triggered a copy operation to update your local HD version, then this will re-open the
@@ -1530,6 +1534,7 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 					// case and separator insensitive comparisons
 					if ( !FS_FilenameCompare( pakFile->name, filename ) ) {
 						// found it!
+						if (queryOnly) return pakFile->len;
 
 						// mark the pak as having been referenced and mark specifics on cgame and ui
 						// shaders, txt, arena files  by themselves do not count as a reference as
@@ -1578,7 +1583,7 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 
 						if ( uniqueFILE ) {
 							// open a new file on the pakfile
-							fsh[*file].handleFiles.file.z = unzOpen (pak->pakFilename);
+							fsh[*file].handleFiles.file.z = unzReOpen64(pak->pakFilename, pak->handle);
 							if (fsh[*file].handleFiles.file.z == NULL) {
 								Com_Error (ERR_FATAL, "Couldn't open %s", pak->pakFilename);
 							}
@@ -1652,6 +1657,13 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 				dir = search->dir;
 
 				netpath = FS_BuildOSPath( dir->path, dir->gamedir, filename );
+				if (queryOnly) {
+					FILE *probe = fopen(netpath, "rb");
+					if (!probe) continue;
+					const long length = FS_fplength(probe);
+					fclose(probe);
+					return length;
+				}
 				fsh[*file].handleFiles.file.o = fopen (netpath, "rb");
 				if ( !fsh[*file].handleFiles.file.o ) {
 					continue;
@@ -2042,11 +2054,12 @@ int	FS_FileIsInPAK(const char *filename, int *pChecksum ) {
 	//
 	// search through the path, one element at a time
 	//
+	const long filenameHash = FS_HashFileName(filename, MAX_FILEHASH_SIZE * 2);
 
 	for ( search = fs_searchpaths ; search ; search = search->next ) {
 		//
 		if (search->pack) {
-			hash = FS_HashFileName(filename, search->pack->hashSize);
+			hash = filenameHash & (search->pack->hashSize - 1);
 		}
 		// is the element a pak file?
 		if ( search->pack && search->pack->hashTable[hash] ) {
@@ -4299,6 +4312,7 @@ is resetting due to a game change
 */
 static void FS_Restart_f(void);
 void FS_InitFilesystem( void ) {
+	Cvar_Get("fs_metadataQueries", "1", CVAR_ROM);
 	// allow command line parms to override our defaults
 	// we have to specially handle this, because normal command
 	// line variable sets don't happen until after the filesystem
@@ -4462,9 +4476,10 @@ int		FS_FOpenFileByMode( const char *qpath, fileHandle_t *f, fsMode_t mode ) {
 	}
 	if ( name && !Q_stricmp( name, "identity.key" ) ) {
 		Com_Printf( S_COLOR_YELLOW "FS_FOpenFileByMode: refused to open %s, a private key\n", qpath );
-		*f = 0;
+		if (f) *f = 0;
 		return -1;
 	}
+	if (!f && mode != FS_READ) return -1;
 
 	switch( mode ) {
 	case FS_READ:

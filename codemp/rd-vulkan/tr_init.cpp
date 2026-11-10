@@ -187,6 +187,7 @@ cvar_t	*r_patchStitching;
 cvar_t	*r_defaultImage;
 cvar_t	*r_device;
 cvar_t *r_pipelineCache;
+cvar_t *r_imageUploadBatch;
 //cvar_t	*r_stencilbits;
 cvar_t	*r_ext_multisample;
 cvar_t	*r_ext_supersample;
@@ -914,6 +915,8 @@ void R_Register( void )
 	// Vulkan
 	r_pipelineCache = ri.Cvar_Get("r_pipelineCache", "1", CVAR_ARCHIVE_ND,
 		"Reuse compiled Vulkan pipelines between renderer restarts and game launches");
+	r_imageUploadBatch = ri.Cvar_Get("r_imageUploadBatch", "1", CVAR_ARCHIVE_ND,
+		"Batch Vulkan texture transfers before drawing instead of waiting after each image");
 	r_defaultImage						= ri.Cvar_Get("r_defaultImage",						"",							CVAR_ARCHIVE_ND | CVAR_LATCH, "");
 	r_device							= ri.Cvar_Get("r_device",							"-1",						CVAR_ARCHIVE_ND | CVAR_LATCH, "Select physical device to render:\n" \
 		" 0+ - use explicit device index\n" \
@@ -1026,6 +1029,7 @@ R_Init
 */
 extern void R_InitWorldEffects( void ); //tr_WorldEffects.cpp
 void R_Init( void ) {
+	vkLoadStats = {};
 	int i;
 	byte *ptr;
 
@@ -1190,6 +1194,11 @@ Touch all images to make sure they are resident
 */
 void RE_EndRegistration( void ) {
 	vk_wait_idle();
+	if (ri.Cvar_VariableIntegerValue("cl_loadTimings")) {
+		ri.Printf(PRINT_ALL, "LOADPROFILE Vulkan images: %u loads, decode %d ms, create %d ms; uploads %u, %.1f MiB, queue waits %d ms\n",
+			vkLoadStats.imageLoads, vkLoadStats.imageDecodeMs, vkLoadStats.imageCreateMs,
+			vkLoadStats.uploadSubmissions, vkLoadStats.uploadBytes / (1024.0 * 1024.0), vkLoadStats.uploadWaitMs);
+	}
 
 	// command buffer is not in recording state at this stage
 	// so we can't issue RB_ShowImages() here.

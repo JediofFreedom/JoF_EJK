@@ -85,6 +85,7 @@ option(UseInternalOpenAL "If set, use bundled OpenAL."  ${UseInternalOpenALDefau
 option(UseInternalZlib   "If set, use bundled zlib."    ${UseInternalZlibDefault})
 option(UseInternalPNG    "If set, use bundled libpng."  ${UseInternalPNGDefault})
 option(UseInternalJPEG   "If set, use bundled libjpeg." ${UseInternalJPEGDefault})
+option(UseTurboJPEG "Use the bundled SIMD-capable JPEG decoder when UseInternalJPEG is enabled." ON)
 option(UseInternalSDL2   "If set, use bundled SDL2."    ${UseInternalSDL2Default})
 
 # This option won't appear on non-Apple platforms.
@@ -421,7 +422,11 @@ set(SharedCommonSafeFiles
 
 
 if(UseInternalJPEG)
-  add_subdirectory(lib/jpeg-9a)
+  if(UseTurboJPEG)
+    include(cmake/BuildTurboJPEG.cmake)
+  else()
+    add_subdirectory(lib/jpeg-9a)
+  endif()
 else()
   find_package(JPEG REQUIRED)
 endif()

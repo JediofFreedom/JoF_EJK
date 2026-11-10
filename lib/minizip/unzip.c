@@ -769,6 +769,42 @@ local unzFile unzOpenInternal (const void *path,
 }
 
 
+extern unzFile ZEXPORT unzReOpen64(const void *path, unzFile source)
+{
+    const unz64_s *original = (const unz64_s *)source;
+    unz64_s *copy;
+    if (original == NULL || path == NULL)
+        return NULL;
+    copy = (unz64_s *)ALLOC(sizeof(unz64_s));
+    if (copy == NULL)
+        return NULL;
+    memset(copy, 0, sizeof(*copy));
+    /* Do not copy mutable cursor/decompressor fields: the mounted handle can
+       be reading another member while this independent stream is opened. */
+    copy->z_filefunc = original->z_filefunc;
+    copy->is64bitOpenFunction = original->is64bitOpenFunction;
+    copy->gi = original->gi;
+    copy->byte_before_the_zipfile = original->byte_before_the_zipfile;
+    copy->central_pos = original->central_pos;
+    copy->size_central_dir = original->size_central_dir;
+    copy->offset_central_dir = original->offset_central_dir;
+    copy->isZip64 = original->isZip64;
+    copy->filestream = ZOPEN64(copy->z_filefunc, path,
+                              ZLIB_FILEFUNC_MODE_READ | ZLIB_FILEFUNC_MODE_EXISTING);
+    if (copy->filestream == NULL)
+    {
+        TRYFREE(copy);
+        return NULL;
+    }
+    if (copy->gi.number_entry != 0 && unzGoToFirstFile((unzFile)copy) != UNZ_OK)
+    {
+        ZCLOSE64(copy->z_filefunc, copy->filestream);
+        TRYFREE(copy);
+        return NULL;
+    }
+    return (unzFile)copy;
+}
+
 extern unzFile ZEXPORT unzOpen2 (const char *path,
                                         zlib_filefunc_def* pzlib_filefunc32_def)
 {

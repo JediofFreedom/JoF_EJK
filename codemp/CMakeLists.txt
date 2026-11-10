@@ -1004,3 +1004,11 @@ install(FILES
 		${CMAKE_CURRENT_BINARY_DIR}/jofclient-assets.pk3
 	DESTINATION "${JKAInstallDir}/EternalJK"
 	COMPONENT ${JKAMPCoreComponent})
+
+if(UseInternalJPEG AND UseTurboJPEG)
+	install(FILES
+		${CMAKE_SOURCE_DIR}/lib/jpeg-turbo/LICENSE.md
+		${CMAKE_SOURCE_DIR}/lib/jpeg-turbo/README.ijg
+		DESTINATION "${JKAInstallDir}/licenses/libjpeg-turbo"
+		COMPONENT ${JKAMPCoreComponent})
+endif()

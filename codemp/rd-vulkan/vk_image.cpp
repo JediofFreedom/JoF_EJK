@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+vkLoadStats_t vkLoadStats = {};
 
 #define STB_DXT_IMPLEMENTATION
 #include "utils/stb_dxt.h"
@@ -785,9 +786,22 @@ void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 }
 
 static VkCommandBuffer staging_command_buffer = VK_NULL_HANDLE;
+static VkCommandBuffer image_upload_commands = VK_NULL_HANDLE;
+static VkDeviceSize image_upload_used;
+
+void vk_flush_image_uploads(void) {
+	if (image_upload_commands != VK_NULL_HANDLE) {
+		const VkCommandBuffer commands = image_upload_commands;
+		// Clear first: the common immediate-submit helper flushes pending images.
+		image_upload_commands = VK_NULL_HANDLE;
+		vk_end_command_buffer(commands, "batched image upload");
+		image_upload_used = 0;
+	}
+}
 
 void vk_clean_staging_buffer( void )
 {
+	vk_flush_image_uploads();
 	if ( vk.staging_buffer.handle != VK_NULL_HANDLE ) {
 		VK_DESTROY_BUFFER( vk.device, vk.staging_buffer.handle );
 		vk.staging_buffer.handle = VK_NULL_HANDLE;
@@ -967,7 +981,7 @@ static byte *vk_resample_image_data( const int target_format, byte *data, const 
 		return buffer; // must be freed after upload!
 
 	case VK_FORMAT_B8G8R8A8_UNORM:
-		buffer = R_ImageScratchAlloc(&s_imageScratch.convert, data_size / 2);
+		buffer = R_ImageScratchAlloc(&s_imageScratch.convert, data_size);
 		for ( i = 0; i < data_size; i += 4 ) {
 			buffer[i + 0] = data[i + 2];
 			buffer[i + 1] = data[i + 1];
@@ -978,7 +992,7 @@ static byte *vk_resample_image_data( const int target_format, byte *data, const 
 		return buffer;
 
 	case VK_FORMAT_R8G8B8_UNORM: {
-		buffer = R_ImageScratchAlloc(&s_imageScratch.convert, data_size / 2);
+		buffer = R_ImageScratchAlloc(&s_imageScratch.convert, (data_size / 4) * 3);
 		for ( i = 0, n = 0; i < data_size; i += 4, n += 3 ) {
 			buffer[n + 0] = data[i + 0];
 			buffer[n + 1] = data[i + 1];
@@ -1062,6 +1076,7 @@ void vk_upload_image_data( image_t *image, int x, int y, int width,
 		height >>= 1;
 		if (height < 1) height = 1;
 	}
+	vkLoadStats.uploadBytes += buffer_size;
 
 #ifdef USE_UPLOAD_QUEUE
 	if ( vk_wait_staging_buffer() ) {
@@ -1115,13 +1130,21 @@ void vk_upload_image_data( image_t *image, int x, int y, int width,
 	// final transition after upload comleted
 	vk_record_image_layout_transition( command_buffer, image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, 0 );
 #else
-	if ( vk.staging_buffer.size < buffer_size ) {
-		vk_alloc_staging_buffer( buffer_size );
+	const bool batch = r_imageUploadBatch && r_imageUploadBatch->integer;
+	if (!batch) vk_flush_image_uploads();
+	const VkDeviceSize capacity = batch ? MAX(buffer_size, 32 * 1024 * 1024) : buffer_size;
+	if (vk.staging_buffer.size < capacity) vk_alloc_staging_buffer(capacity);
+	VkDeviceSize offset = PAD(image_upload_used, 16);
+	if (offset > vk.staging_buffer.size || VkDeviceSize(buffer_size) > vk.staging_buffer.size - offset) {
+		vk_flush_image_uploads();
+		offset = 0;
 	}
-
-	Com_Memcpy( vk.staging_buffer.ptr, buf, buffer_size );
-
-	command_buffer = vk_begin_command_buffer();
+	Com_Memcpy(vk.staging_buffer.ptr + offset, buf, buffer_size);
+	for (int regionIndex = 0; regionIndex < num_regions; ++regionIndex)
+		regions[regionIndex].bufferOffset += offset;
+	if (image_upload_commands == VK_NULL_HANDLE) image_upload_commands = vk_begin_command_buffer();
+	command_buffer = image_upload_commands;
+	image_upload_used = offset + buffer_size;
 	// record_buffer_memory_barrier( command_buffer, vk_world.staging_buffer, VK_WHOLE_SIZE, 0, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT );
 	if ( update ) {
 		vk_record_image_layout_transition( command_buffer, image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, 0 );
@@ -1130,7 +1153,7 @@ void vk_upload_image_data( image_t *image, int x, int y, int width,
 	}
 	qvkCmdCopyBufferToImage( command_buffer, vk.staging_buffer.handle, image->handle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, num_regions, regions );
 	vk_record_image_layout_transition( command_buffer, image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, 0 );
-	vk_end_command_buffer( command_buffer, __func__ );
+	if (!batch) vk_flush_image_uploads();
 #endif
 
 	// this is not ok?
@@ -1477,7 +1500,10 @@ image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
         //
         // load the pic from disk
         //
+        const int decodeStarted = ri.Milliseconds();
         R_LoadImage(name, &pic, &width, &height);
+        vkLoadStats.imageDecodeMs += ri.Milliseconds() - decodeStarted;
+        ++vkLoadStats.imageLoads;
         if (pic == NULL) {
             return NULL;
         }
@@ -1487,6 +1513,7 @@ image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
 		if ((width & (width - 1)) || (height & (height - 1)))
 		{
 			ri.Printf(PRINT_ALL, "Refusing to load non-power-2-dims(%d,%d) pic \"%s\"...\n", width, height, name);
+			ri.Z_Free(pic);
 			return NULL;
 		}
 
@@ -1509,7 +1536,9 @@ image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
             }
 		}
 
+        const int createStarted = ri.Milliseconds();
         image = R_CreateImage(name, pic, width, height, flags);
+        vkLoadStats.imageCreateMs += ri.Milliseconds() - createStarted;
         ri.Z_Free(pic);
         return image;
 }

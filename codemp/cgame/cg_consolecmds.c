@@ -2060,7 +2060,7 @@ static void CG_Cosmetics_Wear_f(const char *category)
 		Com_Printf("^5Available %s:\n", category);
 		for (i = 0; i < total; i++) {
 			Com_Printf("%2d %s %s%s\n", i, (worn == &items[i]) ? "^2[X]^7" : "[ ]", items[i].name,
-				items[i].handle ? "" : " ^3(Get from JoF Launcher or Cloud)^7");
+				CG_CosmeticModel(&items[i]) ? "" : " ^3(Get from JoF Launcher or Cloud)^7");
 		}
 		Com_Printf("Wear one with ^3cosmetics %s <num>^7, take it off with the same command.\n", category);
 		return;
@@ -2082,7 +2082,7 @@ static void CG_Cosmetics_Wear_f(const char *category)
 		}
 		item = &items[i];
 	}
-	if ( !item->handle ) {
+	if ( !CG_CosmeticModel(item) ) {
 		Com_Printf( "Cosmetic '%s' is not installed. Get %s from JoF Launcher or Cloud.\\n",
 			item->name, !Q_stricmp(category, "hats") ? "hats" : "capes" );
 		return;

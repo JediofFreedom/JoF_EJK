@@ -835,6 +835,7 @@ void SCR_UpdateScreen( void ) {
 		} else {
 			re->EndFrame( NULL, NULL );
 		}
+		CL_LoadProfilePresented();
 	}
 
 	recursive = 0;

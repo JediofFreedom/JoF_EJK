@@ -2010,7 +2010,7 @@ static cosmeticItem_t *CG_ResolveCosmetic( const char *cosName, cosmeticItem_t *
 	item = CG_CosmeticForName( cosName, cosmetics, totalCosmetics );
 
 	//a model that failed to load registers as handle 0 - treat it as absent
-	if ( !item || !item->handle )
+	if ( !CG_CosmeticModel(item) )
 		return NULL;
 
 	return item;

@@ -126,6 +126,12 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
+      - name: Install JPEG SIMD assembler
+        shell: pwsh
+        run: |
+          choco install nasm --yes --no-progress
+          "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Create build directory
         run: cmake -E make_directory build
 
@@ -647,6 +653,12 @@ jobs:
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
+
+      - name: Install JPEG SIMD assembler
+        shell: pwsh
+        run: |
+          choco install nasm --yes --no-progress
+          "C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Create build directory
         run: cmake -E make_directory build

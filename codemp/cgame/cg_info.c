@@ -40,9 +40,17 @@ CG_LoadingString
 ======================
 */
 void CG_LoadingString( const char *s ) {
+	static int lastScreenUpdate;
+	const int now = trap->Milliseconds();
+	const qboolean redraw = !s[0] || !cg.infoScreenText[0] ||
+		(unsigned int)now - (unsigned int)lastScreenUpdate >= 50;
 	Q_strncpyz( cg.infoScreenText, s, sizeof( cg.infoScreenText ) );
-
-	trap->UpdateScreen();
+	// Keep the current label, but don't submit a complete loading frame for
+	// every item/player in a burst. Always present the first and final labels.
+	if (redraw) {
+		lastScreenUpdate = now;
+		trap->UpdateScreen();
+	}
 }
 
 /*

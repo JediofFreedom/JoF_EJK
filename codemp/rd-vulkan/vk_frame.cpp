@@ -361,6 +361,7 @@ void vk_begin_frame( void )
 
 	if ( vk.frame_count++ ) // might happen during stereo rendering
 		return;
+	vk_flush_image_uploads();
 
 #ifdef USE_UPLOAD_QUEUE
 	vk_flush_staging_buffer( qtrue );
@@ -524,11 +525,13 @@ static void vk_resize_geometry_buffer( void )
 
 void vk_wait_idle( void )
 {
+	vk_flush_image_uploads();
     VK_CHECK(qvkDeviceWaitIdle(vk.device));
 }
 
 void vk_queue_wait_idle( void )
 {
+	vk_flush_image_uploads();
 	VK_CHECK( qvkQueueWaitIdle( vk.queue ) );
 }
 
@@ -600,6 +603,7 @@ void vk_release_resources( void ) {
 
 void vk_end_frame( void )
 {
+	vk_flush_image_uploads();
  #ifdef USE_UPLOAD_QUEUE
 	VkSemaphore waits[2], signals[2];
 	const VkPipelineStageFlags wait_dst_stage_mask[2] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};

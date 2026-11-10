@@ -8,10 +8,13 @@ static struct {
 } uiInfo;
 static struct { int integer; } ui_showAllSkins = {2}, ui_sv_pure = {0};
 static int shaderRegistrations;
+typedef int fileHandle_t;
+static int metadataQueries = 1, openedStreams;
+static float cvarValue(const char *) { return float(metadataQueries); }
 static int open(const char *name, int *file, int) {
     bool exists = std::strstr(name, ".skin") ||
         (std::strstr(name, "/image/icon_") && std::strstr(name, ".png"));
-    *file = exists ? 1 : 0;
+    if (file) { *file = exists ? 1 : 0; if (exists) ++openedStreams; }
     return exists ? 1 : -1;
 }
 static void close(int) {}
@@ -19,7 +22,7 @@ static int shader(const char *name) {
     ++shaderRegistrations;
     return std::strstr(name, "/script/icon_") ? 42 : 0;
 }
-static struct { int (*FS_Open)(const char *, int *, int); void (*FS_Close)(int); int (*R_RegisterShaderNoMip)(const char *); } imports = {open, close, shader}, *trap = &imports;
+static struct { int (*FS_Open)(const char *, int *, int); void (*FS_Close)(int); int (*R_RegisterShaderNoMip)(const char *); float (*Cvar_VariableValue)(const char *); } imports = {open, close, shader, cvarValue}, *trap = &imports;
 static void Com_sprintf(char *out, int size, const char *format, ...) {
     va_list args;
     va_start(args, format);
@@ -47,6 +50,9 @@ static void check() {
     UI_BuildQ3Model_List_ProcessDir(missing, files, 1);
     CHECK(uiInfo.q3HeadCount == 3 && uiInfo.q3HeadIcons[2] == 14); // Existing missing-icon fallback.
     CHECK(shaderRegistrations == 2);
+    CHECK(openedStreams == 0);
+    metadataQueries = 0;
+    CHECK(bIsImageFile(image, "default") && openedStreams == 1);
     std::puts("Model catalogue defers image uploads and preserves shader/fallback icons.");
 }
 }

@@ -75,6 +75,13 @@ typedef unsigned int uvec4_t[4];
 //#define USE_REVERSED_DEPTH
 //#define USE_UPLOAD_QUEUE
 
+struct vkLoadStats_t {
+	unsigned imageLoads, uploadSubmissions;
+	int imageDecodeMs, imageCreateMs, uploadWaitMs;
+	uint64_t uploadBytes;
+};
+extern vkLoadStats_t vkLoadStats;
+
 //#define USE_VANILLA_SHADOWFINISH
 #define USE_VK_STATS
 
@@ -1082,6 +1089,7 @@ void		vk_destroy_shader_modules( void );
 VkCommandBuffer vk_begin_command_buffer( void );
 void		vk_end_command_buffer( VkCommandBuffer command_buffer, const char *location );
 void		vk_create_command_pool( void );
+void vk_flush_image_uploads(void);
 void		vk_create_command_buffer( void );
 void vk_record_image_layout_transition( VkCommandBuffer cmdBuf, VkImage image,
 	VkImageAspectFlags image_aspect_flags,

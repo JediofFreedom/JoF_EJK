@@ -93,6 +93,7 @@ VkCommandBuffer vk_begin_command_buffer( void )
 
 void vk_end_command_buffer( VkCommandBuffer command_buffer, const char *location )
 {
+	vk_flush_image_uploads();
 #ifdef USE_UPLOAD_QUEUE
 	const VkPipelineStageFlags wait_dst_stage_mask = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
 	VkSemaphore waits;
@@ -128,7 +129,10 @@ void vk_end_command_buffer( VkCommandBuffer command_buffer, const char *location
 
     VK_CHECK( qvkQueueSubmit( vk.queue, 1, &submit_info, VK_NULL_HANDLE ) );
 
+	const int waitStarted = ri.Milliseconds();
 	VK_CHECK( qvkQueueWaitIdle( vk.queue ) );
+	vkLoadStats.uploadWaitMs += ri.Milliseconds() - waitStarted;
+	++vkLoadStats.uploadSubmissions;
 
     qvkFreeCommandBuffers(vk.device, vk.command_pool, 1, cmdbuf);
 }

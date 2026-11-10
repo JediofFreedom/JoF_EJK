@@ -10586,7 +10586,7 @@ void CG_ChatBox_AddString(char *chatStr, qboolean isPrivate)
 					strcpy(&emojiStr[w], replaceChar);
 
 					//set the pointer to the emoji graphic
-					chat->emoji[emojiIndex].emoji = emojis[k].emoji;
+					chat->emoji[emojiIndex].emoji = CG_EmojiShader(k);
 
 					//calculate the offsets
 					char *b = emojiStr + bpoint;

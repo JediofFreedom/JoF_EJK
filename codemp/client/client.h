@@ -709,6 +709,8 @@ extern qboolean con_alert;
 void	SCR_Init (void);
 void	SCR_UpdateScreen (void);
 void	SCR_UpdateScreenAndInput (void);
+void CL_LoadProfileStage(const char *stage, int started);
+void CL_LoadProfilePresented(void);
 
 void	SCR_DebugGraph (float value, int color);
 

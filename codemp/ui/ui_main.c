@@ -47,6 +47,7 @@ USER INTERFACE MAIN
 
 extern void UI_SaberAttachToChar( itemDef_t *item );
 
+static qboolean UI_FileExists(const char *path);
 static qboolean bIsImageFile(const char* dirptr, const char* skinname);
 static qboolean UI_ParseColorData(char* buf, playerSpeciesInfo_t *species, char* file);
 
@@ -13136,30 +13137,27 @@ bIsImageFile
 builds path and scans for valid image extentions
 =================
 */
+static qboolean UI_FileExists(const char *path)
+{
+	fileHandle_t file;
+	if (trap->Cvar_VariableValue("fs_metadataQueries"))
+		return trap->FS_Open(path, NULL, FS_READ) >= 0;
+	// Preserve compatibility when this UI is loaded by an older engine.
+	trap->FS_Open(path, &file, FS_READ);
+	if (!file) return qfalse;
+	trap->FS_Close(file);
+	return qtrue;
+}
+
 static qboolean bIsImageFile(const char* dirptr, const char* skinname)
 {
 	char fpath[MAX_QPATH];
-	int f;
-
 	Com_sprintf(fpath, MAX_QPATH, "models/players/%s/icon_%s.jpg", dirptr, skinname);
-	trap->FS_Open(fpath, &f, FS_READ);
-	if (!f)
-	{ //not there, try png
-		Com_sprintf(fpath, MAX_QPATH, "models/players/%s/icon_%s.png", dirptr, skinname);
-		trap->FS_Open(fpath, &f, FS_READ);
-	}
-	if (!f)
-	{ //not there, try tga
-		Com_sprintf(fpath, MAX_QPATH, "models/players/%s/icon_%s.tga", dirptr, skinname);
-		trap->FS_Open(fpath, &f, FS_READ);
-	}
-	if (f)
-	{
-		trap->FS_Close(f);
-		return qtrue;
-	}
-
-	return qfalse;
+	if (UI_FileExists(fpath)) return qtrue;
+	Com_sprintf(fpath, MAX_QPATH, "models/players/%s/icon_%s.png", dirptr, skinname);
+	if (UI_FileExists(fpath)) return qtrue;
+	Com_sprintf(fpath, MAX_QPATH, "models/players/%s/icon_%s.tga", dirptr, skinname);
+	return UI_FileExists(fpath);
 }
 
 /*
@@ -13171,7 +13169,6 @@ builds path and scans for valid skin files
 static qboolean bIsSkinFile(const char* dirptr, const char* skinname)
 {
 	char fpath[MAX_QPATH];
-	int f;
 
 	if (!ui_showAllSkins.integer)
 		return qfalse;
@@ -13192,21 +13189,12 @@ static qboolean bIsSkinFile(const char* dirptr, const char* skinname)
 
 	//now check for an animation.cfg
 	Com_sprintf(fpath, MAX_QPATH, "models/players/%s/animation.cfg", dirptr);
-	trap->FS_Open(fpath, &f, FS_READ);
-	if (f) {
-		trap->FS_Close(f);
+	if (UI_FileExists(fpath)) {
 		return qfalse;
 	}
 
 	Com_sprintf(fpath, MAX_QPATH, "models/players/%s/model_%s.skin", dirptr, skinname);
-	trap->FS_Open(fpath, &f, FS_READ);
-	if (f)
-	{
-		trap->FS_Close(f);
-		return qtrue;
-	}
-
-	return qfalse;
+	return UI_FileExists(fpath);
 }
 	
 void UI_BuildQ3Model_List_ProcessDir(char* dirptr, char* filelist, int numfiles)

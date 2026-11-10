@@ -46,6 +46,21 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 cvar_t *cl_name;
 
 cvar_t	*cl_renderer;
+static int clLoadProfileStarted;
+static qboolean clLoadProfilePending;
+static const char *clLoadProfileLabel = "map-handoff-to-first-frame";
+
+void CL_LoadProfileStage(const char *stage, int started) {
+	if (Cvar_VariableIntegerValue("cl_loadTimings"))
+		Com_Printf("LOADPROFILE %s: %d ms\n", stage, Sys_Milliseconds() - started);
+}
+
+void CL_LoadProfilePresented(void) {
+	if (clLoadProfilePending && cls.state == CA_ACTIVE) {
+		clLoadProfilePending = qfalse;
+		CL_LoadProfileStage(clLoadProfileLabel, clLoadProfileStarted);
+	}
+}
 
 cvar_t	*cl_nodelta;
 cvar_t	*cl_debugMove;
@@ -843,9 +858,12 @@ Also called by Com_Error
 =================
 */
 void CL_FlushMemory( void ) {
+	int loadStage = Sys_Milliseconds();
 
 	// shutdown all the client stuff
 	CL_ShutdownAll( qfalse );
+	CL_LoadProfileStage("client shutdown", loadStage);
+	loadStage = Sys_Milliseconds();
 
 	// if not running a server clear the whole hunk
 	if ( !com_sv_running->integer ) {
@@ -859,6 +877,7 @@ void CL_FlushMemory( void ) {
 		Hunk_ClearToMark();
 	}
 
+	CL_LoadProfileStage("client memory clear", loadStage);
 	CL_StartHunkUsers();
 }
 
@@ -1222,6 +1241,9 @@ void CL_Connect_f( void ) {
 		Com_Printf( "usage: connect [server]\n");
 		return;
 	}
+	clLoadProfileStarted = Sys_Milliseconds();
+	clLoadProfilePending = Cvar_VariableIntegerValue("cl_loadTimings") ? qtrue : qfalse;
+	clLoadProfileLabel = "connect-to-first-frame";
 
 	// save arguments for reconnect
 	Q_strncpyz( cl_reconnectArgs, Cmd_Args(), sizeof( cl_reconnectArgs ) );
@@ -1598,6 +1620,11 @@ void CL_DownloadsComplete( void ) {
 	}
 
 	// let the client game init and load data
+	if (!clLoadProfilePending && Cvar_VariableIntegerValue("cl_loadTimings")) {
+		clLoadProfileStarted = Sys_Milliseconds();
+		clLoadProfilePending = qtrue;
+		clLoadProfileLabel = "map-handoff-to-first-frame";
+	}
 	cls.state = CA_LOADING;
 
 	// Pump the loop, this may change gamestate!
@@ -3193,9 +3220,11 @@ void CL_StartHunkUsers( void ) {
 	}
 
 	if ( !cls.rendererStarted ) {
+		const int loadStage = Sys_Milliseconds();
 		cls.rendererStarted = qtrue;
 		Com_Memset(&cls.glconfig, 0, sizeof(cls.glconfig));
 		CL_InitRenderer();
+		CL_LoadProfileStage("renderer registration", loadStage);
 	}
 
 	if ( !cls.soundStarted ) {
@@ -3213,8 +3242,10 @@ void CL_StartHunkUsers( void ) {
 	}
 
 	if ( !cls.uiStarted ) {
+		const int loadStage = Sys_Milliseconds();
 		cls.uiStarted = qtrue;
 		CL_InitUI();
+		CL_LoadProfileStage("UI initialization", loadStage);
 	}
 }
 
@@ -4069,6 +4100,7 @@ void CL_Init( void ) {
 	// register our variables
 	//
 	cl_noprint = Cvar_Get( "cl_noprint", "0", 0 );
+	Cvar_Get("cl_loadTimings", "0", CVAR_TEMP, "Print loading phases and connect-to-first-frame timing");
 	cl_motd = Cvar_Get ("cl_motd", "1", CVAR_ARCHIVE_ND, "Display welcome message from master server on the bottom of connection screen" );
 	cl_motdServer[0] = Cvar_Get( "cl_motdServer1", UPDATE_SERVER_NAME, 0 );
 	cl_motdServer[1] = Cvar_Get( "cl_motdServer2", JKHUB_UPDATE_SERVER_NAME, 0 );

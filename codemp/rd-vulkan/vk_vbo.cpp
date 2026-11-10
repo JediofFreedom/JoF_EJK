@@ -1865,6 +1865,8 @@ void vk_release_world_vbo( void )
 
 qboolean vk_alloc_vbo( const char *name, const byte *vbo_data, int vbo_size )
 {
+	// World VBOs share the mapped staging bytes with texture transfers.
+	vk_flush_image_uploads();
 	VkMemoryRequirements vb_mem_reqs;
 	VkMemoryAllocateInfo alloc_info;
 	VkBufferCreateInfo desc;

@@ -23,6 +23,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Install x86 SIMD assembler
+        if: runner.os == 'Windows'
+        run: choco install nasm --yes --no-progress
+      - name: Add Windows assembler to PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '"C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append'
+      - name: Install Linux assembler
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y nasm
       - name: Configure native Vulkan without OpenGL renderers
         shell: bash
         run: >-
@@ -36,7 +46,7 @@ jobs:
       - name: Run renderer and loading regressions
         shell: bash
         run: |
-          for suite in loading-performance renderer-shader-registration vulkan-pipeline-cache; do
+          for suite in loading-performance renderer-shader-registration vulkan-pipeline-cache loading-audit; do
             cmake -S tests/$suite -B check-$suite -DCMAKE_BUILD_TYPE=Release
             cmake --build check-$suite --config Release --parallel 4
             ctest --test-dir check-$suite -C Release --output-on-failure
