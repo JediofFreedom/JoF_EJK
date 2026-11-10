@@ -26,6 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "../rd-common/tr_public.h"
 #include "../rd-common/tr_font.h"
+#include <vector>
 
 extern refimport_t ri;
 
@@ -58,7 +59,10 @@ typedef void (*ImageLoaderFn)( const char *filename, byte **pic, int *width, int
 qboolean R_ImageLoader_Add( const char *extension, ImageLoaderFn imageLoader );
 
 // Load an image from file.
-void R_LoadImage( const char *shortname, byte **pic, int *width, int *height );
+void R_LoadImage( const char *shortname, byte **pic, int *width, int *height, char *resolvedName = NULL );
+// Immutable mounted-package identities for every loader candidate, through the
+// real search/pure rules. Loose overrides disable reuse; remounts invalidate it.
+qboolean R_ImageSourceSignature(const char *shortname, std::vector<byte> &signature, size_t limit);
 
 // Load raw image data from TGA image.
 void LoadTGA( const char *name, byte **pic, int *width, int *height );

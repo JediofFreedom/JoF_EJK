@@ -139,6 +139,7 @@ foreach(signature "int Q_stricmpn (" "int Q_stricmp (" "void Q_strncpyz(")
   file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/engine_strings.h" "${part}\n")
 endforeach()
 target_include_directories(loading_performance PRIVATE "${CMAKE_CURRENT_BINARY_DIR}"
+	"${ROOT}/codemp/qcommon"
   "${ROOT}/lib/minizip/include" "${ROOT}/lib/minizip/include/minizip" "${ROOT}/lib/zlib" "${ROOT}/lib/zlib/include")
 set(ZLIB_SRCS adler32.c compress.c crc32.c deflate.c infback.c inffast.c inflate.c inftrees.c trees.c uncompr.c zutil.c)
 foreach(src IN LISTS ZLIB_SRCS)

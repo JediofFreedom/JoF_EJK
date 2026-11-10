@@ -95,13 +95,47 @@ void R_ImageLoader_Init()
 	R_ImageLoader_Add ("tga", LoadTGA);
 }
 
+qboolean R_ImageSourceSignature(const char *shortname, std::vector<byte> &signature, size_t limit) {
+	signature.clear();
+	if (numImageLoaders != 3 || !ri.FS_GetReadFileIdentity) return qfalse;
+	const ImageLoaderMap *preferred = FindImageLoader(COM_GetExtension(shortname));
+	char base[MAX_QPATH];
+	COM_StripExtension(shortname, base, sizeof(base));
+	bool found = false;
+	for (int slot = -1; slot < numImageLoaders; ++slot) {
+		const auto *loader = slot < 0 ? preferred : &imageLoaders[slot];
+		if (!loader || (slot >= 0 && loader == preferred)) continue;
+		if (loader->loader != LoadJPG && loader->loader != LoadPNG && loader->loader != LoadTGA) return qfalse;
+		char candidate[MAX_QPATH];
+		if (slot < 0) Q_strncpyz(candidate, shortname, sizeof(candidate));
+		else Com_sprintf(candidate, sizeof(candidate), "%s.%s", base, loader->extension);
+		fsReadFileIdentity_t identity = {};
+		if (ri.FS_GetReadFileIdentity(candidate, &identity, qfalse)) {
+			// Package members are immutable for the life of this mount. Loose
+			// overrides are deliberately decoded normally, including concurrent edits.
+			if (identity.provider != 1) { signature.clear(); return qfalse; }
+			found = true;
+		}
+		const size_t nameBytes = strlen(candidate) + 1;
+		const size_t overhead = nameBytes + sizeof(identity);
+		if (signature.size() > limit || overhead > limit - signature.size()) {
+			signature.clear(); return qfalse;
+		}
+		signature.insert(signature.end(), candidate, candidate + nameBytes);
+		const auto *bytes = reinterpret_cast<const byte *>(&identity);
+		signature.insert(signature.end(), bytes, bytes + sizeof(identity));
+	}
+	return found ? qtrue : qfalse;
+}
+
 /*
 =================
 Loads any of the supported image types into a cannonical
 32 bit format.
 =================
 */
-void R_LoadImage( const char *shortname, byte **pic, int *width, int *height ) {
+void R_LoadImage( const char *shortname, byte **pic, int *width, int *height, char *resolvedName ) {
+	if (resolvedName) resolvedName[0] = '\0';
 	*pic = NULL;
 	*width = 0;
 	*height = 0;
@@ -114,6 +148,7 @@ void R_LoadImage( const char *shortname, byte **pic, int *width, int *height ) {
 		imageLoader->loader (shortname, pic, width, height);
 		if ( *pic )
 		{
+			if (resolvedName) Q_strncpyz(resolvedName, shortname, MAX_QPATH);
 			return;
 		}
 	}
@@ -134,6 +169,7 @@ void R_LoadImage( const char *shortname, byte **pic, int *width, int *height ) {
 		tryLoader->loader (name, pic, width, height);
 		if ( *pic )
 		{
+			if (resolvedName) Q_strncpyz(resolvedName, name, MAX_QPATH);
 			return;
 		}
 	}

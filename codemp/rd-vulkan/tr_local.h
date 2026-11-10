@@ -274,6 +274,8 @@ typedef struct image_s {
 	VkImage					handle;
 	VkImageView				view;
 	VkDescriptorSet			descriptor_set;
+	VkDeviceMemory residentMemory; // Individually owned; survives map descriptor resets.
+	size_t residentSourceBytes;
 	qboolean				isLightmap;
 	uint32_t				mipLevels;		// gl texture binding
 	VkSamplerAddressMode	wrapClampMode;
@@ -2029,7 +2031,7 @@ model_t		*R_AllocModel( void );
 void    	R_Init( void );
 
 image_t		*R_FindImageFile( const char *name, imgFlags_t flags );
-image_t		*R_CreateImage( const char *name, byte *pic, int width, int height, imgFlags_t flags );
+image_t		*R_CreateImage( const char *name, byte *pic, int width, int height, imgFlags_t flags, size_t residentSourceBytes = 0 );
 
 textureMode_t *GetTextureMode( const char *name );
 qboolean	R_GetModeInfo( int *width, int *height, int mode );

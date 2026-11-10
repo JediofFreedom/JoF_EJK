@@ -43,84 +43,44 @@ R_RegisterMD3
 */
 qhandle_t R_RegisterMD3(const char *name, model_t *mod)
 {
-	unsigned	*buf;
-	int			lod;
-	int			ident;
-	qboolean	loaded = qfalse;
-	int			numLoaded;
-	char filename[MAX_QPATH], namebuf[MAX_QPATH+20];
-	char *fext, defex[] = "md3";
-
-	numLoaded = 0;
-
-	strcpy(filename, name);
-
-	fext = strchr(filename, '.');
-	if(!fext)
-		fext = defex;
-	else
-	{
-		*fext = '\0';
-		fext++;
-	}
-
-	for (lod = MD3_MAX_LODS - 1 ; lod >= 0 ; lod--)
-	{
-		if(lod)
-			Com_sprintf(namebuf, sizeof(namebuf), "%s_%d.%s", filename, lod, fext);
-		else
-			Com_sprintf(namebuf, sizeof(namebuf), "%s.%s", filename, fext);
-
-		qboolean bAlreadyCached = qfalse;
-		if( !CModelCache->LoadFile( namebuf, (void**)&buf, &bAlreadyCached ) )
-			continue;
-
-		ident = *(unsigned *)buf;
-		if( !bAlreadyCached )
-			LL(ident);
-
-		switch(ident)
-		{
-			case MD3_IDENT:
-				loaded = R_LoadMD3(mod, lod, buf, namebuf);
-				break;
-			case MDXA_IDENT:
-				loaded = R_LoadMDXA(mod, buf, namebuf, bAlreadyCached);
-				break;
-			case MDXM_IDENT:
-				loaded = R_LoadMDXM(mod, buf, name, bAlreadyCached);
-				break;
-			default:
-				ri.Printf(PRINT_WARNING, "R_RegisterMD3: unknown ident for %s\n", name);
-				break;
-		}
-
-		if(loaded)
-		{
-			mod->numLods++;
-			numLoaded++;
-		}
-		else
+	char filename[MAX_QPATH], namebuf[MAX_QPATH + 20];
+	const char *extension = COM_GetExtension(name);
+	if (!extension[0]) extension = "md3";
+	COM_StripExtension(name, filename, sizeof(filename));
+	const bool skeletal = !Q_stricmp(extension, "glm") || !Q_stricmp(extension, "gla");
+	const int maxLods = skeletal ? 1 : MD3_MAX_LODS;
+	for (int lod = 0; lod < maxLods; ++lod) {
+		if (lod) Com_sprintf(namebuf, sizeof(namebuf), "%s_%d.%s", filename, lod, extension);
+		else Com_sprintf(namebuf, sizeof(namebuf), "%s.%s", filename, extension);
+		unsigned *buffer = NULL;
+		qboolean cached = qfalse;
+		if (!CModelCache->LoadFile(namebuf, reinterpret_cast<void **>(&buffer), &cached)) continue;
+		unsigned ident = *buffer;
+		if (!cached) ident = LittleLong(ident);
+		qboolean loaded = qfalse;
+		switch (ident) {
+		case MD3_IDENT:
+			loaded = R_LoadMD3(mod, mod->numLods, buffer, namebuf);
 			break;
-	}
-
-	if(numLoaded)
-	{
-		// duplicate into higher lod spots that weren't
-		// loaded, in case the user changes r_lodbias on the fly
-		for(lod--; lod >= 0; lod--)
-		{
-			mod->numLods++;
-			mod->data.mdv[lod] = mod->data.mdv[lod + 1];
+		case MDXA_IDENT:
+			loaded = R_LoadMDXA(mod, buffer, namebuf, cached);
+			break;
+		case MDXM_IDENT:
+			loaded = R_LoadMDXM(mod, buffer, namebuf, cached);
+			break;
+		default:
+			ri.Printf(PRINT_WARNING, "R_RegisterMD3: unknown ident for %s\n", namebuf);
+			break;
 		}
-
-		return mod->index;
+		if (!loaded) {
+			if (mod->type == MOD_MESH) mod->data.mdv[mod->numLods] = NULL;
+			break;
+		}
+		++mod->numLods;
+		// GLM/GLA contain their own LOD data. Never probe separate _1/_2 files.
+		if (mod->type != MOD_MESH) return mod->index;
 	}
-
-#ifdef _DEBUG
-	ri.Printf(PRINT_WARNING,"R_RegisterMD3: couldn't load %s\n", name);
-#endif
-
+	if (mod->numLods) return mod->index;
 	mod->type = MOD_BAD;
 	return 0;
 }

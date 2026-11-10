@@ -8,11 +8,16 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <mutex>
 #include <setjmp.h>
 #include <string>
 #include <thread>
 #include <vector>
+#include "filesystem_archive_identity.h"
 #include <jpeglib.h>
+#include "vk_api_version.h"
+#include "vk_resident_cache.h"
+#include "vk_allocation_ranges.h"
 #include <minizip/unzip.h>
 #include <vulkan/vulkan_core.h>
 
@@ -27,6 +32,7 @@
 typedef unsigned char byte;
 typedef int qhandle_t;
 typedef int qboolean;
+struct fsReadFileIdentity_t { uint64_t generation, container, position, size; uint32_t provider, reserved; };
 enum { qfalse, qtrue, ERR_DROP, TAG_TEMP_WORKSPACE };
 const int MAX_QPATH = 64, MAX_COSMETIC_LENGTH = 32, MAX_EMOJI_LENGTH = 24, MAX_LOADABLE_EMOJIS = 256;
 static void Q_strncpyz(char *out, const char *in, size_t length) { std::snprintf(out, length, "%s", in); }
@@ -42,6 +48,10 @@ static void COM_StripExtension(const char *in, char *out, int length) {
     if (in != out) Q_strncpyz(out, in, length);
     char *dot = std::strrchr(out, '.'); if (dot) *dot = 0;
 }
+static const char *COM_GetExtension(const char *path) {
+    const char *dot = std::strrchr(path, '.'), *slash = std::strrchr(path, '/');
+    return dot && (!slash || dot > slash) ? dot + 1 : "";
+}
 static std::atomic<int> allocations(0);
 static void *Z_Malloc(size_t length, int, qboolean = qfalse) { ++allocations; return std::calloc(length ? length : 1, 1); }
 static void Z_Free(void *p) { if (p) --allocations; std::free(p); }
@@ -50,6 +60,9 @@ extern "C" int openjk_minizip_free(void *p) { Z_Free(p); return 0; }
 
 static void checkArchive(const std::string &path) {
     std::printf("Archive: %s\n", path.c_str());
+    MountedArchiveIdentities identities;
+    const uint64_t identity = identities.identify(path.c_str(), 123);
+    CHECK(identity && identities.identify(path.c_str(), 123) == identity);
     unzFile original = unzOpen64(path.c_str()); CHECK(original);
     CHECK(!unzReOpen64(nullptr, original));
     CHECK(!unzReOpen64("nonexistent-audit-archive.pk3", original));
@@ -85,6 +98,8 @@ static void checkArchive(const std::string &path) {
     CHECK(unzOpenCurrentFile(copy) == UNZ_OK);
     CHECK(unzReadCurrentFile(copy, prefix, sizeof(prefix)) == sizeof(prefix));
     CHECK(unzClose(copy) == UNZ_OK); // Survives closing the mounted stream.
+    CHECK(identities.identify(path.c_str(), 123) == identity); // Reads/remounts retain identity.
+    CHECK(identities.identify(path.c_str(), 456) != identity); // Changed validated directory invalidates it.
 }
 
 namespace modelTest {
@@ -254,6 +269,7 @@ struct Copy { VkImage image; VkDeviceSize offset; size_t size; };
 static std::vector<Copy> pending;
 static std::map<VkImage, std::vector<byte>> gpu;
 static int submissions;
+static void R_InvalidateResidentTexture(image_t *) {}
 static void vk_flush_image_uploads();
 static VkCommandBuffer vk_begin_command_buffer() { return reinterpret_cast<VkCommandBuffer>(uintptr_t(1)); }
 static void vk_end_command_buffer(VkCommandBuffer, const char *) {
@@ -304,6 +320,8 @@ static void check() {
 }
 }
 
+#include "modern_checks.h"
+
 int main(int argc, char **argv) {
     CHECK(argc == 2);
     for (const char *name : {"ordinary.pk3", "zip64.pk3", "sfx-ordinary.pk3", "sfx-zip64.pk3"}) checkArchive(std::string(argv[1]) + "/" + name);
@@ -312,5 +330,6 @@ int main(int argc, char **argv) {
     unzClose(copy); unzClose(empty);
     modelTest::check(); cosmeticTest::check(); jpegTest::check(); uploadTest::check();
     filesystemTest::check(argv[1]);
+    modernTest::check();
     CHECK(allocations == 0); std::puts("Loading audit regressions passed.");
 }

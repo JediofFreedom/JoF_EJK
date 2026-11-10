@@ -39,6 +39,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <vector>
 
 #include "qcommon/qcommon.h"
+#include "filesystem_archive_identity.h"
 
 static std::mutex fs_listMutex;
 
@@ -210,7 +211,9 @@ typedef struct fileInPack_s {
 	struct	fileInPack_s*	next;		// next file in the hash
 } fileInPack_t;
 
+static MountedArchiveIdentities fsArchiveIdentities;
 typedef struct pack_s {
+	uint64_t sourceIdentity;
 	char			pakPathname[MAX_OSPATH];	// c:\jediacademy\gamedata\base
 	char			pakFilename[MAX_OSPATH];	// c:\jediacademy\gamedata\base\assets0.pk3
 	char			pakBasename[MAX_OSPATH];	// assets0
@@ -1440,7 +1443,7 @@ separate file or a ZIP file.
 */
 extern qboolean		com_fullyInitialized;
 
-long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean uniqueFILE ) {
+static long FS_FOpenFileReadInternal( const char *filename, fileHandle_t *file, qboolean uniqueFILE, fsReadFileIdentity_t *identity, qboolean markReferenced ) {
 	searchpath_t	*search;
 	char			*netpath;
 	pack_t			*pak;
@@ -1534,7 +1537,16 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 					// case and separator insensitive comparisons
 					if ( !FS_FilenameCompare( pakFile->name, filename ) ) {
 						// found it!
-						if (queryOnly) return pakFile->len;
+						if (queryOnly) {
+							if (identity) {
+								identity->generation = pak->sourceIdentity;
+								identity->container = uint64_t(uint32_t(pak->checksum));
+								identity->position = uint64_t(pakFile->pos);
+								identity->size = uint64_t(pakFile->len);
+								identity->provider = pak->sourceIdentity ? 1 : 2;
+							}
+							if (!markReferenced) return pakFile->len;
+						}
 
 						// mark the pak as having been referenced and mark specifics on cgame and ui
 						// shaders, txt, arena files  by themselves do not count as a reference as
@@ -1581,6 +1593,7 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 							}
 						}
 
+						if (queryOnly) return pakFile->len;
 						if ( uniqueFILE ) {
 							// open a new file on the pakfile
 							fsh[*file].handleFiles.file.z = unzReOpen64(pak->pakFilename, pak->handle);
@@ -1662,6 +1675,7 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 					if (!probe) continue;
 					const long length = FS_fplength(probe);
 					fclose(probe);
+					if (identity && length >= 0) { identity->provider = 2; identity->size = uint64_t(length); }
 					return length;
 				}
 				fsh[*file].handleFiles.file.o = fopen (netpath, "rb");
@@ -1777,6 +1791,20 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 #endif
 	*file = 0;
 	return -1;
+}
+
+long FS_FOpenFileRead(const char *filename, fileHandle_t *file, qboolean uniqueFILE) {
+	return FS_FOpenFileReadInternal(filename, file, uniqueFILE, NULL, qfalse);
+}
+
+qboolean FS_GetReadFileIdentity(const char *qpath, fsReadFileIdentity_t *identity, qboolean markReferenced) {
+	if (!identity || !qpath) return qfalse;
+	*identity = {};
+	const char *name = qpath;
+	for (const char *ch = qpath; *ch; ++ch) if (*ch == '/' || *ch == '\\') name = ch + 1;
+	if (!Q_stricmp(name, "identity.key")) return qfalse;
+	std::lock_guard<std::mutex> lock(fs_listMutex);
+	return FS_FOpenFileReadInternal(qpath, NULL, qfalse, identity, markReferenced) >= 0 ? qtrue : qfalse;
 }
 
 // This is a bit of a hack but it is used for other OS'/arch to still be acceptable with pure servers.
@@ -2492,6 +2520,7 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 	Z_Free(fs_headerLongs);
 
 	pack->buildBuffer = buildBuffer;
+	pack->sourceIdentity = fsArchiveIdentities.identify(zipfile, uint32_t(pack->checksum));
 	return pack;
 }
 

@@ -968,8 +968,8 @@ void R_Register( void )
 	r_nomip								= ri.Cvar_Get("r_nomip",							"0",						CVAR_ARCHIVE | CVAR_LATCH, "Apply picmip only on worldspawn textures");
 	ri.Cvar_CheckRange(r_nomip, 0, 1, qtrue);
 #ifdef USE_VBO
-	r_vbo								= ri.Cvar_Get("r_vbo",								"0",						CVAR_ARCHIVE | CVAR_LATCH, "Cache static world surfaces");
-	r_vbo_models						= ri.Cvar_Get("r_vbo_models",						"0",						CVAR_ARCHIVE | CVAR_LATCH, "Cache ghoul2 and md3 model surfaces");
+	r_vbo								= ri.Cvar_Get("r_vbo",								"1",						CVAR_ARCHIVE | CVAR_LATCH, "Cache static world surfaces");
+	r_vbo_models						= ri.Cvar_Get("r_vbo_models",						"1",						CVAR_ARCHIVE | CVAR_LATCH, "Cache ghoul2 and md3 model surfaces");
 #endif
 	r_renderWidth						= ri.Cvar_Get("r_renderWidth",						"800",						CVAR_ARCHIVE_ND | CVAR_LATCH, "");
 	r_renderHeight						= ri.Cvar_Get("r_renderHeight",						"600",						CVAR_ARCHIVE_ND | CVAR_LATCH, "");
@@ -1165,6 +1165,7 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 		}
 
 		vk_delete_textures();
+		if (destroyWindow) vk_clear_texture_cache();
 		vk_release_resources();
 	//}
 
@@ -1194,6 +1195,7 @@ Touch all images to make sure they are resident
 */
 void RE_EndRegistration( void ) {
 	vk_wait_idle();
+	vk_report_texture_cache();
 	if (ri.Cvar_VariableIntegerValue("cl_loadTimings")) {
 		ri.Printf(PRINT_ALL, "LOADPROFILE Vulkan images: %u loads, decode %d ms, create %d ms; uploads %u, %.1f MiB, queue waits %d ms\n",
 			vkLoadStats.imageLoads, vkLoadStats.imageDecodeMs, vkLoadStats.imageCreateMs,
@@ -1306,14 +1308,15 @@ Q_EXPORT refexport_t* QDECL GetRefAPI( int apiVersion, refimport_t *rimp ) {
 	static refexport_t re;
 
 	assert( rimp );
+	if (apiVersion != REF_API_VERSION) {
+		rimp->Printf(PRINT_ALL, "Mismatched renderer API: expected %i, got %i\n", REF_API_VERSION, apiVersion);
+		return NULL;
+	}
 	ri = *rimp;
 
 	memset( &re, 0, sizeof( re ) );
 
-	if ( apiVersion != REF_API_VERSION ) {
-		vk_debug("Mismatched REF_API_VERSION: expected %i, got %i\n", REF_API_VERSION, apiVersion );
-		return NULL;
-	}
+
 
 	// the RE_ functions are Renderer Entry points
 

@@ -25,6 +25,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <stdlib.h>
 
 #include "tr_local.h"
+#include "vk_api_version.h"
 #include "rd-common/tr_public.h"
 
 unsigned char s_intensitytable[256];
@@ -224,13 +225,13 @@ static void vk_create_instance( void )
     appInfo.pNext = NULL;
     appInfo.pApplicationName = "EternalJK";
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.pEngineName = "Quake3";
+    appInfo.pEngineName = "EternalJK native Vulkan";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-#ifdef _DEBUG
-	appInfo.apiVersion = VK_API_VERSION_1_1;
-#else
-	appInfo.apiVersion = VK_API_VERSION_1_0;
-#endif
+	const auto enumerateVersion = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
+		qvkGetInstanceProcAddr(VK_NULL_HANDLE, "vkEnumerateInstanceVersion"));
+	appInfo.apiVersion = VK_SelectInstanceVersion(enumerateVersion);
+	ri.Printf(PRINT_ALL, "Vulkan instance API: %u.%u (native Vulkan, no OpenGL context)\n",
+		VK_API_VERSION_MAJOR(appInfo.apiVersion), VK_API_VERSION_MINOR(appInfo.apiVersion));
 	flags = 0;
     count = 0;
     extension_count = 0;

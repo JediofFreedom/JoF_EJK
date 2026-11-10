@@ -3369,50 +3369,44 @@ static void CL_UpdateVulkanAvailability(void)
 #endif
 }
 
+#ifdef EJK_DEFAULT_VULKAN
+#define DEFAULT_RENDER_LIBRARY "rd-vulkan"
+#else
 #define DEFAULT_RENDER_LIBRARY "rd-eternaljk"
+#endif
+#define FALLBACK_RENDER_LIBRARY "rd-eternaljk"
+
+static void *CL_LoadRendererLibrary(void) {
+	char dllName[MAX_OSPATH];
+	cl_renderer = Cvar_Get("cl_renderer", DEFAULT_RENDER_LIBRARY, CVAR_ARCHIVE|CVAR_LATCH,
+		"Which native renderer library to use");
+	const qboolean allowFallback = Cvar_Get("cl_rendererFallback", "0", CVAR_NONE,
+		"Explicitly allow the legacy renderer if the selected renderer cannot load")->integer ? qtrue : qfalse;
+	if (!Q_stricmp(cl_renderer->string, "rd-vulkan") && ui_vulkan_supported && !ui_vulkan_supported->integer) {
+		if (!allowFallback)
+			Com_Error(ERR_FATAL, "Vulkan was selected, but no Vulkan loader is available.\n");
+		Com_Printf(S_COLOR_YELLOW "Vulkan is unavailable; the enabled fallback selects " FALLBACK_RENDER_LIBRARY "\n");
+		cl_renderer = Cvar_Set2("cl_renderer", FALLBACK_RENDER_LIBRARY, 0, qtrue);
+	}
+	Com_sprintf(dllName, sizeof(dllName), "%s_" ARCH_STRING DLL_EXT, cl_renderer->string);
+	void *library = Sys_LoadDll(dllName, qfalse);
+	if (!library && allowFallback && Q_stricmp(cl_renderer->string, FALLBACK_RENDER_LIBRARY)) {
+		Com_Printf("Renderer unavailable; the enabled fallback selects " FALLBACK_RENDER_LIBRARY "\n");
+		cl_renderer = Cvar_Set2("cl_renderer", FALLBACK_RENDER_LIBRARY, 0, qtrue);
+		Com_sprintf(dllName, sizeof(dllName), FALLBACK_RENDER_LIBRARY "_" ARCH_STRING DLL_EXT);
+		library = Sys_LoadDll(dllName, qfalse);
+	}
+	if (!library) Com_Error(ERR_FATAL, "Failed to load renderer %s\n", dllName);
+	return library;
+}
 
 void CL_InitRef( void ) {
 	static refimport_t ri;
-	refexport_t	*ret;
-	GetRefAPI_t	GetRefAPI;
-	char		dllName[MAX_OSPATH];
+	refexport_t *ret;
+	GetRefAPI_t GetRefAPI;
 
-//	Com_Printf( "----- Initializing Renderer ----\n" );
-	Com_Printf( "---------- Initializing Renderer ---------\n" );
-
-	cl_renderer = Cvar_Get( "cl_renderer", DEFAULT_RENDER_LIBRARY, CVAR_ARCHIVE|CVAR_LATCH, "Which renderer library to use" );
-	const qboolean allowRendererFallback = Cvar_Get("cl_rendererFallback", "1", CVAR_NONE,
-		"Allow switching to the default renderer if the requested renderer is unavailable")->integer ? qtrue : qfalse;
-
-	// The Vulkan module calls Com_Error( ERR_FATAL ) if it
-	// cannot reach a Vulkan loader (an ICD on Linux, MoltenVK on macOS).  That
-	// happens during renderer init, long after the module has loaded, so the
-	// load-failure fallback below cannot catch it.  Refuse it up front instead,
-	// using the availability probe CL_UpdateVulkanAvailability() ran earlier.
-	if ( !Q_stricmp( cl_renderer->string, "rd-vulkan" )
-		&& ui_vulkan_supported && !ui_vulkan_supported->integer )
-	{
-		if (!allowRendererFallback)
-			Com_Error(ERR_FATAL, "Vulkan was requested, but no Vulkan loader is available.\n");
-		Com_Printf( S_COLOR_YELLOW "Vulkan is not available on this system, falling back to "
-			DEFAULT_RENDER_LIBRARY "\n" );
-		Cvar_ForceReset( "cl_renderer" );
-	}
-
-	Com_sprintf( dllName, sizeof( dllName ), "%s_" ARCH_STRING DLL_EXT, cl_renderer->string );
-
-	if( !(rendererLib = Sys_LoadDll( dllName, qfalse )) && allowRendererFallback && strcmp( cl_renderer->string, cl_renderer->resetString ) )
-	{
-		Com_Printf( "failed: trying to load fallback renderer\n" );
-		Cvar_ForceReset( "cl_renderer" );
-
-		Com_sprintf( dllName, sizeof( dllName ), DEFAULT_RENDER_LIBRARY "_" ARCH_STRING DLL_EXT );
-		rendererLib = Sys_LoadDll( dllName, qfalse );
-	}
-
-	if ( !rendererLib ) {
-		Com_Error( ERR_FATAL, "Failed to load renderer\n" );
-	}
+	Com_Printf("---------- Initializing Renderer ---------\n");
+	rendererLib = CL_LoadRendererLibrary();
 
 	memset( &ri, 0, sizeof( ri ) );
 
@@ -3453,6 +3447,7 @@ void CL_InitRef( void ) {
 	ri.FS_FreeFileList = FS_FreeFileList;
 	ri.FS_Read = FS_Read;
 	ri.FS_ReadFile = FS_ReadFile;
+	ri.FS_GetReadFileIdentity = FS_GetReadFileIdentity;
 	ri.FS_FCloseFile = FS_FCloseFile;
 	ri.FS_FOpenFileRead = FS_FOpenFileRead;
 	ri.FS_FOpenFileWrite = FS_FOpenFileWrite;
@@ -3490,8 +3485,10 @@ void CL_InitRef( void ) {
 	ri.WIN_SetGamma = WIN_SetGamma;
     ri.WIN_Shutdown = WIN_Shutdown;
     ri.WIN_Present = WIN_Present;
-	ri.GL_GetProcAddress = WIN_GL_GetProcAddress;
-	ri.GL_ExtensionSupported = WIN_GL_ExtensionSupported;
+	if (Q_stricmp(cl_renderer->string, "rd-vulkan")) {
+		ri.GL_GetProcAddress = WIN_GL_GetProcAddress;
+		ri.GL_ExtensionSupported = WIN_GL_ExtensionSupported;
+	}
 
 #if WIN32
 	//ri.VK_GetInstanceExtensions = WIN_VK_GetInstanceExtensions;

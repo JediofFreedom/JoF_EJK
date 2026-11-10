@@ -17,6 +17,7 @@
 #include <thread>
 #include <vector>
 #include <minizip/unzip.h>
+#include "filesystem_archive_identity.h"
 
 // Checks must also run in Release builds.
 #define CHECK(condition) do { if (!(condition)) { std::fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #condition); std::exit(1); } } while (0)

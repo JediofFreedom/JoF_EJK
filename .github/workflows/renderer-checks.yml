@@ -15,6 +15,31 @@ concurrency:
   group: renderer-checks-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  native-client-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install client build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev nasm
+      - name: Configure the complete native Vulkan client without OpenGL
+        run: >-
+          cmake -S . -B build-client -DCMAKE_BUILD_TYPE=Release
+          -DUseInternalLibs=ON -DUseInternalSDL2=OFF
+          -DBuildMPEngine=ON -DBuildMPDed=OFF -DBuildMPGame=OFF
+          -DBuildMPCGame=OFF -DBuildMPUI=OFF -DBuildDiscordRichPresence=OFF
+          -DBuildMPRdVanilla=OFF -DBuildMPRend2=OFF -DBuildMPRdVulkan=ON
+          -DCMAKE_DISABLE_FIND_PACKAGE_OpenGL=TRUE
+      - name: Build native client
+        run: cmake --build build-client --parallel 4
+      - name: Check direct binary dependencies
+        shell: bash
+        run: |
+          for binary in build-client/eternaljk.x86_64 build-client/rd-vulkan_x86_64.so; do
+            if readelf -d "$binary" | rg -i 'NEEDED.*lib(GL|GLX|OpenGL)\.'; then
+              echo "Unexpected OpenGL dependency: $binary"
+              exit 1
+            fi
+          done
   native-vulkan:
     strategy:
       fail-fast: false

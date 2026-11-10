@@ -473,6 +473,9 @@ if(BuildMPEngine)
 	set(MPEngineIncludeDirectories ${MPEngineAndDedIncludeDirectories})
 	set(MPEngineFiles ${MPEngineAndDedFiles})
 	set(MPEngineDefines ${MPSharedDefines})
+	if(BuildMPRdVulkan OR DEFINED EXTERNAL_RD_VULKAN_MODULE)
+		list(APPEND MPEngineDefines EJK_DEFAULT_VULKAN)
+	endif()
 
 	list(APPEND MPEngineIncludeDirectories ${CMAKE_CURRENT_BINARY_DIR}/versionfile) # Make sure the generated jofversion.h is found by all subsequent includes
 
@@ -480,10 +483,8 @@ if(BuildMPEngine)
 	#    Dependencies
 
 	if (NOT WIN32)
-		# OpenGL
-		find_package(OpenGL REQUIRED)
-		set(MPEngineIncludeDirectories ${MPEngineIncludeDirectories} ${OPENGL_INCLUDE_DIR})
-		set(MPEngineLibraries ${MPEngineLibraries} ${OPENGL_LIBRARIES})
+		# Renderer modules own their graphics API dependencies. The client uses
+		# SDL callbacks, so a Vulkan-only client does not require/link OpenGL.
 		
 		# Discord Rich Presence
 		if(BuildDiscordRichPresence)

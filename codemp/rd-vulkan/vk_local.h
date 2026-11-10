@@ -1158,6 +1158,8 @@ void		vk_texture_mode( const char *string, const qboolean init );
 void		vk_destroy_samplers( void );
 VkSampler	vk_find_sampler( const Vk_Sampler_Def *def );
 void		vk_delete_textures( void );
+void vk_clear_texture_cache();
+void vk_report_texture_cache();
 #if 0
 void		vk_record_buffer_memory_barrier( VkCommandBuffer cb, VkBuffer buffer,
 	VkDeviceSize size, VkDeviceSize offset, VkPipelineStageFlags src_stages, VkPipelineStageFlags dst_stages,

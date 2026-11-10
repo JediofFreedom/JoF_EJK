@@ -70,9 +70,10 @@ behavior. A decoded-image cache was measured at 0/512/1024 MiB and discarded:
 its source validation, copies and churn did not justify its memory cost.
 
 SJK retains GPU assets and uses worker-based loading in its newer engine.
-EJK still clears/rebuilds renderer resources at a map change; simply retaining
-their pointers would be invalid after its hunk/descriptor/allocator resets.
-That lifetime redesign remains architectural work. Network/download delays,
+EJK now retains bounded, independently owned immutable GPU textures across map
+changes and rebuilds descriptors; geometry and other map resources still rebuild.
+Parallel asset decoding and broader geometry lifetime changes remain separate
+architectural work. Network/download delays,
 player populations, map complexity and filesystem/GPU caches also affect joins.
 These checks do not establish that EJK loads faster than SJK.
 

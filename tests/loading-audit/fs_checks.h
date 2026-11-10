@@ -8,7 +8,7 @@ const char PATH_SEP = '/';
 #define Q3CONFIG_AUTO "autoexec.cfg"
 #define Q3CONFIG_CFG "eternaljk.cfg"
 struct Entry { char name[MAX_QPATH]; int len, pos; Entry *next; };
-struct Pack { int hashSize; Entry **hashTable; int referenced; char pakFilename[256]; unzFile handle; bool pure; };
+struct Pack { int hashSize; Entry **hashTable; int referenced; char pakFilename[256]; unzFile handle; bool pure; uint64_t sourceIdentity; int checksum; };
 struct Directory { char path[512], gamedir[2]; };
 struct Search { Search *next; Pack *pack; Directory *dir; };
 typedef Search searchpath_t;
@@ -16,6 +16,7 @@ typedef Pack pack_t;
 typedef Entry fileInPack_t;
 typedef Directory directory_t;
 static Search *fs_searchpaths;
+static std::mutex fs_listMutex;
 static int handleAllocations, fs_numServerPaks, fs_fakeChkSum;
 static bool com_fullyInitialized = true;
 static struct { int integer; } debug, *fs_debug = &debug;
@@ -59,7 +60,7 @@ static int FS_FOpenFileAppend(const char *) { return 0; }
 static void check(const char *root) {
     Entry a = {"probe.jpg", 9, 0, nullptr}, b = {"probe.jpg", 7, 0, nullptr};
     Entry *ah[] = {&a}, *bh[] = {&b};
-    Pack high = {1, ah, 0, {}, nullptr, true}, low = {1, bh, 0, {}, nullptr, true};
+    Pack high = {1, ah, 0, {}, nullptr, true, 42, 123}, low = {1, bh, 0, {}, nullptr, true, 43, 456};
     Directory directory = {}; Q_strncpyz(directory.path, root, sizeof(directory.path));
     Search tail = {nullptr, &low, nullptr}, middle = {&tail, &high, nullptr}, head = {&middle, nullptr, &directory};
     fs_searchpaths = &head;
@@ -67,10 +68,17 @@ static void check(const char *root) {
     std::fputs("loose override", loose); std::fclose(loose);
     CHECK(FS_FOpenFileByMode("probe.jpg", nullptr, FS_READ) == 14);
     fs_numServerPaks = 1;
+	fsReadFileIdentity_t id = {};
+	CHECK(FS_GetReadFileIdentity("probe.jpg", &id, qfalse) && id.provider == 1 && id.size == 9);
+	const auto mounted = id;
+	++high.sourceIdentity;
+	CHECK(FS_GetReadFileIdentity("probe.jpg", &id, qfalse) && id.generation != mounted.generation);
     CHECK(FS_FOpenFileByMode("probe.jpg", nullptr, FS_READ) == 9);
     high.pure = false; CHECK(FS_FOpenFileByMode("/probe.jpg", nullptr, FS_READ) == 7);
     low.pure = false; CHECK(FS_FOpenFileByMode("probe.jpg", nullptr, FS_READ) == -1);
     fs_numServerPaks = 0;
+	CHECK(FS_GetReadFileIdentity("probe.jpg", &id, qfalse) && id.provider == 2);
+	CHECK(!FS_GetReadFileIdentity("anywhere/identity.key", &id, qfalse));
     CHECK(FS_FOpenFileByMode("../probe.jpg", nullptr, FS_READ) == -1);
     CHECK(FS_FOpenFileByMode("q3key", nullptr, FS_READ) == -1);
     CHECK(FS_FOpenFileByMode("anywhere/identity.key", nullptr, FS_READ) == -1);
@@ -80,6 +88,10 @@ static void check(const char *root) {
     CHECK(FS_FOpenFileByMode("empty.png", nullptr, FS_READ) == 0);
     CHECK(!std::remove((std::string(root) + "/empty.png").c_str()));
     CHECK(handleAllocations == 0 && high.referenced == 0 && low.referenced == 0);
+	fs_numServerPaks = 1; high.pure = true;
+	CHECK(FS_GetReadFileIdentity("probe.jpg", &id, qtrue) && high.referenced == FS_GENERAL_REF);
+	CHECK(handleAllocations == 0);
+	fs_numServerPaks = 0;
     CHECK(!std::remove((std::string(root) + "/probe.jpg").c_str()));
     fs_searchpaths = nullptr;
 }

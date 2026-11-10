@@ -22,6 +22,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include "vk_resident_cache.h"
+#include "vk_allocation_ranges.h"
 vkLoadStats_t vkLoadStats = {};
 
 #define STB_DXT_IMPLEMENTATION
@@ -34,6 +36,98 @@ vkLoadStats_t vkLoadStats = {};
 #define	FOG_T			32
 
 static image_t *hashTable[FILE_HASH_SIZE];
+
+static size_t residentTextureCount, residentTextureLimit, residentPageCount, residentPageBytes;
+struct ResidentImagePage {
+	VkDevice device;
+	VkDeviceMemory memory;
+	size_t bytes;
+	uint32_t memoryType;
+	AllocationRanges ranges;
+	ResidentImagePage(VkDeviceMemory allocation, size_t size, uint32_t type) : device(vk.device), memory(allocation),
+		bytes(size), memoryType(type), ranges(size) { ++residentPageCount; residentPageBytes += bytes; }
+	~ResidentImagePage() { VK_FREE_MEMORY(device, memory); --residentPageCount; residentPageBytes -= bytes; }
+};
+static std::vector<std::weak_ptr<ResidentImagePage>> residentImagePages;
+struct ResidentTexture {
+	VkDevice device;
+	VkImage image;
+	VkImageView view;
+	std::shared_ptr<ResidentImagePage> page;
+	size_t offset, bytes;
+	uint32_t width, height, uploadWidth, uploadHeight, mipLevels;
+	int format;
+	std::string key, sourceName;
+	ResidentTexture(image_t *source, size_t allocationBytes, std::shared_ptr<ResidentImagePage> owner, size_t position) :
+		device(vk.device), image(VK_NULL_HANDLE), view(VK_NULL_HANDLE), page(std::move(owner)), offset(position), bytes(allocationBytes),
+		width(source->width), height(source->height), uploadWidth(source->uploadWidth), uploadHeight(source->uploadHeight),
+		mipLevels(source->mipLevels), format(source->internalFormat) { ++residentTextureCount; }
+	~ResidentTexture() {
+		if (view) qvkDestroyImageView(device, view, NULL);
+		if (image) qvkDestroyImage(device, image, NULL);
+		page->ranges.release(offset, bytes);
+		--residentTextureCount;
+	}
+};
+static ResidentResourceCache<ResidentTexture> residentTextures;
+static std::unordered_map<image_t *, std::shared_ptr<ResidentTexture>> activeResidentTextures;
+
+static void R_InitResidentTextures() {
+	cvar_t *budget = ri.Cvar_Get("r_textureCacheMegs", sizeof(void *) == 8 ? "512" : "128",
+		CVAR_ARCHIVE_ND, "GPU textures retained between maps, including source validation bytes; 0 disables");
+	ri.Cvar_CheckRange(budget, 0, 2048, qtrue);
+	VkPhysicalDeviceProperties properties;
+	qvkGetPhysicalDeviceProperties(vk.physical_device, &properties);
+	qvkGetPhysicalDeviceMemoryProperties(vk.physical_device, &vk.devMemProperties);
+	residentTextureLimit = std::min<size_t>(128, properties.limits.maxMemoryAllocationCount / 4);
+	VkDeviceSize deviceMemory = 0;
+	for (uint32_t i = 0; i < vk.devMemProperties.memoryHeapCount; ++i)
+		if (vk.devMemProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+			deviceMemory = std::max(deviceMemory, vk.devMemProperties.memoryHeaps[i].size);
+	const size_t requested = size_t(budget->integer) * 1024 * 1024;
+	const size_t limit = deviceMemory ? size_t(std::min<VkDeviceSize>(requested, deviceMemory / 4)) : 0;
+	residentTextures.setLimit(residentTextureLimit ? limit : 0);
+	residentTextures.hits = residentTextures.misses = residentTextures.evictions = 0;
+}
+
+void vk_clear_texture_cache() {
+	// Called after map image owners are released, before the Vulkan device dies.
+	residentTextures.clear();
+	residentImagePages.clear();
+	assert(activeResidentTextures.empty() && residentTextureCount == 0 && residentPageBytes == 0);
+	if (ri.Cvar_VariableIntegerValue("cl_loadTimings"))
+		ri.Printf(PRINT_ALL, "LOADPROFILE resident cache shutdown: %u textures, %u pages\n", (unsigned)residentTextureCount, (unsigned)residentPageCount);
+}
+
+void vk_report_texture_cache() {
+	if (ri.Cvar_VariableIntegerValue("cl_loadTimings"))
+		ri.Printf(PRINT_ALL, "LOADPROFILE resident textures: %u hits, %u misses, %u retained, %.1f MiB retained, %u textures, %u GPU allocations\n",
+			(unsigned)residentTextures.hits, (unsigned)residentTextures.misses,
+			(unsigned)residentTextures.size(), residentTextures.bytes() / (1024.0 * 1024.0), (unsigned)residentTextureCount, (unsigned)residentPageCount);
+}
+
+static std::string R_ResidentTextureKey(const char *name, imgFlags_t flags) {
+	std::string key(name);
+	for (char &ch : key) {
+		if (ch == '\\') ch = '/';
+		else if (ch >= 'A' && ch <= 'Z') ch += 'a' - 'A';
+	}
+	key.push_back('\0');
+	const int settings[] = {int(flags), r_roundImagesDown->integer, r_picmip->integer, r_nomip->integer,
+		r_texturebits->integer, int(vk.compressed_format), r_simpleMipMaps->integer, r_colorMipLevels->integer,
+		r_smartpicmip->integer, glConfig.maxTextureSize, glConfig.deviceSupportsGamma, vk.fboActive, tr.mapLoading};
+	key.append(reinterpret_cast<const char *>(settings), sizeof(settings));
+	key.append(reinterpret_cast<const char *>(&r_mapGreyScale->value), sizeof(r_mapGreyScale->value));
+	key.append(reinterpret_cast<const char *>(s_gammatable), sizeof(s_gammatable));
+	key.append(reinterpret_cast<const char *>(s_intensitytable), sizeof(s_intensitytable));
+	return key;
+}
+
+static void R_InvalidateResidentTexture(image_t *image) {
+	const auto found = activeResidentTextures.find(image);
+	if (found != activeResidentTextures.end())
+		residentTextures.erase(found->second->key, found->second);
+}
 
 int		gl_filter_min = GL_LINEAR_MIPMAP_NEAREST;
 int		gl_filter_max = GL_LINEAR;
@@ -599,7 +693,7 @@ void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 	int miplevel;
 
 	qboolean compressed = qfalse;
-	int bytesPerPixel = 4;
+	const int bytesPerPixel = 4;
 	int write_offset = 0;
 
 	if (image->flags & IMGFLAG_NOSCALE) {
@@ -654,7 +748,8 @@ void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 			VK_FORMAT_B4G4R4A4_UNORM_PACK16 :
 			VK_FORMAT_A1R5G5B5_UNORM_PACK16;
 
-		bytesPerPixel = 2;
+		// Keep CPU mip data in RGBA. vk_upload_image_data converts the complete
+		// mip chain to the selected 16-bit GPU format exactly once.
 	}
 
 	upload_data->buffer_size = R_CalcUploadSize(
@@ -1013,6 +1108,7 @@ static byte *vk_resample_image_data( const int target_format, byte *data, const 
 void vk_upload_image_data( image_t *image, int x, int y, int width,
 	int height, int mipmaps, byte *pixels, int size, qboolean update )
 {
+	if (update) R_InvalidateResidentTexture(image);
 	VkCommandBuffer command_buffer;
 	VkBufferImageCopy regions[16];
 	VkBufferImageCopy region;
@@ -1162,13 +1258,54 @@ void vk_upload_image_data( image_t *image, int x, int y, int width,
 	}
 }
 
-static void allocate_and_bind_image_memory( VkImage image ) {
+static void allocate_and_bind_image_memory( image_t *image ) {
 	VkMemoryRequirements memory_requirements;
 	VkDeviceSize		alignment, size;
 	ImageChunk_t		*chunk;
 	int i;
 
-	qvkGetImageMemoryRequirements(vk.device, image, &memory_requirements);
+	qvkGetImageMemoryRequirements(vk.device, image->handle, &memory_requirements);
+	if (image->residentSourceBytes && memory_requirements.size <= residentTextures.limit() &&
+		image->residentSourceBytes <= residentTextures.limit() - size_t(memory_requirements.size)) {
+		std::shared_ptr<ResidentImagePage> page;
+		size_t offset = 0;
+		do {
+			for (auto it = residentImagePages.begin(); it != residentImagePages.end();) {
+				auto candidate = it->lock();
+				if (!candidate) { it = residentImagePages.erase(it); continue; }
+				if ((memory_requirements.memoryTypeBits & (1u << candidate->memoryType)) &&
+					candidate->ranges.allocate(size_t(memory_requirements.size), size_t(memory_requirements.alignment), offset)) {
+					page = candidate; break;
+				}
+				++it;
+			}
+			if (page) break;
+			const size_t pageSize = size_t(std::max<VkDeviceSize>(IMAGE_CHUNK_SIZE, memory_requirements.size));
+			if (residentPageCount < residentTextureLimit && pageSize <= residentTextures.limit() &&
+				residentPageBytes <= residentTextures.limit() - pageSize) {
+				VkMemoryAllocateInfo allocation = {};
+				allocation.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+				allocation.allocationSize = pageSize;
+				allocation.memoryTypeIndex = vk_find_memory_type(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+				VkDeviceMemory memory = VK_NULL_HANDLE;
+				if (VK_ALLOCATE_MEMORY(vk.device, &allocation, &memory, "resident texture page") == VK_SUCCESS) {
+					page = std::make_shared<ResidentImagePage>(memory, pageSize, allocation.memoryTypeIndex);
+					residentImagePages.push_back(page);
+					const bool fits = page->ranges.allocate(size_t(memory_requirements.size), size_t(memory_requirements.alignment), offset);
+					assert(fits); (void)fits;
+					break;
+				}
+			}
+		} while (residentTextures.evictIdle());
+		if (page) {
+			auto resource = std::make_shared<ResidentTexture>(image, size_t(memory_requirements.size), page, offset);
+			activeResidentTextures.emplace(image, resource);
+			resource->image = image->handle;
+			image->residentMemory = page->memory;
+			VK_CHECK(qvkBindImageMemory(vk.device, image->handle, image->residentMemory, offset));
+			return;
+		}
+	}
 
 	// allow up to double the chunk size, if required
 	if ( memory_requirements.size > (vk.image_chunk_size * 2) ) {
@@ -1236,7 +1373,7 @@ static void allocate_and_bind_image_memory( VkImage image ) {
 		vk_world.num_image_chunks++;
 	}
 
-	VK_CHECK(qvkBindImageMemory(vk.device, image, chunk->memory, chunk->used - memory_requirements.size));
+	VK_CHECK(qvkBindImageMemory(vk.device, image->handle, chunk->memory, chunk->used - memory_requirements.size));
 }
 
 void vk_update_descriptor_set( image_t *image, qboolean mipmap ) {
@@ -1277,8 +1414,31 @@ void vk_update_descriptor_set( image_t *image, qboolean mipmap ) {
 	qvkUpdateDescriptorSets(vk.device, 1, &descriptor_write, 0, NULL);
 }
 
+static void vk_assign_image_descriptor(image_t *image, int mip_levels) {
+	if (!vk.active) return;
+	if (image->descriptor_set == VK_NULL_HANDLE) {
+		VkDescriptorSetAllocateInfo descriptor = {};
+		descriptor.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		descriptor.descriptorPool = vk.descriptor_pool;
+		descriptor.descriptorSetCount = 1;
+		descriptor.pSetLayouts = &vk.set_layout_sampler;
+		VK_CHECK(qvkAllocateDescriptorSets(vk.device, &descriptor, &image->descriptor_set));
+	}
+	vk_update_descriptor_set(image, mip_levels > 1 ? qtrue : qfalse);
+}
+
 void vk_create_image( image_t *image, int width, int height, int mip_levels ) {
 	VkFormat format = (VkFormat)image->internalFormat;
+	if (image->residentMemory) {
+		vk_wait_idle();
+		R_InvalidateResidentTexture(image);
+		activeResidentTextures.erase(image);
+		image->handle = VK_NULL_HANDLE;
+		image->view = VK_NULL_HANDLE;
+		image->residentMemory = VK_NULL_HANDLE;
+		image->residentSourceBytes = 0;
+	}
+	image->mipLevels = mip_levels;
 
 	if ( image->handle ) {
 		qvkDestroyImage( vk.device, image->handle, NULL );
@@ -1311,7 +1471,7 @@ void vk_create_image( image_t *image, int width, int height, int mip_levels ) {
 		desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		VK_CHECK( qvkCreateImage( vk.device, &desc, NULL, &image->handle ) );
 
-		allocate_and_bind_image_memory( image->handle );
+		allocate_and_bind_image_memory( image );
 	}
 
 	// create image view
@@ -1334,24 +1494,10 @@ void vk_create_image( image_t *image, int width, int height, int mip_levels ) {
 		desc.subresourceRange.layerCount = 1;
 		VK_CHECK( qvkCreateImageView( vk.device, &desc, NULL, &image->view ) );
 	}
+	const auto resident = activeResidentTextures.find(image);
+	if (resident != activeResidentTextures.end()) resident->second->view = image->view;
 
-	if ( !vk.active ) // splash screen does not require a descriptorset
-		return;
-
-	// create associated descriptor set
-	if ( image->descriptor_set == VK_NULL_HANDLE )
-	{
-		VkDescriptorSetAllocateInfo desc;
-
-		desc.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-		desc.pNext = NULL;
-		desc.descriptorPool = vk.descriptor_pool;
-		desc.descriptorSetCount = 1;
-		desc.pSetLayouts = &vk.set_layout_sampler;
-		VK_CHECK( qvkAllocateDescriptorSets( vk.device, &desc, &image->descriptor_set ) );
-	}
-
-	vk_update_descriptor_set( image, mip_levels > 1 ? qtrue : qfalse );
+	vk_assign_image_descriptor(image, mip_levels);
 
 	VK_SET_OBJECT_NAME( image->handle, image->imgName, VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT );
 	VK_SET_OBJECT_NAME( image->view, image->imgName, VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT );
@@ -1386,7 +1532,13 @@ void vk_delete_textures( void ) {
 
 	for (i = 0; i < tr.images.count; i++) {
 		image_t *img = tr.images.items[i];
-		vk_destroy_image_resources( &img->handle, &img->view );
+		const auto resident = activeResidentTextures.find(img);
+		if (resident != activeResidentTextures.end()) {
+			activeResidentTextures.erase(resident);
+		} else {
+			vk_destroy_image_resources(&img->handle, &img->view);
+			assert(img->residentMemory == VK_NULL_HANDLE);
+		}
 
 		// img->descriptor will be released with pool reset
 	}
@@ -1397,7 +1549,7 @@ void vk_delete_textures( void ) {
 	Com_Memset(glState.currenttextures, 0, sizeof(glState.currenttextures));
 }
 
-image_t *R_CreateImage( const char *name, byte *pic, int width, int height, imgFlags_t flags ){
+static image_t *R_AllocImage( const char *name, int width, int height, imgFlags_t flags ){
     image_t				*image;
     int					namelen;
     long				hash;
@@ -1453,7 +1605,7 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height, imgF
 	image->view = VK_NULL_HANDLE;
 	image->descriptor_set = VK_NULL_HANDLE;
 
-    vk_upload_image( image, pic );
+
 
 #if 0
 	const char *psNewName = GenerateImageMappingName(name);
@@ -1462,6 +1614,12 @@ image_t *R_CreateImage( const char *name, byte *pic, int width, int height, imgF
 #endif
 
     return image;
+}
+image_t *R_CreateImage(const char *name, byte *pic, int width, int height, imgFlags_t flags, size_t residentSourceBytes) {
+	image_t *image = R_AllocImage(name, width, height, flags);
+	image->residentSourceBytes = residentSourceBytes;
+	vk_upload_image(image, pic);
+	return image;
 }
 
 image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
@@ -1501,7 +1659,30 @@ image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
         // load the pic from disk
         //
         const int decodeStarted = ri.Milliseconds();
-        R_LoadImage(name, &pic, &width, &height);
+		std::vector<byte> source;
+		std::string cacheKey;
+		const bool cacheable = residentTextures.limit() && name[0] != '*' &&
+			!(flags & (IMGFLAG_LIGHTMAP | IMGFLAG_COLORSHIFT)) && Q_stricmpn(name, "maps/", 5) &&
+			R_ImageSourceSignature(name, source, std::min<size_t>(residentTextures.limit(), 64 * 1024 * 1024));
+		if (cacheable) {
+			cacheKey = R_ResidentTextureKey(name, flags);
+			auto resource = residentTextures.find(cacheKey, source);
+			if (resource) {
+				fsReadFileIdentity_t identity;
+				ri.FS_GetReadFileIdentity(resource->sourceName.c_str(), &identity, qtrue);
+				image = R_AllocImage(name, resource->width, resource->height, flags);
+				image->uploadWidth = resource->uploadWidth; image->uploadHeight = resource->uploadHeight;
+				image->internalFormat = resource->format; image->mipLevels = resource->mipLevels;
+				image->handle = resource->image; image->view = resource->view;
+				image->residentMemory = resource->page->memory;
+				activeResidentTextures.emplace(image, resource);
+				vk_assign_image_descriptor(image, resource->mipLevels);
+				vkLoadStats.imageDecodeMs += ri.Milliseconds() - decodeStarted;
+				return image;
+			}
+		}
+		char resolvedName[MAX_QPATH];
+        R_LoadImage(name, &pic, &width, &height, resolvedName);
         vkLoadStats.imageDecodeMs += ri.Milliseconds() - decodeStarted;
         ++vkLoadStats.imageLoads;
         if (pic == NULL) {
@@ -1537,7 +1718,13 @@ image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
 		}
 
         const int createStarted = ri.Milliseconds();
-        image = R_CreateImage(name, pic, width, height, flags);
+        image = R_CreateImage(name, pic, width, height, flags, cacheable ? source.size() : 0);
+		const auto resident = activeResidentTextures.find(image);
+		if (resident != activeResidentTextures.end()) {
+			resident->second->key = cacheKey;
+			resident->second->sourceName = resolvedName;
+			residentTextures.store(cacheKey, std::move(source), resident->second, resident->second->bytes);
+		}
         vkLoadStats.imageCreateMs += ri.Milliseconds() - createStarted;
         ri.Z_Free(pic);
         return image;
@@ -1821,6 +2008,7 @@ void R_InitImages( void )
 
     // build brightness translation tables
     R_SetColorMappings();
+	R_InitResidentTextures();
 
 	// create default texture and white texture
 	R_CreateBuiltinImages();
