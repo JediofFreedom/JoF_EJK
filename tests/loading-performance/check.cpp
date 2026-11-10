@@ -41,7 +41,7 @@ static void *Z_Malloc(size_t size, int, qboolean = qfalse) {
 static void Z_Free(void *memory) { if (memory) --liveAllocations; std::free(memory); }
 extern "C" void *openjk_minizip_malloc(int size) { return Z_Malloc(size, TAG_FILESYS); }
 extern "C" int openjk_minizip_free(void *memory) { Z_Free(memory); return 0; }
-#include "strings.h"
+#include "engine_strings.h"
 #include "checksum.h"
 static char *CopyString(const char *name) {
     char *copy = static_cast<char *>(Z_Malloc(std::strlen(name) + 1, TAG_FILESYS));
