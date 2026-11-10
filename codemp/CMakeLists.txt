@@ -824,12 +824,12 @@ if(BuildMPEngine)
 
 	set_target_properties(${MPEngine} PROPERTIES INCLUDE_DIRECTORIES "${MPEngineIncludeDirectories}")
 	set_target_properties(${MPEngine} PROPERTIES PROJECT_LABEL "MP Client")
-	target_link_libraries(${MPEngine} PRIVATE ${MPEngineLibraries} ${MPCGame} ${MPUI})
-	# Renderers are loaded through GetRefAPI, never linked into the engine.
-	# Keep them in client builds while also allowing a Vulkan-only build.
-	foreach(RendererTarget ${MPVanillaRenderer} ${MPRend2} ${MPVulkanRenderer})
-		if(TARGET ${RendererTarget})
-			add_dependencies(${MPEngine} ${RendererTarget})
+	target_link_libraries(${MPEngine} PRIVATE ${MPEngineLibraries})
+	# Game/UI modules and renderers are loaded at runtime. Build enabled modules
+	# with the client without adding link dependencies on disabled modules.
+	foreach(ClientModule ${MPCGame} ${MPUI} ${MPVanillaRenderer} ${MPRend2} ${MPVulkanRenderer})
+		if(TARGET ${ClientModule})
+			add_dependencies(${MPEngine} ${ClientModule})
 		endif()
 	endforeach()
 

@@ -4,7 +4,8 @@ param(
     [Parameter(Mandatory)][string]$OutputDirectory,
     [string]$Renderer = 'rd-vulkan',
     [int]$Runs = 3,
-    [int]$UploadBatch = 1
+    [int]$UploadBatch = 1,
+    [int]$TextureCacheMegs = -1
 )
 $ErrorActionPreference = 'Stop'
 $BinaryDirectory = (Resolve-Path -LiteralPath $BinaryDirectory).Path
@@ -27,6 +28,7 @@ foreach ($run in 1..$Runs) {
       'devmap T1_Fatal', 'wait 120', 'echo AUDIT_COMPLETE', 'quit') |
         Set-Content "$mod/loading-audit.cfg" -Encoding ASCII
     $arguments = "+safe +set fs_loadpakdlls 0 +set fs_basepath `"$GameData`" +set fs_homepath `"$runHome`" +set fs_portable 0 +set logfile 2 +set cl_loadTimings 1 +set cl_renderer $Renderer +set cl_rendererFallback 0 +set r_vbo 1 +set r_vbo_models 1 +set r_fullscreen 0 +set r_mode -1 +set r_customwidth 1230 +set r_customheight 690 +set s_useOpenAL 0 +exec loading-audit.cfg"
+    if ($TextureCacheMegs -ge 0) { $arguments = "+set r_textureCacheMegs $TextureCacheMegs $arguments" }
     $timer = [Diagnostics.Stopwatch]::StartNew()
     $process = Start-Process "$BinaryDirectory/eternaljk.x86_64.exe" -WorkingDirectory $runHome -ArgumentList $arguments -WindowStyle Hidden -PassThru
     if (-not $process.WaitForExit(45000)) { Stop-Process -Id $process.Id; throw "Audit client timed out: $runHome" }
