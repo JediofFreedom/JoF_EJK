@@ -9,6 +9,9 @@ Checks cover shader priority and case matching, hash collisions, empty buckets,
 lookup after hash-table invalidation, per-call file-list state, duplicate names,
 pure-package filtering, loose files, the list limit, empty paths, invalid ZIPs,
 entry order, offsets, lengths, CRC reads, regular/pure checksums and cleanup.
+They also cover sorted name indexes, selective model-directory queries,
+thread-local path buffers, UI worker restart/cancellation after shutdown and
+cosmetics registered once when first needed, including legacy and missing items.
 The optimized shader test also bounds parsed tokens so a full-library scan
 cannot quietly return. Timing has no pass/fail threshold.
 
@@ -46,14 +49,17 @@ must supply `SDL2.x86_64.dll`. Run:
 Repeat with `-Renderer rd-rend2-etjk` for Rend2. It launches a 640x480 window,
 loads `mp/ffa3` with sound enabled and asynchronous map loading disabled, waits
 300 frames, checks renderer selection and map completion, then exits. Each run
-uses an isolated home directory and skips player config files. JSON records
+uses an isolated home directory and skips player config files.
+The test explicitly loads the binaries copied to that home, with
+`fs_loadpakdlls 0` and `sv_pure 0`, so installed module PK3s cannot replace the UI
+or cgame under test. JSON records
 both process duration and the engine's `CL_InitCGame` timer. The process duration
 includes renderer startup, the frame wait and shutdown; it is not a pure map
 load timer. GPU shader caches and OS file caches can affect timings, so compare
 repeated runs. These checks do not measure gameplay FPS or establish a speed
 comparison with SJK.
 
-## Measurements from this change
+## Initial engine measurements
 
 Compared with beta commit `e3aba1f966179947f1b252c28b1a2d8e4c0d8944` on
 Windows, MSVC 19.44 Release x64, Ryzen 7 5800X3D and RTX 5070 Ti. The game
@@ -76,3 +82,38 @@ The ZIP loader temporarily retains metadata for one package while building its
 final index; it releases that extra storage on return. Malformed directories
 and entry names that cannot fit `MAX_ZPATH` reject the package and close its
 handle, instead of constructing a partial index.
+
+## Complete load path and UI reload measurements
+
+The initial `CL_InitCGame` measurement excludes the preceding renderer/UI restart.
+Profiling the first build (`0f12d6f`) found 4.4 seconds in model-browser setup
+during that restart. A persisted cvar selected a synchronous scan, and the UI
+worker's stop flag was never cleared after shutdown, so later asynchronous jobs
+also failed and fell back to synchronous scans.
+
+Every UI instance now starts the incremental catalogue build and can restart
+its worker. PK3s retain a sorted index (four bytes per entry) for narrow name
+queries; results return in original ZIP order, and broad queries still use the
+linear path. Each file open computes its package hash once. Path scratch buffers
+are per thread. Cosmetics register meshes/textures on first use rather than
+during UI startup; their UI allocations are released at shutdown.
+
+Compared with `0f12d6f`, using the same machine/assets and explicitly selecting
+the matching UI/cgame DLLs:
+
+| Measurement | First build | Updated build |
+| --- | ---: | ---: |
+| Full vanilla client cycle, median of 3 | 13.407 s | 9.416 s |
+| 120 selective model-directory listings, median of 5 | 25.644 ms | 0.226 ms |
+| Broad file listings, median of 5 | 10.924 ms | 10.248 ms |
+| Fixture + stock assets0/1/3 indexing, median of 5 | 92.252 ms | 98.836 ms |
+
+A diagnostic run measured UI/menu initialization at 3.442 s before and 2.661 s
+after, and map handoff through the first snapshot at 6.868 s before and 4.205 s
+after. Those phase timings are individual instrumented runs, not medians. The
+full client cycle is about 30% shorter than the first build in this workload.
+The extra index adds about 0.3 MB for this installation and some mounting work.
+
+Deferring cosmetic assets changes where their first-use cost is paid. In the
+three full runs, `CL_InitCGame` alone rose from 2.28 s to 2.78 s while the entire
+cycle got shorter. That partial timer should not be used as total join time.

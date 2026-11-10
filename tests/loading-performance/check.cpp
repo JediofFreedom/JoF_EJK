@@ -1,14 +1,20 @@
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <cctype>
+#include <cstdarg>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <condition_variable>
+#include <deque>
+#include <map>
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 #include <minizip/unzip.h>
 
@@ -93,6 +99,7 @@ static qboolean Com_FilterPath(const char *filter, const char *name, qboolean) {
     return !std::strcmp(filter, "*") || !Q_stricmp(filter, name);
 }
 #include "filesystem.h"
+#include "ui_checks.h"
 
 using Clock = std::chrono::steady_clock;
 static double milliseconds(Clock::time_point start) {
@@ -171,6 +178,15 @@ static void checkPack(pack_t *pack) {
     }
     CHECK(pack->checksum == LittleLong(Com_BlockChecksum(crcs.data() + 1, (crcs.size() - 1) * sizeof(int))));
     CHECK(pack->pure_checksum == LittleLong(Com_BlockChecksum(crcs.data(), crcs.size() * sizeof(int))));
+#ifdef EXPECT_OPTIMIZED
+    std::vector<bool> indexed(pack->numfiles);
+    for (int i = 0; i < pack->numfiles; ++i) {
+        int index = pack->nameIndex[i];
+        CHECK(index >= 0 && index < pack->numfiles && !indexed[index]);
+        indexed[index] = true;
+        if (i) CHECK(Q_stricmp(pack->buildBuffer[pack->nameIndex[i - 1]].name, pack->buildBuffer[index].name) <= 0);
+    }
+#endif
     // A stored offset must still open the same compressed bytes and pass its CRC.
     for (int i = 0; i < pack->numfiles; ++i) {
         if (!pack->buildBuffer[i].len) continue;
@@ -220,10 +236,21 @@ static void checkListing(pack_t *pack) {
     char filter[] = "*";
     CHECK(listFiles("", "", filter).size() == MAX_FOUND_FILES - 1);
     CHECK(listFiles("models/players", ".skin").size() == MAX_FOUND_FILES - 1);
+    // Preserve the legacy prefix match, including similarly named directories.
+    CHECK((listFiles("TEXTURES/zeta", ".tga") == std::vector<std::string>{"second.tga", "first.tga", "l/extra.tga"}));
+    CHECK((listFiles("textures/zeta/", ".tga") == std::vector<std::string>{"second.tga", "first.tga", "deep/more/hidden.tga", "l/extra.tga"}));
+    CHECK((listFiles("textures", ".tga") == std::vector<std::string>{"zeta/second.tga", "Alpha/first.tga", "zeta/first.tga", "zetail/extra.tga"}));
     auto start = Clock::now();
     for (int i = 0; i < 8; ++i)
         CHECK(listFiles("models/players", ".skin").size() == MAX_FOUND_FILES - 1);
     std::printf("filesystem: 8 listings of 6000 names across 2 packages in %.3f ms\n", milliseconds(start));
+    start = Clock::now();
+    for (int i = 0; i < 120; ++i) {
+        char path[64];
+        std::snprintf(path, sizeof(path), "models/players/test%05d", i);
+        CHECK((listFiles(path, ".skin") == std::vector<std::string>{"model.skin"}));
+    }
+    std::printf("model directories: 120 listings in %.3f ms\n", milliseconds(start));
     fs_searchpaths = nullptr;
 }
 
@@ -247,6 +274,9 @@ int main(int argc, char **argv) {
         FS_FreePak(pack);
     }
 #ifdef EXPECT_OPTIMIZED
+    asyncTest::check();
+    cosmeticsTest::check();
+    pathsTest::check();
     std::string parent = argv[1];
     parent = parent.substr(0, parent.find_last_of("/\\") + 1);
     CHECK(!FS_LoadZipFile((parent + "long-name.pk3").c_str(), "invalid"));

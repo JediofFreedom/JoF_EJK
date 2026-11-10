@@ -30,6 +30,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
  *
  *****************************************************************************/
 
+#include <algorithm>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
@@ -222,6 +223,7 @@ typedef struct pack_s {
 	int				hashSize;					// hash table size (power of 2)
 	fileInPack_t*	*hashTable;					// hash table
 	fileInPack_t*	buildBuffer;				// buffer with the filenames etc.
+	int				*nameIndex;				// file indices sorted by case-insensitive name
 } pack_t;
 
 typedef struct directory_s {
@@ -544,8 +546,8 @@ Qpath may have either forward or backwards slashes
 */
 char *FS_BuildOSPath( const char *qpath ) {
 	char	temp[MAX_OSPATH];
-	static char ospath[4][MAX_OSPATH];
-	static int toggle;
+	static thread_local char ospath[4][MAX_OSPATH];
+	static thread_local int toggle;
 
 	int nextToggle = (toggle + 1)&3;	// allows four returns without clash (increased from 2 during fs_copyfiles 2 enhancement)
 	toggle = nextToggle;
@@ -563,8 +565,10 @@ char *FS_BuildOSPath( const char *qpath ) {
 
 char *FS_BuildOSPath( const char *base, const char *game, const char *qpath ) {
 	char	temp[MAX_OSPATH];
-	static char ospath[4][MAX_OSPATH];
-	static int toggle;
+	// Background UI scans must not overwrite paths still used by file reads
+	// on the loading/render thread. Retain the four-result ring per thread.
+	static thread_local char ospath[4][MAX_OSPATH];
+	static thread_local int toggle;
 
 	int nextToggle = (toggle + 1)&3;	// allows four returns without clash (increased from 2 during fs_copyfiles 2 enhancement)
 	toggle = nextToggle;
@@ -1447,6 +1451,7 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 	//void			*temp;
 	int				l;
 	bool			isUserConfig = false;
+	long			filenameHash;
 
 	hash = 0;
 
@@ -1481,6 +1486,7 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 	}
 
 	isUserConfig = !Q_stricmp( filename, Q3CONFIG_AUTO ) || !Q_stricmp( filename, Q3CONFIG_CFG );
+	filenameHash = FS_HashFileName(filename, MAX_FILEHASH_SIZE * 2);
 
 	//
 	// search through the path, one element at a time
@@ -1503,7 +1509,7 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 		for ( search = fs_searchpaths ; search ; search = search->next ) {
 			//
 			if ( search->pack ) {
-				hash = FS_HashFileName(filename, search->pack->hashSize);
+				hash = filenameHash & (search->pack->hashSize - 1);
 			}
 			// is the element a pak file?
 			if ( search->pack && search->pack->hashTable[hash] ) {
@@ -2426,9 +2432,10 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 		}
 	}
 
-	pack = (pack_t *)Z_Malloc( sizeof( pack_t ) + i * sizeof(fileInPack_t *), TAG_FILESYS, qtrue );
+	pack = (pack_t *)Z_Malloc( sizeof( pack_t ) + i * sizeof(fileInPack_t *) + gi.number_entry * sizeof(int), TAG_FILESYS, qtrue );
 	pack->hashSize = i;
 	pack->hashTable = (fileInPack_t **) (((char *) pack) + sizeof( pack_t ));
+	pack->nameIndex = (int *)(pack->hashTable + pack->hashSize);
 	for(int j = 0; j < pack->hashSize; j++) {
 		pack->hashTable[j] = NULL;
 	}
@@ -2459,7 +2466,10 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 		buildBuffer[i].len = entry.len;
 		buildBuffer[i].next = pack->hashTable[hash];
 		pack->hashTable[hash] = &buildBuffer[i];
+		pack->nameIndex[i] = i;
 	}
+	std::sort(pack->nameIndex, pack->nameIndex + pack->numfiles,
+		[buildBuffer](int a, int b) { return Q_stricmp(buildBuffer[a].name, buildBuffer[b].name) < 0; });
 
 	pack->checksum = Com_BlockChecksum( &fs_headerLongs[ 1 ], sizeof(*fs_headerLongs) * ( fs_numHeaderLongs - 1 ) );
 	pack->pure_checksum = Com_BlockChecksum( fs_headerLongs, sizeof(*fs_headerLongs) * fs_numHeaderLongs );
@@ -2545,6 +2555,32 @@ static unsigned int FS_FileListHash( const char *name ) {
 	return hash & (MAX_FOUND_FILES - 1);
 }
 
+// A model/skin query should inspect that name range, not every entry in every
+// installed PK3. Restore ZIP order before listing so first-match priority and
+// truncation stay identical to the full scan. The immutable index lives with
+// its package; pure-server and search-path changes need no cache invalidation.
+static qboolean FS_FileListRange( const pack_t *pak, const char *path, int pathLength, std::vector<int> &matches ) {
+	matches.clear();
+	const int *begin = pak->nameIndex;
+	const int *end = pak->nameIndex + pak->numfiles;
+	const int *first = std::lower_bound(begin, end, path,
+		[pak, pathLength](int index, const char *prefix) {
+			return Q_stricmpn(pak->buildBuffer[index].name, prefix, pathLength) < 0;
+		});
+	const int *last = std::upper_bound(first, end, path,
+		[pak, pathLength](const char *prefix, int index) {
+			return Q_stricmpn(prefix, pak->buildBuffer[index].name, pathLength) < 0;
+		});
+	// Broad listings are cheaper in the original order than sorting most of
+	// a package back into that order. Keep the index for selective queries.
+	if (last - first > pak->numfiles / 2) {
+		return qfalse;
+	}
+	matches.assign(first, last);
+	std::sort(matches.begin(), matches.end());
+	return qtrue;
+}
+
 static int FS_ReturnPath( const char *zname, char *zpath, int *depth ) {
 	int len, at, newdep;
 
@@ -2606,6 +2642,7 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 	char			**listCopy;
 	char			*list[MAX_FOUND_FILES];
 	fileListHash_t	seen;
+	std::vector<int> pakMatches;
 	searchpath_t	*search;
 	int				i;
 	int				pathLength;
@@ -2654,12 +2691,14 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 			// look through all the pak file elements
 			pak = search->pack;
 			buildBuffer = pak->buildBuffer;
-			for (i = 0; i < pak->numfiles; i++) {
+			const bool indexed = !filter && pathLength > 0 && FS_FileListRange(pak, path, pathLength, pakMatches);
+			const int candidateCount = indexed ? (int)pakMatches.size() : pak->numfiles;
+			for (i = 0; i < candidateCount; i++) {
 				char	*name;
 				int		zpathLen, depth;
 
 				// check for directory match
-				name = buildBuffer[i].name;
+				name = buildBuffer[indexed ? pakMatches[i] : i].name;
 				//
 				if (filter) {
 					// case insensitive

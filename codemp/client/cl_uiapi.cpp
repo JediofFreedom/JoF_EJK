@@ -203,6 +203,10 @@ static void uiAsyncShutdown()
 		uiAsyncQueue.clear();
 		uiAsyncJobs.clear();
 		uiAsyncStarted = false;
+		// A later UI instance must be able to start its own worker. Keeping
+		// stop set made every request after a map/renderer reload fail and
+		// silently sent the model browser back through its synchronous path.
+		uiAsyncStop = false;
 	}
 	
 }

@@ -16,6 +16,7 @@ def run(executable, packages):
     for renderer, elapsed in re.findall(r"(vanilla|rend2|dedicated): 400 misses in ([\d.]+) ms", output):
         timings[f"{renderer} shader misses"] = float(elapsed)
     timings["file listings"] = float(re.search(r"filesystem: .* in ([\d.]+) ms", output)[1])
+    timings["model directories"] = float(re.search(r"model directories: .* in ([\d.]+) ms", output)[1])
     mounts = re.findall(r"mount: (.*): \d+ entries, ([\d.]+) ms, checksums (\w+/\w+)", output)
     timings["package mounting (total)"] = sum(float(mount[1]) for mount in mounts)
     checksums = {mount[0]: mount[2] for mount in mounts}

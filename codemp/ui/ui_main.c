@@ -461,6 +461,7 @@ void UpdateForceUsed();
 char holdSPString[MAX_STRING_CHARS]={0};
 
 uiInfo_t uiInfo;
+static qboolean uiCosmeticsLoaded;
 
 static void UI_StartServerRefresh(qboolean full);
 static void UI_StopServerRefresh( void );
@@ -1515,6 +1516,11 @@ void UI_Shutdown( void ) {
 	UI_CleanupGhoul2();
 	UI_FreeAllSpecies();
 	UI_CancelQ3ModelListBuild();
+	free(uiInfo.hats);
+	free(uiInfo.capes);
+	uiInfo.hats = uiInfo.capes = NULL;
+	uiInfo.totalHats = uiInfo.totalCapes = 0;
+	uiCosmeticsLoaded = qfalse;
 }
 
 char *defaultMenu = NULL;
@@ -10768,6 +10774,9 @@ static void UI_AddKnownCosmetics( const char *path, const char *legacyPath, cons
 
 void UI_LoadCosmetics( void )
 {
+	if (uiCosmeticsLoaded)
+		return;
+
 	UI_LoadCosmeticsIn( UI_COSMETIC_HATS_PATH, &uiInfo.totalHats, &uiInfo.hats );
 	UI_LoadCosmeticsIn( UI_COSMETIC_CAPES_PATH, &uiInfo.totalCapes, &uiInfo.capes );
 	//Older bundled packs used models/players/{hats,capes}; keep those cosmetics visible.
@@ -10781,6 +10790,7 @@ void UI_LoadCosmetics( void )
 		qsort( uiInfo.hats, uiInfo.totalHats, sizeof( *uiInfo.hats ), UI_CosmeticCompare );
 	if ( uiInfo.totalCapes > 1 )
 		qsort( uiInfo.capes, uiInfo.totalCapes, sizeof( *uiInfo.capes ), UI_CosmeticCompare );
+	uiCosmeticsLoaded = qtrue;
 }
 
 //Equipping is just a cvar edit - the name is appended to the saber colour in color1/color2,
@@ -10967,6 +10977,7 @@ static void UI_HighlightWornCosmetics( void )
 void UI_GetCosmeticCvars( void )
 {
 	char value[MAX_COSMETIC_LENGTH * 2];
+	UI_LoadCosmetics();
 
 	trap->Cvar_VariableStringBuffer( "color1", value, sizeof( value ) );
 	Q_StripDigits( value, uiInfo.hat, sizeof( uiInfo.hat ), REMOVE_DIGITS_INITIAL );
@@ -10988,6 +10999,7 @@ look like. Mirrors what cgame does on the live player, using the same bolts.
 void UI_DrawCosmeticsOnCharacter( itemDef_t *item, vec3_t origin, vec3_t angles )
 {
 	int i;
+	UI_LoadCosmetics();
 
 	for ( i = 0; i < 2; i++ )
 	{
@@ -11248,10 +11260,12 @@ static int UI_FeederCount(float feederID)
 	switch ( (int)feederID )
 	{
 		case FEEDER_COSMETIC_HATS:
+			UI_LoadCosmetics();
 			count = UI_InstalledCosmeticCount( uiInfo.hats, uiInfo.totalHats );
 			return count + ( count < uiInfo.totalHats );
 
 		case FEEDER_COSMETIC_CAPES:
+			UI_LoadCosmetics();
 			count = UI_InstalledCosmeticCount( uiInfo.capes, uiInfo.totalCapes );
 			return count + ( count < uiInfo.totalCapes );
 
@@ -11609,6 +11623,7 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 
 	if (feederID == FEEDER_COSMETIC_HATS)
 	{
+		UI_LoadCosmetics();
 		const int installed = UI_InstalledCosmeticCount( uiInfo.hats, uiInfo.totalHats );
 		static char displayName[MAX_COSMETIC_LENGTH];
 
@@ -11624,6 +11639,7 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 
 	if (feederID == FEEDER_COSMETIC_CAPES)
 	{
+		UI_LoadCosmetics();
 		const int installed = UI_InstalledCosmeticCount( uiInfo.capes, uiInfo.totalCapes );
 		static char displayName[MAX_COSMETIC_LENGTH];
 
@@ -12411,6 +12427,7 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 	//follow color1/color2, so there is no separate state to keep in step
 	if (feederID == FEEDER_COSMETIC_HATS || feederID == FEEDER_COSMETIC_CAPES)
 	{
+		UI_LoadCosmetics();
 		const qboolean	isHat = (qboolean)(feederID == FEEDER_COSMETIC_HATS);
 		uiCosmeticItem_t *items = isHat ? uiInfo.hats : uiInfo.capes;
 		const int		total = isHat ? uiInfo.totalHats : uiInfo.totalCapes;
@@ -13710,13 +13727,13 @@ void UI_Init( qboolean inGameLoad ) {
 
 	AssetCache();
 	
-	(int)trap->Cvar_VariableValue("ui_hasStartedAsyncQ3ModelBuild") ? UI_BuildQ3Model_List(uiQ3ModelBuild.dirList,
-		uiQ3ModelBuild.fileList,
-		sizeof(uiQ3ModelBuild.fileList)) : UI_BuildQ3Model_List_Async();
+	// Each UI instance owns its catalogue. Restart the existing incremental
+	// build after a map/renderer reload instead of blocking the join while
+	// scanning every installed model because a previous UI set a cvar.
+	UI_BuildQ3Model_List_Async();
 	UI_BuildPlayerModel_List(inGameLoad);
 
-	//scan models/cosmetics/ so the cosmetics menu has something to list
-	UI_LoadCosmetics();
+	// Cosmetic meshes/textures are registered when their menu is first used.
 
 	uiInfo.uiDC.cursor	= trap->R_RegisterShaderNoMip( "menu/art/3_cursor2" );
 	uiInfo.uiDC.whiteShader = trap->R_RegisterShaderNoMip( "white" );

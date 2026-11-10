@@ -24,7 +24,7 @@ foreach ($run in 1..$Runs) {
         Copy-Item "$CandidateDirectory/EternalJK/*.pk3" -Destination $modDir
         Copy-Item "$binaryDir/*x86_64.dll" -Destination $modDir
         Copy-Item "$GameData/SDL2.x86_64.dll" -Destination $binaryDir
-        $arguments = "+safe +set fs_basepath `"$GameData`" +set fs_homepath `"$runDir`" +set fs_portable 0 +set logfile 2 +set cl_renderer $Renderer +set r_fullscreen 0 +set r_mode -1 +set r_customwidth 640 +set r_customheight 480 +set s_initsound 1 +set s_useOpenAL 0 +set cg_logChat 0 +set net_port 0 +set cl_asyncMapLoad 0 +set sv_pure 0 +set sv_maxclients 1 +devmap $Map +wait 300 +echo PERFORMANCE_COMPLETE +quit"
+        $arguments = "+safe +set fs_loadpakdlls 0 +set fs_basepath `"$GameData`" +set fs_homepath `"$runDir`" +set fs_portable 0 +set logfile 2 +set cl_renderer $Renderer +set r_fullscreen 0 +set r_mode -1 +set r_customwidth 640 +set r_customheight 480 +set s_initsound 1 +set s_useOpenAL 0 +set cg_logChat 0 +set net_port 0 +set cl_asyncMapLoad 0 +set sv_pure 0 +set sv_maxclients 1 +devmap $Map +wait 300 +echo PERFORMANCE_COMPLETE +quit"
         $timer = [Diagnostics.Stopwatch]::StartNew()
         $process = Start-Process -FilePath "$binaryDir/eternaljk.x86_64.exe" -WorkingDirectory $runDir -ArgumentList $arguments -WindowStyle Hidden -PassThru
         if (-not $process.WaitForExit(45000)) {

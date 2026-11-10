@@ -10,6 +10,10 @@ with zipfile.ZipFile(directory / "fixture.pk3", "w", zipfile.ZIP_DEFLATED) as ar
     archive.writestr("shaders/override.shader", b"later")
     archive.writestr("empty/", b"")
     archive.writestr("empty/file.txt", b"")
+    for name in ["textures/zeta/second.tga", "textures/Alpha/first.tga",
+                 "textures/zeta/first.tga", "textures/ZETA/SECOND.tga",
+                 "textures/zeta/deep/more/hidden.tga", "textures/zetail/extra.tga"]:
+        archive.writestr(name, b"image")
     for index in range(6000):
         archive.writestr(f"models/players/test{index:05}/model.skin", f"entry {index}")
 
