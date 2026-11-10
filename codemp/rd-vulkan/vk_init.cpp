@@ -180,28 +180,32 @@ static void vk_render_splash( void )
 	ratio = ( (float)( SCREEN_WIDTH * glConfig.vidHeight ) / (float)( SCREEN_HEIGHT * glConfig.vidWidth ) );
 
 	if ( cl_ratioFix->integer && ratio >= 0.74f && ratio <= 0.76f ){
-		splashImage = R_FindImageFile("menu/splash_16_9", IMGFLAG_CLAMPTOEDGE);
+		splashImage = R_FindImageFile("menu/splash_16_9", IMGFLAG_CLAMPTOEDGE | IMGFLAG_TRANSFER_SRC);
 
 		if ( !splashImage ){
-			splashImage = R_FindImageFile("menu/splash", IMGFLAG_CLAMPTOEDGE);
+			splashImage = R_FindImageFile("menu/splash", IMGFLAG_CLAMPTOEDGE | IMGFLAG_TRANSFER_SRC);
 		}
 	}
 	else{
-		splashImage = R_FindImageFile("menu/splash", IMGFLAG_CLAMPTOEDGE);
+		splashImage = R_FindImageFile("menu/splash", IMGFLAG_CLAMPTOEDGE | IMGFLAG_TRANSFER_SRC);
 	}
 
 	if( !splashImage ){
 		return;
 	}
 
-	//VK_CHECK( qvkWaitForFences( vk.device, 1, &vk.cmd->rendering_finished_fence, VK_TRUE, 1e10 ) );
-	//VK_CHECK( qvkResetFences( vk.device, 1, &vk.cmd->rendering_finished_fence ) );
+	// Complete the queued upload before the splash blit consumes the pixels.
+	vk_flush_image_uploads();
 
 #ifdef USE_UPLOAD_QUEUE
 	vk_flush_staging_buffer( qfalse );
 #endif
 
-	qvkAcquireNextImageKHR( vk.device, vk.swapchain, 1 * 1000000000ULL, vk.cmd->image_acquired, VK_NULL_HANDLE, &vk.cmd->swapchain_image_index );
+	const VkResult acquired = qvkAcquireNextImageKHR( vk.device, vk.swapchain, 1 * 1000000000ULL, vk.cmd->image_acquired, VK_NULL_HANDLE, &vk.cmd->swapchain_image_index );
+	if (acquired != VK_SUCCESS && acquired != VK_SUBOPTIMAL_KHR) {
+		ri.Printf(PRINT_WARNING, "Skipping Vulkan splash: %s\n", vk_result_string(acquired));
+		return;
+	}
 	imageBuffer = vk.swapchain_images[vk.cmd->swapchain_image_index];
 
 	// begin the command buffer
@@ -213,14 +217,14 @@ static void vk_render_splash( void )
 	VK_CHECK( qvkBeginCommandBuffer( vk.cmd->command_buffer, &begin_info ) );
 
 	vk_record_image_layout_transition( vk.cmd->command_buffer, splashImage->handle, VK_IMAGE_ASPECT_COLOR_BIT,
-		VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 		0, 0 );
 
 	vk_record_image_layout_transition( vk.cmd->command_buffer, imageBuffer, VK_IMAGE_ASPECT_COLOR_BIT,
 		VK_IMAGE_LAYOUT_UNDEFINED,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		0, 0 );
+		VK_PIPELINE_STAGE_TRANSFER_BIT, 0 );
 
 	Com_Memset( &imageBlit, 0, sizeof(imageBlit) );
 	imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -240,6 +244,8 @@ static void vk_render_splash( void )
 		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, imageBuffer,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
 		&imageBlit, VK_FILTER_LINEAR );
+	vk_record_image_layout_transition(vk.cmd->command_buffer, splashImage->handle, VK_IMAGE_ASPECT_COLOR_BIT,
+		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, 0);
 
 	vk_record_image_layout_transition( vk.cmd->command_buffer, imageBuffer, VK_IMAGE_ASPECT_COLOR_BIT,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -260,7 +266,8 @@ static void vk_render_splash( void )
 	submit_info.pWaitDstStageMask = &wait_dst_stage_mask;
 	submit_info.signalSemaphoreCount = 1;
 	submit_info.pSignalSemaphores = &vk.swapchain_rendering_finished[ vk.cmd->swapchain_image_index ];
-	VK_CHECK( qvkQueueSubmit( vk.queue, 1, &submit_info, VK_NULL_HANDLE ) );
+	VK_CHECK( vk_queue_submit( vk.queue, 1, &submit_info, vk.cmd->rendering_finished_fence ) );
+	vk.cmd->waitForFence = qtrue;
 
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	present_info.pNext = NULL;

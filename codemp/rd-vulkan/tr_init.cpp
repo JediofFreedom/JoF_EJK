@@ -916,7 +916,7 @@ void R_Register( void )
 	r_pipelineCache = ri.Cvar_Get("r_pipelineCache", "1", CVAR_ARCHIVE_ND,
 		"Reuse compiled Vulkan pipelines between renderer restarts and game launches");
 	r_imageUploadBatch = ri.Cvar_Get("r_imageUploadBatch", "1", CVAR_ARCHIVE_ND,
-		"Batch Vulkan texture transfers before drawing instead of waiting after each image");
+		"Batch Vulkan texture and static geometry transfers in bounded staging memory");
 	r_defaultImage						= ri.Cvar_Get("r_defaultImage",						"",							CVAR_ARCHIVE_ND | CVAR_LATCH, "");
 	r_device							= ri.Cvar_Get("r_device",							"-1",						CVAR_ARCHIVE_ND | CVAR_LATCH, "Select physical device to render:\n" \
 		" 0+ - use explicit device index\n" \
@@ -1200,6 +1200,10 @@ void RE_EndRegistration( void ) {
 		ri.Printf(PRINT_ALL, "LOADPROFILE Vulkan images: %u loads, decode %d ms, create %d ms; uploads %u, %.1f MiB, queue waits %d ms\n",
 			vkLoadStats.imageLoads, vkLoadStats.imageDecodeMs, vkLoadStats.imageCreateMs,
 			vkLoadStats.uploadSubmissions, vkLoadStats.uploadBytes / (1024.0 * 1024.0), vkLoadStats.uploadWaitMs);
+		ri.Printf(PRINT_ALL, "LOADPROFILE Vulkan host copies: %u images, %.1f MiB, %d ms\n",
+			vkLoadStats.hostImageCopies, vkLoadStats.hostImageCopyBytes / (1024.0 * 1024.0), vkLoadStats.hostImageCopyMs);
+		ri.Printf(PRINT_ALL, "LOADPROFILE Vulkan static buffer uploads: %u buffers, %.1f MiB\n",
+			vkLoadStats.bufferUploads, vkLoadStats.bufferUploadBytes / (1024.0 * 1024.0));
 	}
 
 	// command buffer is not in recording state at this stage

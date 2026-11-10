@@ -23,6 +23,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include <string.h>
 #include <stdlib.h>
+#include <algorithm>
+#include <vector>
 
 #include "tr_local.h"
 #include "vk_api_version.h"
@@ -44,6 +46,13 @@ PFN_vkEnumerateDeviceExtensionProperties		qvkEnumerateDeviceExtensionProperties;
 PFN_vkEnumeratePhysicalDevices					qvkEnumeratePhysicalDevices;
 PFN_vkGetDeviceProcAddr							qvkGetDeviceProcAddr;
 PFN_vkGetPhysicalDeviceFeatures					qvkGetPhysicalDeviceFeatures;
+PFN_vkGetPhysicalDeviceFeatures2 qvkGetPhysicalDeviceFeatures2;
+PFN_vkGetPhysicalDeviceProperties2 qvkGetPhysicalDeviceProperties2;
+PFN_vkGetPhysicalDeviceImageFormatProperties2 qvkGetPhysicalDeviceImageFormatProperties2;
+PFN_vkCopyMemoryToImage qvkCopyMemoryToImage;
+PFN_vkTransitionImageLayout qvkTransitionImageLayout;
+PFN_vkCmdPipelineBarrier2 qvkCmdPipelineBarrier2;
+PFN_vkQueueSubmit2 qvkQueueSubmit2;
 PFN_vkGetPhysicalDeviceFormatProperties			qvkGetPhysicalDeviceFormatProperties;
 PFN_vkGetPhysicalDeviceMemoryProperties			qvkGetPhysicalDeviceMemoryProperties;
 PFN_vkGetPhysicalDeviceProperties				qvkGetPhysicalDeviceProperties;
@@ -230,6 +239,7 @@ static void vk_create_instance( void )
 	const auto enumerateVersion = reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
 		qvkGetInstanceProcAddr(VK_NULL_HANDLE, "vkEnumerateInstanceVersion"));
 	appInfo.apiVersion = VK_SelectInstanceVersion(enumerateVersion);
+	vk.instanceApiVersion = appInfo.apiVersion;
 	ri.Printf(PRINT_ALL, "Vulkan instance API: %u.%u (native Vulkan, no OpenGL context)\n",
 		VK_API_VERSION_MAJOR(appInfo.apiVersion), VK_API_VERSION_MINOR(appInfo.apiVersion));
 	flags = 0;
@@ -535,14 +545,57 @@ qboolean vk_select_surface_format( VkPhysicalDevice physical_device, VkSurfaceKH
         vk.capture_format = vk.color_format;
 }
 
-static qboolean vk_create_device( VkPhysicalDevice physical_device, int device_index ) {
+static qboolean vk_prepare_host_image_copy(VkPhysicalDevice device, VkPhysicalDeviceHostImageCopyFeatures *feature) {
+	cvar_t *setting = ri.Cvar_Get("r_hostImageCopy", "0", CVAR_ARCHIVE_ND | CVAR_LATCH,
+		"Use Vulkan 1.4 host texture uploads when the driver preserves optimal GPU access");
+	ri.Cvar_CheckRange(setting, 0, 1, qtrue);
+	if (!setting->integer || vk.instanceApiVersion < VK_API_VERSION_1_4 ||
+		!qvkGetPhysicalDeviceFeatures2 || !qvkGetPhysicalDeviceProperties2 || !qvkGetPhysicalDeviceImageFormatProperties2)
+		return qfalse;
+	VkPhysicalDeviceProperties properties;
+	qvkGetPhysicalDeviceProperties(device, &properties);
+	if (properties.apiVersion < VK_API_VERSION_1_4) return qfalse;
+	VkPhysicalDeviceFeatures2 supported = {};
+	supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	supported.pNext = feature;
+	qvkGetPhysicalDeviceFeatures2(device, &supported);
+	if (!feature->hostImageCopy) return qfalse;
+	VkPhysicalDeviceHostImageCopyProperties copy = {};
+	copy.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_PROPERTIES;
+	VkPhysicalDeviceProperties2 extended = {};
+	extended.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+	extended.pNext = &copy;
+	qvkGetPhysicalDeviceProperties2(device, &extended);
+	std::vector<VkImageLayout> destinations(copy.copyDstLayoutCount);
+	copy.pCopyDstLayouts = destinations.data();
+	qvkGetPhysicalDeviceProperties2(device, &extended);
+	// New images can be populated directly in their final sampled layout. Queue
+	// submission then makes these coherent host writes visible to shader reads.
+	return std::find(destinations.begin(), destinations.end(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) != destinations.end() ? qtrue : qfalse;
+}
 
-#ifdef _DEBUG
-	VkPhysicalDeviceTimelineSemaphoreFeatures timeline_semaphore;
-	VkPhysicalDeviceVulkanMemoryModelFeatures memory_model;
-	VkPhysicalDeviceBufferDeviceAddressFeatures devaddr_features;
-	VkPhysicalDevice8BitStorageFeatures storage_8bit_features;
-#endif
+static qboolean vk_prepare_synchronization2(VkPhysicalDevice device, VkPhysicalDeviceSynchronization2Features *feature) {
+	cvar_t *setting = ri.Cvar_Get("r_vulkanSynchronization2", "1", CVAR_ARCHIVE_ND | CVAR_LATCH,
+		"Use Vulkan 1.3 synchronization and queue submissions when supported");
+	ri.Cvar_CheckRange(setting, 0, 1, qtrue);
+	if (!setting->integer || vk.instanceApiVersion < VK_API_VERSION_1_3 || !qvkGetPhysicalDeviceFeatures2) return qfalse;
+	VkPhysicalDeviceProperties properties;
+	qvkGetPhysicalDeviceProperties(device, &properties);
+	if (properties.apiVersion < VK_API_VERSION_1_3) return qfalse;
+	VkPhysicalDeviceFeatures2 supported = {};
+	supported.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2; supported.pNext = feature;
+	qvkGetPhysicalDeviceFeatures2(device, &supported);
+	return feature->synchronization2 ? qtrue : qfalse;
+}
+
+static qboolean vk_create_device( VkPhysicalDevice physical_device, int device_index ) {
+	VkPhysicalDeviceHostImageCopyFeatures host_copy = {};
+	host_copy.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_FEATURES;
+	vk.hostImageCopy = vk_prepare_host_image_copy(physical_device, &host_copy);
+	VkPhysicalDeviceSynchronization2Features synchronization = {};
+	synchronization.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES;
+	vk.synchronization2 = vk_prepare_synchronization2(physical_device, &synchronization);
+	if (vk.synchronization2) host_copy.pNext = &synchronization;
 
 	ri.Printf(PRINT_ALL, "selected physical device: %i\n\n", device_index);
 
@@ -602,13 +655,6 @@ static qboolean vk_create_device( VkPhysicalDevice physical_device, int device_i
 		qboolean memoryRequirements2 = qfalse;
 		qboolean debugMarker = qfalse;
 		qboolean toolingInfo = qfalse;
-#ifdef _DEBUG
-		qboolean timelineSemaphore = qfalse;
-		qboolean memoryModel = qfalse;
-		qboolean devAddrFeat = qfalse;
-		qboolean storage8bit = qfalse;
-		const void** pNextPtr;
-#endif
 		uint32_t i, len, count = 0;
 
 		VK_CHECK(qvkEnumerateDeviceExtensionProperties(physical_device, NULL, &count, NULL));
@@ -636,16 +682,6 @@ static qboolean vk_create_device( VkPhysicalDevice physical_device, int device_i
 			}
 			else if ( strcmp( ext, VK_EXT_TOOLING_INFO_EXTENSION_NAME ) == 0 ) {
 				toolingInfo = qtrue;
-#ifdef _DEBUG
-			} else if ( strcmp( ext, VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME ) == 0 ) {
-				timelineSemaphore = qtrue;
-			} else if ( strcmp( ext, VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME ) == 0 ) {
-				memoryModel = qtrue;
-			} else if ( strcmp( ext, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME ) == 0 ) {
-				devAddrFeat = qtrue;
-			} else if ( strcmp( ext, VK_KHR_8BIT_STORAGE_EXTENSION_NAME ) == 0 ) {
-				storage8bit = qtrue;
-#endif
 			}
 
 			// add this device extension to glConfig
@@ -693,21 +729,6 @@ static qboolean vk_create_device( VkPhysicalDevice physical_device, int device_i
 		if ( toolingInfo )
 			device_extension_list[device_extension_count++] = VK_EXT_TOOLING_INFO_EXTENSION_NAME;
 
-#ifdef _DEBUG
-		if ( timelineSemaphore ) {
-			device_extension_list[ device_extension_count++ ] = VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME;
-		}
-
-		if ( memoryModel ) {
-			device_extension_list[ device_extension_count++ ] = VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME;
-		}
-		if ( devAddrFeat ) {
-			device_extension_list[ device_extension_count++ ] = VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME;
-		}
-		if ( storage8bit ) {
-			device_extension_list[ device_extension_count++ ] = VK_KHR_8BIT_STORAGE_EXTENSION_NAME;
-		}
-#endif // _DEBUG
 
 		qvkGetPhysicalDeviceFeatures(physical_device, &device_features);
 
@@ -757,7 +778,8 @@ static qboolean vk_create_device( VkPhysicalDevice physical_device, int device_i
 		}
 
 		device_desc.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		device_desc.pNext = NULL;
+		device_desc.pNext = vk.hostImageCopy ? static_cast<void *>(&host_copy) :
+			vk.synchronization2 ? static_cast<void *>(&synchronization) : NULL;
 		device_desc.flags = 0;
 		device_desc.queueCreateInfoCount = 1;
 		device_desc.pQueueCreateInfos = &queue_desc;
@@ -767,44 +789,6 @@ static qboolean vk_create_device( VkPhysicalDevice physical_device, int device_i
 		device_desc.ppEnabledExtensionNames = device_extension_list;
 		device_desc.pEnabledFeatures = &features;
 
-#ifdef _DEBUG
-		pNextPtr = (const void **)&device_desc.pNext;
-
-		if ( timelineSemaphore ) {
-			*pNextPtr = &timeline_semaphore;
-			timeline_semaphore.pNext = NULL;
-			timeline_semaphore.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
-			timeline_semaphore.timelineSemaphore = VK_TRUE;
-			pNextPtr = (const void **)&timeline_semaphore.pNext;
-		}
-		if ( memoryModel ) {
-			*pNextPtr = &memory_model;
-			memory_model.pNext = NULL;
-			memory_model.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_MEMORY_MODEL_FEATURES;
-			memory_model.vulkanMemoryModel = VK_TRUE;
-			memory_model.vulkanMemoryModelAvailabilityVisibilityChains = VK_FALSE;
-			memory_model.vulkanMemoryModelDeviceScope = VK_TRUE;
-			pNextPtr = (const void **)&memory_model.pNext;
-		}
-		if ( devAddrFeat ) {
-			*pNextPtr = &devaddr_features;
-			devaddr_features.pNext = NULL;
-			devaddr_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
-			devaddr_features.bufferDeviceAddress = VK_TRUE;
-			devaddr_features.bufferDeviceAddressCaptureReplay = VK_FALSE;
-			devaddr_features.bufferDeviceAddressMultiDevice = VK_FALSE;
-			pNextPtr = (const void **)&devaddr_features.pNext;
-		}
-		if ( storage8bit ) {
-			*pNextPtr = &storage_8bit_features;
-			storage_8bit_features.pNext = NULL;
-			storage_8bit_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES;
-			storage_8bit_features.storageBuffer8BitAccess = VK_TRUE;
-			storage_8bit_features.storagePushConstant8 = VK_FALSE;
-			storage_8bit_features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
-			pNextPtr = (const void **)&storage_8bit_features.pNext;
-		}
-#endif
 
 		result = qvkCreateDevice(physical_device, &device_desc, NULL, &vk.device);
 		if (result < 0) {
@@ -850,8 +834,10 @@ __initStart:
 	Com_Memset(&vk, 0, sizeof(vk));
 
 	qvkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)ri.VK_GetInstanceProcAddress();
-	if (qvkGetInstanceProcAddr == NULL)
-		vk_debug("Failed to find entrypoint vkGetInstanceProcAddr\n");
+	if (qvkGetInstanceProcAddr == NULL) {
+		ri.Error(ERR_FATAL, "Vulkan loader did not provide vkGetInstanceProcAddr");
+		return;
+	}
 
 	//
 	// Get functions that do not depend on VkInstance (vk.instance == nullptr at this point).
@@ -870,6 +856,9 @@ __initStart:
 	INIT_INSTANCE_FUNCTION(vkEnumeratePhysicalDevices)
 	INIT_INSTANCE_FUNCTION(vkGetDeviceProcAddr)
 	INIT_INSTANCE_FUNCTION(vkGetPhysicalDeviceFeatures)
+	qvkGetPhysicalDeviceFeatures2 = (PFN_vkGetPhysicalDeviceFeatures2)qvkGetInstanceProcAddr(vk.instance, "vkGetPhysicalDeviceFeatures2");
+	qvkGetPhysicalDeviceProperties2 = (PFN_vkGetPhysicalDeviceProperties2)qvkGetInstanceProcAddr(vk.instance, "vkGetPhysicalDeviceProperties2");
+	qvkGetPhysicalDeviceImageFormatProperties2 = (PFN_vkGetPhysicalDeviceImageFormatProperties2)qvkGetInstanceProcAddr(vk.instance, "vkGetPhysicalDeviceImageFormatProperties2");
 	INIT_INSTANCE_FUNCTION(vkGetPhysicalDeviceFormatProperties)
 	INIT_INSTANCE_FUNCTION(vkGetPhysicalDeviceMemoryProperties)
 	INIT_INSTANCE_FUNCTION(vkGetPhysicalDeviceProperties)
@@ -1077,6 +1066,14 @@ __initStart:
 	}
 
 	INIT_DEVICE_FUNCTION(vkCmdDrawIndexedIndirect)
+	qvkCopyMemoryToImage = (PFN_vkCopyMemoryToImage)qvkGetDeviceProcAddr(vk.device, "vkCopyMemoryToImage");
+	qvkTransitionImageLayout = (PFN_vkTransitionImageLayout)qvkGetDeviceProcAddr(vk.device, "vkTransitionImageLayout");
+	if (!qvkCopyMemoryToImage || !qvkTransitionImageLayout) vk.hostImageCopy = qfalse;
+	ri.Printf(PRINT_ALL, "EJK Vulkan 1.4 host image copy: %s\n", vk.hostImageCopy ? "enabled" : "unavailable or disabled; using staging uploads");
+	qvkCmdPipelineBarrier2 = (PFN_vkCmdPipelineBarrier2)qvkGetDeviceProcAddr(vk.device, "vkCmdPipelineBarrier2");
+	qvkQueueSubmit2 = (PFN_vkQueueSubmit2)qvkGetDeviceProcAddr(vk.device, "vkQueueSubmit2");
+	if (!qvkCmdPipelineBarrier2 || !qvkQueueSubmit2) vk.synchronization2 = qfalse;
+	ri.Printf(PRINT_ALL, "EJK Vulkan synchronization2: %s\n", vk.synchronization2 ? "enabled" : "unavailable or disabled; using Vulkan 1.0 synchronization");
 }
 
 #undef INIT_INSTANCE_FUNCTION
@@ -1095,6 +1092,13 @@ void vk_deinit_library( void )
 	qvkEnumeratePhysicalDevices = NULL;
 	qvkGetDeviceProcAddr = NULL;
 	qvkGetPhysicalDeviceFeatures = NULL;
+	qvkGetPhysicalDeviceFeatures2 = NULL;
+	qvkGetPhysicalDeviceProperties2 = NULL;
+	qvkGetPhysicalDeviceImageFormatProperties2 = NULL;
+	qvkCopyMemoryToImage = NULL;
+	qvkTransitionImageLayout = NULL;
+	qvkCmdPipelineBarrier2 = NULL;
+	qvkQueueSubmit2 = NULL;
 	qvkGetPhysicalDeviceFormatProperties = NULL;
 	qvkGetPhysicalDeviceMemoryProperties = NULL;
 	qvkGetPhysicalDeviceProperties = NULL;

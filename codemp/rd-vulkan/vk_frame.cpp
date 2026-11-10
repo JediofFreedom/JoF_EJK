@@ -723,7 +723,7 @@ void vk_end_frame( void )
         submit_info.pSignalSemaphores = NULL;
     }
 
-    VK_CHECK( qvkQueueSubmit( vk.queue, 1, &submit_info, vk.cmd->rendering_finished_fence ) );
+    VK_CHECK( vk_queue_submit( vk.queue, 1, &submit_info, vk.cmd->rendering_finished_fence ) );
     vk.cmd->waitForFence = qtrue;
 
     // presentation may take undefined time to complete, we can't measure it in a reliable way

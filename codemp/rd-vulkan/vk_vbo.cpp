@@ -539,191 +539,48 @@ void vk_release_model_vbo( void ) {
 	tr.numIBOs = 0;
 }
 
-IBO_t *R_CreateIBO( const char *name, const byte *vbo_data, int vbo_size )
-{
-	VkMemoryRequirements vb_mem_reqs;
-	VkMemoryAllocateInfo alloc_info;
-	VkBufferCreateInfo desc;
-	VkDeviceSize vertex_buffer_offset;
-	VkDeviceSize allocationSize;
-	uint32_t memory_type_bits;
-	VkBuffer staging_vertex_buffer;
-	VkDeviceMemory staging_buffer_memory;
-	VkCommandBuffer command_buffer;
-	VkBufferCopy copyRegion[1];
-	void *data;
-
-	IBO_t          *ibo;
-
-	if ( tr.numIBOs == MAX_VBOS ) {
-		ri.Error( ERR_DROP, "R_CreateVBO: MAX_VBOS hit");
-
-	}
-	vk_release_model_ibo( tr.numIBOs );
-
-	ibo = tr.ibos[tr.numIBOs] = (IBO_t *)ri.Hunk_Alloc(sizeof(*ibo), h_low);
-
-	desc.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	desc.pNext = NULL;
-	desc.flags = 0;
-	desc.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	desc.queueFamilyIndexCount = 0;
-	desc.pQueueFamilyIndices = NULL;
-
-	// device-local buffer
-	desc.size = vbo_size;
-	desc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-	VK_CREATE_BUFFER(vk.device, &desc, &tr.ibos[tr.numIBOs]->buffer, "ibo device-local buffer");
-
-	// staging buffer
-	desc.size = vbo_size;
-	desc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-	VK_CREATE_BUFFER(vk.device, &desc, &staging_vertex_buffer, "ibo staging vertex");
-
-	// memory requirements
-	qvkGetBufferMemoryRequirements( vk.device, tr.ibos[tr.numIBOs]->buffer, &vb_mem_reqs );
-	vertex_buffer_offset = 0;
-	allocationSize = vertex_buffer_offset + vb_mem_reqs.size;
-	memory_type_bits = vb_mem_reqs.memoryTypeBits;
-
-	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	alloc_info.pNext = NULL;
-	alloc_info.allocationSize = allocationSize;
-	alloc_info.memoryTypeIndex = vk_find_memory_type(memory_type_bits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	VK_ALLOCATE_MEMORY_CHECK(vk.device, &alloc_info, &tr.ibos[tr.numIBOs]->memory, "ibo device-local memory" );
-	qvkBindBufferMemory( vk.device, tr.ibos[tr.numIBOs]->buffer, tr.ibos[tr.numIBOs]->memory, vertex_buffer_offset );
-	// staging buffers
-
-	// memory requirements
-	qvkGetBufferMemoryRequirements(vk.device, staging_vertex_buffer, &vb_mem_reqs);
-	vertex_buffer_offset = 0;
-	allocationSize = vertex_buffer_offset + vb_mem_reqs.size;
-	memory_type_bits = vb_mem_reqs.memoryTypeBits;
-
-	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	alloc_info.pNext = NULL;
-	alloc_info.allocationSize = allocationSize;
-	alloc_info.memoryTypeIndex = vk_find_memory_type(memory_type_bits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	VK_ALLOCATE_MEMORY_CHECK(vk.device, &alloc_info, &staging_buffer_memory, "ibo staging vertex" );
-	qvkBindBufferMemory(vk.device, staging_vertex_buffer, staging_buffer_memory, vertex_buffer_offset);
-
-	VK_CHECK(qvkMapMemory(vk.device, staging_buffer_memory, 0, VK_WHOLE_SIZE, 0, &data));
-	memcpy((byte*)data + vertex_buffer_offset, vbo_data, vbo_size);
-	qvkUnmapMemory(vk.device, staging_buffer_memory);
-
-	command_buffer = vk_begin_command_buffer();
-	copyRegion[0].srcOffset = 0;
-	copyRegion[0].dstOffset = 0;
-	copyRegion[0].size = vbo_size;
-	qvkCmdCopyBuffer( command_buffer, staging_vertex_buffer, tr.ibos[tr.numIBOs]->buffer, 1, &copyRegion[0] );
-	vk_end_command_buffer( command_buffer, __func__ );
-
-	VK_DESTROY_BUFFER(vk.device, staging_vertex_buffer);
-	VK_FREE_MEMORY(vk.device, staging_buffer_memory);
-
-	VK_SET_OBJECT_NAME( tr.ibos[tr.numIBOs]->buffer, va( "static IBO[2] %s", name ), VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT );
-	VK_SET_OBJECT_NAME( tr.ibos[tr.numIBOs]->memory, va( "static IBO[2] memory %s", name ), VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT );
-
-	tr.numIBOs++;
-
-	ibo->size = vbo_size;
-	return ibo;
+static void vk_create_static_model_buffer(const char *name, const byte *data, int size,
+    VkBufferUsageFlags usage, VkBuffer *buffer, VkDeviceMemory *memory) {
+    if (size <= 0) { ri.Error(ERR_DROP, "Cannot create an empty Vulkan model buffer"); return; }
+    VkBufferCreateInfo description = {};
+    description.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    description.size = size;
+    description.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage;
+    description.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VK_CREATE_BUFFER(vk.device, &description, buffer, name);
+    VkMemoryRequirements requirements;
+    qvkGetBufferMemoryRequirements(vk.device, *buffer, &requirements);
+    VkMemoryAllocateInfo allocation = {};
+    allocation.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocation.allocationSize = requirements.size;
+    allocation.memoryTypeIndex = vk_find_memory_type(requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    VK_ALLOCATE_MEMORY_CHECK(vk.device, &allocation, memory, name);
+    VK_CHECK(qvkBindBufferMemory(vk.device, *buffer, *memory, 0));
+    vk_upload_buffer_data(*buffer, 0, data, size);
+    VK_SET_OBJECT_NAME(*buffer, name, VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT);
+    VK_SET_OBJECT_NAME(*memory, name, VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT);
 }
 
-VBO_t *R_CreateVBO( const char *name, const byte *vbo_data, int vbo_size )
-{
-	VkMemoryRequirements vb_mem_reqs;
-	VkMemoryAllocateInfo alloc_info;
-	VkBufferCreateInfo desc;
-	VkDeviceSize vertex_buffer_offset;
-	VkDeviceSize allocationSize;
-	uint32_t memory_type_bits;
-	VkBuffer staging_vertex_buffer;
-	VkDeviceMemory staging_buffer_memory;
-	VkCommandBuffer command_buffer;
-	VkBufferCopy copyRegion[1];
-	void *data;
-
-	VBO_t          *vbo;
-
-	if ( tr.numVBOs == MAX_VBOS ) {
-		ri.Error( ERR_DROP, "R_CreateVBO: MAX_VBOS hit");
-
-	}
-
-	vk_release_model_vbo( tr.numVBOs );
-
-	vbo = tr.vbos[tr.numVBOs] = (VBO_t *)ri.Hunk_Alloc(sizeof(*vbo), h_low);
-
-	desc.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	desc.pNext = NULL;
-	desc.flags = 0;
-	desc.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	desc.queueFamilyIndexCount = 0;
-	desc.pQueueFamilyIndices = NULL;
-
-	// device-local buffer
-	desc.size = vbo_size;
-	desc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-	VK_CREATE_BUFFER(vk.device, &desc, &tr.vbos[tr.numVBOs]->buffer, "vbo device local");
-
-	// staging buffer
-	desc.size = vbo_size;
-	desc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-	VK_CREATE_BUFFER(vk.device, &desc, &staging_vertex_buffer, "vbo staging vertex");
-
-	// memory requirements
-	qvkGetBufferMemoryRequirements( vk.device, tr.vbos[tr.numVBOs]->buffer, &vb_mem_reqs );
-	vertex_buffer_offset = 0;
-	allocationSize = vertex_buffer_offset + vb_mem_reqs.size;
-	memory_type_bits = vb_mem_reqs.memoryTypeBits;
-
-	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	alloc_info.pNext = NULL;
-	alloc_info.allocationSize = allocationSize;
-	alloc_info.memoryTypeIndex = vk_find_memory_type(memory_type_bits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-	VK_ALLOCATE_MEMORY_CHECK(vk.device, &alloc_info, &tr.vbos[tr.numVBOs]->memory, "vbo device-local memory" );
-	qvkBindBufferMemory( vk.device, tr.vbos[tr.numVBOs]->buffer, tr.vbos[tr.numVBOs]->memory, vertex_buffer_offset );
-	// staging buffers
-
-	// memory requirements
-	qvkGetBufferMemoryRequirements(vk.device, staging_vertex_buffer, &vb_mem_reqs);
-	vertex_buffer_offset = 0;
-	allocationSize = vertex_buffer_offset + vb_mem_reqs.size;
-	memory_type_bits = vb_mem_reqs.memoryTypeBits;
-
-	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	alloc_info.pNext = NULL;
-	alloc_info.allocationSize = allocationSize;
-	alloc_info.memoryTypeIndex = vk_find_memory_type(memory_type_bits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	VK_ALLOCATE_MEMORY_CHECK(vk.device, &alloc_info, &staging_buffer_memory, "vbo staging vertex" );
-	qvkBindBufferMemory(vk.device, staging_vertex_buffer, staging_buffer_memory, vertex_buffer_offset);
-
-	VK_CHECK(qvkMapMemory(vk.device, staging_buffer_memory, 0, VK_WHOLE_SIZE, 0, &data));
-	memcpy((byte*)data + vertex_buffer_offset, vbo_data, vbo_size);
-	qvkUnmapMemory(vk.device, staging_buffer_memory);
-
-	command_buffer = vk_begin_command_buffer();
-	copyRegion[0].srcOffset = 0;
-	copyRegion[0].dstOffset = 0;
-	copyRegion[0].size = vbo_size;
-	qvkCmdCopyBuffer( command_buffer, staging_vertex_buffer, tr.vbos[tr.numVBOs]->buffer, 1, &copyRegion[0] );
-	vk_end_command_buffer( command_buffer, __func__ );
-
-	VK_DESTROY_BUFFER(vk.device, staging_vertex_buffer);
-	VK_FREE_MEMORY(vk.device, staging_buffer_memory);
-
-	VK_SET_OBJECT_NAME( tr.vbos[tr.numVBOs]->buffer, va( "static VBO[%d] %s", tr.numVBOs, name ), VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT );
-	VK_SET_OBJECT_NAME( tr.vbos[tr.numVBOs]->memory, va( "static VBO[%d] memory %s", tr.numVBOs, name ), VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT );
-
-	vbo->index = tr.numVBOs++;
-	vbo->index++;
-	vbo->size = vbo_size;
-	return vbo;
+IBO_t *R_CreateIBO(const char *name, const byte *data, int size) {
+    if (tr.numIBOs == MAX_VBOS) { ri.Error(ERR_DROP, "R_CreateIBO: MAX_VBOS hit"); return NULL; }
+    vk_release_model_ibo(tr.numIBOs);
+    IBO_t *ibo = tr.ibos[tr.numIBOs] = (IBO_t *)ri.Hunk_Alloc(sizeof(*ibo), h_low);
+    vk_create_static_model_buffer(name, data, size, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, &ibo->buffer, &ibo->memory);
+    ibo->size = size;
+    ++tr.numIBOs;
+    return ibo;
 }
 
+VBO_t *R_CreateVBO(const char *name, const byte *data, int size) {
+    if (tr.numVBOs == MAX_VBOS) { ri.Error(ERR_DROP, "R_CreateVBO: MAX_VBOS hit"); return NULL; }
+    vk_release_model_vbo(tr.numVBOs);
+    VBO_t *vbo = tr.vbos[tr.numVBOs] = (VBO_t *)ri.Hunk_Alloc(sizeof(*vbo), h_low);
+    vk_create_static_model_buffer(name, data, size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, &vbo->buffer, &vbo->memory);
+    vbo->size = size;
+    ++tr.numVBOs;
+    return vbo;
+}
 
-// ~sunny, could be merged with R_CreateVBO using VBO_USAGE_STATIC, VBO_USAGE_DYNAMIC
 VBO_t *R_CreateDynamicVBO( const char *name, int size )
 {
 	VkBufferCreateInfo desc;
@@ -1873,9 +1730,6 @@ qboolean vk_alloc_vbo( const char *name, const byte *vbo_data, int vbo_size )
 	VkDeviceSize vertex_buffer_offset;
 	VkDeviceSize allocationSize;
 	uint32_t memory_type_bits;
-	VkCommandBuffer command_buffer;
-	VkBufferCopy copyRegion[1];
-	VkDeviceSize uploadDone;
 
 	vk_release_world_vbo();
 
@@ -1902,7 +1756,7 @@ qboolean vk_alloc_vbo( const char *name, const byte *vbo_data, int vbo_size )
 	alloc_info.allocationSize = allocationSize;
 	alloc_info.memoryTypeIndex = vk_find_memory_type(memory_type_bits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	VK_ALLOCATE_MEMORY_CHECK(vk.device, &alloc_info, &vk.vbo.buffer_memory, va("vbo vertex memory: %s", name) );
-	qvkBindBufferMemory( vk.device, vk.vbo.vertex_buffer, vk.vbo.buffer_memory, vertex_buffer_offset );
+	VK_CHECK(qvkBindBufferMemory( vk.device, vk.vbo.vertex_buffer, vk.vbo.buffer_memory, vertex_buffer_offset ));
 
 	// staging buffers
 
@@ -1910,21 +1764,7 @@ qboolean vk_alloc_vbo( const char *name, const byte *vbo_data, int vbo_size )
 #ifdef USE_UPLOAD_QUEUE
 	vk_flush_staging_buffer( qfalse );
 #endif
-	uploadDone = 0;
-	while ( uploadDone < vbo_size ) {
-		VkDeviceSize uploadSize = vk.staging_buffer.size;
-		if ( uploadDone + uploadSize > vbo_size ) {
-			uploadSize = vbo_size - uploadDone;
-		}
-		memcpy(vk.staging_buffer.ptr + 0, vbo_data + uploadDone, uploadSize);
-		command_buffer = vk_begin_command_buffer();
-		copyRegion[0].srcOffset = 0;
-		copyRegion[0].dstOffset = uploadDone;
-		copyRegion[0].size = uploadSize;
-		qvkCmdCopyBuffer( command_buffer, vk.staging_buffer.handle, vk.vbo.vertex_buffer, 1, &copyRegion[0] );
-		vk_end_command_buffer( command_buffer, __func__ );
-		uploadDone += uploadSize;
-	}
+	vk_upload_buffer_data(vk.vbo.vertex_buffer, 0, vbo_data, vbo_size);
 
 	VK_SET_OBJECT_NAME( vk.vbo.vertex_buffer, va( "static VBO %s", name ), VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT );
 	VK_SET_OBJECT_NAME( vk.vbo.buffer_memory, va( "static VBO memory %s", name ), VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT );

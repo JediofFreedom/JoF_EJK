@@ -1,3 +1,37 @@
+namespace hostCopyCapabilityTest {
+static bool supported = true, optimal = true;
+static unsigned queries;
+static VkResult VKAPI_CALL query(VkPhysicalDevice, const VkPhysicalDeviceImageFormatInfo2 *request, VkImageFormatProperties2 *properties) {
+    ++queries;
+    CHECK(request->usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT);
+    CHECK(request->usage & VK_IMAGE_USAGE_SAMPLED_BIT);
+    CHECK(request->usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+    if (!supported) return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    auto *performance = static_cast<VkHostImageCopyDevicePerformanceQuery *>(properties->pNext);
+    CHECK(performance->sType == VK_STRUCTURE_TYPE_HOST_IMAGE_COPY_DEVICE_PERFORMANCE_QUERY);
+    performance->optimalDeviceAccess = optimal;
+    properties->imageFormatProperties.maxExtent = {4096, 4096, 1};
+    properties->imageFormatProperties.maxMipLevels = 13;
+    properties->imageFormatProperties.maxArrayLayers = 1;
+    properties->imageFormatProperties.sampleCounts = VK_SAMPLE_COUNT_1_BIT;
+    return VK_SUCCESS;
+}
+static void check() {
+    VkImageCreateInfo image = {};
+    image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO; image.imageType = VK_IMAGE_TYPE_2D;
+    image.tiling = VK_IMAGE_TILING_OPTIMAL; image.format = VK_FORMAT_R8G8B8A8_UNORM;
+    image.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    image.extent = {256, 256, 1}; image.mipLevels = 9; image.arrayLayers = 1; image.samples = VK_SAMPLE_COUNT_1_BIT;
+    CHECK(!VK_CanHostCopyImage(VK_NULL_HANDLE, image, nullptr) && queries == 0);
+    CHECK(VK_CanHostCopyImage(VK_NULL_HANDLE, image, query));
+    optimal = false; CHECK(!VK_CanHostCopyImage(VK_NULL_HANDLE, image, query)); optimal = true;
+    supported = false; CHECK(!VK_CanHostCopyImage(VK_NULL_HANDLE, image, query)); supported = true;
+    image.extent.width = 8192; CHECK(!VK_CanHostCopyImage(VK_NULL_HANDLE, image, query)); image.extent.width = 256;
+    image.mipLevels = 14; CHECK(!VK_CanHostCopyImage(VK_NULL_HANDLE, image, query)); image.mipLevels = 9;
+    image.samples = VK_SAMPLE_COUNT_4_BIT; CHECK(!VK_CanHostCopyImage(VK_NULL_HANDLE, image, query));
+}
+}
+
 namespace rendererLoaderTest {
 #define DEFAULT_RENDER_LIBRARY "rd-vulkan"
 #define FALLBACK_RENDER_LIBRARY "rd-eternaljk"
@@ -218,6 +252,7 @@ static void check() {
     pinned = cache.find("active", bytes); CHECK(!cache.evictIdle());
     pinned.reset(); CHECK(cache.evictIdle() && Resource::count == 0);
     cache.setLimit(0); cache.store("off", bytes, std::make_shared<Resource>(), 50); CHECK(cache.size() == 0 && Resource::count == 0);
+    hostCopyCapabilityTest::check();
     rendererLoaderTest::check(); lodTest::check(); sourceTest::check(); preparationTest::check();
 }
 }

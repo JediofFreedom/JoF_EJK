@@ -77,3 +77,53 @@ file ID, size, high-resolution modification/change times and validated central
 directory checksum. Mounted archives remain immutable, as already required by
 the engine's cached ZIP metadata and offsets. If a reliable identity cannot be
 obtained, GPU reuse is disabled for that source.
+
+## EJK renderer development
+
+This is now an EJK-maintained derivative with its own synchronization,
+transfer batching and pipeline lookup paths. Upstream remains credited;
+importing a current backend does not establish that it is fully optimized.
+
+Core Vulkan 1.3 synchronization2 is queried and enabled only when the instance,
+physical device and feature bit support it. Image/buffer barriers use
+vkCmdPipelineBarrier2 and queue submissions use vkQueueSubmit2. Devices without
+that capability keep native Vulkan synchronization. `r_vulkanSynchronization2 0`
+selects the old synchronization API for comparison. Unsupported submission
+extension chains are preserved through the legacy submit function.
+
+Static model index/vertex data now shares bounded, persistently mapped upload
+storage with textures. It no longer allocates/maps/destroys staging memory
+and submits/waits separately for each model buffer. A batch completes before
+staging reuse, rendering, immediate operations or teardown. Dynamic buffer
+updates retain their existing synchronous path. `r_imageUploadBatch 0` disables
+batching for both images and static geometry. A matched T1_Fatal diagnostic
+reduced queue submissions from 513 to 25 while uploading the same assets.
+
+Pipeline definitions use a hash index over all semantic fields, ignoring
+padding bytes. Base-index selection is preserved and the index rebuilds after
+map truncation/reset. Gamma/capture, bloom and glow pipeline creation now uses
+the driver's pipeline cache too.
+
+Vulkan 1.4 host image copy is implemented for new textures using
+vkTransitionImageLayout/vkCopyMemoryToImage, after querying device features,
+supported layouts, format limits and optimalDeviceAccess. Dynamic updates
+stay queued. Host-copy errors disable that path and fall back to staged data.
+`r_hostImageCopy` defaults to 0: three alternating pairs on the RTX 5070 Ti
+prototype measured 14.178 s staged versus 15.038 s with host copies for the
+three-map cycle. The newer API was slower on this driver; requesting a newer
+API is not a performance guarantee. That comparison preceded the shared
+static-buffer batching change and does not compare against SJK.
+
+Image memory chunks now respect memoryTypeBits when reused across formats and
+usage flags. Khronos core and synchronization validation exposed splash-path
+issues: missing transfer-source usage, discarded uploaded contents, an acquire
+stage dependency and command-buffer reuse without a completion fence. These
+are fixed, including flushing deferred uploads before the splash consumes them.
+
+`tests/loading-audit/vulkan-smoke.ps1` exercises real rendering and can enable
+an external Khronos validation layer without installing or changing driver
+configuration. Unit tests use production feature selection, upload functions,
+pipeline types/keys and synchronization helpers; they cover unsupported devices,
+fallbacks, bounded buffer reuse, mip data, padding-independent keys and reset
+behavior. The local Vulkan SDK was extracted only for validation; the renderer
+still builds with its vendored headers and requires no SDK installation.

@@ -18,6 +18,9 @@
 #include "vk_api_version.h"
 #include "vk_resident_cache.h"
 #include "vk_allocation_ranges.h"
+#include "vk_host_image_copy.h"
+#include "vk_sync2.h"
+#include "vk_pipeline_index.h"
 #include <minizip/unzip.h>
 #include <vulkan/vulkan_core.h>
 
@@ -25,6 +28,7 @@
 #define ARRAY_LEN(x) (sizeof(x) / sizeof((x)[0]))
 #define PAD(v, a) (((v) + (a) - 1) & ~((a) - 1))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define Com_Memset std::memset
 #define Com_Memcpy std::memcpy
 #define S_COLOR_YELLOW ""
@@ -256,9 +260,28 @@ static void check() {
 #include "fs_checks.h"
 
 namespace uploadTest {
-struct image_t { int internalFormat; VkImage handle; };
-static struct { struct { VkDeviceSize size; byte *ptr; VkBuffer handle; } staging_buffer; } vk;
-static struct { size_t uploadBytes; } vkLoadStats;
+struct image_t { int internalFormat; VkImage handle; qboolean hostTransfer; uint32_t mipLevels; };
+static struct { struct { VkDeviceSize size; byte *ptr; VkBuffer handle; } staging_buffer; VkDevice device; qboolean hostImageCopy, synchronization2; } vk;
+static struct { size_t uploadBytes, hostImageCopyBytes, bufferUploadBytes; unsigned hostImageCopies, bufferUploads; int hostImageCopyMs; } vkLoadStats;
+static const int PRINT_WARNING = 1;
+static struct { static int Milliseconds() { return 0; } static void Printf(int, const char *, ...) {} } ri;
+static const char *vk_result_string(VkResult) { return "test error"; }
+static VkResult hostResult = VK_SUCCESS;
+static unsigned hostTransitions, hostCopies;
+static VkResult VKAPI_CALL qvkTransitionImageLayout(VkDevice, uint32_t count, const VkHostImageLayoutTransitionInfo *layout) {
+    CHECK(count == 1 && layout->oldLayout == VK_IMAGE_LAYOUT_UNDEFINED);
+    CHECK(layout->newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    CHECK(layout->subresourceRange.baseMipLevel == 0 && layout->subresourceRange.levelCount == 2);
+    ++hostTransitions; return VK_SUCCESS;
+}
+static VkResult VKAPI_CALL qvkCopyMemoryToImage(VkDevice, const VkCopyMemoryToImageInfo *copy) {
+    CHECK(copy->regionCount == 2 && copy->dstImageLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    CHECK(copy->pRegions[0].imageSubresource.mipLevel == 0 && copy->pRegions[1].imageSubresource.mipLevel == 1);
+    const auto *first = static_cast<const byte *>(copy->pRegions[0].pHostPointer);
+    CHECK(copy->pRegions[1].pHostPointer == first + 16);
+    CHECK(first[0] == 1 && first[16] == 13);
+    ++hostCopies; return hostResult;
+}
 static struct Cvar { int integer; } setting = {1}, *r_imageUploadBatch = &setting;
 static VkCommandBuffer image_upload_commands;
 static VkDeviceSize image_upload_used;
@@ -268,6 +291,10 @@ static byte *R_ImageScratchAlloc(int *, size_t size) { converted.resize(size); r
 struct Copy { VkImage image; VkDeviceSize offset; size_t size; };
 static std::vector<Copy> pending;
 static std::map<VkImage, std::vector<byte>> gpu;
+struct BufferCopy { VkBuffer buffer; VkDeviceSize source, destination, size; };
+static std::vector<BufferCopy> pendingBuffers;
+static std::map<VkBuffer, std::vector<byte>> gpuBuffers;
+static int bufferBarriers;
 static int submissions;
 static void R_InvalidateResidentTexture(image_t *) {}
 static void vk_flush_image_uploads();
@@ -275,6 +302,12 @@ static VkCommandBuffer vk_begin_command_buffer() { return reinterpret_cast<VkCom
 static void vk_end_command_buffer(VkCommandBuffer, const char *) {
     vk_flush_image_uploads();
     for (auto &copy : pending) gpu[copy.image].assign(vk.staging_buffer.ptr + copy.offset, vk.staging_buffer.ptr + copy.offset + copy.size);
+    for (auto &copy : pendingBuffers) {
+        auto &bytes = gpuBuffers[copy.buffer];
+        bytes.resize(std::max(bytes.size(), size_t(copy.destination + copy.size)));
+        std::copy_n(vk.staging_buffer.ptr + copy.source, size_t(copy.size), bytes.begin() + size_t(copy.destination));
+    }
+    pendingBuffers.clear();
     pending.clear(); ++submissions;
 }
 static void vk_alloc_staging_buffer(VkDeviceSize size) {
@@ -282,6 +315,25 @@ static void vk_alloc_staging_buffer(VkDeviceSize size) {
     vk.staging_buffer.size = size; vk.staging_buffer.ptr = static_cast<byte *>(std::malloc(size));
 }
 static int rygCompressedSize(int w, int h) { return ((w + 3) / 4) * ((h + 3) / 4) * 16; }
+static void qvkCmdCopyBuffer(VkCommandBuffer, VkBuffer, VkBuffer destination, int count, const VkBufferCopy *copy) {
+    CHECK(count == 1 && copy->srcOffset % 4 == 0 && copy->dstOffset % 4 == 0 && copy->size % 4 == 0);
+    CHECK(copy->srcOffset + copy->size <= vk.staging_buffer.size);
+    pendingBuffers.push_back({destination, copy->srcOffset, copy->dstOffset, copy->size});
+}
+static void VKAPI_CALL qvkCmdPipelineBarrier(VkCommandBuffer, VkPipelineStageFlags source, VkPipelineStageFlags destination,
+    VkDependencyFlags, uint32_t, const VkMemoryBarrier *, uint32_t count, const VkBufferMemoryBarrier *buffers,
+    uint32_t imageCount, const VkImageMemoryBarrier *) {
+    CHECK(source == VK_PIPELINE_STAGE_TRANSFER_BIT && destination == VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
+    CHECK(count == 1 && imageCount == 0 && buffers->srcAccessMask == VK_ACCESS_TRANSFER_WRITE_BIT);
+    CHECK(buffers->dstAccessMask == (VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_INDEX_READ_BIT)); ++bufferBarriers;
+}
+static void VKAPI_CALL qvkCmdPipelineBarrier2(VkCommandBuffer, const VkDependencyInfo *dependency) {
+    CHECK(dependency->bufferMemoryBarrierCount == 1);
+    const auto &buffer = dependency->pBufferMemoryBarriers[0];
+    CHECK(buffer.srcStageMask == VK_PIPELINE_STAGE_2_COPY_BIT);
+    CHECK(buffer.dstStageMask == (VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT | VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT));
+    CHECK(buffer.srcAccessMask == VK_ACCESS_2_TRANSFER_WRITE_BIT); ++bufferBarriers;
+}
 static void vk_record_image_layout_transition(VkCommandBuffer, VkImage, VkImageAspectFlags, VkImageLayout, VkImageLayout, uint32_t, uint32_t) {}
 static void qvkCmdCopyBufferToImage(VkCommandBuffer, VkBuffer, VkImage image, VkImageLayout, int count, const VkBufferImageCopy *regions) {
     CHECK(regions[0].bufferOffset % 16 == 0);
@@ -316,11 +368,42 @@ static void check() {
     vk_upload_image_data(&a, 0, 0, 1, 1, 1, data, 4, qtrue);
     CHECK(submissions == 4 && image_upload_used == 0 && pending.empty());
     vk_alloc_staging_buffer(64); CHECK(submissions == 4);
+    a.hostTransfer = qtrue; a.mipLevels = 2; vk.hostImageCopy = qtrue;
+    vk_upload_image_data(&a, 0, 0, 2, 2, 2, data, 20, qfalse);
+    CHECK(hostTransitions == 1 && hostCopies == 1 && vkLoadStats.hostImageCopies == 1);
+    CHECK(vkLoadStats.hostImageCopyBytes == 20 && submissions == 4 && pending.empty());
+    // Updates to potentially in-flight textures must stay on the queued path.
+    vk_upload_image_data(&a, 0, 0, 2, 2, 2, data, 20, qtrue);
+    CHECK(submissions == 5 && hostCopies == 1);
+    // A driver host-copy error disables that path and repopulates via staging.
+    hostResult = VK_ERROR_MEMORY_MAP_FAILED;
+    vk_upload_image_data(&a, 0, 0, 2, 2, 2, data, 20, qfalse);
+    CHECK(hostCopies == 2 && !vk.hostImageCopy && submissions == 6);
+    CHECK(gpu[a.handle] == std::vector<byte>(data, data + 20));
+    setting.integer = 1;
+    const VkBuffer buffer = (VkBuffer)(uintptr_t)3;
+    const std::vector<byte> expected(data, data + 20);
+    vk_upload_buffer_data(buffer, 0, data, 20);
+    CHECK(submissions == 6 && pendingBuffers.size() == 1 && gpuBuffers.empty());
+    image_upload_used = vk.staging_buffer.size - 16;
+    vk_upload_buffer_data(buffer, 20, data, 20); // Flush before reusing the mapped bytes.
+    CHECK(submissions == 7 && gpuBuffers[buffer] == expected);
+    vk_flush_image_uploads(); CHECK(submissions == 8 && gpuBuffers[buffer].size() == 40);
+    CHECK(std::equal(expected.begin(), expected.end(), gpuBuffers[buffer].begin() + 20));
+    // A large world buffer spans bounded batches without retaining the caller's data.
+    std::vector<byte> world(32 * 1024 * 1024 + 16);
+    for (size_t i = 0; i < world.size(); ++i) world[i] = byte(i * 19u + (i >> 12));
+    vk.synchronization2 = qtrue;
+    vk_upload_buffer_data(buffer, 0, world.data(), world.size());
+    CHECK(submissions == 9 && pendingBuffers.size() == 1);
+    vk_flush_image_uploads(); CHECK(submissions == 10 && gpuBuffers[buffer] == world);
+    CHECK(bufferBarriers == 4 && vkLoadStats.bufferUploads == 3);
     std::free(vk.staging_buffer.ptr);
 }
 }
 
 #include "modern_checks.h"
+#include "vulkan_modern_checks.h"
 
 int main(int argc, char **argv) {
     CHECK(argc == 2);
@@ -331,5 +414,6 @@ int main(int argc, char **argv) {
     modelTest::check(); cosmeticTest::check(); jpegTest::check(); uploadTest::check();
     filesystemTest::check(argv[1]);
     modernTest::check();
+    deviceFeatureTest::check(); pipelineIndexTest::check(); synchronization2Test::check();
     CHECK(allocations == 0); std::puts("Loading audit regressions passed.");
 }

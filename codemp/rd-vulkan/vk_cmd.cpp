@@ -22,6 +22,11 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include "vk_sync2.h"
+
+VkResult vk_queue_submit(VkQueue queue, uint32_t count, const VkSubmitInfo *submits, VkFence fence) {
+	return VK_SubmitCommands(queue, count, submits, fence, qvkQueueSubmit, vk.synchronization2 ? qvkQueueSubmit2 : nullptr);
+}
 
 void vk_create_command_pool( void )
 {
@@ -127,7 +132,7 @@ void vk_end_command_buffer( VkCommandBuffer command_buffer, const char *location
     submit_info.signalSemaphoreCount = 0;
     submit_info.pSignalSemaphores = NULL;
 
-    VK_CHECK( qvkQueueSubmit( vk.queue, 1, &submit_info, VK_NULL_HANDLE ) );
+    VK_CHECK( vk_queue_submit( vk.queue, 1, &submit_info, VK_NULL_HANDLE ) );
 
 	const int waitStarted = ri.Milliseconds();
 	VK_CHECK( qvkQueueWaitIdle( vk.queue ) );

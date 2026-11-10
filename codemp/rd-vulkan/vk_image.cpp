@@ -23,6 +23,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "tr_local.h"
 #include "vk_resident_cache.h"
+#include "vk_host_image_copy.h"
+#include "vk_sync2.h"
 #include "vk_allocation_ranges.h"
 vkLoadStats_t vkLoadStats = {};
 
@@ -624,7 +626,7 @@ void vk_record_image_layout_transition( VkCommandBuffer cmdBuf, VkImage image,
 	barrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
 
-	qvkCmdPipelineBarrier(cmdBuf, src_stage, dst_stage, 0, 0, NULL, 0, NULL, 1, &barrier);
+	VK_ImageBarrier(cmdBuf, src_stage, dst_stage, barrier, qvkCmdPipelineBarrier, vk.synchronization2 ? qvkCmdPipelineBarrier2 : nullptr);
 }
 
 void vk_upload_image( image_t *image, byte *pic ) {
@@ -894,6 +896,43 @@ void vk_flush_image_uploads(void) {
 	}
 }
 
+static VkDeviceSize vk_reserve_upload_bytes(VkDeviceSize size, bool batch) {
+	if (!batch) vk_flush_image_uploads();
+	const VkDeviceSize capacity = batch ? MAX(size, 32 * 1024 * 1024) : size;
+	if (vk.staging_buffer.size < capacity) vk_alloc_staging_buffer(capacity);
+	VkDeviceSize offset = PAD(image_upload_used, 16);
+	if (offset > vk.staging_buffer.size || size > vk.staging_buffer.size - offset) {
+		vk_flush_image_uploads();
+		offset = 0;
+	}
+	if (image_upload_commands == VK_NULL_HANDLE) image_upload_commands = vk_begin_command_buffer();
+	image_upload_used = offset + size;
+	return offset;
+}
+
+void vk_upload_buffer_data(VkBuffer destination, VkDeviceSize destinationOffset, const byte *data, VkDeviceSize size) {
+	const bool batch = r_imageUploadBatch && r_imageUploadBatch->integer;
+	++vkLoadStats.bufferUploads;
+	vkLoadStats.bufferUploadBytes += size;
+	while (size) {
+		const VkDeviceSize bytes = MIN(size, 32 * 1024 * 1024);
+		const VkDeviceSize offset = vk_reserve_upload_bytes(bytes, batch);
+		Com_Memcpy(vk.staging_buffer.ptr + offset, data, size_t(bytes));
+		VkBufferCopy copy = {offset, destinationOffset, bytes};
+		qvkCmdCopyBuffer(image_upload_commands, vk.staging_buffer.handle, destination, 1, &copy);
+		VkBufferMemoryBarrier barrier = {};
+		barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_INDEX_READ_BIT;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.buffer = destination; barrier.offset = destinationOffset; barrier.size = bytes;
+		VK_BufferBarrier(image_upload_commands, barrier, qvkCmdPipelineBarrier, vk.synchronization2 ? qvkCmdPipelineBarrier2 : nullptr);
+		data += size_t(bytes); destinationOffset += bytes; size -= bytes;
+		if (!batch) vk_flush_image_uploads();
+	}
+}
+
 void vk_clean_staging_buffer( void )
 {
 	vk_flush_image_uploads();
@@ -977,13 +1016,13 @@ void vk_flush_staging_buffer( qboolean final )
 		submit_info.signalSemaphoreCount = 1;
 		submit_info.pSignalSemaphores = &vk.image_uploaded2;
 		vk.image_uploaded = vk.image_uploaded2;
-		VK_CHECK( qvkQueueSubmit( vk.queue, 1, &submit_info, vk.aux_fence ) );
+		VK_CHECK( vk_queue_submit( vk.queue, 1, &submit_info, vk.aux_fence ) );
 		vk.aux_fence_wait = qtrue;
 	} else {
 		// if submission before another upload then do explicit wait
 		submit_info.signalSemaphoreCount = 0;
 		submit_info.pSignalSemaphores = NULL;
-		VK_CHECK( qvkQueueSubmit( vk.queue, 1, &submit_info, vk.aux_fence ) );
+		VK_CHECK( vk_queue_submit( vk.queue, 1, &submit_info, vk.aux_fence ) );
 		res = qvkWaitForFences( vk.device, 1, &vk.aux_fence, VK_TRUE, 5 * 1000000000ULL );
 		if ( res != VK_SUCCESS ) {
 			ri.Error( ERR_FATAL, "vkWaitForFences() failed with %s at %s", vk_result_string( res ), __func__ );
@@ -1173,6 +1212,21 @@ void vk_upload_image_data( image_t *image, int x, int y, int width,
 		if (height < 1) height = 1;
 	}
 	vkLoadStats.uploadBytes += buffer_size;
+	if (!update && image->hostTransfer && vk.hostImageCopy) {
+		const int started = ri.Milliseconds();
+		const VkResult result = VK_UploadHostImage(vk.device, image->handle, image->mipLevels, regions,
+			num_regions, buf, buffer_size, qvkTransitionImageLayout, qvkCopyMemoryToImage);
+		vkLoadStats.hostImageCopyMs += ri.Milliseconds() - started;
+		if (result == VK_SUCCESS) {
+			++vkLoadStats.hostImageCopies;
+			vkLoadStats.hostImageCopyBytes += buffer_size;
+			return;
+		}
+		// No submitted GPU command references this new image. Its contents may
+		// safely be discarded and populated by the existing staged upload path.
+		vk.hostImageCopy = qfalse;
+		ri.Printf(PRINT_WARNING, "Vulkan host image copy disabled after %s; using staging uploads\n", vk_result_string(result));
+	}
 
 #ifdef USE_UPLOAD_QUEUE
 	if ( vk_wait_staging_buffer() ) {
@@ -1227,20 +1281,11 @@ void vk_upload_image_data( image_t *image, int x, int y, int width,
 	vk_record_image_layout_transition( command_buffer, image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 0, 0 );
 #else
 	const bool batch = r_imageUploadBatch && r_imageUploadBatch->integer;
-	if (!batch) vk_flush_image_uploads();
-	const VkDeviceSize capacity = batch ? MAX(buffer_size, 32 * 1024 * 1024) : buffer_size;
-	if (vk.staging_buffer.size < capacity) vk_alloc_staging_buffer(capacity);
-	VkDeviceSize offset = PAD(image_upload_used, 16);
-	if (offset > vk.staging_buffer.size || VkDeviceSize(buffer_size) > vk.staging_buffer.size - offset) {
-		vk_flush_image_uploads();
-		offset = 0;
-	}
+	const VkDeviceSize offset = vk_reserve_upload_bytes(buffer_size, batch);
 	Com_Memcpy(vk.staging_buffer.ptr + offset, buf, buffer_size);
 	for (int regionIndex = 0; regionIndex < num_regions; ++regionIndex)
 		regions[regionIndex].bufferOffset += offset;
-	if (image_upload_commands == VK_NULL_HANDLE) image_upload_commands = vk_begin_command_buffer();
 	command_buffer = image_upload_commands;
-	image_upload_used = offset + buffer_size;
 	// record_buffer_memory_barrier( command_buffer, vk_world.staging_buffer, VK_WHOLE_SIZE, 0, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_HOST_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT );
 	if ( update ) {
 		vk_record_image_layout_transition( command_buffer, image->handle, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0, 0 );
@@ -1321,7 +1366,8 @@ static void allocate_and_bind_image_memory( image_t *image ) {
 		// ensure that memory region has proper alignment
 		VkDeviceSize offset = PAD(vk_world.image_chunks[i].used, alignment);
 
-		if (offset + memory_requirements.size <= vk_world.image_chunks[i].size) {
+		if ((memory_requirements.memoryTypeBits & (1u << vk_world.image_chunks[i].memoryType)) &&
+			offset + memory_requirements.size <= vk_world.image_chunks[i].size) {
 			chunk = &vk_world.image_chunks[i];
 			chunk->used = offset + memory_requirements.size;
 			chunk->items++;
@@ -1367,6 +1413,7 @@ static void allocate_and_bind_image_memory( image_t *image ) {
 		chunk->used = memory_requirements.size;
 		chunk->size = size;
 		chunk->items = 1;
+		chunk->memoryType = alloc_info.memoryTypeIndex;
 
 		VK_SET_OBJECT_NAME(memory, va("image memory chunk %i", vk_world.num_image_chunks), VK_DEBUG_REPORT_OBJECT_TYPE_DEVICE_MEMORY_EXT);
 
@@ -1465,10 +1512,14 @@ void vk_create_image( image_t *image, int width, int height, int mip_levels ) {
 		desc.samples = VK_SAMPLE_COUNT_1_BIT;
 		desc.tiling = VK_IMAGE_TILING_OPTIMAL;
 		desc.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		if (image->flags & IMGFLAG_TRANSFER_SRC) desc.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 		desc.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		desc.queueFamilyIndexCount = 0;
 		desc.pQueueFamilyIndices = NULL;
 		desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		image->hostTransfer = vk.hostImageCopy && VK_CanHostCopyImage(vk.physical_device, desc,
+			qvkGetPhysicalDeviceImageFormatProperties2) ? qtrue : qfalse;
+		if (image->hostTransfer) desc.usage |= VK_IMAGE_USAGE_HOST_TRANSFER_BIT;
 		VK_CHECK( qvkCreateImage( vk.device, &desc, NULL, &image->handle ) );
 
 		allocate_and_bind_image_memory( image );

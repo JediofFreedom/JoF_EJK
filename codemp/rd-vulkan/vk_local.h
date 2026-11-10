@@ -79,6 +79,11 @@ struct vkLoadStats_t {
 	unsigned imageLoads, uploadSubmissions;
 	int imageDecodeMs, imageCreateMs, uploadWaitMs;
 	uint64_t uploadBytes;
+	unsigned hostImageCopies;
+	int hostImageCopyMs;
+	uint64_t hostImageCopyBytes;
+	unsigned bufferUploads;
+	uint64_t bufferUploadBytes;
 };
 extern vkLoadStats_t vkLoadStats;
 
@@ -307,6 +312,13 @@ extern PFN_vkEnumerateDeviceExtensionProperties	    	qvkEnumerateDeviceExtension
 extern PFN_vkEnumeratePhysicalDevices					qvkEnumeratePhysicalDevices;
 extern PFN_vkGetDeviceProcAddr							qvkGetDeviceProcAddr;
 extern PFN_vkGetPhysicalDeviceFeatures					qvkGetPhysicalDeviceFeatures;
+extern PFN_vkGetPhysicalDeviceFeatures2 qvkGetPhysicalDeviceFeatures2;
+extern PFN_vkGetPhysicalDeviceProperties2 qvkGetPhysicalDeviceProperties2;
+extern PFN_vkGetPhysicalDeviceImageFormatProperties2 qvkGetPhysicalDeviceImageFormatProperties2;
+extern PFN_vkCopyMemoryToImage qvkCopyMemoryToImage;
+extern PFN_vkTransitionImageLayout qvkTransitionImageLayout;
+extern PFN_vkCmdPipelineBarrier2 qvkCmdPipelineBarrier2;
+extern PFN_vkQueueSubmit2 qvkQueueSubmit2;
 extern PFN_vkGetPhysicalDeviceFormatProperties			qvkGetPhysicalDeviceFormatProperties;
 extern PFN_vkGetPhysicalDeviceMemoryProperties			qvkGetPhysicalDeviceMemoryProperties;
 extern PFN_vkGetPhysicalDeviceProperties				qvkGetPhysicalDeviceProperties;
@@ -548,6 +560,7 @@ struct ImageChunk_t {
 	uint32_t used;
 	uint32_t size;
 	uint32_t items;
+	uint32_t memoryType;
 };
 
 struct Image_Upload_Data  {
@@ -629,6 +642,9 @@ typedef struct vk_tess_s {
 // This structure is initialized/deinitialized by vk_initialize/vk_shutdown functions correspondingly.
 typedef struct {
 	VkInstance			instance;
+	uint32_t instanceApiVersion;
+	qboolean hostImageCopy;
+	qboolean synchronization2;
 	VkPhysicalDevice	physical_device;
 	VkSurfaceKHR		surface;
 	VkSurfaceFormatKHR	base_format;
@@ -1088,6 +1104,8 @@ void		vk_destroy_shader_modules( void );
 // command
 VkCommandBuffer vk_begin_command_buffer( void );
 void		vk_end_command_buffer( VkCommandBuffer command_buffer, const char *location );
+void vk_upload_buffer_data(VkBuffer destination, VkDeviceSize destinationOffset, const byte *data, VkDeviceSize size);
+VkResult vk_queue_submit(VkQueue queue, uint32_t count, const VkSubmitInfo *submits, VkFence fence);
 void		vk_create_command_pool( void );
 void vk_flush_image_uploads(void);
 void		vk_create_command_buffer( void );

@@ -22,6 +22,28 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include "vk_pipeline_index.h"
+
+static VkPipelineKey vk_pipeline_key(const Vk_Pipeline_Def &definition) {
+	// Any layout expansion must update this projection so distinct GPU states
+	// cannot accidentally share a pipeline. Padding bytes never enter the key.
+#ifdef USE_VBO
+	static_assert(sizeof(Vk_Pipeline_Def) == 64, "Update the Vulkan pipeline key for the changed definition");
+#else
+	static_assert(sizeof(Vk_Pipeline_Def) == 56, "Update the Vulkan pipeline key for the changed definition");
+#endif
+	return {{definition.state_bits, uint32_t(definition.face_culling), uint32_t(definition.polygon_offset),
+		uint32_t(definition.mirror),
+#ifdef USE_VBO
+		uint32_t(definition.vbo_ghoul2), uint32_t(definition.vbo_mdv),
+#else
+		0, 0,
+#endif
+		uint32_t(definition.shader_type), uint32_t(definition.shadow_phase), uint32_t(definition.primitives),
+		definition.surface_sprite_flags, uint32_t(definition.line_width), uint32_t(definition.fog_stage),
+		uint32_t(definition.abs_light), uint32_t(definition.allow_discard), uint32_t(definition.acff),
+		uint32_t(definition.color.rgb) | (uint32_t(definition.color.alpha) << 8)}};
+}
 
 #define VK_POSTFX_PIPELINE_GAMMA			0
 #define VK_POSTFX_PIPELINE_BLOOM_EXTRACT	1
@@ -1681,7 +1703,7 @@ static void vk_create_post_process_pipeline( int program_index, uint32_t width, 
     create_info.basePipelineHandle = VK_NULL_HANDLE;
     create_info.basePipelineIndex = -1;
 
-    VK_CHECK( qvkCreateGraphicsPipelines( vk.device, VK_NULL_HANDLE, 1, &create_info, NULL, pipeline ) );
+    VK_CHECK( qvkCreateGraphicsPipelines( vk.device, vk.pipelineCache, 1, &create_info, NULL, pipeline ) );
     VK_SET_OBJECT_NAME( *pipeline, pipeline_name, VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT );
 }
 
@@ -1873,7 +1895,7 @@ static void vk_create_blur_pipeline( char *name, int program_index, uint32_t ind
     create_info.basePipelineHandle = VK_NULL_HANDLE;
     create_info.basePipelineIndex = -1;
 
-    VK_CHECK( qvkCreateGraphicsPipelines( vk.device, VK_NULL_HANDLE, 1, &create_info, NULL, pipeline ) );
+    VK_CHECK( qvkCreateGraphicsPipelines( vk.device, vk.pipelineCache, 1, &create_info, NULL, pipeline ) );
     VK_SET_OBJECT_NAME( *pipeline, va( "%s %s blur pipeline %i", name, horizontal_pass ? "horizontal" : "vertical", index / 2 + 1 ), VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT );
 }
 
@@ -1910,19 +1932,22 @@ VkPipeline vk_gen_pipeline( uint32_t index ) {
 }
 
 uint32_t vk_find_pipeline_ext( uint32_t base, const Vk_Pipeline_Def *def, qboolean use ) {
-    const Vk_Pipeline_Def *cur_def;
+    static VkPipelineIndex lookup;
+    static uint32_t indexed = 0;
     uint32_t index;
-
-    for (index = base; index < vk.pipelines_count; index++) {
-        cur_def = &vk.pipelines[index].def;
-        if (memcmp(cur_def, def, sizeof(*def)) == 0) {
-            goto found;
-        }
+    if (indexed != vk.pipelines_count) {
+        // Map teardown retains persistent definitions and discards the rest.
+        lookup.clear();
+        for (index = 0; index < vk.pipelines_count; ++index)
+            lookup.add(vk_pipeline_key(vk.pipelines[index].def), index);
+        indexed = vk.pipelines_count;
     }
-
-    index = vk_alloc_pipeline(def);
-
-found:
+    const VkPipelineKey key = vk_pipeline_key(*def);
+    if (!lookup.find(key, base, index)) {
+        index = vk_alloc_pipeline(def);
+        lookup.add(key, index);
+        indexed = vk.pipelines_count;
+    }
     if (use)
         vk_gen_pipeline(index);
 

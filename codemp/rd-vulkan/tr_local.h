@@ -235,6 +235,7 @@ typedef enum
 	IMGFLAG_NOSCALE			= 0x0080,
 	IMGFLAG_RGB				= 0x0100,
 	IMGFLAG_COLORSHIFT		= 0x0200,
+	IMGFLAG_TRANSFER_SRC		= 0x0400,
 } imgFlags_t;
 
 #if defined( _WIN32 )
@@ -276,6 +277,7 @@ typedef struct image_s {
 	VkDescriptorSet			descriptor_set;
 	VkDeviceMemory residentMemory; // Individually owned; survives map descriptor resets.
 	size_t residentSourceBytes;
+	qboolean hostTransfer;
 	qboolean				isLightmap;
 	uint32_t				mipLevels;		// gl texture binding
 	VkSamplerAddressMode	wrapClampMode;

@@ -139,3 +139,54 @@ backend with no OpenGL context or OpenGL import callbacks. Header/API version
 updates alone are not performance improvements. See the renderer's
 [upstream notes](../../codemp/rd-vulkan/UPSTREAM.md) for audited upstream
 commits, the adapted model LOD fix and renderer API compatibility requirements.
+
+### EJK Vulkan transfer and synchronization follow-up
+
+The renderer now shares bounded staging storage between textures and static
+model/world buffers. It avoids a separate staging allocation, mapping,
+submission and queue-idle wait for each model buffer. Core Vulkan 1.3 devices
+use synchronization2 barriers/submissions after feature queries; older devices
+keep native Vulkan synchronization. Pipeline lookup uses complete semantic keys
+instead of linear scans/struct padding, and post-processing pipelines also use
+the persistent driver cache. Khronos validation exposed splash transfer usage,
+layout preservation, acquisition ordering and command-buffer lifetime issues;
+these are fixed.
+
+On the same hardware/data/settings as above, three alternating pairs compare
+the deployed `9c240af` renderer with this follow-up. Profiles are fresh, the OS
+cache stays warm, and no local compilation or other game client ran during the
+measurements. Both variants retain the same 512 MiB texture cache and VBO paths.
+
+| Measurement, median of three | Previous deployed renderer | EJK follow-up |
+| --- | ---: | ---: |
+| Complete three-map client cycle | 13.163 s | 12.526 s |
+| First T1_Fatal, handoff to first active frame | 3.401 s | 3.272 s |
+| mp/ffa3, handoff to first active frame | 1.862 s | 1.761 s |
+| T1_Fatal revisit, handoff to first active frame | 2.477 s | 2.192 s |
+
+The full cycle is about 5% shorter; map handoffs are about 4%, 5% and 12%
+shorter. A matched T1_Fatal diagnostic reduced queue submissions from 513 to 25
+while retaining 883 image loads and approximately 652 MiB of image data.
+These results do not establish an FPS improvement or a lead over SJK.
+
+The optional Vulkan 1.4 host image-copy path queries format/layout/feature
+support and optimal device access. An earlier controlled prototype test found
+it slower on this driver (14.178 s staged / 15.038 s host, three paired runs).
+It defaults off as `r_hostImageCopy 0`; the prototype comparison preceded shared
+static-buffer batching. A newer API is not sufficient evidence of a speed gain.
+
+For real world/model/cosmetic rendering, equip, video restart and map-change
+checks, with optional external Khronos core/synchronization validation:
+
+```powershell
+./tests/loading-audit/vulkan-smoke.ps1 -BinaryDirectory C:/build/Release -GameData C:/Games/JediAcademy/GameData -OutputDirectory C:/bench/vulkan-check -ValidationLayerDirectory C:/VulkanSDK/1.4.363.1/Bin
+```
+
+The script uses an isolated profile and restores its environment settings.
+It requires all four screenshots, clean texture-cache teardown and zero
+validation errors/warnings. `-Synchronization2 0`, `-UploadBatch 0`,
+`-HostImageCopy 1`, `-TextureBits 16` and `-TextureCacheMegs 0` exercise alternative
+paths. Use a fresh output directory for every run. The production-function
+regressions additionally check old-device feature gates, host-copy failures,
+mip offsets, mixed upload bytes, large-buffer boundaries, semantic pipeline
+keys/base indices/reset, and synchronization2 submission/barrier translation.
