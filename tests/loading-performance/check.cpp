@@ -100,6 +100,7 @@ static qboolean Com_FilterPath(const char *filter, const char *name, qboolean) {
 }
 #include "filesystem.h"
 #include "ui_checks.h"
+#include "head_checks.h"
 
 using Clock = std::chrono::steady_clock;
 static double milliseconds(Clock::time_point start) {
@@ -277,6 +278,7 @@ int main(int argc, char **argv) {
     asyncTest::check();
     cosmeticsTest::check();
     pathsTest::check();
+    headsTest::check();
     std::string parent = argv[1];
     parent = parent.substr(0, parent.find_last_of("/\\") + 1);
     CHECK(!FS_LoadZipFile((parent + "long-name.pk3").c_str(), "invalid"));

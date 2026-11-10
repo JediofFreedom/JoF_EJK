@@ -12,6 +12,9 @@ entry order, offsets, lengths, CRC reads, regular/pure checksums and cleanup.
 They also cover sorted name indexes, selective model-directory queries,
 thread-local path buffers, UI worker restart/cancellation after shutdown and
 cosmetics registered once when first needed, including legacy and missing items.
+Model-catalogue checks also ensure physical thumbnails are not registered while
+enumerating models, while shader-only icons and missing-icon fallbacks retain
+their behavior. Visible thumbnails use the feeder's existing lazy loading path.
 The optimized shader test also bounds parsed tokens so a full-library scan
 cannot quietly return. Timing has no pass/fail threshold.
 
@@ -117,3 +120,19 @@ The extra index adds about 0.3 MB for this installation and some mounting work.
 Deferring cosmetic assets changes where their first-use cost is paid. In the
 three full runs, `CL_InitCGame` alone rose from 2.28 s to 2.78 s while the entire
 cycle got shorter. That partial timer should not be used as total join time.
+
+## Late thumbnail registration and render-command safety
+
+Cataloguing models was still registering every thumbnail with the renderer.
+Physical thumbnails now remain uncached until the model grid displays them.
+This avoids hidden image decoding, uploads and shader-table insertions during
+loading or play. Shader-only icons and the existing missing-icon fallback path
+are still resolved during discovery.
+
+A reported vanilla crash entered `RB_BeginSurface` with a null shader. The
+renderer command fix-up loop could walk past the current batch's `used` bytes
+into old commands and shift the same surface's shader index twice. Both vanilla
+and Rend2 now stop at the current batch end. See the independent
+[shader-registration regression](../renderer-shader-registration/README.md),
+which fails before this bounds fix and passes after it on x86/x64 and under
+AddressSanitizer. No new live-server performance claim follows from that fix.

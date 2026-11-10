@@ -13253,7 +13253,8 @@ void UI_BuildQ3Model_List_ProcessDir(char* dirptr, char* filelist, int numfiles)
 		}
 
 		check = &skinname[1];
-		if (bIsImageFile(dirptr, check) || bIsSkinFile(dirptr, check))
+		const qboolean hasImage = bIsImageFile(dirptr, check);
+		if (hasImage || bIsSkinFile(dirptr, check))
 		{
 			qboolean iconExists = qfalse;
 
@@ -13282,6 +13283,10 @@ void UI_BuildQ3Model_List_ProcessDir(char* dirptr, char* filelist, int numfiles)
 			            va("%s%s", dirptr, skinname));
 			uiInfo.q3HeadIcons[uiInfo.q3HeadCount] = 0;
 
+			// The feeder already loads uncached icons when they are drawn. Do
+			// not decode/upload every installed thumbnail while joining or
+			// playing. Resolve missing-file shaders/fallbacks as before.
+			if (!hasImage)
 			{
 				char iconPath[MAX_QPATH] = {0};
 
