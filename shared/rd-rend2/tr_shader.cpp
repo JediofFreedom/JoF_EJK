@@ -4381,6 +4381,9 @@ static const char *FindShaderInShaderText( const char *shadername ) {
 			if(!Q_stricmp(token, shadername))
 				return p;
 		}
+		// Every definition is indexed, including empty buckets. A miss here
+		// is an implicit image shader; scanning all scripts again is redundant.
+		return NULL;
 	}
 
 	p = s_shaderText;

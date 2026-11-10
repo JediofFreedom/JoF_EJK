@@ -33,6 +33,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -2372,25 +2373,44 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 	int				fs_numHeaderLongs;
 	int				*fs_headerLongs;
 	char			*namePtr;
+	struct zipEntry_t {
+		std::string name;
+		unsigned long pos, len, crc;
+	};
+	std::vector<zipEntry_t> entries;
 
 	fs_numHeaderLongs = 0;
 
 	uf = unzOpen(zipfile);
+	if ( !uf ) {
+		return NULL;
+	}
 	err = unzGetGlobalInfo (uf,&gi);
 
-	if (err != UNZ_OK)
+	if (err != UNZ_OK) {
+		unzClose(uf);
 		return NULL;
+	}
 
 	len = 0;
-	unzGoToFirstFile(uf);
+	entries.reserve(gi.number_entry);
+	err = unzGoToFirstFile(uf);
 	for (i = 0; i < gi.number_entry; i++)
 	{
-		err = unzGetCurrentFileInfo(uf, &file_info, filename_inzip, sizeof(filename_inzip), NULL, 0, NULL, 0);
 		if (err != UNZ_OK) {
-			break;
+			unzClose(uf);
+			return NULL;
 		}
+		err = unzGetCurrentFileInfo(uf, &file_info, filename_inzip, sizeof(filename_inzip), NULL, 0, NULL, 0);
+		if (err != UNZ_OK || file_info.size_filename >= sizeof(filename_inzip)) {
+			unzClose(uf);
+			return NULL;
+		}
+		// Keep metadata from this walk; rebuilding the index must not reread
+		// the entire central directory just to recover offsets and CRCs.
+		entries.push_back({filename_inzip, unzGetOffset(uf), file_info.uncompressed_size, file_info.crc});
 		len += strlen(filename_inzip) + 1;
-		unzGoToNextFile(uf);
+		err = unzGoToNextFile(uf);
 	}
 
 	buildBuffer = (struct fileInPack_s *)Z_Malloc( (gi.number_entry * sizeof( fileInPack_t )) + len, TAG_FILESYS, qtrue );
@@ -2423,28 +2443,22 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 
 	pack->handle = uf;
 	pack->numfiles = gi.number_entry;
-	unzGoToFirstFile(uf);
 
 	for (i = 0; i < gi.number_entry; i++)
 	{
-		err = unzGetCurrentFileInfo(uf, &file_info, filename_inzip, sizeof(filename_inzip), NULL, 0, NULL, 0);
-		if (err != UNZ_OK) {
-			break;
+		const zipEntry_t &entry = entries[i];
+		if (entry.len > 0) {
+			fs_headerLongs[fs_numHeaderLongs++] = LittleLong(entry.crc);
 		}
-		if (file_info.uncompressed_size > 0) {
-			fs_headerLongs[fs_numHeaderLongs++] = LittleLong(file_info.crc);
-		}
-		// Q_strlwr( filename_inzip ); // Redundant? Hash is case insensitive, and we do a case insensitive compare when looking up files? + Files read from pk3s are always lowercase from this?
-		hash = FS_HashFileName(filename_inzip, pack->hashSize);
+		hash = FS_HashFileName(entry.name.c_str(), pack->hashSize);
 		buildBuffer[i].name = namePtr;
-		strcpy( buildBuffer[i].name, filename_inzip );
-		namePtr += strlen(filename_inzip) + 1;
+		memcpy( namePtr, entry.name.c_str(), entry.name.size() + 1 );
+		namePtr += entry.name.size() + 1;
 		// store the file position in the zip
-		buildBuffer[i].pos = unzGetOffset(uf);
-		buildBuffer[i].len = file_info.uncompressed_size;
+		buildBuffer[i].pos = entry.pos;
+		buildBuffer[i].len = entry.len;
 		buildBuffer[i].next = pack->hashTable[hash];
 		pack->hashTable[hash] = &buildBuffer[i];
-		unzGoToNextFile(uf);
 	}
 
 	pack->checksum = Com_BlockChecksum( &fs_headerLongs[ 1 ], sizeof(*fs_headerLongs) * ( fs_numHeaderLongs - 1 ) );
@@ -2512,6 +2526,25 @@ DIRECTORY SCANNING FUNCTIONS
 
 #define	MAX_FOUND_FILES	0x1000
 
+// Per-list indices retain search-path order and the first spelling of each
+// name, without comparing every candidate with every file already found.
+struct fileListHash_t {
+	int heads[MAX_FOUND_FILES];
+	int next[MAX_FOUND_FILES];
+};
+
+static unsigned int FS_FileListHash( const char *name ) {
+	unsigned int hash = 2166136261u;
+	while ( *name ) {
+		unsigned char c = (unsigned char)*name++;
+		if ( c >= 'A' && c <= 'Z' ) {
+			c += 'a' - 'A';
+		}
+		hash = (hash ^ c) * 16777619u;
+	}
+	return hash & (MAX_FOUND_FILES - 1);
+}
+
 static int FS_ReturnPath( const char *zname, char *zpath, int *depth ) {
 	int len, at, newdep;
 
@@ -2540,18 +2573,21 @@ static int FS_ReturnPath( const char *zname, char *zpath, int *depth ) {
 FS_AddFileToList
 ==================
 */
-static int FS_AddFileToList( char *name, char *list[MAX_FOUND_FILES], int nfiles ) {
+static int FS_AddFileToList( char *name, char *list[MAX_FOUND_FILES], int nfiles, fileListHash_t &seen ) {
 	int		i;
 
 	if ( nfiles == MAX_FOUND_FILES - 1 ) {
 		return nfiles;
 	}
-	for ( i = 0 ; i < nfiles ; i++ ) {
+	const unsigned int hash = FS_FileListHash( name );
+	for ( i = seen.heads[hash]; i != -1; i = seen.next[i] ) {
 		if ( !Q_stricmp( name, list[i] ) ) {
 			return nfiles;		// allready in list
 		}
 	}
 	list[nfiles] = CopyString( name );
+	seen.next[nfiles] = seen.heads[hash];
+	seen.heads[hash] = nfiles;
 	nfiles++;
 
 	return nfiles;
@@ -2569,6 +2605,7 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 	int				nfiles;
 	char			**listCopy;
 	char			*list[MAX_FOUND_FILES];
+	fileListHash_t	seen;
 	searchpath_t	*search;
 	int				i;
 	int				pathLength;
@@ -2593,11 +2630,12 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 	std::lock_guard<std::mutex> lock(fs_listMutex);
 
 	pathLength = strlen( path );
-	if ( path[pathLength-1] == '\\' || path[pathLength-1] == '/' ) {
+	if ( pathLength && (path[pathLength-1] == '\\' || path[pathLength-1] == '/') ) {
 		pathLength--;
 	}
 	extensionLength = strlen( extension );
 	nfiles = 0;
+	memset( seen.heads, -1, sizeof(seen.heads) );
 	FS_ReturnPath(path, zpath, &pathDepth);
 
 	//
@@ -2628,13 +2666,12 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 					if (!Com_FilterPath( filter, name, qfalse ))
 						continue;
 					// unique the match
-					nfiles = FS_AddFileToList( name, list, nfiles );
+					nfiles = FS_AddFileToList( name, list, nfiles, seen );
 				}
 				else {
 
-					zpathLen = FS_ReturnPath(name, zpath, &depth);
-
-					if ( (depth-pathDepth)>2 || pathLength > zpathLen || Q_stricmpn( name, path, pathLength ) ) {
+					// Reject unrelated assets before walking and copying their paths.
+					if ( Q_stricmpn( name, path, pathLength ) ) {
 						continue;
 					}
 
@@ -2647,13 +2684,17 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 					if ( Q_stricmp( name + length - extensionLength, extension ) ) {
 						continue;
 					}
+					zpathLen = FS_ReturnPath(name, zpath, &depth);
+					if ( (depth-pathDepth)>2 || pathLength > zpathLen ) {
+						continue;
+					}
 					// unique the match
 
 					temp = pathLength;
 					if (pathLength) {
 						temp++;		// include the '/'
 					}
-					nfiles = FS_AddFileToList( name + temp, list, nfiles );
+					nfiles = FS_AddFileToList( name + temp, list, nfiles, seen );
 				}
 			}
 		} else if (search->dir) { // scan for files in the filesystem
@@ -2676,7 +2717,7 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 				for ( i = 0 ; i < numSysFiles ; i++ ) {
 					// unique the match
 					name = sysFiles[i];
-					nfiles = FS_AddFileToList( name, list, nfiles );
+					nfiles = FS_AddFileToList( name, list, nfiles, seen );
 				}
 				Sys_FreeFileList( sysFiles );
 			}
