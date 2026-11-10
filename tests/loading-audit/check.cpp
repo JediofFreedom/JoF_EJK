@@ -39,7 +39,8 @@ static void Com_sprintf(char *out, size_t length, const char *fmt, ...) {
 }
 static void Com_Printf(const char *, ...) {}
 static void COM_StripExtension(const char *in, char *out, int length) {
-    Q_strncpyz(out, in, length); char *dot = std::strrchr(out, '.'); if (dot) *dot = 0;
+    if (in != out) Q_strncpyz(out, in, length);
+    char *dot = std::strrchr(out, '.'); if (dot) *dot = 0;
 }
 static std::atomic<int> allocations(0);
 static void *Z_Malloc(size_t length, int, qboolean = qfalse) { ++allocations; return std::calloc(length ? length : 1, 1); }
