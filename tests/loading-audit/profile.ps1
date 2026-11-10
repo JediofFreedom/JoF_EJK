@@ -40,7 +40,7 @@ foreach ($run in 1..$Runs) {
     $frames = @([regex]::Matches($log, 'LOADPROFILE map-handoff-to-first-frame: (\d+) ms') |
         ForEach-Object { [int]$_.Groups[1].Value })
     if ($frames.Count -ne 3) { throw "Expected three active-frame timings: $runHome" }
-    $result = [pscustomobject]@{Run=$run; Renderer=$Renderer; ProcessSeconds=$timer.Elapsed.TotalSeconds; MapMilliseconds=$frames; Log="$mod/qconsole.log"}
+    $result = [pscustomobject]@{Run=$run; Renderer=$Renderer; TextureCacheMegs=$TextureCacheMegs; ProcessSeconds=$timer.Elapsed.TotalSeconds; MapMilliseconds=$frames; Log="$mod/qconsole.log"}
     $results += $result
     $result | ConvertTo-Json -Compress
 }

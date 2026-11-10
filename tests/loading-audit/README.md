@@ -104,3 +104,38 @@ T1_Fatal immediate GPU transfer submissions from 1,761 to 513. Counters include
 buffer/utility transfers, not just textures. JPEG SIMD plus direct RGBA output
 reduced aggregate image read/decode time from about 1.97 s to 1.01–1.14 s.
 No resolution, texture-quality or sound reduction is used for these gains.
+
+### GPU residency follow-up
+
+The native Vulkan default now retains independently owned immutable textures
+across map changes. On the same machine, settings and three-map cycle above,
+three alternating pairs used the same new binary with `r_textureCacheMegs`
+set to 0 or 512 before renderer startup. Pair order was 0/512, 512/0, 0/512;
+no local compilation ran during measurements.
+
+| Measurement, median of three | Cache disabled | 512 MiB cache |
+| --- | ---: | ---: |
+| Complete three-map client cycle | 13.951 s | 13.433 s |
+| First T1_Fatal, handoff to first active frame | 3.586 s | 3.565 s |
+| mp/ffa3, handoff to first active frame | 2.275 s | 1.950 s |
+| T1_Fatal revisit, handoff to first active frame | 2.795 s | 2.475 s |
+
+Later map loads were approximately 14% and 11% shorter; the whole cycle was
+about 4% shorter. The first map was effectively unchanged. These pairs isolate
+GPU residency; the earlier baseline comparison measures the broader loading
+changes and was collected separately. Neither comparison measures SJK.
+
+Use `profile.ps1 -TextureCacheMegs 0` and `-TextureCacheMegs 512` with fresh
+output directories to repeat the comparison. Omit that argument to use the
+configured default (512 MiB x64, 128 MiB x86, capped by device-local memory).
+The cache validates source/package identity, pixel-processing settings and
+image flags. Loose overrides decode normally, pure restrictions still apply,
+and descriptor sets are recreated after map reset. Full video/device restart
+releases all retained images and memory before unloading the renderer.
+
+The Vulkan headers are updated to Khronos 1.4.368; instance negotiation
+supports older loaders and requests up to API 1.4. This is a native Vulkan
+backend with no OpenGL context or OpenGL import callbacks. Header/API version
+updates alone are not performance improvements. See the renderer's
+[upstream notes](../../codemp/rd-vulkan/UPSTREAM.md) for audited upstream
+commits, the adapted model LOD fix and renderer API compatibility requirements.
