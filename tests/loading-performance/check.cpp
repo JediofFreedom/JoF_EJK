@@ -74,6 +74,13 @@ static char *s_shaderText;
 static char **shaderTextHashTable[MAX_SHADERTEXT_HASH];
 #include "dedicated.h"
 }
+#ifdef EXPECT_OPTIMIZED
+namespace vulkan {
+static char *s_shaderText;
+static char **shaderTextHashTable[MAX_SHADERTEXT_HASH];
+#include "vulkan.h"
+}
+#endif
 
 #include "types.h"
 static searchpath_t *fs_searchpaths;
@@ -263,6 +270,10 @@ int main(int argc, char **argv) {
         rend2::generateHashValue, rend2::FindShaderInShaderText, rend2::KillTheShaderHashTable);
     checkShaders("dedicated", dedicated::s_shaderText, dedicated::shaderTextHashTable,
         dedicated::generateHashValue, dedicated::FindShaderInShaderText, dedicated::KillTheShaderHashTable);
+#ifdef EXPECT_OPTIMIZED
+    checkShaders("vulkan", vulkan::s_shaderText, vulkan::shaderTextHashTable,
+        vulkan::generateHashValue, vulkan::FindShaderInShaderText, vulkan::KillTheShaderHashTable);
+#endif
     CHECK(!FS_LoadZipFile("missing-file.pk3", "missing"));
     for (int i = 1; i < argc; ++i) {
         auto start = Clock::now();

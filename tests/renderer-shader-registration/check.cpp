@@ -16,9 +16,11 @@ struct drawBufferCommand_t { int commandId, buffer; };
 struct swapBuffersCommand_t { int commandId; };
 struct stretchPicCommand_t { int commandId; shader_t *shader; float coords[8]; };
 struct rotatePicCommand_t { int commandId; shader_t *shader; float coords[10]; };
+struct clearColorCommand_t { int commandId; float color[4]; };
 struct drawSurfsCommand_t { int commandId; void *refdef; void *viewParms; drawSurf_t *drawSurfs; int numDrawSurfs; };
 enum { RC_END_OF_LIST, RC_SET_COLOR, RC_STRETCH_PIC, RC_ROTATE_PIC, RC_ROTATE_PIC2,
-       RC_DRAW_SURFS, RC_DRAW_BUFFER, RC_SWAP_BUFFERS, RC_WORLD_EFFECTS, RC_AUTO_MAP };
+       RC_DRAW_SURFS, RC_DRAW_BUFFER, RC_SWAP_BUFFERS, RC_WORLD_EFFECTS, RC_AUTO_MAP, RC_CLEARCOLOR };
+const int SHADERNUM_MASK = MAX_SHADERS - 1;
 struct renderCommandList_t { alignas(void *) byte cmds[4096]; int used; };
 static struct { renderCommandList_t commands; } storage, *backEndData = &storage;
 static struct { int numShaders; shader_t *shaders[MAX_SHADERS], *sortedShaders[MAX_SHADERS]; } tr;

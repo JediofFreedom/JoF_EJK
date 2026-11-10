@@ -1435,7 +1435,8 @@ void CL_Vid_Restart_f( void ) {
 	// A different renderer cannot inherit the old renderer's window/context.
 	// Treat that transition as a full renderer shutdown; this is particularly
 	// important for Vulkan, whose device and instance otherwise survive the DLL
-	// unload.  Same-renderer restarts retain the established lightweight path.
+	// unload. CL_ShutdownRef also destroys Vulkan resources on same-renderer
+	// restarts because the renderer DLL's device handles do not survive unload.
 	CL_ShutdownRef( rendererChanged ? qfalse : qtrue );
 	// client is no longer pure untill new checksums are sent
 	CL_ResetPureClientAtServer();
@@ -3123,7 +3124,13 @@ static void CL_ShutdownRef( qboolean restarting ) {
 	{
 		if ( re->Shutdown )
 		{
-			re->Shutdown(restarting ? qfalse : qtrue, restarting);
+			// GL can retain its engine-owned context across DLL reloads. Vulkan's
+			// device/instance live in the renderer DLL and must be destroyed before
+			// unloading it, including same-renderer video restarts. Keep restarting
+			// true so the renderer preserves Ghoul2 state and the SDL window.
+			const qboolean destroyResources = (!restarting ||
+				!Q_stricmp(activeRendererName, "rd-vulkan")) ? qtrue : qfalse;
+			re->Shutdown(destroyResources, restarting);
 		}
 	}
 
@@ -3343,8 +3350,10 @@ void CL_InitRef( void ) {
 	Com_Printf( "---------- Initializing Renderer ---------\n" );
 
 	cl_renderer = Cvar_Get( "cl_renderer", DEFAULT_RENDER_LIBRARY, CVAR_ARCHIVE|CVAR_LATCH, "Which renderer library to use" );
+	const qboolean allowRendererFallback = Cvar_Get("cl_rendererFallback", "1", CVAR_NONE,
+		"Allow switching to the default renderer if the requested renderer is unavailable")->integer ? qtrue : qfalse;
 
-	// rd-vulkan is a prebuilt module that calls Com_Error( ERR_FATAL ) if it
+	// The Vulkan module calls Com_Error( ERR_FATAL ) if it
 	// cannot reach a Vulkan loader (an ICD on Linux, MoltenVK on macOS).  That
 	// happens during renderer init, long after the module has loaded, so the
 	// load-failure fallback below cannot catch it.  Refuse it up front instead,
@@ -3352,6 +3361,8 @@ void CL_InitRef( void ) {
 	if ( !Q_stricmp( cl_renderer->string, "rd-vulkan" )
 		&& ui_vulkan_supported && !ui_vulkan_supported->integer )
 	{
+		if (!allowRendererFallback)
+			Com_Error(ERR_FATAL, "Vulkan was requested, but no Vulkan loader is available.\n");
 		Com_Printf( S_COLOR_YELLOW "Vulkan is not available on this system, falling back to "
 			DEFAULT_RENDER_LIBRARY "\n" );
 		Cvar_ForceReset( "cl_renderer" );
@@ -3359,7 +3370,7 @@ void CL_InitRef( void ) {
 
 	Com_sprintf( dllName, sizeof( dllName ), "%s_" ARCH_STRING DLL_EXT, cl_renderer->string );
 
-	if( !(rendererLib = Sys_LoadDll( dllName, qfalse )) && strcmp( cl_renderer->string, cl_renderer->resetString ) )
+	if( !(rendererLib = Sys_LoadDll( dllName, qfalse )) && allowRendererFallback && strcmp( cl_renderer->string, cl_renderer->resetString ) )
 	{
 		Com_Printf( "failed: trying to load fallback renderer\n" );
 		Cvar_ForceReset( "cl_renderer" );

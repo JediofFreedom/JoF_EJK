@@ -126,22 +126,6 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Download Sunny's Vulkan renderer
-        shell: bash
-        run: |
-          mkdir -p external
-          if [ "${{ matrix.arch }}" = "x86" ]; then
-            ZIP_NAME=EternalJK-windows-x86.zip
-            DLL_NAME=rd-vulkan_x86.dll
-          else
-            ZIP_NAME=EternalJK-windows-x86_64.zip
-            DLL_NAME=rd-vulkan_x86_64.dll
-          fi
-          curl -L -o external/$ZIP_NAME \
-            https://github.com/JKSunny/EternalJK/releases/download/latest/$ZIP_NAME
-          unzip -j external/$ZIP_NAME "$DLL_NAME" -d external
-          echo "RD_VULKAN_MODULE=${{ github.workspace }}/external/$DLL_NAME" >> $GITHUB_ENV
-
       - name: Create build directory
         run: cmake -E make_directory build
 
@@ -158,7 +142,7 @@ jobs:
             -DJOF_RELEASE_CHANNEL=beta \
             -DGIT_SHA=${{ github.sha }} \
             -DGIT_BRANCH=${{ github.ref_name }} \
-            -DEXTERNAL_RD_VULKAN_MODULE="$RD_VULKAN_MODULE"
+            -DBuildMPRdVulkan=ON
 
       - name: Build
         working-directory: ${{ github.workspace }}/build
@@ -232,22 +216,6 @@ jobs:
             sudo apt-get -y install libjpeg-dev libpng-dev zlib1g-dev libsdl2-dev
           fi
 
-      - name: Download Sunny's Vulkan renderer
-        shell: bash
-        run: |
-          mkdir -p external
-          # Upstream names the 32-bit module i386, which is also what our own
-          # ${Architecture} resolves to on that target (see CMakeLists.txt).
-          if [ "${{ matrix.arch }}" = "x86" ]; then
-            SO_NAME=rd-vulkan_i386.so
-          else
-            SO_NAME=rd-vulkan_${{ matrix.arch }}.so
-          fi
-          curl -fL -o external/EternalJK.tar.gz \
-            https://github.com/JKSunny/EternalJK/releases/download/latest/EternalJK-linux-${{ matrix.arch }}.tar.gz
-          tar xzf external/EternalJK.tar.gz -C external "$SO_NAME"
-          echo "RD_VULKAN_MODULE=${{ github.workspace }}/external/$SO_NAME" >> $GITHUB_ENV
-
       - name: Create build directory
         run: cmake -E make_directory build
 
@@ -266,7 +234,7 @@ jobs:
             -DJOF_RELEASE_CHANNEL=beta
             -DGIT_SHA=${{ github.sha }}
             -DGIT_BRANCH=${{ github.ref_name }}
-            "-DEXTERNAL_RD_VULKAN_MODULE=$RD_VULKAN_MODULE"
+            -DBuildMPRdVulkan=ON
           )
           if [ "${{ matrix.arch }}" = "x86" ]; then
             OPTIONS+=(-DCMAKE_TOOLCHAIN_FILE=cmake/Toolchains/linux-i686.cmake)
@@ -350,19 +318,6 @@ jobs:
           echo "SDL2DIR=${{ github.workspace }}/sdl2-prefix" >> $GITHUB_ENV
           cmake -E make_directory build
 
-      - name: Download Sunny's Vulkan renderer
-        shell: bash
-        run: |
-          mkdir -p external
-          DYLIB_NAME=rd-vulkan_${{ matrix.arch }}.dylib
-          # Upstream ships the module inside its own .app bundle, so strip the
-          # bundle path back off and keep just the dylib.
-          curl -fL -o external/EternalJK.tar.gz \
-            https://github.com/JKSunny/EternalJK/releases/download/latest/EternalJK-macos-${{ matrix.arch }}.tar.gz
-          tar xzf external/EternalJK.tar.gz -C external --strip-components=3 \
-            "eternaljk.${{ matrix.arch }}.app/Contents/MacOS/$DYLIB_NAME"
-          echo "RD_VULKAN_MODULE=${{ github.workspace }}/external/$DYLIB_NAME" >> $GITHUB_ENV
-
       - name: Bundle MoltenVK
         shell: bash
         run: |
@@ -392,7 +347,7 @@ jobs:
             -DJOF_RELEASE_CHANNEL=beta \
             -DGIT_SHA=${{ github.sha }} \
             -DGIT_BRANCH=${{ github.ref_name }} \
-            -DEXTERNAL_RD_VULKAN_MODULE="$RD_VULKAN_MODULE" \
+            -DBuildMPRdVulkan=ON \
             -DEXTERNAL_MOLTENVK_LIBRARY="$MOLTENVK_LIBRARY"
 
       - name: Build
@@ -693,22 +648,6 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Download Sunny's Vulkan renderer
-        shell: bash
-        run: |
-          mkdir -p external
-          if [ "${{ matrix.arch }}" = "x86" ]; then
-            ZIP_NAME=EternalJK-windows-x86.zip
-            DLL_NAME=rd-vulkan_x86.dll
-          else
-            ZIP_NAME=EternalJK-windows-x86_64.zip
-            DLL_NAME=rd-vulkan_x86_64.dll
-          fi
-          curl -L -o external/$ZIP_NAME \
-            https://github.com/JKSunny/EternalJK/releases/download/latest/$ZIP_NAME
-          unzip -j external/$ZIP_NAME "$DLL_NAME" -d external
-          echo "RD_VULKAN_MODULE=${{ github.workspace }}/external/$DLL_NAME" >> $GITHUB_ENV
-
       - name: Create build directory
         run: cmake -E make_directory build
 
@@ -724,7 +663,7 @@ jobs:
             -DJOF_RELEASE_CHANNEL=stable \
             -DGIT_SHA=${{ github.sha }} \
             -DGIT_BRANCH=${{ github.ref_name }} \
-            -DEXTERNAL_RD_VULKAN_MODULE="$RD_VULKAN_MODULE"
+            -DBuildMPRdVulkan=ON
 
       - name: Build
         working-directory: ${{ github.workspace }}/build
@@ -798,22 +737,6 @@ jobs:
             sudo apt-get -y install libjpeg-dev libpng-dev zlib1g-dev libsdl2-dev
           fi
 
-      - name: Download Sunny's Vulkan renderer
-        shell: bash
-        run: |
-          mkdir -p external
-          # Upstream names the 32-bit module i386, which is also what our own
-          # ${Architecture} resolves to on that target (see CMakeLists.txt).
-          if [ "${{ matrix.arch }}" = "x86" ]; then
-            SO_NAME=rd-vulkan_i386.so
-          else
-            SO_NAME=rd-vulkan_${{ matrix.arch }}.so
-          fi
-          curl -fL -o external/EternalJK.tar.gz \
-            https://github.com/JKSunny/EternalJK/releases/download/latest/EternalJK-linux-${{ matrix.arch }}.tar.gz
-          tar xzf external/EternalJK.tar.gz -C external "$SO_NAME"
-          echo "RD_VULKAN_MODULE=${{ github.workspace }}/external/$SO_NAME" >> $GITHUB_ENV
-
       - name: Create build directory
         run: cmake -E make_directory build
 
@@ -831,7 +754,7 @@ jobs:
             -DJOF_RELEASE_CHANNEL=stable
             -DGIT_SHA=${{ github.sha }}
             -DGIT_BRANCH=${{ github.ref_name }}
-            "-DEXTERNAL_RD_VULKAN_MODULE=$RD_VULKAN_MODULE"
+            -DBuildMPRdVulkan=ON
           )
           if [ "${{ matrix.arch }}" = "x86" ]; then
             OPTIONS+=(-DCMAKE_TOOLCHAIN_FILE=cmake/Toolchains/linux-i686.cmake)
@@ -915,19 +838,6 @@ jobs:
           echo "SDL2DIR=${{ github.workspace }}/sdl2-prefix" >> $GITHUB_ENV
           cmake -E make_directory build
 
-      - name: Download Sunny's Vulkan renderer
-        shell: bash
-        run: |
-          mkdir -p external
-          DYLIB_NAME=rd-vulkan_${{ matrix.arch }}.dylib
-          # Upstream ships the module inside its own .app bundle, so strip the
-          # bundle path back off and keep just the dylib.
-          curl -fL -o external/EternalJK.tar.gz \
-            https://github.com/JKSunny/EternalJK/releases/download/latest/EternalJK-macos-${{ matrix.arch }}.tar.gz
-          tar xzf external/EternalJK.tar.gz -C external --strip-components=3 \
-            "eternaljk.${{ matrix.arch }}.app/Contents/MacOS/$DYLIB_NAME"
-          echo "RD_VULKAN_MODULE=${{ github.workspace }}/external/$DYLIB_NAME" >> $GITHUB_ENV
-
       - name: Bundle MoltenVK
         shell: bash
         run: |
@@ -956,7 +866,7 @@ jobs:
             -DJOF_RELEASE_CHANNEL=stable \
             -DGIT_SHA=${{ github.sha }} \
             -DGIT_BRANCH=${{ github.ref_name }} \
-            -DEXTERNAL_RD_VULKAN_MODULE="$RD_VULKAN_MODULE" \
+            -DBuildMPRdVulkan=ON \
             -DEXTERNAL_MOLTENVK_LIBRARY="$MOLTENVK_LIBRARY"
 
       - name: Build

@@ -377,7 +377,8 @@ static bool GLimp_DetectAvailableModes(void)
 	return true;
 }
 
-static rserr_t GLimp_CreateOpenGLWindow(
+// Both APIs share SDL window creation; only GRAPHICS_API_OPENGL creates a GL context.
+static rserr_t GLimp_CreateWindow(
 	const char *windowTitle,
 	const int x,
 	const int y,
@@ -761,7 +762,7 @@ static rserr_t GLimp_SetMode(
 
 	if (windowDesc->api == GRAPHICS_API_OPENGL || windowDesc->api == GRAPHICS_API_VULKAN)
 	{
-		const rserr_t rcode = GLimp_CreateOpenGLWindow(
+		const rserr_t rcode = GLimp_CreateWindow(
 			windowTitle, x, y, windowDesc, flags, icon, glConfig);
 		if (rcode != RSERR_OK)
 		{
@@ -945,7 +946,8 @@ window_t WIN_Init( const windowDesc_t *windowDesc, glconfig_t *glConfig )
 			if (!GLimp_StartDriverAndSetMode( glConfig, windowDesc, R_MODE_FALLBACK, qfalse, qfalse ))
 			{
 				// Nothing worked, give up
-				Com_Error( ERR_FATAL, "GLimp_Init() - could not load OpenGL subsystem" );
+				Com_Error( ERR_FATAL, "Could not create %s rendering window",
+					windowDesc->api == GRAPHICS_API_VULKAN ? "Vulkan" : "OpenGL" );
 			}
 		}
 	}

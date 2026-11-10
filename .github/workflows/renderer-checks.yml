@@ -1,0 +1,43 @@
+name: Renderer source checks
+on:
+  pull_request:
+    paths:
+      - CMakeLists.txt
+      - codemp/**
+      - shared/**
+      - lib/**
+      - tests/**
+      - .github/workflows/renderer-checks.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: renderer-checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native-vulkan:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure native Vulkan without OpenGL renderers
+        shell: bash
+        run: >-
+          cmake -S . -B build-vulkan -DCMAKE_BUILD_TYPE=Release
+          -DUseInternalLibs=ON -DBuildMPEngine=OFF -DBuildMPDed=OFF
+          -DBuildMPGame=OFF -DBuildMPCGame=OFF -DBuildMPUI=OFF
+          -DBuildMPRdVanilla=OFF -DBuildMPRend2=OFF -DBuildMPRdVulkan=ON
+          -DBuildDiscordRichPresence=OFF
+      - name: Build native Vulkan
+        run: cmake --build build-vulkan --config Release --parallel 4
+      - name: Run renderer and loading regressions
+        shell: bash
+        run: |
+          for suite in loading-performance renderer-shader-registration vulkan-pipeline-cache; do
+            cmake -S tests/$suite -B check-$suite -DCMAKE_BUILD_TYPE=Release
+            cmake --build check-$suite --config Release --parallel 4
+            ctest --test-dir check-$suite -C Release --output-on-failure
+          done

@@ -1,11 +1,14 @@
 # Shader registration during queued rendering
 
-This harness compiles `FixRenderCommandList` and `SortNewShader` from vanilla
-and Rend2 with minimal renderer state, command records and sort-key helpers.
+This harness compiles `FixRenderCommandList` and `SortNewShader` from vanilla,
+Rend2 and Vulkan with minimal renderer state, command records and sort-key helpers.
 It reproduces a null shader produced when inserting a shader after draw
 surfaces have been queued and a stale command after `commands.used` references
 the same surfaces. Walking both commands increments the index twice, past the
-last registered shader. Both tests fail against the unbounded command walker.
+last registered shader. Vanilla and Rend2 fail against the unbounded command walker.
+Vulkan's upstream walker writes a terminator, but its shader remapping reads an
+already shifted sorted-shader table and can select the wrong material. It now
+shifts queued sort keys directly and uses the same explicit command boundary.
 
 The corrected walker uses `commands.used` as its end. The render-command
 terminator is written when submitting a batch, so searching for that marker
