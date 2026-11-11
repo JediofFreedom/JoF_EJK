@@ -686,10 +686,13 @@ void vk_record_image_layout_transition( VkCommandBuffer cmdBuf, VkImage image,
 
 void vk_upload_image( image_t *image, byte *pic ) {
 
-	Image_Upload_Data upload_data;
+	Image_Upload_Data upload_data = {};
 	int w, h;
 
-	vk_generate_image_upload_data( image, pic, &upload_data );
+	if (!vk_generate_image_upload_data(image, pic, &upload_data)) {
+		ri.Error(ERR_DROP, "Failed preparing Vulkan image %s (%dx%d, flags %u)", image->imgName, image->width, image->height, (unsigned)image->flags);
+		return;
+	}
 
 	w = upload_data.base_level_width;
 	h = upload_data.base_level_height;
@@ -738,6 +741,10 @@ bool vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 {
     uint64_t privateElapsed = 0;
     ImagePhaseTimer profile(scratch ? privateElapsed : vkLoadStats.imagePrepareUs);
+    *upload_data = {};
+    const int limit = context ? context->maxTextureSize : glConfig.maxTextureSize;
+    if (image->width <= 0 || image->height <= 0 || image->width > 65536 || image->height > 65536 ||
+        size_t(image->width) * image->height > size_t(INT_MAX) / 4 || limit <= 0) return false;
     if (scratch && (!context || !data || (image->flags & (IMGFLAG_LIGHTMAP | IMGFLAG_COLORSHIFT)))) return false;
 	qboolean mipmap = (image->flags & IMGFLAG_MIPMAP) ? qtrue : qfalse;
 	qboolean picmip = (image->flags & IMGFLAG_PICMIP) ? qtrue : qfalse;
@@ -785,8 +792,8 @@ bool vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 
 	if (!(image->flags & IMGFLAG_LIGHTMAP)) {
 		while (scaled_width > (context ? context->maxTextureSize : glConfig.maxTextureSize) || scaled_height > (context ? context->maxTextureSize : glConfig.maxTextureSize)) {
-			scaled_width = MAX(1, scaled_width >> 1);
-			scaled_height = MAX(1, scaled_height >> 1);
+			scaled_width = std::max(1, scaled_width >> 1);
+			scaled_height = std::max(1, scaled_height >> 1);
 		}
 	}
 
@@ -1883,8 +1890,12 @@ static void R_FinishFileImage(image_t *image, byte *pic, std::vector<byte> sourc
         vk_upload_image_data(image, 0, 0, description.uploadWidth, description.uploadHeight, description.levels,
             job->prepared.bytes.data(), static_cast<int>(job->prepared.bytes.size()), qfalse);
     } else {
-        Image_Upload_Data upload;
-        vk_generate_image_upload_data(image, pic, &upload, context);
+        Image_Upload_Data upload = {};
+        if (!vk_generate_image_upload_data(image, pic, &upload, context)) {
+            ri.Error(ERR_DROP, "Failed preparing Vulkan file image %s (%dx%d, flags %u, limit %d)",
+                image->imgName, image->width, image->height, (unsigned)image->flags, context->maxTextureSize);
+            return;
+        }
         if (job && job->diskCache) {
             const PreparedTextures::Description description = {image->width, image->height,
                 uint32_t(upload.base_level_width), uint32_t(upload.base_level_height), uint32_t(upload.mip_levels), R_PreparedFormat(image->internalFormat)};

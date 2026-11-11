@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "tr_local.h"
 #include "vk_runtime_profile.h"
 #include "vk_sync2.h"
+#include <climits>
 
 void vk_create_sync_primitives( void )
 {
@@ -1062,6 +1063,18 @@ void vk_read_pixels( byte *buffer, uint32_t width, uint32_t height )
             buffer_ptr[0] = buffer_ptr[2];
             buffer_ptr[2] = tmp;
             buffer_ptr += 3;
+        }
+    }
+
+    // The regular FBO is captured before the presentation gamma pass. Apply
+    // the same gamma/overbright table regardless of hardware LUT availability.
+    // The dedicated SSAA capture target already ran the gamma shader.
+    if (vk.fboActive && vk.capture.image == VK_NULL_HANDLE) {
+        const size_t bytes = size_t(width) * height * 3;
+        for (size_t offset = 0; offset < bytes;) {
+            const int span = int(MIN(bytes - offset, size_t(INT_MAX)));
+            R_GammaCorrect(buffer + offset, span);
+            offset += span;
         }
     }
 

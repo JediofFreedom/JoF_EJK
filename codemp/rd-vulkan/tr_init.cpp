@@ -445,7 +445,7 @@ void R_TakeScreenshot( int x, int y, int width, int height, char *fileName ) {
 	memcount = linelen * height;
 
 	// gamma correct
-	if(glConfig.deviceSupportsGamma && !glConfigExt.doGammaCorrectionWithShaders)
+	if(!vk.fboActive && glConfig.deviceSupportsGamma && !glConfigExt.doGammaCorrectionWithShaders)
 		R_GammaCorrect(allbuf + offset, memcount);
 
 	ri.FS_WriteFile(fileName, buffer, memcount + 18);
@@ -464,7 +464,7 @@ void R_TakeScreenshotPNG( int x, int y, int width, int height, char *fileName ) 
 	int padlen=0;
 
 	buffer = RB_ReadPixels( x, y, width, height, &offset, &padlen, 0);
-	RE_SavePNG( fileName, buffer, width, height, 3 );
+	RE_SavePNG( fileName, buffer + offset, width, height, 3 );
 	ri.Hunk_FreeTempMemory( buffer );
 }
 
@@ -482,7 +482,7 @@ void R_TakeScreenshotJPEG( int x, int y, int width, int height, char *fileName )
 	memcount = (width * 3 + padlen) * height;
 
 	// gamma correct
-	if(glConfig.deviceSupportsGamma && !glConfigExt.doGammaCorrectionWithShaders)
+	if(!vk.fboActive && glConfig.deviceSupportsGamma && !glConfigExt.doGammaCorrectionWithShaders)
 		R_GammaCorrect(buffer + offset, memcount);
 
 	RE_SaveJPG(fileName, r_screenshotJpegQuality->integer, width, height, buffer + offset, padlen);
@@ -561,7 +561,7 @@ static void R_LevelShot( void ) {
 	}
 
 	// gamma correct
-	if ( ( tr.overbrightBits > 0 ) && glConfig.deviceSupportsGamma && !glConfigExt.doGammaCorrectionWithShaders ) {
+	if ( !vk.fboActive && ( tr.overbrightBits > 0 ) && glConfig.deviceSupportsGamma && !glConfigExt.doGammaCorrectionWithShaders ) {
 		R_GammaCorrect( buffer + 18, LEVELSHOTSIZE * LEVELSHOTSIZE * 3 );
 	}
 
@@ -672,7 +672,7 @@ const void *RB_TakeVideoFrameCmd( const void *data )
 	memcount = padwidth * cmd->height;
 
 	// gamma correct
-	if (glConfig.deviceSupportsGamma)
+	if (!vk.fboActive && glConfig.deviceSupportsGamma)
 		R_GammaCorrect(cBuf, memcount);
 
 	if (cmd->motionJpeg)

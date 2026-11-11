@@ -1224,25 +1224,44 @@ avoidGen:
 	}
 }
 
+static bool vk_reserve_uniform_range(size_t size, uint32_t minimum, uint32_t *offset) {
+	const VkDeviceSize aligned = PAD(vk.cmd->vertex_buffer_offset, (VkDeviceSize)vk.uniform_alignment);
+	const VkDeviceSize reserved = MAX((VkDeviceSize)size, (VkDeviceSize)minimum);
+	if (aligned > UINT32_MAX || reserved > UINT32_MAX - aligned) {
+		ri.Error(ERR_DROP, "Vulkan uniform buffer offset exceeds its supported range");
+		return false;
+	}
+	const VkDeviceSize required = aligned + reserved;
+	if (required > vk.geometry_buffer_size) {
+		// log2pad uses a 32-bit doubling loop; the next power of two above
+		// 2 GiB would wrap to zero and never terminate.
+		if (required > (VkDeviceSize(1) << 31)) {
+			ri.Error(ERR_DROP, "Vulkan uniform buffer growth exceeds its supported range");
+			return false;
+		}
+		const uint32_t capacity = log2pad((uint32_t)required, 1);
+		if (capacity < required) {
+			ri.Error(ERR_DROP, "Vulkan uniform buffer growth exceeds its supported range");
+			return false;
+		}
+		vk.geometry_buffer_size_new = MAX(vk.geometry_buffer_size_new, capacity);
+		return false;
+	}
+	*offset = (uint32_t)aligned;
+	vk.cmd->vertex_buffer_offset = required;
+	return true;
+}
+
 void *vk_reserve_uniform( size_t size, uint32_t *offset ) {
-	*offset = PAD(vk.cmd->vertex_buffer_offset, (VkDeviceSize)vk.uniform_alignment);
-
-	if (*offset + size > vk.geometry_buffer_size)
-		return NULL;
-
-	vk.cmd->vertex_buffer_offset = *offset + size;
-
+	if (!vk_reserve_uniform_range(size, 0, offset)) return NULL;
 	return (void *)(vk.cmd->vertex_buffer_ptr + *offset);
 }
 
 uint32_t vk_append_uniform( const void *uniform, size_t size, uint32_t min_offset ) {
-	const uint32_t offset = PAD(vk.cmd->vertex_buffer_offset, (VkDeviceSize)vk.uniform_alignment);
-
-	if ( offset + min_offset > vk.geometry_buffer_size )
-		return ~0U;
+	uint32_t offset;
+	if (!vk_reserve_uniform_range(size, min_offset, &offset)) return ~0U;
 
 	Com_Memcpy( vk.cmd->vertex_buffer_ptr + offset, uniform, size );
-	vk.cmd->vertex_buffer_offset = offset + min_offset;
 
 	return offset;
 }
@@ -1250,6 +1269,7 @@ uint32_t vk_append_uniform( const void *uniform, size_t size, uint32_t min_offse
 static uint32_t vk_push_uniform( const vkUniform_t *uniform )
 {
 	const uint32_t offset = vk_append_uniform( uniform, sizeof(*uniform), vk.uniform_item_size );
+	if (offset == ~0U) return offset;
 
 	vk_reset_descriptor( VK_DESC_UNIFORM );
 	vk_update_descriptor( VK_DESC_UNIFORM, vk.cmd->uniform_descriptor );
@@ -1262,6 +1282,7 @@ static uint32_t vk_push_uniform( const vkUniform_t *uniform )
 static uint32_t vk_push_uniform_global( const vkUniformGlobal_t *uniform )
 {
 	const uint32_t offset = vk_append_uniform( uniform, sizeof(*uniform), vk.uniform_global_item_size );
+	if (offset == ~0U) return offset;
 
 	vk_reset_descriptor( VK_DESC_UNIFORM );
 	vk_update_descriptor( VK_DESC_UNIFORM, vk.cmd->uniform_descriptor );
@@ -2217,6 +2238,7 @@ void RB_SurfaceSpritesVBO( srfSprites_t *surf )
 		return;
 
 	RB_EndSurface();
+	if (vk.geometry_buffer_size_new) return;
 
 	int current_ent = -1;
 	uint32_t i, j, offset, firstOffset, pipeline;
@@ -2291,6 +2313,7 @@ void RB_SurfaceSpritesVBO( srfSprites_t *surf )
 			0,											// global (drawcall)
 			SS_UNPACK_SSBO_OFFSET( group->def.ssbo_bits )	// surface sprite stage
 		};
+		if (offsets[0] == ~0U || vk.geometry_buffer_size_new) break;
 
 		VkDescriptorSet sets[4] = {
 			vk.cmd->uniform_descriptor,

@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include <vector>
 
 #ifdef USE_VK_OBJECT_TRACKER
 #include <unordered_map>
@@ -222,29 +223,45 @@ Draws vertex normals for debugging
 */
 void DrawNormals( const shaderCommands_t *input)
 {
-	int		i;
-
 #ifdef USE_VBO
 	if ( tess.vbo_world_index )
 		return; // must be handled specially
 #endif
+	const int numNormals = tess.numVertexes;
+	if (numNormals <= 0)
+		return;
+	if (numNormals > int(ARRAY_LEN(tess.normal)))
+		ri.Error(ERR_DROP, "DrawNormals: invalid vertex count %d", numNormals);
+
+	// xyz intentionally has twice the normal capacity, but colors/UVs do not.
+	// Keep every submitted batch inside all of the vertex/index source arrays.
+	const int batchCapacity = MIN(int(ARRAY_LEN(tess.svars.colors[0])) / 2,
+		MIN(int(ARRAY_LEN(tess.xyz)) / 2, int(ARRAY_LEN(tess.indexes)) / 2));
+	std::vector<float> positions;
+	if (numNormals > batchCapacity) {
+		positions.resize(size_t(numNormals) * 3);
+		for (int i = 0; i < numNormals; ++i)
+			VectorCopy(tess.xyz[i], &positions[size_t(i) * 3]);
+	}
 
 	vk_bind(tr.whiteImage);
-
-	tess.numIndexes = 0;
-	for ( i = 0; i < tess.numVertexes; i++ ) {
-		VectorMA( tess.xyz[i], 2.0, tess.normal[i], tess.xyz[i + tess.numVertexes] );
-		tess.indexes[ tess.numIndexes + 0 ] = i;
-		tess.indexes[ tess.numIndexes + 1 ] = i + tess.numVertexes;
-		tess.numIndexes += 2;
+	vk_bind_pipeline(vk.std_pipeline.normals_debug_pipeline);
+	for (int first = 0; first < numNormals; first += batchCapacity) {
+		const int count = MIN(batchCapacity, numNormals - first);
+		tess.numIndexes = 0;
+		for (int i = 0; i < count; ++i) {
+			const float *point = positions.empty() ? tess.xyz[i] : &positions[size_t(first + i) * 3];
+			VectorCopy(point, tess.xyz[i]);
+			VectorMA(point, 2.0, tess.normal[first + i], tess.xyz[i + count]);
+			tess.indexes[tess.numIndexes++] = i;
+			tess.indexes[tess.numIndexes++] = i + count;
+		}
+		tess.numVertexes = count * 2;
+		Com_Memset(tess.svars.colors[0], tr.identityLightByte, tess.numVertexes * sizeof(color4ub_t));
+		vk_bind_index();
+		vk_bind_geometry(TESS_XYZ | TESS_ST0 | TESS_RGBA0);
+		vk_draw_geometry(DEPTH_RANGE_ZERO, qtrue);
 	}
-	tess.numVertexes *= 2;
-	Com_Memset( tess.svars.colors[0], tr.identityLightByte, tess.numVertexes * sizeof( color4ub_t ) );
-
-	vk_bind_pipeline( vk.std_pipeline.normals_debug_pipeline );
-	vk_bind_index();
-	vk_bind_geometry( TESS_XYZ | TESS_ST0 | TESS_RGBA0 );
-	vk_draw_geometry( DEPTH_RANGE_ZERO, qtrue );
 }
 
 /*
@@ -382,72 +399,65 @@ static void transform_to_eye_space( const vec3_t v, vec3_t v_eye )
 
 static void R_DebugPolygon( int color, int numPoints, float *points )
 {
-	vec3_t pa;
-	vec3_t pb;
-	vec3_t p;
-	vec3_t q;
-	vec3_t n;
-	int i;
-
-	if (numPoints < 3) {
+	vec3_t pa, pb, p, q, n;
+	if (!points || numPoints < 3)
 		return;
-	}
 
 	transform_to_eye_space(&points[0], pa);
 	transform_to_eye_space(&points[3], pb);
 	VectorSubtract(pb, pa, p);
-
-	for (i = 2; i < numPoints; i++) {
-		transform_to_eye_space(&points[3 * i], pb);
+	for (int i = 2; i < numPoints; ++i) {
+		transform_to_eye_space(&points[size_t(i) * 3], pb);
 		VectorSubtract(pb, pa, q);
 		CrossProduct(q, p, n);
-		if (VectorLength(n) > 1e-5) {
+		if (VectorLength(n) > 1e-5)
 			break;
+	}
+	if (DotProduct(n, pa) >= 0)
+		return;
+
+	const int vertexCapacity = MIN(int(ARRAY_LEN(tess.svars.colors[0])), int(ARRAY_LEN(tess.xyz)));
+	const int triangleCapacity = MIN(vertexCapacity - 2, int(ARRAY_LEN(tess.indexes)) / 3);
+	// Split the triangle fan without duplicating or dropping any triangle.
+	for (int first = 1; first < numPoints - 1; first += triangleCapacity) {
+		const int count = MIN(triangleCapacity, numPoints - first - 1);
+		tess.numVertexes = count + 2;
+		VectorCopy(points, tess.xyz[0]);
+		for (int i = 1; i < tess.numVertexes; ++i)
+			VectorCopy(&points[size_t(first + i - 1) * 3], tess.xyz[i]);
+		for (int i = 0; i < tess.numVertexes; ++i) {
+			tess.svars.colors[0][i][0] = (color & 1) ? 255 : 0;
+			tess.svars.colors[0][i][1] = (color & 2) ? 255 : 0;
+			tess.svars.colors[0][i][2] = (color & 4) ? 255 : 0;
+			tess.svars.colors[0][i][3] = 255;
 		}
+		tess.numIndexes = 0;
+		for (int i = 1; i <= count; ++i) {
+			tess.indexes[tess.numIndexes++] = 0;
+			tess.indexes[tess.numIndexes++] = i;
+			tess.indexes[tess.numIndexes++] = i + 1;
+		}
+		vk_bind_index();
+		vk_bind_pipeline(vk.std_pipeline.surface_debug_pipeline_solid);
+		vk_bind_geometry(TESS_XYZ | TESS_RGBA0 | TESS_ST0);
+		vk_draw_geometry(DEPTH_RANGE_NORMAL, qtrue);
 	}
 
-	if (DotProduct(n, pa) >= 0) {
-		return; // discard backfacing polygon
+	const int edgeCapacity = vertexCapacity / 2;
+	for (int first = 0; first < numPoints; first += edgeCapacity) {
+		const int count = MIN(edgeCapacity, numPoints - first);
+		tess.numVertexes = count * 2;
+		tess.numIndexes = 0;
+		Com_Memset(tess.svars.colors[0], tr.identityLightByte, tess.numVertexes * sizeof(color4ub_t));
+		for (int i = 0; i < count; ++i) {
+			VectorCopy(&points[size_t(first + i) * 3], tess.xyz[i * 2]);
+			const int next = first + i + 1 == numPoints ? 0 : first + i + 1;
+			VectorCopy(&points[size_t(next) * 3], tess.xyz[i * 2 + 1]);
+		}
+		vk_bind_pipeline(vk.std_pipeline.surface_debug_pipeline_outline);
+		vk_bind_geometry(TESS_XYZ | TESS_RGBA0);
+		vk_draw_geometry(DEPTH_RANGE_ZERO, qfalse);
 	}
-
-	// Solid shade.
-	for (i = 0; i < numPoints; i++) {
-		VectorCopy(&points[3 * i], tess.xyz[i]);
-
-		tess.svars.colors[0][i][0] = (color & 1) ? 255 : 0;
-		tess.svars.colors[0][i][1] = (color & 2) ? 255 : 0;
-		tess.svars.colors[0][i][2] = (color & 4) ? 255 : 0;
-		tess.svars.colors[0][i][3] = 255;
-	}
-	tess.numVertexes = numPoints;
-
-	tess.numIndexes = 0;
-	for (i = 1; i < numPoints - 1; i++) {
-		tess.indexes[tess.numIndexes + 0] = 0;
-		tess.indexes[tess.numIndexes + 1] = i;
-		tess.indexes[tess.numIndexes + 2] = i + 1;
-		tess.numIndexes += 3;
-	}
-
-	vk_bind_index();
-	vk_bind_pipeline(vk.std_pipeline.surface_debug_pipeline_solid);
-	vk_bind_geometry(TESS_XYZ | TESS_RGBA0 | TESS_ST0);
-	vk_draw_geometry(DEPTH_RANGE_NORMAL, qtrue);
-
-	// Outline.
-	Com_Memset(tess.svars.colors[0], tr.identityLightByte, numPoints * 2 * sizeof(color4ub_t));
-
-	for (i = 0; i < numPoints; i++) {
-		VectorCopy(&points[3 * i], tess.xyz[2 * i]);
-		VectorCopy(&points[3 * ((i + 1) % numPoints)], tess.xyz[2 * i + 1]);
-	}
-	tess.numVertexes = numPoints * 2;
-	tess.numIndexes = 0;
-
-	vk_bind_pipeline(vk.std_pipeline.surface_debug_pipeline_outline);
-	vk_bind_geometry(TESS_XYZ | TESS_RGBA0);
-	vk_draw_geometry(DEPTH_RANGE_ZERO, qfalse);
-
 	tess.numVertexes = 0;
 }
 

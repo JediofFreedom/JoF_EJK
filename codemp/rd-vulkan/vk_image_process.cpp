@@ -26,6 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "vk_texture_scratch.h"
 #include <cstdlib>
 #include <climits>
+#include <algorithm>
 
 void R_SetColorMappings( void)
 {
@@ -324,8 +325,8 @@ bool R_MipMap2( unsigned * const out, unsigned * const in, int inWidth, int inHe
     // The shorter axis reaches one before the longer axis for rectangular
     // textures. Continue the same wrapped HQ filter through the remaining
     // mip levels; the singleton axis simply contributes repeated samples.
-    outWidth = MAX(1, inWidth >> 1);
-    outHeight = MAX(1, inHeight >> 1);
+    outWidth = std::max(1, inWidth >> 1);
+    outHeight = std::max(1, inHeight >> 1);
 
     if (out == in) {
         temp = scratch ? reinterpret_cast<unsigned *>(scratch->allocate(TexturePreparationBuffers::MipTemporary, size_t(outWidth) * outHeight * 4)) :

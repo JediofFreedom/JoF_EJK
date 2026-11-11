@@ -116,7 +116,7 @@ STRUCT (
 STRUCT (
 	INT		        ( num_fogs )
     PAD3	        ( pad0 )
-    FOG_ENTRY_T     ( fogs[16] )
+    FOG_ENTRY_T     ( fogs[256] ) // MAX_MAP_FOGS; shared layout stays below the 16 KiB Vulkan UBO minimum
 , vkUniformFog_t )
 
 #undef FOG_ENTRY_T

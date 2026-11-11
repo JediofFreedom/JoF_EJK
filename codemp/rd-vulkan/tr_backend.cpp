@@ -985,11 +985,11 @@ static void vk_update_fog_constants(const trRefdef_t* refdef)
 	size_t size;
 	vkUniformFog_t uniform = {};
 
-	uniform.num_fogs = tr.world ? ( tr.world->numfogs - 1 ) : 0;
+	uniform.num_fogs = tr.world ? MAX(0, MIN(tr.world->numfogs - 1, (int)ARRAY_LEN(uniform.fogs))) : 0;
 
 	size = sizeof(vec4_t);
 
-	for ( i = 0; i < MIN(uniform.num_fogs, 16); ++i )
+	for ( i = 0; i < (uint32_t)uniform.num_fogs; ++i )
 	{
 		const fog_t *fog = tr.world->fogs + i + 1;
 		vkUniformFogEntry_t *fogData = uniform.fogs + i;
