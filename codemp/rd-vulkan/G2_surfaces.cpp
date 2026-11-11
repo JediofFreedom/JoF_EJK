@@ -562,7 +562,7 @@ int G2_AddSurface(CGhoul2Info *ghoul2, int surfaceNumber, int polyNumber, float 
 qboolean G2_RemoveSurface(surfaceInfo_v &slist, const int index)
 {
 		// did we find it?
-	if (index != -1)
+	if (index >= 0 && static_cast<size_t>(index) < slist.size())
 	{
 		 // set us to be the 'not active' state
 		slist[index].surface = -1;
@@ -591,7 +591,6 @@ qboolean G2_RemoveSurface(surfaceInfo_v &slist, const int index)
 		return qtrue;
 	}
 
-	assert(0);
 
 	// no
 	return qfalse;

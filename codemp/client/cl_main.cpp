@@ -534,16 +534,14 @@ void CL_DemoCompleted( void ) {
 		}
 	}
 
-/*	CL_Disconnect( qtrue );
-	CL_NextDemo();
-	*/
-
-	//rww - The above code seems to just stick you in a no-menu state and you can't do anything there.
-	//I'm not sure why it ever worked in TA, but whatever. This code will bring us back to the main menu
-	//after a demo is finished playing instead.
-	CL_Disconnect_f();
+	// A completed demo is a normal disconnect. The console command raises
+	// ERR_DISCONNECT, which would skip menu restoration and nextdemo below.
+	Cvar_Set( "ui_singlePlayerActive", "0" );
+	CL_Disconnect( qtrue );
 	S_StopAllSounds();
-	UIVM_SetActiveMenu( UIMENU_MAIN );
+	if ( cls.uiStarted ) {
+		UIVM_SetActiveMenu( UIMENU_MAIN );
+	}
 
 	CL_NextDemo();
 }

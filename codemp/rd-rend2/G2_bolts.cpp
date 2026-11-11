@@ -57,7 +57,7 @@ int G2_Add_Bolt_Surf_Num(CGhoul2Info *ghlInfo, boltInfo_v &bltlist, surfaceInfo_
 	boltInfo_t			tempBolt;
 
 	// first up, make sure have a surface first
-	if (surfNum >= (int)slist.size())
+	if (surfNum < 0 || static_cast<size_t>(surfNum) >= slist.size() || slist[surfNum].surface < 0)
 	{
 		return -1;
 	}
