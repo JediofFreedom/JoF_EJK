@@ -159,7 +159,12 @@ static void R_BoxSurfaces_r( mnode_t *node, vec3_t mins, vec3_t maxs, surfaceTyp
 		//
 		if (*listlength >= listsize) break;
 		//
-		surf = *mark;
+		surf = *mark++;
+		// A surface can occur in several visited leaves. Its filtering result
+		// is fixed during this projection, including rejected surfaces.
+		if ( surf->viewCount == tr.viewCount ) {
+			continue;
+		}
 		// check if the surface has NOIMPACT or NOMARKS set
 		if ( ( surf->shader->surfaceFlags & ( SURF_NOIMPACT | SURF_NOMARKS ) )
 			|| ( surf->shader->contentFlags & CONTENTS_FOG ) ) {
@@ -186,7 +191,6 @@ static void R_BoxSurfaces_r( mnode_t *node, vec3_t mins, vec3_t maxs, surfaceTyp
 			list[*listlength] = (surfaceType_t *) surf->data;
 			(*listlength)++;
 		}
-		mark++;
 	}
 }
 
