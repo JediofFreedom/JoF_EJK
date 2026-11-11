@@ -42,16 +42,18 @@ Out must have space for two more vertexes than in
 static void R_ChopPolyBehindPlane( int numInPoints, vec3_t inPoints[MAX_VERTS_ON_POLY],
 								   int *numOutPoints, vec3_t outPoints[MAX_VERTS_ON_POLY],
 							vec3_t normal, float dist, float epsilon) {
-	float		dists[MAX_VERTS_ON_POLY+4] = { 0 };
-	int			sides[MAX_VERTS_ON_POLY+4] = { 0 };
+	float		dists[MAX_VERTS_ON_POLY+4];
+	int			sides[MAX_VERTS_ON_POLY+4];
 	int			counts[3];
 	float		dot;
 	int			i, j;
 	float		*p1, *p2, *clip;
 	float		d;
 
-	// don't clip if it might overflow
-	if ( numInPoints >= MAX_VERTS_ON_POLY - 2 ) {
+	// Each active entry and closing sentinel are assigned below; empty input
+	// must return before reading the first entry. Avoid clearing both arrays
+	// for every triangle and clipping plane of every temporary shadow mark.
+	if ( numInPoints <= 0 || numInPoints >= MAX_VERTS_ON_POLY - 2 ) {
 		*numOutPoints = 0;
 		return;
 	}
