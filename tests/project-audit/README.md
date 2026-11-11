@@ -4,7 +4,7 @@ focused reviews separately from initial scans and outstanding candidates. A
 completed source scan does not establish that every subsystem is optimized or
 free of defects. Vendor code is excluded from the first-party count.
 
-Run all standalone regressions from a compiler environment:
+Run every applicable standalone regression suite from a compiler environment:
 
 ```
 python tests/project-audit/regressions.py --output C:/build/ejk-regressions
@@ -13,7 +13,17 @@ python tests/project-audit/regressions.py --output C:/build/ejk-regressions
 Pass additional CMake options after `--` (for example `-G Ninja` or an explicit
 NASM compiler). The runner discovers `tests/*/CMakeLists.txt`, retains separate
 logs/results, and exits unsuccessfully if configuration, compilation or any
-CTest suite fails. The renderer CI runs this discovery on Windows/Linux/macOS.
+applicable CTest suite fails, including a suite with no registered tests. The
+renderer CI runs this discovery on Windows/Linux/macOS.
+
+`sjk-chat` and `updater` are explicitly Windows-only: their CMake files reject
+`NOT WIN32`, and they test native Windows client implementations using WinHTTP
+(plus BCrypt/Shell32 for chat). On other hosts the runner records each as
+`status: platform-skipped`, `passed: null`, with the reason in `results.json`
+and its log. Skips count separately from passes/failures; the pass denominator
+contains every applicable suite. With the current 30 discovered suites, Windows
+requires 30/30 and Linux/macOS require 28/28 with two explicit platform skips.
+No other configuration or test failure is converted into a skip.
 
 For static analysis, generate `compile_commands.json` from the actual build.
 CMake's compile database or Ninja's `-t compdb -x` for both C/C++ compiler rules

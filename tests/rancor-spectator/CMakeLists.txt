@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rancor_spectator C)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../TestPlatform.cmake")
 
 set(repo "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 # Compile the actual rancor AI and timers; extract the spectator entry points
@@ -27,6 +28,7 @@ add_executable(rancor_spectator check.c
   "${repo}/codemp/game/NPC_AI_Rancor.c"
   "${repo}/codemp/game/g_timer.c"
   "${repo}/shared/qcommon/q_math.c")
+ejk_test_platform(rancor_spectator)
 target_include_directories(rancor_spectator PRIVATE
   "${CMAKE_CURRENT_BINARY_DIR}" "${repo}/codemp" "${repo}/shared")
 if(MSVC)

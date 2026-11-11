@@ -116,6 +116,11 @@ target_include_directories(loading_audit PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" $
   "${ROOT}/lib/zlib" "${ROOT}/lib/zlib/include")
 target_link_libraries(loading_audit PRIVATE ${JPEG_LIBRARIES})
 add_subdirectory("${ROOT}/lib/libpng" "libpng")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64)$")
+  # Match the root build: this bundled libpng snapshot contains no ARM NEON
+  # implementation files, so its compiler-autodetected NEON calls cannot link.
+  target_compile_definitions(bundled_libpng PRIVATE PNG_ARM_NEON_OPT=0)
+endif()
 target_include_directories(loading_audit PRIVATE "${ROOT}/lib/libpng/include")
 target_link_libraries(loading_audit PRIVATE bundled_libpng)
 file(READ "${ROOT}/codemp/rd-common/tr_image_png.cpp" png_source)

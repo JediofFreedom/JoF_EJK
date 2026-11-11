@@ -317,3 +317,24 @@ They do not measure SJK or establish an FPS improvement.
 Use `-WorkerPrepare 0`, `-FilesystemIndex 0` and `-LazyPlayerSpecies 0` with
 `profile.ps1` to reproduce individual comparisons. Corresponding settings are
 `r_textureWorkerPrepare`, `fs_lookupIndex` and `ui_lazyPlayerSpecies`.
+
+### Checkpoint versus the previous deployed build
+
+Three alternating pairs compare the previous deployed `6955dca` binary with the
+source finalized as `af047b2`. Both use the same installed GameData, window,
+quality and sound settings, fresh profiles and warm OS caches. The old build
+uses its 512 MiB GPU cache; the new build uses its device-scaled automatic budget
+(about 2 GiB here), workers/preparation/index/lazy catalogs enabled, disk cache
+off. No local compiler, analyzer or other game client ran during measurements.
+
+| Measurement, median of three | Previous deployed build | Checkpoint |
+| --- | ---: | ---: |
+| First T1_Fatal handoff | 3.535 s | 2.210 s |
+| mp/ffa3 handoff | 1.884 s | 0.948 s |
+| T1_Fatal revisit | 2.287 s | 0.733 s |
+| Complete client cycle | 13.205 s | 9.089 s |
+
+The handoffs are about 37%, 50% and 68% shorter; the complete cycle is about 31%
+shorter. The complete cycle includes fixed waits and startup work. This measures
+the combined checkpoint behavior, not isolated features. It remains a local
+one-player comparison and does not establish a lead over SJK or an FPS gain.

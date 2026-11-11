@@ -209,6 +209,28 @@
         "lazy": 112,
         "eager": 514
       }
+    },
+    "checkpoint_vs_6955": {
+      "method": "Three alternating pairs, identicalinstalledGameData/window/quality/sound,freshprofiles,warmOScache,quietmachine;olddefault512MiBvsnewautomatic~2GiB,workers/prep/index/lazyenabled,diskoff.",
+      "baseline": "6955dca",
+      "checkpoint_source": "af047b23abae33735c5b633200159c909cbd34f6",
+      "median_cycle_seconds": {
+        "baseline": 13.2052346,
+        "checkpoint": 9.0892083
+      },
+      "median_map_milliseconds": {
+        "baseline": [
+          3535,
+          1884,
+          2287
+        ],
+        "checkpoint": [
+          2210,
+          948,
+          733
+        ]
+      },
+      "limit": "Combinedbehaviorincludesdifferentdefaultcachebudget;localone-playercomparison,noprovenSJK/FPSlead."
     }
   },
   "verification_state": "Checkpoint validated: Windows x86/x64,30 standalone suites, real normal/custom player menus and Vulkan core/sync validation. Broader runtime/audit work remains.",
