@@ -46,6 +46,37 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 cvar_t *cl_name;
 
 cvar_t	*cl_renderer;
+static int clLoadProfileStarted;
+static qboolean clLoadProfilePending;
+static unsigned int clLoadProfileEvents;
+static const char *clLoadProfileLabel = "map-handoff-to-first-frame";
+
+void CL_LoadProfileStage(const char *stage, int started) {
+	if (Cvar_VariableIntegerValue("cl_loadTimings"))
+		Com_Printf("LOADPROFILE %s: %d ms\n", stage, Sys_Milliseconds() - started);
+}
+
+void CL_LoadProfileEvent(clLoadProfileEvent_t event) {
+	static const char *const stages[] = {
+		"load elapsed to setup complete", "load elapsed to challenge request",
+		"load elapsed to challenge accepted", "load elapsed to connect request",
+		"load elapsed to connect accepted", "load elapsed to first server packet",
+		"load elapsed to gamestate received", "load elapsed to cgame ready (CA_PRIMED)",
+		"load elapsed to first active snapshot", "load elapsed to CA_ACTIVE"
+	};
+	const unsigned int bit = 1u << event;
+	if (clLoadProfilePending && !(clLoadProfileEvents & bit)) {
+		clLoadProfileEvents |= bit;
+		CL_LoadProfileStage(stages[event], clLoadProfileStarted);
+	}
+}
+
+void CL_LoadProfilePresented(void) {
+	if (clLoadProfilePending && cls.state == CA_ACTIVE) {
+		clLoadProfilePending = qfalse;
+		CL_LoadProfileStage(clLoadProfileLabel, clLoadProfileStarted);
+	}
+}
 
 cvar_t	*cl_nodelta;
 cvar_t	*cl_debugMove;
@@ -519,16 +550,14 @@ void CL_DemoCompleted( void ) {
 		}
 	}
 
-/*	CL_Disconnect( qtrue );
-	CL_NextDemo();
-	*/
-
-	//rww - The above code seems to just stick you in a no-menu state and you can't do anything there.
-	//I'm not sure why it ever worked in TA, but whatever. This code will bring us back to the main menu
-	//after a demo is finished playing instead.
-	CL_Disconnect_f();
+	// A completed demo is a normal disconnect. The console command raises
+	// ERR_DISCONNECT, which would skip menu restoration and nextdemo below.
+	Cvar_Set( "ui_singlePlayerActive", "0" );
+	CL_Disconnect( qtrue );
 	S_StopAllSounds();
-	UIVM_SetActiveMenu( UIMENU_MAIN );
+	if ( cls.uiStarted ) {
+		UIVM_SetActiveMenu( UIMENU_MAIN );
+	}
 
 	CL_NextDemo();
 }
@@ -843,9 +872,12 @@ Also called by Com_Error
 =================
 */
 void CL_FlushMemory( void ) {
+	int loadStage = Sys_Milliseconds();
 
 	// shutdown all the client stuff
 	CL_ShutdownAll( qfalse );
+	CL_LoadProfileStage("client shutdown", loadStage);
+	loadStage = Sys_Milliseconds();
 
 	// if not running a server clear the whole hunk
 	if ( !com_sv_running->integer ) {
@@ -859,6 +891,7 @@ void CL_FlushMemory( void ) {
 		Hunk_ClearToMark();
 	}
 
+	CL_LoadProfileStage("client memory clear", loadStage);
 	CL_StartHunkUsers();
 }
 
@@ -1114,7 +1147,9 @@ void CL_RequestMotd( void ) {
 		return;
 	}
 
+	const int resolutionStarted = Sys_Milliseconds();
 	i = NET_StringToAdr( motdaddress, &to );
+	CL_LoadProfileStage("MOTD address resolution", resolutionStarted);
 
 	if ( !i )
 	{
@@ -1222,6 +1257,10 @@ void CL_Connect_f( void ) {
 		Com_Printf( "usage: connect [server]\n");
 		return;
 	}
+	clLoadProfileStarted = Sys_Milliseconds();
+	clLoadProfilePending = Cvar_VariableIntegerValue("cl_loadTimings") ? qtrue : qfalse;
+	clLoadProfileEvents = 0;
+	clLoadProfileLabel = "connect-to-first-frame";
 
 	// save arguments for reconnect
 	Q_strncpyz( cl_reconnectArgs, Cmd_Args(), sizeof( cl_reconnectArgs ) );
@@ -1229,7 +1268,9 @@ void CL_Connect_f( void ) {
 	Cvar_Set("ui_singlePlayerActive", "0");
 
 	// fire a message off to the motd server
+	const int motdStarted = Sys_Milliseconds();
 	CL_RequestMotd();
+	CL_LoadProfileStage("MOTD request", motdStarted);
 
 	// clear any previous "server full" type messages
 	clc.serverMessage[0] = 0;
@@ -1250,7 +1291,10 @@ void CL_Connect_f( void ) {
 
 	Q_strncpyz( cls.servername, server, sizeof(cls.servername) );
 
-	if (!NET_StringToAdr( cls.servername, &clc.serverAddress) ) {
+	const int resolutionStarted = Sys_Milliseconds();
+	const qboolean addressResolved = NET_StringToAdr( cls.servername, &clc.serverAddress );
+	CL_LoadProfileStage("server address resolution", resolutionStarted);
+	if (!addressResolved) {
 		Com_Printf ("Bad server address\n");
 		cls.state = CA_DISCONNECTED;
 		return;
@@ -1291,6 +1335,7 @@ void CL_Connect_f( void ) {
 	// server connection string
 	Cvar_Set( "cl_currentServerAddress", server );
 	Cvar_Set( "cl_currentServerIP", serverString );
+	CL_LoadProfileEvent(CL_LOAD_CONNECT_SETUP);
 }
 
 #define MAX_RCON_MESSAGE 1024
@@ -1435,7 +1480,8 @@ void CL_Vid_Restart_f( void ) {
 	// A different renderer cannot inherit the old renderer's window/context.
 	// Treat that transition as a full renderer shutdown; this is particularly
 	// important for Vulkan, whose device and instance otherwise survive the DLL
-	// unload.  Same-renderer restarts retain the established lightweight path.
+	// unload. CL_ShutdownRef also destroys Vulkan resources on same-renderer
+	// restarts because the renderer DLL's device handles do not survive unload.
 	CL_ShutdownRef( rendererChanged ? qfalse : qtrue );
 	// client is no longer pure untill new checksums are sent
 	CL_ResetPureClientAtServer();
@@ -1597,6 +1643,12 @@ void CL_DownloadsComplete( void ) {
 	}
 
 	// let the client game init and load data
+	if (!clLoadProfilePending && Cvar_VariableIntegerValue("cl_loadTimings")) {
+		clLoadProfileStarted = Sys_Milliseconds();
+		clLoadProfilePending = qtrue;
+		clLoadProfileEvents = 0;
+		clLoadProfileLabel = "map-handoff-to-first-frame";
+	}
 	cls.state = CA_LOADING;
 
 	// Pump the loop, this may change gamestate!
@@ -1706,6 +1758,8 @@ void CL_DownloadsComplete( void ) {
 		cls.cgameStarted = qtrue;
 		CL_InitCGame();
 	}
+
+	CL_LoadProfileEvent(CL_LOAD_CGAME_READY);
 
 	// set pure checksums
 	CL_SendPureChecksums();
@@ -1970,6 +2024,7 @@ void CL_CheckForResend( void ) {
 		Com_sprintf(data, sizeof(data), "getchallenge %d", clc.challenge);
 
 		NET_OutOfBandPrint(NS_CLIENT, clc.serverAddress, data);
+		CL_LoadProfileEvent(CL_LOAD_CHALLENGE_SENT);
 		break;
 
 	case CA_CHALLENGING:
@@ -2052,6 +2107,7 @@ void CL_CheckForResend( void ) {
 
 		Com_sprintf(data, sizeof(data), "connect \"%s\"", info );
 		NET_OutOfBandData( NS_CLIENT, clc.serverAddress, (byte *)data, strlen(data) );
+		CL_LoadProfileEvent(CL_LOAD_CONNECT_SENT);
 
 		// the most current userinfo has been sent, so watch for any
 		// newer changes to userinfo variables
@@ -2592,6 +2648,7 @@ void CL_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 		// a server proxy to hand off connections to multiple servers
 		clc.serverAddress = from;
 		Com_DPrintf ("challengeResponse: %d\n", clc.challenge);
+		CL_LoadProfileEvent(CL_LOAD_CHALLENGE_ACCEPTED);
 		return;
 	}
 
@@ -2612,6 +2669,7 @@ void CL_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 		Netchan_Setup (NS_CLIENT, &clc.netchan, from, Cvar_VariableValue( "net_qport" ) );
 		cls.state = CA_CONNECTED;
 		clc.lastPacketSentTime = -9999;		// send first packet immediately
+		CL_LoadProfileEvent(CL_LOAD_CONNECT_ACCEPTED);
 		return;
 	}
 
@@ -2721,6 +2779,7 @@ void CL_PacketEvent( netadr_t from, msg_t *msg ) {
 		return;
 	}
 
+	CL_LoadProfileEvent(CL_LOAD_SERVER_PACKET);
 	if (!CL_Netchan_Process( &clc.netchan, msg) ) {
 		return;		// out of order, duplicated, etc
 	}
@@ -3032,6 +3091,8 @@ void CL_Frame ( int msec ) {
 
 	// decide on the serverTime to render
 	CL_SetCGameTime();
+	if (clLoadProfilePending && cls.state == CA_ACTIVE)
+		CL_LoadProfileEvent(CL_LOAD_ACTIVE);
 
 	if (render) {
 		// update the screen
@@ -3123,7 +3184,13 @@ static void CL_ShutdownRef( qboolean restarting ) {
 	{
 		if ( re->Shutdown )
 		{
-			re->Shutdown(restarting ? qfalse : qtrue, restarting);
+			// GL can retain its engine-owned context across DLL reloads. Vulkan's
+			// device/instance live in the renderer DLL and must be destroyed before
+			// unloading it, including same-renderer video restarts. Keep restarting
+			// true so the renderer preserves Ghoul2 state and the SDL window.
+			const qboolean destroyResources = (!restarting ||
+				!Q_stricmp(activeRendererName, "rd-vulkan")) ? qtrue : qfalse;
+			re->Shutdown(destroyResources, restarting);
 		}
 	}
 
@@ -3186,9 +3253,11 @@ void CL_StartHunkUsers( void ) {
 	}
 
 	if ( !cls.rendererStarted ) {
+		const int loadStage = Sys_Milliseconds();
 		cls.rendererStarted = qtrue;
 		Com_Memset(&cls.glconfig, 0, sizeof(cls.glconfig));
 		CL_InitRenderer();
+		CL_LoadProfileStage("renderer registration", loadStage);
 	}
 
 	if ( !cls.soundStarted ) {
@@ -3206,8 +3275,10 @@ void CL_StartHunkUsers( void ) {
 	}
 
 	if ( !cls.uiStarted ) {
+		const int loadStage = Sys_Milliseconds();
 		cls.uiStarted = qtrue;
 		CL_InitUI();
+		CL_LoadProfileStage("UI initialization", loadStage);
 	}
 }
 
@@ -3331,46 +3402,44 @@ static void CL_UpdateVulkanAvailability(void)
 #endif
 }
 
+#ifdef EJK_DEFAULT_VULKAN
+#define DEFAULT_RENDER_LIBRARY "rd-vulkan"
+#else
 #define DEFAULT_RENDER_LIBRARY "rd-eternaljk"
+#endif
+#define FALLBACK_RENDER_LIBRARY "rd-eternaljk"
+
+static void *CL_LoadRendererLibrary(void) {
+	char dllName[MAX_OSPATH];
+	cl_renderer = Cvar_Get("cl_renderer", DEFAULT_RENDER_LIBRARY, CVAR_ARCHIVE|CVAR_LATCH,
+		"Which native renderer library to use");
+	const qboolean allowFallback = Cvar_Get("cl_rendererFallback", "0", CVAR_NONE,
+		"Explicitly allow the legacy renderer if the selected renderer cannot load")->integer ? qtrue : qfalse;
+	if (!Q_stricmp(cl_renderer->string, "rd-vulkan") && ui_vulkan_supported && !ui_vulkan_supported->integer) {
+		if (!allowFallback)
+			Com_Error(ERR_FATAL, "Vulkan was selected, but no Vulkan loader is available.\n");
+		Com_Printf(S_COLOR_YELLOW "Vulkan is unavailable; the enabled fallback selects " FALLBACK_RENDER_LIBRARY "\n");
+		cl_renderer = Cvar_Set2("cl_renderer", FALLBACK_RENDER_LIBRARY, 0, qtrue);
+	}
+	Com_sprintf(dllName, sizeof(dllName), "%s_" ARCH_STRING DLL_EXT, cl_renderer->string);
+	void *library = Sys_LoadDll(dllName, qfalse);
+	if (!library && allowFallback && Q_stricmp(cl_renderer->string, FALLBACK_RENDER_LIBRARY)) {
+		Com_Printf("Renderer unavailable; the enabled fallback selects " FALLBACK_RENDER_LIBRARY "\n");
+		cl_renderer = Cvar_Set2("cl_renderer", FALLBACK_RENDER_LIBRARY, 0, qtrue);
+		Com_sprintf(dllName, sizeof(dllName), FALLBACK_RENDER_LIBRARY "_" ARCH_STRING DLL_EXT);
+		library = Sys_LoadDll(dllName, qfalse);
+	}
+	if (!library) Com_Error(ERR_FATAL, "Failed to load renderer %s\n", dllName);
+	return library;
+}
 
 void CL_InitRef( void ) {
 	static refimport_t ri;
-	refexport_t	*ret;
-	GetRefAPI_t	GetRefAPI;
-	char		dllName[MAX_OSPATH];
+	refexport_t *ret;
+	GetRefAPI_t GetRefAPI;
 
-//	Com_Printf( "----- Initializing Renderer ----\n" );
-	Com_Printf( "---------- Initializing Renderer ---------\n" );
-
-	cl_renderer = Cvar_Get( "cl_renderer", DEFAULT_RENDER_LIBRARY, CVAR_ARCHIVE|CVAR_LATCH, "Which renderer library to use" );
-
-	// rd-vulkan is a prebuilt module that calls Com_Error( ERR_FATAL ) if it
-	// cannot reach a Vulkan loader (an ICD on Linux, MoltenVK on macOS).  That
-	// happens during renderer init, long after the module has loaded, so the
-	// load-failure fallback below cannot catch it.  Refuse it up front instead,
-	// using the availability probe CL_UpdateVulkanAvailability() ran earlier.
-	if ( !Q_stricmp( cl_renderer->string, "rd-vulkan" )
-		&& ui_vulkan_supported && !ui_vulkan_supported->integer )
-	{
-		Com_Printf( S_COLOR_YELLOW "Vulkan is not available on this system, falling back to "
-			DEFAULT_RENDER_LIBRARY "\n" );
-		Cvar_ForceReset( "cl_renderer" );
-	}
-
-	Com_sprintf( dllName, sizeof( dllName ), "%s_" ARCH_STRING DLL_EXT, cl_renderer->string );
-
-	if( !(rendererLib = Sys_LoadDll( dllName, qfalse )) && strcmp( cl_renderer->string, cl_renderer->resetString ) )
-	{
-		Com_Printf( "failed: trying to load fallback renderer\n" );
-		Cvar_ForceReset( "cl_renderer" );
-
-		Com_sprintf( dllName, sizeof( dllName ), DEFAULT_RENDER_LIBRARY "_" ARCH_STRING DLL_EXT );
-		rendererLib = Sys_LoadDll( dllName, qfalse );
-	}
-
-	if ( !rendererLib ) {
-		Com_Error( ERR_FATAL, "Failed to load renderer\n" );
-	}
+	Com_Printf("---------- Initializing Renderer ---------\n");
+	rendererLib = CL_LoadRendererLibrary();
 
 	memset( &ri, 0, sizeof( ri ) );
 
@@ -3411,6 +3480,8 @@ void CL_InitRef( void ) {
 	ri.FS_FreeFileList = FS_FreeFileList;
 	ri.FS_Read = FS_Read;
 	ri.FS_ReadFile = FS_ReadFile;
+	ri.FS_GetReadFileIdentity = FS_GetReadFileIdentity;
+	ri.FS_GetWritePath = FS_GetWritePath;
 	ri.FS_FCloseFile = FS_FCloseFile;
 	ri.FS_FOpenFileRead = FS_FOpenFileRead;
 	ri.FS_FOpenFileWrite = FS_FOpenFileWrite;
@@ -3448,8 +3519,10 @@ void CL_InitRef( void ) {
 	ri.WIN_SetGamma = WIN_SetGamma;
     ri.WIN_Shutdown = WIN_Shutdown;
     ri.WIN_Present = WIN_Present;
-	ri.GL_GetProcAddress = WIN_GL_GetProcAddress;
-	ri.GL_ExtensionSupported = WIN_GL_ExtensionSupported;
+	if (Q_stricmp(cl_renderer->string, "rd-vulkan")) {
+		ri.GL_GetProcAddress = WIN_GL_GetProcAddress;
+		ri.GL_ExtensionSupported = WIN_GL_ExtensionSupported;
+	}
 
 #if WIN32
 	//ri.VK_GetInstanceExtensions = WIN_VK_GetInstanceExtensions;
@@ -4058,6 +4131,7 @@ void CL_Init( void ) {
 	// register our variables
 	//
 	cl_noprint = Cvar_Get( "cl_noprint", "0", 0 );
+	Cvar_Get("cl_loadTimings", "0", CVAR_TEMP, "Print loading phases and connect-to-first-frame timing");
 	cl_motd = Cvar_Get ("cl_motd", "1", CVAR_ARCHIVE_ND, "Display welcome message from master server on the bottom of connection screen" );
 	cl_motdServer[0] = Cvar_Get( "cl_motdServer1", UPDATE_SERVER_NAME, 0 );
 	cl_motdServer[1] = Cvar_Get( "cl_motdServer2", JKHUB_UPDATE_SERVER_NAME, 0 );

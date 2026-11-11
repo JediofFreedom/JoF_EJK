@@ -23,6 +23,8 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 // cg_players.c -- handle the media and animation for player entities
 #include "cg_local.h"
+#include "cg_runtime_profile.h"
+#include "game/bg_anim_events.h"
 #include "ghoul2/G2.h"
 #include "game/bg_saga.h"
 #include "cJSON.h"
@@ -2010,7 +2012,7 @@ static cosmeticItem_t *CG_ResolveCosmetic( const char *cosName, cosmeticItem_t *
 	item = CG_CosmeticForName( cosName, cosmetics, totalCosmetics );
 
 	//a model that failed to load registers as handle 0 - treat it as absent
-	if ( !item || !item->handle )
+	if ( !CG_CosmeticModel(item) )
 		return NULL;
 
 	return item;
@@ -2883,17 +2885,22 @@ static void _PlayerFootStep( const vec3_t origin,
 	qboolean	bMark = qfalse;
 	qhandle_t footMarkShader;
 	int			effectID = -1;
+	cgProfileMark_t profile;
 	//float		alpha;
 
 	// send a trace down from the player to the ground
 	VectorCopy( origin, end );
 	end[2] -= FOOTSTEP_DISTANCE;
 
+	profile = CG_ProfileFineBegin();
 	trap->CM_Trace(&trace, origin, end, mins, maxs, 0, MASK_WATER, 0); //check if we're standing in water first
+	CG_ProfileEnd(CGP_FOOTSTEP_WATER,profile);
 	if (trace.fraction < 1.0f)
 		return;
 
+	profile = CG_ProfileFineBegin();
 	trap->CM_Trace( &trace, origin, end, mins, maxs, 0, MASK_PLAYERSOLID, 0);
+	CG_ProfileEnd(CGP_FOOTSTEP_GROUND,profile);
 
 	// no shadow if too high
 	if ( trace.fraction >= 1.0f )
@@ -3017,7 +3024,9 @@ static void _PlayerFootStep( const vec3_t origin,
 
 	if (soundType < FOOTSTEP_TOTAL)
 	{
+		profile = CG_ProfileFineBegin();
 	 	trap->S_StartSound( NULL, cent->currentState.clientNum, CHAN_BODY, cgs.media.footsteps[soundType][rand()&3] );
+		CG_ProfileEnd(CGP_FOOTSTEP_SOUND,profile);
 	}
 
 	if ( cg_footsteps.integer < 4 )
@@ -3030,7 +3039,9 @@ static void _PlayerFootStep( const vec3_t origin,
 
 	if ( effectID != -1 )
 	{
+		profile = CG_ProfileFineBegin();
 		trap->FX_PlayEffectID( effectID, trace.endpos, trace.plane.normal, -1, -1, qfalse );
+		CG_ProfileEnd(CGP_FOOTSTEP_FX,profile);
 	}
 
 	if ( cg_footsteps.integer < 4 )
@@ -3065,8 +3076,10 @@ static void _PlayerFootStep( const vec3_t origin,
 	// without taking a spot in the cg_marks array
 	if (trace.plane.normal[0] || trace.plane.normal[1] || trace.plane.normal[2])
 	{
+		profile = CG_ProfileFineBegin();
 		CG_ImpactMark( footMarkShader, trace.endpos, trace.plane.normal,
 			orientation, 1,1,1, 1.0f, qfalse, radius, qfalse );
+		CG_ProfileEnd(CGP_FOOTSTEP_MARK,profile);
 	}
 }
 
@@ -3096,11 +3109,13 @@ static void CG_PlayerFootsteps( centity_t *cent, footstepType_t footStepType )
 		mdxaBone_t	boltMatrix;
 		vec3_t tempAngles, sideOrigin;
 		int footBolt = -1;
+		cgProfileMark_t profile;
 
 		tempAngles[PITCH]	= 0;
 		tempAngles[YAW]		= cent->pe.legs.yawAngle;
 		tempAngles[ROLL]	= 0;
 
+		profile = CG_ProfileFineBegin();
 		switch ( footStepType )
 		{
 		case FOOTSTEP_R:
@@ -3119,6 +3134,7 @@ static void CG_PlayerFootsteps( centity_t *cent, footstepType_t footStepType )
 		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, footBolt, &boltMatrix, tempAngles, cent->lerpOrigin,
 				cg.time, cgs.gameModels, cent->modelScale);
 		BG_GiveMeVectorFromMatrix( &boltMatrix, ORIGIN, sideOrigin );
+		CG_ProfileEnd(CGP_FOOTSTEP_BOLT,profile);
 		sideOrigin[2] += 15;	//fudge up a bit for coplanar
 		_PlayerFootStep( sideOrigin, cent->pe.legs.yawAngle, 6, cent, footStepType );
 	}
@@ -3367,19 +3383,25 @@ This func is called once for legs and once for torso
 */
 void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso, int oldFrame, int frame, int entNum )
 {
+	cgProfileMark_t selectorProfile = CG_ProfileFineBegin();
 	int		i;
 	int		firstFrame = 0, lastFrame = 0;
 	qboolean	doEvent = qfalse, inSameAnim = qfalse, loopAnim = qfalse, match = qfalse, animBackward = qfalse;
 	qboolean grappleFrames = qfalse;
 	animevent_t *animEvents = NULL;
+	const bgAnimEventIndex_t *eventIndex;
+	bgAnimEventCandidates_t candidates;
+	qboolean indexed;
 
 	if ( torso )
 	{
 		animEvents = bgAllEvents[eventFileIndex].torsoAnimEvents;
+		eventIndex = &bgAllEvents[eventFileIndex].torsoIndex;
 	}
 	else
 	{
 		animEvents = bgAllEvents[eventFileIndex].legsAnimEvents;
+		eventIndex = &bgAllEvents[eventFileIndex].legsIndex;
 	}
 	if ( fabs((float)(oldFrame-frame)) > 1 )
 	{//given a range, see if keyFrame falls in that range
@@ -3457,8 +3479,16 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 		}
 	}
 
-	// Check for anim sound
-	for (i=0;i<MAX_ANIM_EVENTS;++i)
+	// Ordinary events can match only the exact frame or the existing +/-3
+	// proximity windows. Keep grapple's wider skipped-frame handling unchanged.
+	indexed = eventIndex->valid && !grappleFrames;
+	if (indexed)
+		BG_AnimEventCandidatesInit(&candidates,eventIndex,animEvents,oldFrame,frame,
+			inSameAnim && fabs((float)(oldFrame-frame)) > 1);
+
+	// Candidate slots retain source order, including the legacy doEvent carry.
+	for (i=indexed ? BG_AnimEventCandidateNext(&candidates) : 0;
+		i<MAX_ANIM_EVENTS;i=indexed ? BG_AnimEventCandidateNext(&candidates) : i+1)
 	{
 		if ( animEvents[i].eventType == AEV_NONE )	// No event, end of list
 		{
@@ -3597,10 +3627,24 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 			// do event
 			if ( doEvent )
 			{
+				cgProfileMark_t dispatchProfile = CG_ProfileFineBegin();
+				cgProfileStage_t dispatchStage = CGP_ANIM_OTHER;
+				if (dispatchProfile.active) {
+					switch (animEvents[i].eventType) {
+					case AEV_SOUND: case AEV_SOUNDCHAN: dispatchStage = CGP_ANIM_SOUND; break;
+					case AEV_FOOTSTEP: dispatchStage = CGP_ANIM_FOOTSTEP; break;
+					case AEV_EFFECT: dispatchStage = CGP_ANIM_EFFECT; break;
+					case AEV_SABER_SWING: case AEV_SABER_SPIN: dispatchStage = CGP_ANIM_SABER; break;
+					default: break;
+					}
+				}
 				CG_PlayerAnimEventDo( &cg_entities[entNum], &animEvents[i] );
+				CG_ProfileEnd(dispatchStage,dispatchProfile);
+				CG_ProfileEnd(CGP_ANIM_DISPATCH,dispatchProfile);
 			}
 		}
 	}
+	CG_ProfileEnd(indexed ? CGP_ANIM_INDEXED : CGP_ANIM_LINEAR,selectorProfile);
 }
 
 void CG_TriggerAnimSounds( centity_t *cent )
@@ -3608,19 +3652,24 @@ void CG_TriggerAnimSounds( centity_t *cent )
 	int		curFrame = 0;
 	float	currentFrame = 0;
 	int		sFileIndex;
+	cgProfileMark_t profile;
 
 	assert(cent->localAnimIndex >= 0);
 
 	sFileIndex = cent->eventAnimIndex;
 
+	profile = CG_ProfileFineBegin();
 	if (trap->G2API_GetBoneFrame(cent->ghoul2, "model_root", cg.time, &currentFrame, cgs.gameModels, 0))
 	{
 		// the above may have failed, not sure what to do about it, current frame will be zero in that case
 		curFrame = floor( currentFrame );
 	}
+	CG_ProfileEnd(CGP_ANIM_BONE_FRAMES,profile);
 	if ( curFrame != cent->pe.legs.frame )
 	{
+		profile = CG_ProfileFineBegin();
 		CG_PlayerAnimEvents( cent->localAnimIndex, sFileIndex, qfalse, cent->pe.legs.frame, curFrame, cent->currentState.number );
+		CG_ProfileEnd(CGP_ANIM_EVENTS,profile);
 	}
 	cent->pe.legs.oldFrame = cent->pe.legs.frame;
 	cent->pe.legs.frame = curFrame;
@@ -3632,13 +3681,17 @@ void CG_TriggerAnimSounds( centity_t *cent )
 		return;
 	}
 
+	profile = CG_ProfileFineBegin();
 	if (trap->G2API_GetBoneFrame(cent->ghoul2, "lower_lumbar", cg.time, &currentFrame, cgs.gameModels, 0))
 	{
 		curFrame = floor( currentFrame );
 	}
+	CG_ProfileEnd(CGP_ANIM_BONE_FRAMES,profile);
 	if ( curFrame != cent->pe.torso.frame )
 	{
+		profile = CG_ProfileFineBegin();
 		CG_PlayerAnimEvents( cent->localAnimIndex, sFileIndex, qtrue, cent->pe.torso.frame, curFrame, cent->currentState.number );
+		CG_ProfileEnd(CGP_ANIM_EVENTS,profile);
 	}
 	cent->pe.torso.oldFrame = cent->pe.torso.frame;
 	cent->pe.torso.frame = curFrame;
@@ -5838,6 +5891,7 @@ static qboolean CG_PlayerShadow( centity_t *cent, float *shadowPlane ) {
 	trace_t		trace;
 	float		alpha;
 	float		radius = 24.0f;
+	cgProfileMark_t profile;
 
 	*shadowPlane = 0;
 
@@ -5879,7 +5933,9 @@ static qboolean CG_PlayerShadow( centity_t *cent, float *shadowPlane ) {
 	{ //stencil
 		end[2] -= 4096.0f;
 
+		profile = CG_ProfileFineBegin();
 		trap->CM_Trace( &trace, cent->lerpOrigin, end, mins, maxs, 0, MASK_PLAYERSOLID, 0 );
+		CG_ProfileEnd(CGP_SHADOW_TRACE,profile);
 
 		if ( trace.fraction == 1.0 || trace.startsolid || trace.allsolid )
 		{
@@ -5890,7 +5946,9 @@ static qboolean CG_PlayerShadow( centity_t *cent, float *shadowPlane ) {
 	{
 		end[2] -= SHADOW_DISTANCE;
 
+		profile = CG_ProfileFineBegin();
 		trap->CM_Trace( &trace, cent->lerpOrigin, end, mins, maxs, 0, MASK_PLAYERSOLID, 0 );
+		CG_ProfileEnd(CGP_SHADOW_TRACE,profile);
 
 		// no shadow if too high
 		if ( trace.fraction == 1.0 || trace.startsolid || trace.allsolid ) {
@@ -5924,8 +5982,10 @@ static qboolean CG_PlayerShadow( centity_t *cent, float *shadowPlane ) {
 	{
 		radius = 8.0f;
 	}
+	profile = CG_ProfileFineBegin();
 	CG_ImpactMark( cgs.media.shadowMarkShader, trace.endpos, trace.plane.normal,
 		cent->pe.legs.yawAngle, alpha,alpha,alpha,1, qfalse, radius, qtrue );
+	CG_ProfileEnd(CGP_SHADOW_MARK,profile);
 
 	return qtrue;
 }
@@ -5943,6 +6003,7 @@ static void CG_PlayerSplash( centity_t *cent ) {
 	trace_t		trace;
 	int			contents;
 	polyVert_t	verts[4];
+	cgProfileMark_t profile;
 
 	if ( !cg_shadows.integer ) {
 		return;
@@ -5953,7 +6014,9 @@ static void CG_PlayerSplash( centity_t *cent ) {
 
 	// if the feet aren't in liquid, don't make a mark
 	// this won't handle moving water brushes, but they wouldn't draw right anyway...
+	profile = CG_ProfileFineBegin();
 	contents = CG_PointContents( end, 0 );
+	CG_ProfileEnd(CGP_WATER_CONTENTS,profile);
 	if ( !( contents & ( CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA ) ) ) {
 		return;
 	}
@@ -5962,7 +6025,9 @@ static void CG_PlayerSplash( centity_t *cent ) {
 	start[2] += 32;
 
 	// if the head isn't out of liquid, don't make a mark
+	profile = CG_ProfileFineBegin();
 	contents = CG_PointContents( start, 0 );
+	CG_ProfileEnd(CGP_WATER_CONTENTS,profile);
 	if ( contents & ( CONTENTS_SOLID | CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA ) ) {
 		return;
 	}
@@ -11727,7 +11792,7 @@ static void CG_DrawHatOnPlayer( centity_t *cent, int time, qhandle_t *gameModels
 
 extern qboolean BG_InSlopeAnim( int anim );
 extern void CG_CubeOutline(vec3_t mins, vec3_t maxs, int time, unsigned int color, float alpha);
-void CG_Player( centity_t *cent ) {
+static void CG_PlayerInternal( centity_t *cent, cgProfileScope_t *profile ) {
 	clientInfo_t	*ci;
 	refEntity_t		legs;
 	refEntity_t		torso;
@@ -11990,6 +12055,7 @@ void CG_Player( centity_t *cent ) {
 
 	}
 
+	CG_ProfileScopeNext(profile,CGP_PLAYER_MODEL);
 	if (!cent->ghoul2)
 	{ //not ready yet?
 #ifdef _DEBUG
@@ -12045,6 +12111,7 @@ void CG_Player( centity_t *cent ) {
 		}
 	}
 
+	CG_ProfileScopeNext(profile,CGP_PLAYER_EQUIPMENT);
 	CG_VehicleEffects(cent);
 
 	if ((cent->currentState.eFlags & EF_JETPACK) && !(cent->currentState.eFlags & EF_DEAD) &&
@@ -12685,6 +12752,7 @@ void CG_Player( centity_t *cent ) {
 	}
 
 	// add the shadow
+	CG_ProfileScopeNext(profile,CGP_PLAYER_SHADOW);
 	shadow = CG_PlayerShadow( cent, &shadowPlane );
 
 	if ( ((cent->currentState.eFlags & EF_SEEKERDRONE) || cent->currentState.genericenemyindex != -1) && cent->currentState.eType != ET_NPC )
@@ -12767,6 +12835,7 @@ void CG_Player( centity_t *cent ) {
 	renderfx |= RF_LIGHTING_ORIGIN;			// use the same origin for all
 
 	// if we've been hit, display proper fullscreen fx
+	CG_ProfileScopeNext(profile,CGP_PLAYER_POSE);
 	CG_PlayerHitFX(cent);
 
 	VectorCopy( cent->lerpOrigin, legs.origin );
@@ -12909,7 +12978,9 @@ void CG_Player( centity_t *cent ) {
 	//frame. Yes, this is stupid and needs to be fixed properly.
 	//The current solution is to force it not to reconstruct the skeleton for the first GBM call in G2PlayerAngles.
 	//It works and we end up only reconstructing it once, but it doesn't seem like the best solution.
+	CG_ProfileScopeNext(profile,CGP_PLAYER_BOLTS);
 	trap->G2API_GetBoltMatrix(cent->ghoul2, 0, ci->bolt_lhand, &lHandMatrix, cent->turAngles, cent->lerpOrigin, cg.time, cgs.gameModels, cent->modelScale);
+	CG_ProfileScopeNext(profile,CGP_PLAYER_ATTACHMENTS);
 	gotLHandMatrix = qtrue;
 
 
@@ -13220,13 +13291,21 @@ skipTrail:
 	//END strafe trails
 
 	//trigger animation-based sounds, done before next lerp frame.
-	CG_TriggerAnimSounds(cent);
+	CG_ProfileScopeNext(profile,CGP_PLAYER_ANIMATION);
+	{
+		cgProfileMark_t animationProfile = CG_ProfileFineBegin();
+		CG_TriggerAnimSounds(cent);
+		CG_ProfileEnd(CGP_ANIM_TRIGGER,animationProfile);
 
-	// get the animation state (after rotation, to allow feet shuffle)
-	CG_PlayerAnimation( cent, &legs.oldframe, &legs.frame, &legs.backlerp,
-		 &torso.oldframe, &torso.frame, &torso.backlerp );
+		// get the animation state (after rotation, to allow feet shuffle)
+		animationProfile = CG_ProfileFineBegin();
+		CG_PlayerAnimation( cent, &legs.oldframe, &legs.frame, &legs.backlerp,
+			 &torso.oldframe, &torso.frame, &torso.backlerp );
+		CG_ProfileEnd(CGP_ANIM_PLAYBACK,animationProfile);
+	}
 
 	// add the talk baloon or disconnect icon
+	CG_ProfileScopeNext(profile,CGP_PLAYER_FORCE_FX);
 	CG_PlayerSprites( cent );
 
 	if (cent->currentState.eFlags & EF_DEAD)
@@ -13927,6 +14006,7 @@ skipTrail:
 		}
 	}
 stillDoSaber:
+	CG_ProfileScopeNext(profile,CGP_PLAYER_SABER);
 	if ((cent->currentState.eFlags & EF_DEAD) && cent->currentState.weapon == WP_SABER)
 	{
 		//cent->saberLength = 0;
@@ -14555,6 +14635,7 @@ stillDoSaber:
 		g2HasWeapon = qfalse;
 	}
 
+	CG_ProfileScopeNext(profile,CGP_PLAYER_SUBMIT);
 	if (iwantout)
 	{
 		return;
@@ -14874,7 +14955,8 @@ stillDoSaber:
 		}
 	}
 
-				CG_DrawHolsteredSaber(cent, cg.time, cgs.gameModels, ci, legs);
+	CG_ProfileScopeNext(profile,CGP_PLAYER_COSMETICS);
+	CG_DrawHolsteredSaber(cent, cg.time, cgs.gameModels, ci, legs);
 
 	//[Kameleon] - Nerevar's Santa Hat.
 	// cg_cosmetics: 0 hides all cosmetics, 1 shows everyone, 2 shows only the local player.
@@ -14920,6 +15002,7 @@ stillDoSaber:
 	//[/Kameleon]
 
 	//cent->frame_minus2 = cent->frame_minus1;
+	CG_ProfileScopeNext(profile,CGP_PLAYER_TAIL);
 	VectorCopy(cent->frame_minus1, cent->frame_minus2);
 
 	if (cent->frame_minus1_refreshed)
@@ -15266,7 +15349,9 @@ stillDoSaber:
 		&& (cent->currentState.bolt1 != 2)) //Dont do for racers
 	{
 		trace_t trace;
+		cgProfileMark_t profileTrace = CG_ProfileFineBegin();
 		CG_Trace(&trace, cg.refdef.vieworg, vec3_origin, vec3_origin, cent->lerpOrigin, cg.clientNum, CONTENTS_SOLID|CONTENTS_BODY);
+		CG_ProfileEnd(CGP_PLAYER_TRACE,profileTrace);
 
 		if (trace.entityNum >= MAX_CLIENTS) { //No LOS to the player
 			if (ci->team == TEAM_BLUE) {
@@ -15364,6 +15449,16 @@ endOfCall:
 #endif
 }
 
+
+// Keep profiling cleanup outside the body so every existing early return and
+// branch records its last segment without changing gameplay control flow.
+void CG_Player( centity_t *cent ) {
+	cgProfileMark_t total = CG_ProfileFineBegin();
+	cgProfileScope_t profile = CG_ProfileScopeBegin(CGP_PLAYER_SETUP);
+	CG_PlayerInternal(cent,&profile);
+	CG_ProfileScopeEnd(&profile);
+	CG_ProfileEnd(CGP_PLAYER,total);
+}
 
 //=====================================================================
 

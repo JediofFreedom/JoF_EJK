@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(rancor_spectator C)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../TestPlatform.cmake")
 
 set(repo "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 # Compile the actual rancor AI and timers; extract the spectator entry points
@@ -27,11 +28,16 @@ add_executable(rancor_spectator check.c
   "${repo}/codemp/game/NPC_AI_Rancor.c"
   "${repo}/codemp/game/g_timer.c"
   "${repo}/shared/qcommon/q_math.c")
+ejk_test_platform(rancor_spectator)
 target_include_directories(rancor_spectator PRIVATE
   "${CMAKE_CURRENT_BINARY_DIR}" "${repo}/codemp" "${repo}/shared")
 if(MSVC)
   target_compile_definitions(rancor_spectator PRIVATE _CRT_SECURE_NO_WARNINGS)
 else()
+  # Match the main game's legacy C linkage: g_local.h contains tentative
+  # definitions shared by check.c, the actual AI and the actual timer source.
+  target_compile_options(rancor_spectator PRIVATE
+    "$<$<COMPILE_LANG_AND_ID:C,GNU,Clang,AppleClang>:-fcommon>")
   target_link_libraries(rancor_spectator PRIVATE m)
 endif()
 enable_testing()

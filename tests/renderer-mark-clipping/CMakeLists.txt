@@ -1,0 +1,56 @@
+cmake_minimum_required(VERSION 3.19)
+project(renderer_mark_clipping CXX)
+set(CMAKE_CXX_STANDARD 11)
+get_filename_component(ROOT "../.." ABSOLUTE)
+set(MARKS_SOURCE_DIR "${ROOT}/codemp" CACHE PATH "Production renderer sources; may select an older source tree")
+
+function(extract source signature output)
+  string(FIND "${source}" "${signature}" start)
+  if(start LESS 0)
+    message(FATAL_ERROR "Missing production function ${signature}")
+  endif()
+  string(SUBSTRING "${source}" ${start} -1 tail)
+  string(FIND "${tail}" "\n}" end)
+  math(EXPR length "${end}+2")
+  string(SUBSTRING "${tail}" 0 ${length} part)
+  set(${output} "${part}" PARENT_SCOPE)
+endfunction()
+
+# Instrument only array initializers in a second copy. This counts the old
+# redundant clear work without changing any clipping arithmetic or outputs.
+function(instrument source output)
+  string(REGEX REPLACE "dists\\[MAX_VERTS_ON_POLY\\+4\\][ \t]*=[ \t]*\\{[ \t]*0[ \t]*\\}"
+    "dists[MAX_VERTS_ON_POLY+4] = { NoteClear<float>(sizeof(dists)) }" part "${source}")
+  string(REGEX REPLACE "sides\\[MAX_VERTS_ON_POLY\\+4\\][ \t]*=[ \t]*\\{[ \t]*0[ \t]*\\}"
+    "sides[MAX_VERTS_ON_POLY+4] = { NoteClear<int>(sizeof(sides)) }" part "${part}")
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${output}" "${part}\n")
+endfunction()
+
+foreach(renderer vulkan vanilla)
+  set(path "${MARKS_SOURCE_DIR}/rd-${renderer}/tr_marks.cpp")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${path}")
+  file(READ "${path}" source)
+  extract("${source}" "static void R_ChopPolyBehindPlane(" function)
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${renderer}.h" "${function}\n")
+  instrument("${function}" "${renderer}-work.h")
+endforeach()
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/baseline-chop.h" baseline)
+instrument("${baseline}" "baseline-work.h")
+
+# Use the actual scalar vector primitives as well as the actual clipper.
+set(path "${ROOT}/shared/qcommon/q_math.c")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${path}")
+file(READ "${path}" math)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/primitives.h" "")
+foreach(signature "void VectorCopy( " "float DotProduct( ")
+  extract("${math}" "${signature}" function)
+  file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/primitives.h" "${function}\n")
+endforeach()
+
+add_executable(renderer_mark_clipping check.cpp)
+target_include_directories(renderer_mark_clipping PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+if(MSVC)
+  target_compile_options(renderer_mark_clipping PRIVATE /EHsc)
+endif()
+enable_testing()
+add_test(NAME renderer_mark_clipping COMMAND renderer_mark_clipping)

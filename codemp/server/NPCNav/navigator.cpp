@@ -23,8 +23,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "qcommon/q_shared.h"
 
 #include <algorithm>
+#include <memory>
 
 #include "navigator.h"
+#include "nav_file_reader.h"
 #include "game/g_nav.h"
 #include <time.h>
 #ifdef __linux__
@@ -423,49 +425,29 @@ Load
 -------------------------
 */
 
-int CNode::Load( int numNodes, fileHandle_t file )
+int CNode::Load( int numNodes, NavFileReader &reader )
 {
 	unsigned int header;
-	FS_Read( &header, sizeof(header), file );
-
-	//Validate the header
-	if ( header != NODE_HEADER_ID )
+	if (!reader.read(header) || header != NODE_HEADER_ID || numNodes <= 0)
 		return false;
 
-	//Get the basic information
-	int i;
-	for ( i = 0; i < 3; i++ )
-		FS_Read( &m_position[i], sizeof( float ), file );
+	if (!reader.read(m_position) || !reader.read(m_flags) || !reader.read(m_ID) ||
+		!reader.read(m_radius) || !reader.read(m_numEdges) || m_ID < 0 || m_ID >= numNodes ||
+		m_numEdges < 0 || m_numEdges > numNodes || size_t(m_numEdges) > reader.remaining() / sizeof(edge_t))
+		return false;
+	m_edges.resize(m_numEdges);
+	if (m_numEdges && !reader.readBytes(m_edges.data(), size_t(m_numEdges) * sizeof(edge_t))) return false;
+	for (const edge_t &edge : m_edges) if (edge.ID < 0 || edge.ID >= numNodes) return false;
 
-	FS_Read( &m_flags, sizeof( m_flags ), file );
-	FS_Read( &m_ID, sizeof( m_ID ), file );
-	FS_Read( &m_radius, sizeof( m_radius ), file );
-
-	//Get the edge information
-	FS_Read( &m_numEdges, sizeof( m_numEdges ), file );
-
-	for ( i = 0; i < m_numEdges; i++ )
-	{
-		edge_t	edge;
-
-		FS_Read( &edge, sizeof( edge_t ), file );
-
-		STL_INSERT( m_edges, edge );
-	}
-
-	//Read the node ranks
-	int	numRanks;
-
-	FS_Read( &numRanks, sizeof( numRanks ), file );
-
-	//Allocate the memory
-	InitRanks( numRanks );
-
-	for ( i = 0; i < numRanks; i++ )
-	{
-		FS_Read( &m_ranks[i], sizeof( int ), file );
-	}
-
+	int numRanks;
+	if (!reader.read(numRanks) || numRanks != numNodes || size_t(numRanks) > reader.remaining() / sizeof(int))
+		return false;
+	// Save always writes one rank per node. Read that table in one operation,
+	// avoiding a filesystem call and redundant -1 initialization for each rank.
+	std::unique_ptr<int[]> ranks(new int[numRanks]);
+	if (!reader.readBytes(ranks.get(), size_t(numRanks) * sizeof(int))) return false;
+	delete[] m_ranks;
+	m_ranks = ranks.release();
 	return true;
 }
 
@@ -507,66 +489,6 @@ void CNavigator::FlagAllNodes( int newFlag )
 
 /*
 -------------------------
-GetChar
--------------------------
-*/
-
-char CNavigator::GetChar( fileHandle_t file )
-{
-	char value;
-
-	FS_Read( &value, sizeof( value ), file );
-
-	return value;
-}
-
-/*
--------------------------
-GetInt
--------------------------
-*/
-
-int	CNavigator::GetInt( fileHandle_t file )
-{
-	int value;
-
-	FS_Read( &value, sizeof( value ), file );
-
-	return value;
-}
-
-/*
--------------------------
-GetFloat
--------------------------
-*/
-
-float CNavigator::GetFloat( fileHandle_t file )
-{
-	float value;
-
-	FS_Read( &value, sizeof( value ), file );
-
-	return value;
-}
-
-/*
--------------------------
-GetLong
--------------------------
-*/
-
-long CNavigator::GetLong( fileHandle_t file )
-{
-	int value;
-
-	FS_Read( &value, sizeof( value ), file );
-
-	return value;
-}
-
-/*
--------------------------
 Init
 -------------------------
 */
@@ -598,6 +520,11 @@ void CNavigator::Free( void )
 
 	m_nodes.clear();
 	m_edgeLookupMap.clear();
+	for (failedEdge_t &edge : failedEdges) {
+		edge.startID = edge.endID = WAYPOINT_NONE;
+		edge.checkTime = 0;
+		edge.entID = ENTITYNUM_NONE;
+	}
 }
 
 /*
@@ -608,53 +535,54 @@ Load
 
 bool CNavigator::Load( const char *filename, int checksum )
 {
-	fileHandle_t	file;
+	fileHandle_t file = 0;
 
 	// Free previous map just in case. jampgame doesn't do this by default...
 	Free();
 
 	//Attempt to load the file
-	FS_FOpenFileByMode( va( "maps/%s.nav", filename ), &file, FS_READ );
+	const int length = FS_FOpenFileByMode( va( "maps/%s.nav", filename ), &file, FS_READ );
 
 	//See if we succeeded
 	if ( file == 0 )
 		return false;
 
-	//Check the header id
-	int navID = GetLong( file );
-
-	if ( navID != NAV_HEADER_ID )
-	{
-		FS_FCloseFile( file );
+	NavFileReader reader(file, length > 0 ? size_t(length) : 0, FS_Read);
+	const auto fail = [&]() {
+		FS_FCloseFile(file);
+		Free();
 		return false;
-	}
+	};
+	unsigned int navID;
+	int check, numNodes;
+	if (!reader.read(navID) || navID != NAV_HEADER_ID || !reader.read(check) || check != checksum ||
+		!reader.read(numNodes) || numNodes < 0 || reader.remaining() < sizeof(failedEdges)) return fail();
 
-	//Check the checksum to see if this file is out of date
-	int check = GetInt( file );
-
-	if ( check != checksum )
-	{
-		FS_FCloseFile( file );
-		return false;
-	}
-
-	int numNodes = GetInt( file );
+	// Each saved node contains its fixed fields and one rank per map node.
+	// Bound both factors with division before allocating; malformed counts must
+	// not overflow the calculation or request tables larger than the file.
+	const size_t available = reader.remaining() - sizeof(failedEdges);
+	if (size_t(numNodes) > available / sizeof(int)) return fail();
+	const size_t nodeBytes = sizeof(unsigned int) + sizeof(vec3_t) + 5 * sizeof(int) + size_t(numNodes) * sizeof(int);
+	if (size_t(numNodes) > available / nodeBytes) return fail();
 
 	for ( int i = 0; i < numNodes; i++ )
 	{
-		CNode	*node = CNode::Create();
-
-		if ( node->Load( numNodes, file ) == false )
-		{
-			FS_FCloseFile( file );
-			return false;
-		}
-
-		STL_INSERT( m_nodes, node );
+		std::unique_ptr<CNode> node(CNode::Create());
+		if (!node->Load(numNodes, reader) || node->GetID() != i) return fail();
+		STL_INSERT(m_nodes, node.get());
+		node.release();
 	}
 
 	//read in the failed edges
-	FS_Read( &failedEdges, sizeof( failedEdges ), file );
+	failedEdge_t loadedEdges[MAX_FAILED_EDGES];
+	if (!reader.read(loadedEdges)) return fail();
+	for (const failedEdge_t &edge : loadedEdges) {
+		if (edge.startID == WAYPOINT_NONE) continue;
+		if (edge.startID < 0 || edge.startID >= numNodes || edge.endID < 0 || edge.endID >= numNodes ||
+			edge.entID < 0 || edge.entID >= MAX_GENTITIES) return fail();
+	}
+	memcpy(failedEdges, loadedEdges, sizeof(failedEdges));
 	for ( int j = 0; j < MAX_FAILED_EDGES; j++ )
 	{
 		m_edgeLookupMap.insert(std::pair<int, int>(failedEdges[j].startID, j));

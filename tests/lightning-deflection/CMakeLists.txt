@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(lightning_deflection_checks C)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../TestPlatform.cmake")
 configure_file(../../codemp/versionfile/jofversion.h.in jofversion.h @ONLY)
 
 # Compile production code with real game types and mocked engine services.
@@ -82,6 +83,9 @@ if(NOT MSVC)
   target_link_libraries(lightning_presentation_check PRIVATE m)
 endif()
 add_test(NAME lightning_presentation COMMAND lightning_presentation_check)
+foreach(target lightning_visuals_check lightning_server_check lightning_prediction_check lightning_presentation_check)
+  ejk_test_platform(${target})
+endforeach()
 foreach(case requirements aiming interruption combat damage lifecycle sources position_pose absorption knockdown)
   add_test(NAME lightning_${case} COMMAND lightning_server_check ${case})
 endforeach()

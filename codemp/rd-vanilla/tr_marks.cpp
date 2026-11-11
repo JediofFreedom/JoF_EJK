@@ -42,16 +42,18 @@ Out must have space for two more vertexes than in
 static void R_ChopPolyBehindPlane( int numInPoints, vec3_t inPoints[MAX_VERTS_ON_POLY],
 								   int *numOutPoints, vec3_t outPoints[MAX_VERTS_ON_POLY],
 							vec3_t normal, float dist, float epsilon) {
-	float		dists[MAX_VERTS_ON_POLY+4] = { 0 };
-	int			sides[MAX_VERTS_ON_POLY+4] = { 0 };
+	float		dists[MAX_VERTS_ON_POLY+4];
+	int			sides[MAX_VERTS_ON_POLY+4];
 	int			counts[3];
 	float		dot;
 	int			i, j;
 	float		*p1, *p2, *clip;
 	float		d;
 
-	// don't clip if it might overflow
-	if ( numInPoints >= MAX_VERTS_ON_POLY - 2 ) {
+	// Each active entry and closing sentinel are assigned below; empty input
+	// must return before reading the first entry. Avoid clearing both arrays
+	// for every triangle and clipping plane of every temporary shadow mark.
+	if ( numInPoints <= 0 || numInPoints >= MAX_VERTS_ON_POLY - 2 ) {
 		*numOutPoints = 0;
 		return;
 	}
@@ -157,7 +159,12 @@ void R_BoxSurfaces_r(mnode_t *node, vec3_t mins, vec3_t maxs, surfaceType_t **li
 		//
 		if (*listlength >= listsize) break;
 		//
-		surf = *mark;
+		surf = *mark++;
+		// A surface can occur in several visited leaves. Its filtering result
+		// is fixed during this projection, including rejected surfaces.
+		if ( surf->viewCount == tr.viewCount ) {
+			continue;
+		}
 		// check if the surface has NOIMPACT or NOMARKS set
 		if ( ( surf->shader->surfaceFlags & ( SURF_NOIMPACT | SURF_NOMARKS ) )
 			|| ( surf->shader->contentFlags & CONTENTS_FOG ) ) {
@@ -184,7 +191,6 @@ void R_BoxSurfaces_r(mnode_t *node, vec3_t mins, vec3_t maxs, surfaceType_t **li
 			list[*listlength] = (surfaceType_t *) surf->data;
 			(*listlength)++;
 		}
-		mark++;
 	}
 }
 

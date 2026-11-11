@@ -709,6 +709,14 @@ extern qboolean con_alert;
 void	SCR_Init (void);
 void	SCR_UpdateScreen (void);
 void	SCR_UpdateScreenAndInput (void);
+void CL_LoadProfileStage(const char *stage, int started);
+void CL_LoadProfilePresented(void);
+enum clLoadProfileEvent_t {
+	CL_LOAD_CONNECT_SETUP, CL_LOAD_CHALLENGE_SENT, CL_LOAD_CHALLENGE_ACCEPTED,
+	CL_LOAD_CONNECT_SENT, CL_LOAD_CONNECT_ACCEPTED, CL_LOAD_SERVER_PACKET,
+	CL_LOAD_GAMESTATE, CL_LOAD_CGAME_READY, CL_LOAD_SNAPSHOT, CL_LOAD_ACTIVE
+};
+void CL_LoadProfileEvent(clLoadProfileEvent_t event);
 
 void	SCR_DebugGraph (float value, int color);
 

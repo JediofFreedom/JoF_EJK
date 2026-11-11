@@ -1379,7 +1379,7 @@ static qboolean ParseStage( shaderStage_t *stage, const char **text )
 			{
 				vec3_t	color;
 
-				ParseVector( text, 3, color );
+				if (!ParseVector(text, 3, color)) return qfalse;
 				stage->constantColor[0] = 255 * color[0];
 				stage->constantColor[1] = 255 * color[1];
 				stage->constantColor[2] = 255 * color[2];
@@ -2953,6 +2953,9 @@ static const char *FindShaderInShaderText( const char *shadername ) {
 			if ( !Q_stricmp( token, shadername ) )
 				return p;
 		}
+		// Every definition is indexed, including empty buckets. A miss here
+		// is an implicit image shader; scanning all scripts again is redundant.
+		return NULL;
 	}
 
 	p = s_shaderText;

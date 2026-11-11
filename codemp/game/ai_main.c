@@ -2229,11 +2229,16 @@ int ScanForEnemies(bot_state_t *bs)
 			}
 			else
 				distcheck = VectorLength(a);
-			vectoangles(a, a);
 
 			if (g_entities[i].client->ps.isJediMaster)
 			{ //make us think the Jedi Master is close so we'll attack him above all
 				distcheck = 1;
+			}
+
+			// Only legacy FOV tests need angles, and only for a closer candidate.
+			if (!g_newBotAI.integer && distcheck < closest)
+			{
+				vectoangles(a, a);
 			}
 
 			if (distcheck < closest &&

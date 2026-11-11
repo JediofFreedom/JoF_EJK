@@ -1,0 +1,2180 @@
+{
+  "branch": "perf/loading-and-runtime",
+  "baseline": "6955dca2aba6ddc79ea3bf0cc22bb4d99612b7be",
+  "started": "2026-11-11",
+  "scope": "Project-wide speed and correctness audit; historical scans, measured changes, completed checkpoint checks and pending integration are recorded separately.",
+  "priorities": [
+    "measured archive, decompression and loading critical-path costs",
+    "representative populated-scene cgame and animation profiling",
+    "compiler/runtime speed with unchanged quality, behavior and protocol"
+  ],
+  "areas": [
+    {
+      "area": "filesystem and archives",
+      "status": "189456f live metadata probe measured and Windows56-suite/full-build checkpoint verified; green CI42999586254:56/56 Windows,54/54 applicable Linux/macOS suites passed",
+      "notes": "One-pass package mounting, provider-index lookup and batched minizip scalar reads retain pure/reference/duplicate semantics. Checksum-feed-only restart metadata reuse defaults to fs_restartCache=1 after a real-server comparison; full shutdown/startup, rescans, identity checks and explicit-restart rebuilds remain. Engine filesystem work remains on the main thread. Writable cache paths use renderer API 11. New fs_metadataProbe=1 avoids CRT stream setup for definitely missing Windows loose metadata candidates using live native queries, with ordinary handling for present/uncertain/path-sensitive cases; no loose-directory cache."
+    },
+    {
+      "area": "image decoders and preparation",
+      "status": "zlib-ng integration built and CI-verified; source-prefix default enabled after primed pairs",
+      "findings": [
+        "Bounded PNG/TGA reads and RGBA8 output; 16-bit PNG conversion and TGA orientations/packets tested",
+        "JPEG failure recovery and bounded encoder output",
+        "Captured texture context preserves queued processing after live setting changes",
+        "Pure decoder callbacks use private malloc buffers on worker threads",
+        "Texture source-prefix validation defaults to 1 after five primed alternating pairs; the earlier default-0 experiment remains historical",
+        "Pinned zlib-ng 2.3.3 is the default supported internal backend; real ZIP/PNG compatibility and isolated speed checked, with a smaller measured heavy-server loading gain",
+        "Classic and external zlib choices remain; dependency runtime CPU dispatch is enabled and its own LTO/host-native ISA selection disabled"
+      ]
+    },
+    {
+      "area": "Vulkan resources",
+      "status": "189456f source-validated shader catalogue reuse measured and Windows full-build/GPU validation verified; green CI42999586254:56/56 Windows,54/54 applicable Linux/macOS suites passed",
+      "findings": [
+        "Automatic residency scales with device memory and exact driver extension query",
+        "Budget reductions reclaim fragmented idle pages",
+        "Deferred registration decoding and immutable per-job settings",
+        "Prepared cache implemented but defaults off: world-only timing showed no complete-cycle benefit",
+        "Result checking no longer shadows an outer VkResult named result",
+        "Instanced BSP registration no longer rebuilds the main-world VBO outside map-loading phase",
+        "Static VBO one-based identities, sprite grouping range/capacity and restart ownership are covered by production-function fixtures",
+        "Source-prefix validation defaults to 1; prepared texture disk cache remains disabled by default",
+        "r_shaderTextCache=1 retains bounded compressed CPU source and offsets across maps; fresh file listing/immutable winning source identities gate reuse, current-hunk pointers rebuilt, full shutdown clears retention. x64/x86 ASAN focused fixtures pass; combined loading measurement recorded separately."
+      ]
+    },
+    {
+      "area": "vanilla and Rend2",
+      "status": "focused fixes and fixtures",
+      "notes": "Shared image safety, HDR failures/null output, light/shadow masks, skin parsers, split paths and shader declaration fixes have focused fixtures. Desktop BSP registration capacity and debug model lifetime are covered. The 383785a Windows x64/x86 full builds and standalone checkpoint passed; new dependency integration is checked separately."
+    },
+    {
+      "area": "audio",
+      "status": "189456f exact common-rate PCM loading path measured and Windows56-suite/full-build checkpoint verified; green CI42999586254:56/56 Windows,54/54 applicable Linux/macOS suites passed",
+      "findings": [
+        "Bounded memory/streamed WAV parsing and safe music read arithmetic",
+        "Removed unused sample scratch allocation",
+        "SFX long-phase wrap, low-rate replay, output overflow and negative-shift UB fixed",
+        "Common-rate PCM and volume match old output",
+        "s_resampleFast=1 removes phase/bounds arithmetic for exact equal/twofold PCM conversion while preserving sample bytes,lengths,volume ranges and general-rate fallback; software audio loading measured with other new controls."
+      ]
+    },
+    {
+      "area": "client and networking",
+      "status": "focused fixes and fixtures",
+      "notes": "Wildcard bounds, recording/snapshot cvars, console padding and entity-interface guards are covered. Live command-line sentinel checks preserve 40 and 63 commands, quoted arguments and normal exit after fixing command storage. Connection milestone timing separates filesystem/cgame work from gamestate/network delay. Packet-parser candidates remain unresolved; no protocol/rate reduction is claimed."
+    },
+    {
+      "area": "UI",
+      "status": "focused fixes and fixtures",
+      "notes": "Preview handles, map bounds/empty catalog, malformed cvarInt parameters and arena allocation failures have baseline-failing fixtures. Species catalogs are built on actual dependent menu/feeder use, with script-parent onOpen context and normal-profile no-scan behavior; real menu/restart smoke checks and the 383785a suite checkpoint passed."
+    },
+    {
+      "area": "cgame and effects",
+      "status": "idle-scene clipping/index speed measured; lead HUD fixed; sound submission is next measured runtime cost",
+      "notes": "Conservative swept-bounds rejection preserves exact transformed trace/entity winners in deterministic/randomized fixtures. Snapshot/light masks, ROFF ownership/playback and model registration lifetime fixes are tested. Default-off aggregate cgame/Vulkan profiling identifies packet/player work in an idle 24-bot replay; nested clock totals and instrumented FPS are diagnostic, not a speed claim. Current profiler/spine changes still require final whole-project checks and matched performance validation."
+    },
+    {
+      "area": "server and game simulation",
+      "status": "focused fixes and fixtures",
+      "notes": "Bounded/batched navigation loading with 25 installed nav files unchanged; Icarus reader failure propagation verified. ROFF playback/client-note/ownership regressions pass x64 ASan and x86. Remaining game-state candidates stay unresolved."
+    },
+    {
+      "area": "platform, build and tests",
+      "status": "189456f normal full x64/x86 builds and56/56 x64 suites verified; green CI42999586254:56/56 Windows,54/54 applicable Linux/macOS suites passed",
+      "notes": "MSVC language-specific flags no longer accumulate. Release LTO defaults on when supported and preserves explicit CMake IPO settings. Historical42/42-suite checkpoint and CI42952953751 are preserved below; the newer4ba checkpoint passed55Windows/53applicable Linux+macOS suites and the full native Linux client. zlib-ng target IPO is explicitly OFF, including custom configurations; unsupported versions/compilers and mixed-architecture macOS universal builds retain classic zlib. The latest asset-loading code adds shader-text-cache as the56th discovered suite; final189456f Windows validation passed and is tracked separately from historical checkpoints; current54/54 applicable Linux/macOS suites passed with2explicit Windows-only skips each; Windows CI passed56/56 with0skips,completing green run42999586254."
+    }
+  ],
+  "measurements": {
+    "residency": {
+      "method": "Three rotated-order rounds at each budget; fresh profiles, warm OS cache, identical local T1_Fatal/mp/ffa3/T1_Fatal cycle; no concurrent build or other game client.",
+      "median_cycle_seconds": {
+        "512": 13.221316,
+        "1024": 13.173784,
+        "2048": 11.966178
+      },
+      "median_map_milliseconds": {
+        "512": [
+          3496,
+          1854,
+          2306
+        ],
+        "1024": [
+          3495,
+          1833,
+          2270
+        ],
+        "2048": [
+          3483,
+          1791,
+          1147
+        ]
+      },
+      "limit": "Repeated loads improved; the first map was effectively unchanged. This is not a matched SJK comparison."
+    },
+    "worker_decode_world_scope": {
+      "method": "Same prototype binary, three alternating pairs, 2048 MiB GPU residency, disk cache off; fresh profiles, warm OS cache, no compilation/static analysis/other game client.",
+      "median_cycle_seconds": {
+        "synchronous": 12.2363618,
+        "workers": 12.0608271
+      },
+      "median_map_milliseconds": {
+        "synchronous": [
+          3601,
+          1836,
+          1196
+        ],
+        "workers": [
+          3249,
+          1684,
+          1247
+        ]
+      },
+      "limit": "First two loads improved; revisit did not. This measures world-scope prototype, not final broader registration."
+    },
+    "prepared_cache_world_scope": {
+      "method": "Three rotated-order rounds off/cold/warm, same binary/settings, 2048 MiB GPU residency, automatic workers. Pipeline cache seeded identically; warm textures copied before timer. No concurrent build/analysis/game.",
+      "median_cycle_seconds": {
+        "off": 11.750836,
+        "cold": 11.9408495,
+        "warm": 11.9797491
+      },
+      "median_map_milliseconds": {
+        "off": [
+          3038,
+          1565,
+          1138
+        ],
+        "cold": [
+          3164,
+          1666,
+          1121
+        ],
+        "warm": [
+          3019,
+          1488,
+          1148
+        ]
+      },
+      "decision": "No overall speed gain in this prototype; default disabled. Final broader registration requires separate measurements."
+    },
+    "navigation": {
+      "fixture_nodes": 128,
+      "baseline_read_calls": 17668,
+      "updated_read_calls": 1156,
+      "compatibility_files": 25,
+      "limit": "Filesystem call count and byte-identical roundtrip checks, not a wall-clock claim."
+    },
+    "registration_decode": {
+      "method": "Same binary, three alternating pairs, GPU cache2048MiB, diskoff, fresh profiles,warmOS cache, no concurrentlocalCPU work.",
+      "median_cycle_seconds": {
+        "synchronous": 12.308485,
+        "workers": 11.4079092
+      },
+      "median_map_milliseconds": {
+        "synchronous": [
+          3572,
+          1831,
+          1182
+        ],
+        "workers": [
+          2914,
+          1567,
+          1227
+        ]
+      }
+    },
+    "checkpoint_features": {
+      "method": "Three rotated-order rounds; one feature disabled at a time in same binary; cache2048MiB, decoderworkersauto,diskoff,freshprofiles,warmOS cache,quietmachine.",
+      "median_cycle_seconds": {
+        "all": 9.1758872,
+        "main_preparation": 9.3493897,
+        "linear_lookup": 9.3677837,
+        "eager_species": 10.6263871
+      },
+      "median_map_milliseconds": {
+        "all": [
+          2222,
+          954,
+          707
+        ],
+        "main_preparation": [
+          2347,
+          1054,
+          704
+        ],
+        "linear_lookup": [
+          2348,
+          1011,
+          763
+        ],
+        "eager_species": [
+          2572,
+          1340,
+          1089
+        ]
+      },
+      "median_map_ui_initialization_ms": {
+        "lazy": 112,
+        "eager": 514
+      }
+    },
+    "checkpoint_vs_6955": {
+      "method": "Three alternating pairs, identicalinstalledGameData/window/quality/sound,freshprofiles,warmOScache,quietmachine;olddefault512MiBvsnewautomatic~2GiB,workers/prep/index/lazyenabled,diskoff.",
+      "baseline": "6955dca",
+      "checkpoint_source": "af047b23abae33735c5b633200159c909cbd34f6",
+      "median_cycle_seconds": {
+        "baseline": 13.2052346,
+        "checkpoint": 9.0892083
+      },
+      "median_map_milliseconds": {
+        "baseline": [
+          3535,
+          1884,
+          2287
+        ],
+        "checkpoint": [
+          2210,
+          948,
+          733
+        ]
+      },
+      "limit": "Combinedbehaviorincludesdifferentdefaultcachebudget;localone-playercomparison,noprovenSJK/FPSlead."
+    },
+    "release_lto": {
+      "source": "614e46e5312a3fa802ae8868f4ddedb45c065562",
+      "method": "Three alternating pairs of clean MSVC x64 Release builds; identical 599 compiler contexts after removing /GL, byte-identical assets/dependencies, same 5005-frame seven-bot mp/ffa3 demo, seeded pipeline cache, fresh profiles, quiet machine. LTO links alone use /LTCG.",
+      "control_fps": [
+        734.6,
+        744.6,
+        755.0
+      ],
+      "lto_fps": [
+        775.8,
+        778.0,
+        779.8
+      ],
+      "median_control_fps": 744.6,
+      "median_lto_fps": 778.0,
+      "demo_sha256": "09da81e8abfa479760233b85dc4ad2157488bd25f119fd71bda9936575865e4d",
+      "limit": "About 4.5% in this replay. Does not establish live server simulation/input prediction gains or an SJK lead."
+    },
+    "source_prefix_initial": {
+      "method": "Three alternating same-binary pairs; prefix0/1, cache2048MiB, diskoff, quiet machine. Initial run has a cold outlier; first-map effect is uncertain.",
+      "off_median_map_ms": [
+        2095,
+        957,
+        681
+      ],
+      "on_median_map_ms": [
+        2184,
+        844,
+        630
+      ],
+      "off_metadata_median_ms": [
+        191.963,
+        169.461,
+        179.331
+      ],
+      "on_metadata_median_ms": [
+        92.344,
+        90.24,
+        106.029
+      ],
+      "default": 0,
+      "decision": "Keep experimental until additional primed pairs.",
+      "historical": true,
+      "superseded_by": "source_prefix_primed",
+      "superseded_decision": "The initial default-0 decision was superseded by five primed pairs; the current default is 1."
+    },
+    "minizip_directory": {
+      "result_file": "G:/code/JoF_EJK-minizip-tests/results.json",
+      "reference_source": "9160120df7630b479747352b3e4773e544b64b4d",
+      "method": "Seven alternating warmed MSVC x64 Release pairs after one discarded warmup pair; actual parser visits and metadata lookup produce two central-header parses per installed entry.",
+      "archives": 256,
+      "members": 75658,
+      "median_scan_ms": {
+        "reference": 339.5277,
+        "candidate": 276.5038
+      },
+      "read_callbacks": {
+        "reference": 7371148,
+        "candidate": 2686534
+      },
+      "matching_expanded_bytes": 14451732062,
+      "compatibility": "Names, metadata, offsets, extras/comments and extraction fingerprints match; zero extraction failures. Synthetic scalar/truncation/CRC cases passed x64/x86 and x64 ASAN.",
+      "limit": "18.56% less warm parser scan time; this is not complete startup, joining or FPS."
+    },
+    "filesystem_restart_cache": {
+      "result_file": "project-remote-fs-benchmark/results.json",
+      "method": "Three alternating real-server pairs on 13.140.233.106, yavin_temple_mp2, matching settings and isolated profiles; unchanged archive metadata is reused within the ordinary checksum-feed restart.",
+      "median_restart_ms": {
+        "off": 304,
+        "on": 102
+      },
+      "median_initial_startup_ms": {
+        "off": 320,
+        "on": 325
+      },
+      "median_connect_first_frame_ms": {
+        "off": 5724,
+        "on": 5492
+      },
+      "reused_archives": 262,
+      "reused_members": 78826,
+      "default": 1,
+      "decision": "Enabled by default after stable remount savings; explicit 0 remains supported and saved user values are not forced.",
+      "limit": "Initial mount is unchanged; complete join includes server/network variation. This measurement is separate from other loading features."
+    },
+    "source_prefix_primed": {
+      "result_file": "project-prefix-primed-benchmark/results.json",
+      "method": "Five alternating same-binary pairs after one unmeasured priming pair; identical pipeline seeds, fresh profiles, warm OS cache, 2048 MiB residency, filesystem restart reuse on, disk cache off and no competing local work.",
+      "median_map_ms": {
+        "off": [
+          1920,
+          849,
+          635
+        ],
+        "on": [
+          1841,
+          790,
+          569
+        ]
+      },
+      "median_cycle_seconds": {
+        "off": 8.0846813,
+        "on": 7.9106905
+      },
+      "default": 1,
+      "supersedes": "source_prefix_initial",
+      "decision": "Adopt source-prefix validation by default after consistent primed load improvements; explicit 0 preserves full validation.",
+      "limit": "Warm local one-player cycle, not disk-cold or a matched SJK comparison; percentages cannot be added to other experiments."
+    },
+    "zlib_ng": {
+      "version": "2.3.3",
+      "upstream_revision": "12731092979c6d07f42da27da673a9f6c7b13586",
+      "integration_commit": "e495b4cc715a53ddb0df2ab70085037c455bba27",
+      "default": "UseZlibNG=ON when UseInternalZlib=ON and supported; classic explicit OFF and external zlib remain available",
+      "portability": "Static compat API, runtime CPU detection and generic fallbacks ON; host-native ISA and all dependency IPO configurations OFF. CMake <3.14, unsupported compilers and multiple distinct macOS target architectures use classic zlib.",
+      "library": {
+        "result_file": "zlib-library-pairs-results.json",
+        "source": "6d72a0ed2af140d418e6cb0447fa1a06e57c6173",
+        "method": "Three alternating warmed x64 Release/LTO harness pairs, actual minizip and production PNG decoder; only zlib backend changes. PNG trial is the median of five decode passes.",
+        "zip_expanded_bytes": 824071333,
+        "zip_members": 8377,
+        "png_images": 128,
+        "png_rgba_bytes": 101777408,
+        "median_zip_ms": {
+          "classic": 1651.93,
+          "zlib_ng": 1309.8
+        },
+        "median_png_ms": {
+          "classic": 455.18,
+          "zlib_ng": 360.055
+        },
+        "limit": "About 21% less time in these isolated codec workloads, not whole-game loading."
+      },
+      "local_client": {
+        "result_file": "project-zlib-client-benchmark/results.json",
+        "source": "383785a31ff74d145b487a0acf50c9e5d6d52300",
+        "method": "Five alternating clean same-source Release/LTO pairs after one warmup pair; matching minizip/PNG, asset containers/DLLs, pipeline seeds, 2048 MiB GPU cache, filesystem reuse and prefix validation ON, fresh profiles, quiet machine.",
+        "median_map_ms": {
+          "classic": [
+            2009,
+            828,
+            602
+          ],
+          "zlib_ng": [
+            1980,
+            815,
+            576
+          ]
+        },
+        "median_cycle_seconds": {
+          "classic": 8.2282447,
+          "zlib_ng": 8.2248576
+        },
+        "limit": "Complete three-map cycle effectively flat; first/second handoff differences are small and noisy."
+      },
+      "remote_client": {
+        "result_file": "project-remote-zlib-benchmark/results.json",
+        "source": "383785a31ff74d145b487a0acf50c9e5d6d52300",
+        "method": "Three alternating matched clean-client pairs on 13.140.233.106, yavin_temple_mp2; no simultaneous clients or competing CPU work.",
+        "median_cgame_ms": {
+          "classic": 2465,
+          "zlib_ng": 2276
+        },
+        "median_graphics_ms": {
+          "classic": 1743,
+          "zlib_ng": 1608
+        },
+        "median_connect_first_frame_ms": {
+          "classic": 5408,
+          "zlib_ng": 5202
+        },
+        "median_gamestate_arrival_ms": {
+          "classic": 2454,
+          "zlib_ng": 2458
+        },
+        "limit": "Cgame/graphics about 7.7% shorter and all three paired cgame loads improve; complete join about 3.8% shorter with effectively unchanged gamestate arrival. Network/server variation remains; no universal loading, FPS or SJK claim."
+      },
+      "compatibility": {
+        "archives": 260,
+        "members": 77242,
+        "expanded_bytes": 14501374289,
+        "matching_zip_crc_and_sha256": true,
+        "matching_png_images": 128,
+        "matching_rgba_bytes": 101777408
+      },
+      "focused_verification": "Actual production chooser/minizip/PNG fixtures passed x64/x86 ASAN for both backends; generic and ISA-specific NG compile commands contain no /GL, generic functions no forced AVX. Mixed-architecture chooser policy has a guard-disabled failing control. Current whole-project production integration remains pending."
+    },
+    "idle_crowd_diagnostic": {
+      "coarse_result_file": "crowd-idle-profile-quiet-1/results.json",
+      "fine_result_file": "crowd-idle-fine-profile-1/results.json",
+      "demo_sha256": "5161fde48c2be772e9e44808c73b821f77c974631b0f5261bafee6a454879389",
+      "method": "One quiet coarse and one fine instrumented 5005-frame mp/duel1 idle-crowd replay; 24 bots, AI/movement frozen while ordinary client/Ghoul2 animation remains active.",
+      "completed_cgame_frames": 5003,
+      "early_returns": 0,
+      "snapshot_players_min_mean_max": [
+        24,
+        24,
+        24
+      ],
+      "coarse_ms_per_completed_frame": {
+        "whole_active_frame": 0.673392,
+        "packet_entities": 0.507016,
+        "renderer_scene_submission": 0.114994,
+        "audio_refdef": 0.026028,
+        "hud": 0.015542,
+        "cvars_radial": 0.001786,
+        "prediction": 0.000313
+      },
+      "fine_ms_per_completed_frame": {
+        "player_inclusive": 0.480244,
+        "shadow_water_seeker_inclusive": 0.193399,
+        "pose_bone_angles": 0.097527,
+        "animation_sounds": 0.10104
+      },
+      "limit": "Diagnostic only: packet entities account for about 75% of this sampled cgame call. Clock instrumentation affects timing, nested totals overlap and renderer denominators differ. This is idle population, not combat/live prediction/server simulation, and establishes no speed improvement."
+    },
+    "shadow_mark_clipping": {
+      "method": "Five alternating pairs after one unmeasured warmup pair; same 5005-frame 24-bot idle crowd, identical cgame/engine/assets/settings and pipeline seeds, fresh profiles, profiling disabled, no concurrent compilation/analysis/game.",
+      "control_fps": [
+        603.2,
+        644.3,
+        639.9,
+        638.9,
+        641.3
+      ],
+      "updated_fps": [
+        618.4,
+        649.2,
+        653.7,
+        654.9,
+        653.1
+      ],
+      "median_control_fps": 639.9,
+      "median_updated_fps": 653.1,
+      "demo_sha256": "5161FDE48C2BE772E9E44808C73B821F77C974631B0F5261BAFEE6A454879389",
+      "change": "Vulkan polygon clipping omits two fully overwritten 68-element temporary array initializers and rejects empty input before sentinel reads. Vanilla receives the equivalent correctness/work change.",
+      "verification": "Actual production Vulkan/vanilla clippers and scalar vector math produce identical complete output buffers for 12000 randomized convex polygons, boundaries and sequential six-plane clips; x64 ASan and x86 Release pass; old code fails the avoided-initialization check.",
+      "limit": "About 2.1% median FPS in this idle replay; all five paired updated trials were faster, but both variants drifted during the sequence. Not a live combat/prediction/general FPS or SJK claim. Source initialization counts alone do not prove emitted machine stores. Separate from the LTO experiment.",
+      "artifacts": [
+        "project-clipping-runtime-benchmark/results.json",
+        "clipping-runtime-manifest.json"
+      ]
+    },
+    "animation_event_index": {
+      "method": "Five alternating uninstrumented pairs after one warmup pair, fresh profiles, same 5005-frame idle 24-bot demo and pipeline seeds; clean abecf71/85b9324 cgame builds, 58 normalized compile contexts and embedded metadata match; only cgame DLL differs. No concurrent build/analyzer/game.",
+      "control_fps": [
+        611,
+        651.9,
+        650.4,
+        652.2,
+        646.7
+      ],
+      "indexed_fps": [
+        632.2,
+        652.9,
+        654.4,
+        658.2,
+        653.7
+      ],
+      "median_control_fps": 650.4,
+      "median_indexed_fps": 653.7,
+      "demo_sha256": "5161FDE48C2BE772E9E44808C73B821F77C974631B0F5261BAFEE6A454879389",
+      "fixture": "8007 cases, 11778 identical dispatches/RNG/state mutations; visited catalogue slots 1167727 to 63661. x64 ASan and x86 Release pass; actual parser includes/reset/cache/stomp lifecycle covered.",
+      "limit": "About 0.5% median FPS in this idle replay, with both variants drifting during the sequence. The later live diagnostic confirms all queries indexed, but dispatch dominates. The 94.5% fixture slot reduction is not an equivalent game-speed claim. Separate from clipping/LTO/loading experiments.",
+      "artifacts": [
+        "project-event-index-runtime-benchmark/results.json",
+        "event-index-client-manifest.json"
+      ]
+    },
+    "single_pass_archive_catalogue": {
+      "method": "Same x64 Release/LTO prototype binary, fs_zipCatalogFast 0/1 only; five alternating pairs after one warmup pair; fresh profiles, warm OS cache, matching pipeline seeds, 2048 MiB residency, fs_restartCache 1 and texture prefix 1, ordinary texture/audio/renderer settings. No concurrent compiler/analyzer/other game; other-client checks before/after each trial.",
+      "off_initial_fs_ms": [
+        315,
+        319,
+        318,
+        320,
+        318
+      ],
+      "on_initial_fs_ms": [
+        219,
+        227,
+        221,
+        225,
+        222
+      ],
+      "off_cycle_seconds": [
+        8.1650352,
+        8.006844,
+        7.9175396,
+        7.918795299999999,
+        8.1457708
+      ],
+      "on_cycle_seconds": [
+        7.743649899999999,
+        7.5277145999999995,
+        7.5329079,
+        7.5510236,
+        7.526648499999999
+      ],
+      "median_off_initial_fs_ms": 318,
+      "median_on_initial_fs_ms": 222,
+      "median_off_cycle_seconds": 8.006844,
+      "median_on_cycle_seconds": 7.5329079,
+      "corpus": {
+        "base_archives": 256,
+        "members": 75658,
+        "fingerprint": "ad2cc24b68a6a1d6",
+        "header_parses": [
+          151572,
+          75914
+        ],
+        "read_callbacks": [
+          2653276,
+          1375934
+        ],
+        "seeks": [
+          269197,
+          126876
+        ],
+        "verification": "Complete FS catalogues, order, hash chains, names/indexes, checksum words, pure/nonpure owners/sizes/positions and reference flags match. Both x64 ASan and x86 Release pass, plus 309 synthetic/error/state/payload cases and both restart-cache modes."
+      },
+      "default": 1,
+      "fallback": "fs_zipCatalogFast 0 selects a fresh legacy navigation/GetInfo scan; generic minizip APIs unchanged. New combined iterator invalidates current on combined parse errors; FS rejects/closes it and never retries mid-iterator.",
+      "limit": "About 30% shorter initial filesystem stage and 5.9% shorter complete local cycle, with every paired trial improving. This is not 30% faster whole-game loading or an SJK claim, and percentages must not be compounded with earlier experiments.",
+      "artifacts": [
+        "project-catalog-runtime-benchmark-v2/results.json",
+        "catalog-iterator-corpus-asan.log",
+        "catalog-iterator-tests-x86.log"
+      ]
+    },
+    "footstep_dispatch_diagnostic": {
+      "replay": "same idle 24-bot recording; cg_runtimeProfile 2, default cg_footsteps 3, software sound (s_useOpenAL 0)",
+      "completed_active_frames": 5003,
+      "dispatch_calls": 21142,
+      "milliseconds_per_active_frame": {
+        "footstep_inclusive": 0.106723,
+        "bolt_matrix": 0.003846,
+        "water_trace": 0.001965,
+        "ground_trace": 0.002022,
+        "sound_submission": 0.097743
+      },
+      "effect_calls": 0,
+      "mark_calls": 0,
+      "limit": "Nested instrumented owning-thread times identify sound submission as about 92% of this footstep group; they are not a frame-rate improvement or every-scene claim.",
+      "artifact": "crowd-idle-footsteps-fine-profile-1/run-1/EternalJK/qconsole.log"
+    },
+    "sound_cache_clock_diagnostic": {
+      "artifact": "crowd-idle-sound-backend-profile-1/run-1/EternalJK/qconsole.log",
+      "software_sound": true,
+      "cache_touch_calls": 21144,
+      "cache_touch_total_ms": 452.053,
+      "rate_limiter_total_ms": 33.81,
+      "channel_calls": 6190,
+      "channel_total_ms": 4.147,
+      "setup_total_ms": 1.53,
+      "cgame_footstep_sound_total_ms": 504.07,
+      "finding": "The old Com_Milliseconds cache touch pumps the OS/journal event path; Windows reaches console-input polling. About90% of the sampled submission cost is the cache clock.",
+      "implemented_source": "68858c4",
+      "fixture": "5000 ordinary touches with zero pumps, unchanged timestamps/levels/LRU eviction and byte-identical journal recording/replay plus queued event behavior; x64/x86 Asan and x86 Release.",
+      "limit": "Instrumented cost diagnosis and fixture work counts. Actual-game speed comparison is not yet complete. Null/nonzero journal states retain the legacy clock."
+    },
+    "sound_cache_clock_replay": {
+      "method": "Clean6d9c5f4/68858c44 x64 Release/LTO engines with identical68858c44 version metadata;112 engine+465 associated+129 JPEG/SIMD normalized contexts/links/imports/exports match, only snd_dma.cpp source differs.13 byte-identical common runtime files; only engine EXE differs. Five alternating pairs after two warmup pairs, fresh profiles, same5005-frame idle24-bot recording and pipeline seeds, software audio, profiling off, no concurrent build/analyzer/other game.",
+      "control_fps": [
+        651.9,
+        651.2,
+        653.7,
+        650.3,
+        652.5
+      ],
+      "updated_fps": [
+        699.2,
+        702.9,
+        701.8,
+        698.7,
+        699.2
+      ],
+      "median_control_fps": 651.9,
+      "median_updated_fps": 699.2,
+      "demo_sha256": "5161FDE48C2BE772E9E44808C73B821F77C974631B0F5261BAFEE6A454879389",
+      "post_diagnostic": {
+        "touch_calls": 21144,
+        "touch_total_ms": 1.054,
+        "old_touch_total_ms": 452.053,
+        "footstep_sound_total_ms": 19.979,
+        "old_footstep_sound_total_ms": 504.07
+      },
+      "limit": "About7.3% median FPS in this idle software-audio replay, all5pairs faster. Audio settings/samples/cache semantics unchanged. Fixed-frame demo compression affects wall-clock rate-limit/channel counts; not a general live combat/prediction/server/OpenAL or SJK claim. Other looping/registration/loading touch counts are not included in the ordinary-playback profile. Separate experiments must not be compounded.",
+      "artifacts": [
+        "project-sound-clock-runtime-benchmark/results.json",
+        "sound-clock-client-manifest.json",
+        "crowd-idle-sound-clock-fixed-profile-1"
+      ]
+    },
+    "active_server_24_bots": {
+      "source": "4ba0d0c",
+      "sample_seconds": 20.013942699999998,
+      "active_bots": 24,
+      "inuse_actors": 25,
+      "combat_kills": 15,
+      "stages": [
+        {
+          "Stage": "sv-frame",
+          "Calls": 800,
+          "TotalMilliseconds": 1497.0975,
+          "MeanMicroseconds": 1871.372,
+          "MaxMicroseconds": 3166
+        },
+        {
+          "Stage": "bot-ai-call",
+          "Calls": 800,
+          "TotalMilliseconds": 626.5551,
+          "MeanMicroseconds": 783.194,
+          "MaxMicroseconds": 1490.1
+        },
+        {
+          "Stage": "game-tick",
+          "Calls": 801,
+          "TotalMilliseconds": 741.7667,
+          "MeanMicroseconds": 926.051,
+          "MaxMicroseconds": 1908.5
+        },
+        {
+          "Stage": "client-messages",
+          "Calls": 800,
+          "TotalMilliseconds": 127.676,
+          "MeanMicroseconds": 159.595,
+          "MaxMicroseconds": 411.1
+        }
+      ],
+      "method": "Loopback-only dedicated server, active stock24bots, one fresh spectator, sv_fps40, legacy AI0, no movement/AI freezes or cadence changes.10s warmup then20s diagnostic. Bounded owned-PID cleanup and actual OS endpoint check, stock data only.",
+      "limit": "Updated-build diagnostic, no before/after server baseline. Stages overlap and have separate denominators/catch-up counts; one observer does not represent24human snapshot/network cost.",
+      "artifact": "server-active24-profile-2/results.json"
+    },
+    "asset_loading_reuse_followup": {
+      "source": "189456f6aba385d6d9b72fc90cbdbb753947ea12",
+      "method": "Five alternating same-binary all-three-off/all-three-on pairs after one excluded warmup pair; fresh profiles and identical pipeline seed, installed assets,1230x690 viewport, unchanged quality/software sound,2048MiB GPU texture cache,disk cache off,warm OS/driver caches,no competing compilation/analysis/client. T1_Fatal/mp/ffa3/T1_Fatal.",
+      "default_controls": {
+        "fs_metadataProbe": 1,
+        "r_shaderTextCache": 1,
+        "s_resampleFast": 1
+      },
+      "median_map_milliseconds": {
+        "legacy": [
+          1891,
+          823,
+          555
+        ],
+        "enabled": [
+          1725,
+          725,
+          464
+        ]
+      },
+      "median_cycle_seconds": {
+        "legacy": 7.6988466,
+        "enabled": 7.473891
+      },
+      "median_texture_metadata_milliseconds": {
+        "legacy": [
+          97.008,
+          99.573,
+          107.203
+        ],
+        "enabled": [
+          62.729,
+          63.853,
+          68.764
+        ]
+      },
+      "median_sound_registration_milliseconds": {
+        "legacy": [
+          390,
+          93,
+          20
+        ],
+        "enabled": [
+          365,
+          83,
+          17
+        ]
+      },
+      "median_renderer_registration_milliseconds_startup_then_maps": {
+        "legacy": [
+          596,
+          78,
+          75,
+          80
+        ],
+        "enabled": [
+          580,
+          25,
+          26,
+          25
+        ]
+      },
+      "paired_improved_counts": {
+        "first_map": 5,
+        "second_map": 4,
+        "revisit": 5,
+        "complete_cycle": 4,
+        "pairs": 5
+      },
+      "shader_catalogue_reuse": {
+        "files": 762,
+        "compressed_mib": 3.28,
+        "observed_milliseconds": "about18-24"
+      },
+      "last_pair_cycle_seconds": {
+        "legacy": 7.6988466,
+        "enabled": 7.9132726
+      },
+      "limit": "Combined effects only: median handoffs are about8.8%,11.9%,16.4% shorter and complete-cycle median about2.9% shorter. Fifth enabled process cycle was slower despite faster individual handoffs. Cycles include startup,fixed waits and shutdown; nested stage times cannot be summed or percentages compounded. No matched SJK/FPS claim.",
+      "artifacts": [
+        "asset-loading-paired-1/results.json",
+        "asset-loading-knockouts-1/results.json"
+      ],
+      "exploratory_knockouts": {
+        "method": "Three rotated rounds, one control disabled at a time. First trial bootstrapped the pipeline seed; exploratory component evidence, not fully primed complete-cycle proof or additive independent effects.",
+        "median_map_milliseconds": {
+          "enabled": [
+            1745,
+            716,
+            459
+          ],
+          "no-filesystem": [
+            1777,
+            750,
+            502
+          ],
+          "no-shader": [
+            1792,
+            760,
+            506
+          ],
+          "no-sound": [
+            1813,
+            726,
+            465
+          ]
+        },
+        "median_cycle_seconds": {
+          "enabled": 7.383087,
+          "no-filesystem": 7.4159007,
+          "no-shader": 7.6307363,
+          "no-sound": 7.4439603
+        }
+      }
+    },
+    "sjk_reference_attempt": {
+      "artifact": "local-sjk-ejk-reference-1",
+      "status": "Incomplete warmup-only attempt; no measured pairs and no usable parity/winner data.",
+      "completed_measured_pairs": 0,
+      "sjk_limitations": [
+        "Rejected two installed PK3s",
+        "Unavailable referenced package checksum",
+        "mapverified=false",
+        "Missing audio assets"
+      ],
+      "harness_limitations": "EJK forced closure left its local server client behind; the next private-harness idle check failed. The private harness was corrected without rerunning; this is not a shipped game fix.",
+      "cleanup": "All owned processes cleaned up; original configurations unchanged.",
+      "conclusion": "Excluded from loading-speed/parity claims; no result establishes EJK equal to or faster than SJK."
+    }
+  },
+  "verification_state": "Latest source 750ff04 narrowly fixes descriptor-less bulk sampler refresh, with current-filter completion/reuse tests. Coverage is 130 Vulkan plus five engine cases. Final ordinary Windows x64/x86 builds passed at 750ff04 with explicit BUILD_EXIT=0 for both architectures. The final local Windows runner passed all 68 discovered suites without skips. CI run 43087229764 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 68/68 suites without skips; macOS/Ubuntu each passed 66/66 applicable suites with two explicit Windows-only skips, including expanded asset integrity. The healthy E: run passed all 12 profiles on the same 750ff04 runtime: 41 map requests and 123 PNG captures, every exit normal with no forced termination, configurations/runtime preserved, clean core/synchronization validation and zero resident textures/pages at shutdown. The original disk-starved G: attempt is preserved but invalid for renderer-stability conclusions. 750ff04 is installed at E:/Games/testClient/GameData: all 54 installed-file hashes, 54 overwritten-file backups, both PK3 DLL triplets and eight unchanged configuration hashes were verified. Play EJK Dev.cmd selects 64-bit native Vulkan; Play EJK Dev - OpenGL.cmd provides the fallback. No game was launched after copying; installed hashes match the tested build. Earlier failed checkpoints/source snapshots remain intact. Current single-context vk_image.cpp analysis completed with zero diagnostics; prior scopes remain historical, without a whole-project warning-free claim; 285 triage remains 46/63/176 and blocked/restricted work remains untouched.",
+  "analysis": {
+    "initial_contexts": 560,
+    "excluded_vendor_contexts": [
+      "codemp/game/sqlite3.c"
+    ],
+    "first_party_contexts": 559,
+    "successfully_analyzed_including_retries": 559,
+    "contexts_with_diagnostics": 115,
+    "unique_diagnostics": 285,
+    "qualification": "Diagnostics require individual source review/fixtures. Initial scan preceded later changes; modified units receive targeted follow-up analysis.",
+    "compatibility": "Two bot contexts needed the recorded Clang MSVC-header narrowing switch; Rend2 shader type declaration was fixed.",
+    "triage": {
+      "confirmed_fixed": 46,
+      "provisional_contract": 63,
+      "unresolved_candidates": 176
+    },
+    "post_checkpoint": {
+      "contexts": 560,
+      "translation_units": 430,
+      "statuses": {
+        "analyzed": 560
+      },
+      "diagnostic_contexts": 105,
+      "warning_appearances": 269,
+      "report": "post-checkpoint-analysis.json"
+    },
+    "integration_followup": {
+      "contexts": 21,
+      "translation_units": 17,
+      "statuses": {
+        "analyzed": 21
+      },
+      "diagnostic_contexts": 10,
+      "warning_appearances": 35,
+      "report": "integration-analysis.json",
+      "qualification": "Per-file hashes describe the sampled sources. These 21 contexts were checked before later lead-HUD, event-index and mark-surface follow-ups; those require their own checks. Analyzer candidates are not automatically reachable defects or fixed bugs."
+    },
+    "earlier_triage_snapshot": {
+      "confirmed_fixed": 44,
+      "provisional_contract": 59,
+      "unresolved_candidates": 182
+    },
+    "clean_417_followup": {
+      "contexts": 11,
+      "translation_units": 8,
+      "statuses": {
+        "analyzed": 11
+      },
+      "diagnostic_contexts": 5,
+      "warning_appearances": 36,
+      "source": "417b060",
+      "report": "integration-analysis.json#followup_417"
+    }
+  },
+  "verification": {
+    "checkpoint": {
+      "source": "383785a31ff74d145b487a0acf50c9e5d6d52300",
+      "local_windows_results": "G:/code/JoF_EJK-project-regressions/results.json",
+      "windows_suites_passed": 42,
+      "windows_suites_applicable": 42,
+      "full_windows_builds": [
+        "x64 Release",
+        "x86 Release"
+      ],
+      "ci_run": 42952953751,
+      "ci_url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/42952953751",
+      "ci_conclusion": "success",
+      "ci_jobs": {
+        "native-vulkan (windows-2022)": "success",
+        "native-vulkan (ubuntu-24.04)": "success",
+        "native-vulkan (macos-15)": "success",
+        "native-client-linux": "success"
+      },
+      "platform_policy": "Every applicable standalone suite is required; sjk-chat and updater are explicitly Windows-only skips off Windows.",
+      "artifact_note": "The local results.json is a rolling runner output and has since been replaced by newer results. Historical 42-suite evidence is also in the immutable linked 383785a CI run."
+    },
+    "current_integration": {
+      "head_observed": "189456f6aba385d6d9b72fc90cbdbb753947ea12",
+      "zlib_ng_commit": "e495b4cc715a53ddb0df2ab70085037c455bba27",
+      "discovered_suites": 56,
+      "new_since_42_suite_checkpoint": [
+        "cgame-runtime-profile",
+        "cgame-spine-gates",
+        "renderer-mark-clipping",
+        "zlib-backend",
+        "renderer-mark-surfaces",
+        "cgame-lead-projection",
+        "cgame-animation-events",
+        "vehicle-lifecycle",
+        "filesystem-catalog-iterator",
+        "sound-start-profile",
+        "sound-cache-clock",
+        "shader-text-cache"
+      ],
+      "status": "Latest189456f Windows checkpoint verified with normal full x64/x86 builds,56/56 x64 suites,native Vulkan/package smoke and preserved playtest configuration. CI42999586254 full native Linux client/all3 Vulkan module builds passed; Linux/macOS54/54 applicable suites passed(+2explicit Windows-only skips each); Windows56/56 passed(no skips),completing green CI42999586254. Broad audit remains incomplete and blocked regression follow-ups remain quarantined.",
+      "windows_suites_passed": 56,
+      "windows_results": "G:/code/JoF_EJK-performance-run/asset-loading-regressions-x64/results.json",
+      "ci_run": 42999586254,
+      "last_complete_local_pass": 56,
+      "ci_conclusion": "success"
+    },
+    "zlib_ng_checkpoint": {
+      "commit": "e495b4cc715a53ddb0df2ab70085037c455bba27",
+      "ci_run": 42963522869,
+      "ci": "success: native Vulkan Windows/Linux/macOS and complete native Linux client without OpenGL",
+      "local_builds": "x64 and x86 Release full builds passed; cgame profiling/pose working-tree follow-ups were included and are independently tested",
+      "gpu": "Native Vulkan 1.4 default, core/synchronization validation: world, models, cosmetics, menus, vid_restart, map change, normal exit and zero resident resources; zero validation warnings/errors",
+      "limit": "This does not attest to later uncommitted optimizations or replace their final full-suite/CI checks."
+    },
+    "local_49_suite_run": {
+      "base_source": "85b93247fd2e166db4e5ed2408bb3453722af415",
+      "passed": 49,
+      "applicable": 49,
+      "results": "G:/code/JoF_EJK-performance-run/post-events-49-regression-logs/results.json",
+      "qualification": "The rolling working tree also had the disabled fused-iterator scaffolding while this run finished; the later new iterator and vehicle suites require their own full run."
+    },
+    "playtest_85": {
+      "source": "85b93247fd2e166db4e5ed2408bb3453722af415",
+      "build": "Clean full x64 Release/LTO/native Vulkan/zlib-ng",
+      "directory": "G:/code/JoF_EJK-performance-playtest",
+      "config_preserved": true,
+      "packaged_modules": "Engine/renderers/UI/cgame/game match; loose and bundled DLL hashes verified, package active frame and clean teardown passed.",
+      "gpu": "Khronos core/synchronization validation passed visible world, models, basic/custom character and cosmetic menus, vid_restart, map change, zero resident resources and normal exit.",
+      "artifacts": [
+        "checkpoint-85-visible-world-smoke",
+        "checkpoint-packaged-85b9324"
+      ]
+    },
+    "runtime_checkpoint_ci": {
+      "source": "30451bf2b15dacd11f2e5d4eedcf9c17fa974fea",
+      "run": 42964907517,
+      "conclusion": "success",
+      "scope": "All applicable standalone suites on Windows/Linux/macOS and full native Linux client without OpenGL."
+    },
+    "clean_417": {
+      "source": "417b060367d9fecca7b7a83d1d671d067ff21fee",
+      "source_clean": true,
+      "full_builds": [
+        "Windows x64 Release/LTO/zlib-ng",
+        "Windows x86 Release/LTO/zlib-ng"
+      ],
+      "standalone_passed": 51,
+      "standalone_applicable": 51,
+      "skips": 0,
+      "results": "G:/code/JoF_EJK-integration-417-regressions/results.json",
+      "manifest": "G:/code/JoF_EJK-integration-417-validation/validation.json",
+      "gpu": "Native Vulkan core/synchronization validation passed world/models/player+species/cosmetic menus, vid_restart, map change, zero resident resources and normal exit.",
+      "packaged": "Fresh package profile reached active frame and normal teardown; loose and bundled production modules match.",
+      "playtest": "G:/code/JoF_EJK-performance-playtest",
+      "config_preserved": true,
+      "artifacts": [
+        "checkpoint-417-visible-world-smoke",
+        "checkpoint-packaged-417b060"
+      ],
+      "limit": "Does not attest to later clock, EjectAll, AI or parser follow-ups."
+    },
+    "cross_platform_28": {
+      "source": "28adafe",
+      "ci_run": 42976859193,
+      "conclusion": "success",
+      "scope": "Windows/Linux/macOS native Vulkan and all applicable then54 standalone suites; full Linux native client without OpenGL.",
+      "corrected_previous_failure": "417b060 Ubuntu vehicle-lifecycle fixture lacked<cstdint>/std::uintptr_t; fixed explicitly in28adafe, not skipped/masked. Windows/macOS/full Linux client had already passed417."
+    },
+    "blocked_followups": {
+      "reason": "Automated content review rejected bot-parser and loop-sound regression tasks and a delegated clean-validation task as possible cybersecurity work. These tasks were not retried under different wording/agents.",
+      "parser": "Exact unverified two-file patch preserved outside repo; owned WIP source restored to committed HEAD. Original botlib triage remains unchanged.",
+      "loop": "No cg_ents.c production change; unfinished untracked fixture moved outside repository discovery after absolute-path verification.",
+      "artifacts": [
+        "blocked-botlib-followup-status.txt",
+        "blocked-botlib-followup.patch",
+        "blocked-loop-and-validation-status.txt",
+        "blocked-cgame-looping-sounds"
+      ],
+      "qualification": "The full project-wide audit remains unfinished. No parser/loop follow-up fixes or final regression outcomes are claimed.",
+      "earlier_icarus": "Sixteen additional command-consumer cases remain unresolved after an earlier automatic-review block. Only separately verified Get/GetVector/Move paths are recorded as fixed.",
+      "vulkan_window_bridge": {
+        "status": "blocked-unimplemented",
+        "reason": "Automatic approval review rejected a separate SDL/window bridge follow-up as possible cybersecurity work.",
+        "action": "The task was not retried or rephrased; bridge code was not read or changed by this documentation step."
+      }
+    },
+    "committed_4ba": {
+      "source": "4ba0d0c5722c57c9ece7155bb4d4a82dc90a5a86",
+      "source_clean": true,
+      "builds": [
+        "Windows x64 Release/LTO/zlib-ng all production targets",
+        "Windows x86 Release/LTO/zlib-ng all production targets"
+      ],
+      "ci_run": 42978948224,
+      "ci_conclusion": "success",
+      "discovered_suites": 55,
+      "windows_passed": 55,
+      "linux_passed": 53,
+      "macos_passed": 53,
+      "explicit_nonwindows_skips": 2,
+      "full_native_linux_client": "passed without OpenGL",
+      "gpu": "Native Vulkan core/sync world/models/basic+custom species/cosmetic menus/vid_restart/map change/zero resident resources passed.",
+      "packaged": "Fresh packaged-module profile reached active frame and normal exit; loose and bundled files match.",
+      "playtest": "G:/code/JoF_EJK-performance-playtest",
+      "config_preserved": true,
+      "artifacts": [
+        "committed-performance-x64-build.log",
+        "committed-performance-x86-build.log",
+        "committed-4ba-visible-world-smoke",
+        "checkpoint-packaged-4ba0d0c"
+      ]
+    },
+    "asset_loading_189": {
+      "source": "189456f6aba385d6d9b72fc90cbdbb753947ea12",
+      "status": "Final Windows checkpoint verified: normal full x64/x86 builds,56/56 x64 standalone suites,no failures/skips,native Vulkan core/sync and packaged game/UI smoke passed. Full Linux native client,all3 Vulkan module builds and54/54 applicable Linux/macOS suites passed(+2explicit Windows-only skips each); Windows CI also passed56/56 with0skips,completing successful run42999586254.",
+      "discovered_suites": 56,
+      "focused_shader_catalogue": {
+        "x64_asan": "passed",
+        "x86_asan": "passed",
+        "checks_per_architecture": 146194,
+        "suite": "tests/shader-text-cache"
+      },
+      "local_loading_measurement": "Five alternating same-binary pairs completed; combined controls improve median handoffs/cycle with explicit variability limits.",
+      "full_windows_builds": [
+        "Windows x64 Release/LTO/zlib-ng all production targets, GIT_SHA189456f",
+        "Windows x86 Release/LTO/zlib-ng all production targets, GIT_SHA189456f"
+      ],
+      "full_local_regressions": {
+        "applicable": 56,
+        "passed": 56,
+        "failed": 0,
+        "skipped": 0,
+        "architecture": "x64",
+        "results": "G:/code/JoF_EJK-performance-run/asset-loading-regressions-x64/results.json"
+      },
+      "native_vulkan_validation": "Passed core/synchronization: visible world/models/basic+custom character/cosmetic menus/vid_restart/map change/zero resident resources; root inspected world screenshot.",
+      "packaged_smoke": "Refreshed matching engine/renderers/game/cgame/UI, loose and packaged modules; active frame,normal exit and zero resident resources passed.",
+      "cross_platform_ci": {
+        "run": 42999586254,
+        "full_native_linux_client_without_opengl": "passed",
+        "vulkan_module_builds": "passed Windows/Linux/macOS",
+        "platform_regressions": "Windows56/56 passed(no skips);Linux54/54 applicable passed(+2explicit Windows-only skips);macOS54/54 applicable passed(+2explicit Windows-only skips)",
+        "linux_applicable_passed": 54,
+        "macos_applicable_passed": 54,
+        "explicit_nonwindows_skips_each": 2,
+        "windows_regressions": "passed56/56;platform-skipped0;discovered56",
+        "conclusion": "success",
+        "windows_passed": 56,
+        "windows_skipped": 0,
+        "windows_job": 130452111784,
+        "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/42999586254"
+      },
+      "qualification": "Does not change historical analyzer dispositions or blocked follow-up statuses; broad project audit remains incomplete.",
+      "playtest": "G:/code/JoF_EJK-performance-playtest",
+      "config_preserved": true,
+      "artifacts": [
+        "asset-loading-committed-x64-build.log",
+        "asset-loading-committed-x86-build.log",
+        "asset-loading-regressions-x64/results.json",
+        "asset-loading-189-vulkan-smoke",
+        "checkpoint-packaged-189456f"
+      ]
+    },
+    "vulkan_audit_4dd": {
+      "code_checkpoint": "4dd25b09d8873199028b9a348258ae3f12d8102c",
+      "status": "Historical at 4dd25b0: full builds/initial fixtures passed but GPU failed; later corrections and final evidence are in vulkan_audit_0fc.",
+      "audit_coverage": "tests/vulkan-audit/coverage.json",
+      "direct_compiled_cpp_reviewed": 55,
+      "unbuilt_terrain_explicit": true,
+      "initial_focused_cases": 29,
+      "initial_registered_suites": 61,
+      "current_followup_registered_suites": 63,
+      "shader_modules_regenerated_validated": 74,
+      "unrelated_shader_modules_unchanged": 120,
+      "full_windows_builds": "passed at4dd25b0",
+      "whole_suite": "historical-pending-at-4dd25b0; superseded by final CI",
+      "gpu_matrix": "historical initial direct failure at 4dd25b0; corrected and validated in later checkpoints",
+      "followup_debug_capture_uniform_fog": "historical in-progress snapshot; final corrections recorded in vulkan_audit_0fc",
+      "performance_claim": "no new loading/FPS measurement",
+      "historical_285_triage": "unchanged46/63/176",
+      "blocked_window_bridge": {
+        "status": "blocked-unimplemented",
+        "reason": "Automatic approval review rejected a separate SDL/window bridge follow-up as possible cybersecurity work.",
+        "action": "The task was not retried or rephrased; bridge code was not read or changed by this documentation step."
+      },
+      "initial_macro_fixture_gap": "Safe substituted MAX hid actual production macro interaction; no runtime pass claimed.",
+      "static_analysis": {
+        "contexts": 55,
+        "analyzed": 55,
+        "parse_errors": 0,
+        "diagnostic_contexts": 9,
+        "status": "completed with diagnostics; original triage unchanged"
+      }
+    },
+    "vulkan_audit_003": {
+      "code_checkpoint": "003609fc799905a972d8fa00b8c157ca68a4c827",
+      "audit_coverage": "tests/vulkan-audit/coverage.json",
+      "compiled_cpp_reviewed": 55,
+      "focused_cases": 48,
+      "new_suites": 8,
+      "unique_shader_modules_regenerated_validated": 103,
+      "unrelated_shader_modules_unchanged": 91,
+      "integration": {
+        "checkpoint": "003609fc799905a972d8fa00b8c157ca68a4c827",
+        "windows_builds": {
+          "status": "passed",
+          "summary": "Full ordinary Windows x64/x86 builds passed at 003609f.",
+          "artifacts": [
+            "vulkan-audit-x64-build-003609f.log",
+            "vulkan-audit-x86-build-003609f.log"
+          ]
+        },
+        "gpu_matrix": {
+          "status": "failed-followup-pending",
+          "summary": "The 003609f GPU matrix passed direct rendering, but FBO/HDR/MSAA failed VUID-vkCmdDrawIndexed-None-07832 on JKSide1 after earlier maps/restarts; a dynamic-scissor cache correction and fresh final matrix are pending.",
+          "artifact": "expanded-vulkan-validation-003609f-final-1/results.json",
+          "completed_cases": 2,
+          "passed_cases": 1,
+          "failed_cases": 1,
+          "unrun_cases": 4,
+          "failed_case_cleanup": "Validation polling aborted promptly, owned process forced termination was recorded, configuration/runtime were preserved."
+        },
+        "ci": {
+          "run_id": 43062214677,
+          "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/43062214677",
+          "status": "passed",
+          "summary": "CI run 43062214677 passed all four jobs: native Vulkan on Windows/macOS/Ubuntu and the full native Linux client; Windows passed 64/64 suites and macOS/Ubuntu each passed 62/62 applicable suites plus two explicit Windows-only skips.",
+          "jobs": [
+            {
+              "id": 130667519771,
+              "name": "native-vulkan (macos-15)",
+              "status": "success",
+              "passed_suites": 62,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            },
+            {
+              "id": 130667520222,
+              "name": "native-vulkan (windows-2022)",
+              "status": "success",
+              "passed_suites": 64,
+              "skipped_suites": []
+            },
+            {
+              "id": 130667520334,
+              "name": "native-client-linux",
+              "status": "success",
+              "linked_target": "eternaljk.x86_64"
+            },
+            {
+              "id": 130667520338,
+              "name": "native-vulkan (ubuntu-24.04)",
+              "status": "success",
+              "passed_suites": 62,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            }
+          ]
+        },
+        "whole_suite": {
+          "status": "passed",
+          "discovered": 64,
+          "passed": 64,
+          "skipped": 0,
+          "artifact": "vulkan-audit-all-regressions-final-1/results.json"
+        },
+        "static_analysis": {
+          "contexts": 55,
+          "analyzed": 55,
+          "parse_errors": 0,
+          "diagnostic_contexts": 9,
+          "artifact": "vulkan-audit-analysis-003609f/results.json",
+          "status": "completed with diagnostics; original finding triage unchanged"
+        }
+      },
+      "initial_failure_history": "4dd25b0 real MAX-macro regression and substituted-fixture gap retained; corrected in 0f92d64; original manually stopped GPU failure is not a clean-exit claim.",
+      "historical_285_triage": "unchanged: 46 fixed / 63 provisional / 176 unresolved",
+      "performance_claim": "No new loading/FPS measurement for correctness audit.",
+      "blocked_window_bridge": "Automatic approval review rejected separate step; unimplemented, not retried.",
+      "historical_snapshot": "Evidence and pending/failure fields describe 003609f only; final 0fcdbdd results are recorded separately."
+    },
+    "vulkan_audit_0fc": {
+      "code_checkpoint": "0fcdbdd0d7a5f0dbb5998a96d78ce2ea8ab1b59d",
+      "audit_coverage": "tests/vulkan-audit/coverage.json",
+      "compiled_cpp_reviewed": 55,
+      "focused_cases": 55,
+      "new_suites": 8,
+      "unique_shader_modules_regenerated_validated": 103,
+      "unrelated_shader_modules_unchanged": 91,
+      "integration": {
+        "checkpoint": "0fcdbdd0d7a5f0dbb5998a96d78ce2ea8ab1b59d",
+        "windows_builds": {
+          "status": "passed",
+          "summary": "Full ordinary Windows x64/x86 builds passed at 0fcdbdd.",
+          "artifacts": [
+            "vulkan-audit-x64-build-0fcdbdd.log",
+            "vulkan-audit-x86-build-0fcdbdd.log"
+          ]
+        },
+        "gpu_matrix": {
+          "status": "passed-with-explicit-multiple-build-provenance",
+          "summary": "Actual final 0fcdbdd direct and FBO/HDR/MSAA cases passed all strict lifecycle checks (six map loads, 12 captures, video restarts, owned minimize/restore, exit 0, zero retained resources and no validation messages). Five additional configurations passed on the immutable scissor candidate; they are separate versioned evidence, not six cases on identical final binaries.",
+          "provenance_artifact": "vulkan-0fcdbdd-validation-provenance.json",
+          "candidate": {
+            "EngineCode": "003609fc799905a972d8fa00b8c157ca68a4c827",
+            "RendererCode": "003609f plus recorded three-file scissor fix",
+            "SourceDiffSHA256": "0915C7036B87ED0D3F7D410FAD48A5E88763E48153D7363332F4DBDF96E202E9",
+            "ArtifactManifest": "vulkan-scissor-candidate-bin/candidate-manifest.json",
+            "Cases": [
+              "fbo-hdr-msaa",
+              "legacy",
+              "texture16",
+              "filters-shadows",
+              "stress"
+            ],
+            "Results": "expanded-vulkan-validation-scissor-candidate-1/results.json"
+          },
+          "final": {
+            "Code": "0fcdbdd0d7a5f0dbb5998a96d78ce2ea8ab1b59d",
+            "Cases": [
+              "direct",
+              "fbo-hdr-msaa"
+            ],
+            "Results": "expanded-vulkan-validation-0fcdbdd-final-1/results.json",
+            "Runtime": [
+              {
+                "Path": "eternaljk.x86_64.exe",
+                "Exists": true,
+                "SHA256": "20D40AE438964F9CEADA559ED2756F60D3D179971DAED5CED9C9E1D79C3BCF5F"
+              },
+              {
+                "Path": "rd-vulkan_x86_64.dll",
+                "Exists": true,
+                "SHA256": "4562CA07900EF5E1B2B6BA5CC11C391272D8918E96E436333AE6112F00A056EF"
+              },
+              {
+                "Path": "cgamex86_64.dll",
+                "Exists": true,
+                "SHA256": "BE67F27EEF6F068014DEF037BF757513C81F2782280C68A41326015A3E03EEDC"
+              },
+              {
+                "Path": "uix86_64.dll",
+                "Exists": true,
+                "SHA256": "9BBCCC2B8673778BFD8A6694C0C1FE40BE23A9DF74F125D60873758F147C684E"
+              },
+              {
+                "Path": "jampgamex86_64.dll",
+                "Exists": true,
+                "SHA256": "AEEE3715BF44904E5F2D9570D0321066C3E1C43109CE68BF2A7800476567A4FE"
+              }
+            ],
+            "ChangeBeyondCandidate": "Bloom fog descriptor restoration and version stamp; direct/FBO targeted validation repeated on actual final build"
+          },
+          "candidate_passed_cases": 5,
+          "candidate_maps": 20,
+          "candidate_captures": 44,
+          "candidate_stress_seconds": 113.82,
+          "final_passed_cases": 2,
+          "final_maps": 6,
+          "final_captures": 12,
+          "limits": "Screenshot capture/validation is separate from exhaustive visual review. Durations are lifecycle/stress coverage, not FPS measurements."
+        },
+        "ci": {
+          "run_id": 43065663481,
+          "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/43065663481",
+          "status": "passed",
+          "summary": "CI run 43065663481 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 64/64 suites without skips; macOS/Ubuntu each passed 62/62 applicable suites plus two explicit Windows-only skips (sjk-chat and updater).",
+          "jobs": [
+            {
+              "id": 130679811216,
+              "name": "native-client-linux",
+              "status": "success",
+              "linked_target": "eternaljk.x86_64"
+            },
+            {
+              "id": 130679811434,
+              "name": "native-vulkan (windows-2022)",
+              "status": "success",
+              "passed_suites": 64,
+              "skipped_suites": []
+            },
+            {
+              "id": 130679811658,
+              "name": "native-vulkan (macos-15)",
+              "status": "success",
+              "passed_suites": 62,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            },
+            {
+              "id": 130679811798,
+              "name": "native-vulkan (ubuntu-24.04)",
+              "status": "success",
+              "passed_suites": 62,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            }
+          ]
+        },
+        "deployment": {
+          "code": "0fcdbdd0d7a5f0dbb5998a96d78ce2ea8ab1b59d",
+          "status": "installed-and-independently-verified",
+          "target": "E:/Games/testClient/GameData",
+          "launchers": [
+            "Play EJK Dev.cmd",
+            "Play EJK Dev - OpenGL.cmd"
+          ],
+          "installed_files_verified": 54,
+          "protected_configurations_unchanged": 8,
+          "backup": "testclient-deploy-vulkan-0fcdbdd/backup-20261111-171822",
+          "artifacts": [
+            "testclient-deploy-vulkan-0fcdbdd/deployment-receipt.json",
+            "testclient-deploy-vulkan-0fcdbdd/post-deploy-verification.json",
+            "testclient-deploy-vulkan-0fcdbdd/manifest.json"
+          ],
+          "summary": "Validated 0fcdbdd is installed at `E:/Games/testClient/GameData`: launch `Play EJK Dev.cmd` for native Vulkan or `Play EJK Dev - OpenGL.cmd`. All 54 destination SHA256 checks passed, eight existing configuration hashes are unchanged, and overwritten files were backed up (`backup-20261111-171822`)."
+        },
+        "whole_suite": {
+          "checkpoint": "003609fc799905a972d8fa00b8c157ca68a4c827",
+          "status": "passed",
+          "discovered": 64,
+          "passed": 64,
+          "skipped": 0,
+          "artifact": "vulkan-audit-all-regressions-final-1/results.json"
+        },
+        "static_analysis": {
+          "contexts": 55,
+          "analyzed": 55,
+          "parse_errors": 0,
+          "diagnostic_contexts": 9,
+          "artifact": "vulkan-audit-analysis-0fcdbdd/results.json",
+          "status": "completed with diagnostics; original finding triage unchanged",
+          "diagnostic_contexts_detail": [
+            {
+              "path": "codemp/rd-vulkan/G2_API.cpp",
+              "diagnostics": [
+                "codemp\\rd-vulkan\\G2_API.cpp:926:10: warning: Forming reference to null pointer [clang-analyzer-core.NonNullParamChecker]",
+                "codemp\\rd-vulkan\\G2_API.cpp:1275:26: warning: Access to field 'mSkelFrameNum' results in a dereference of a null pointer (loaded from variable 'ghlInfo') [clang-analyzer-core.NullDereference]",
+                "codemp\\rd-vulkan\\G2_API.cpp:1512:26: warning: Access to field 'mSkelFrameNum' results in a dereference of a null pointer (loaded from variable 'ghlInfo') [clang-analyzer-core.NullDereference]"
+              ]
+            },
+            {
+              "path": "codemp/rd-vulkan/tr_backend.cpp",
+              "diagnostics": [
+                "codemp\\rd-vulkan\\tr_backend.cpp:301:70: warning: Access to field 'sort' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]",
+                "codemp\\rd-vulkan\\tr_backend.cpp:306:20: warning: Access to field 'sort' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]",
+                "codemp\\rd-vulkan\\tr_backend.cpp:374:6: warning: Access to field 'useDistortion' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]"
+              ]
+            },
+            {
+              "path": "codemp/rd-vulkan/tr_bsp.cpp",
+              "diagnostics": [
+                "codemp\\rd-vulkan\\tr_bsp.cpp:1360:9: warning: Access to field 'height' results in a dereference of a null pointer (loaded from variable 'grid2') [clang-analyzer-core.NullDereference]",
+                "codemp\\rd-vulkan\\tr_bsp.cpp:1417:10: warning: Access to field 'width' results in a dereference of a null pointer (loaded from variable 'grid2') [clang-analyzer-core.NullDereference]",
+                "codemp\\rd-vulkan\\tr_bsp.cpp:1723:15: warning: Access to field 'type' results in a dereference of a null pointer (loaded from variable 'model') [clang-analyzer-core.NullDereference]"
+              ]
+            },
+            {
+              "path": "codemp/rd-vulkan/tr_ghoul2.cpp",
+              "diagnostics": [
+                "codemp\\rd-vulkan\\tr_ghoul2.cpp:3100:43: warning: Access to field 'ofsVerts' results in a dereference of a null pointer (loaded from variable 'surface') [clang-analyzer-core.NullDereference]"
+              ]
+            },
+            {
+              "path": "codemp/rd-vulkan/tr_scene.cpp",
+              "diagnostics": [
+                "codemp\\rd-vulkan\\tr_scene.cpp:620:34: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+              ]
+            },
+            {
+              "path": "codemp/rd-vulkan/tr_shade_calc.cpp",
+              "diagnostics": [
+                "codemp\\rd-vulkan\\tr_shade_calc.cpp:732:14: warning: Assigned value is garbage or undefined [clang-analyzer-core.uninitialized.Assign]",
+                "codemp\\rd-vulkan\\tr_shade_calc.cpp:803:13: warning: Assigned value is garbage or undefined [clang-analyzer-core.uninitialized.Assign]",
+                "codemp\\rd-vulkan\\tr_shade_calc.cpp:908:19: warning: 1st function call argument is an uninitialized value [clang-analyzer-core.CallAndMessage]",
+                "codemp\\rd-vulkan\\tr_shade_calc.cpp:1225:20: warning: Access to field 'ambientLightInt' results in a dereference of a null pointer (loaded from variable 'ent') [clang-analyzer-core.NullDereference]"
+              ]
+            },
+            {
+              "path": "codemp/rd-vulkan/tr_world.cpp",
+              "diagnostics": [
+                "codemp\\rd-vulkan\\tr_world.cpp:1394:10: warning: Access to field 'novis' results in a dereference of a null pointer (loaded from field 'world') [clang-analyzer-core.NullDereference]"
+              ]
+            },
+            {
+              "path": "codemp/rd-vulkan/vk_shade_geometry.cpp",
+              "diagnostics": [
+                "codemp\\rd-vulkan\\vk_shade_geometry.cpp:1559:7: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+                "codemp\\rd-vulkan\\vk_shade_geometry.cpp:2495:47: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+              ]
+            },
+            {
+              "path": "codemp/rd-vulkan/vk_vbo.cpp",
+              "diagnostics": [
+                "codemp\\rd-vulkan\\vk_vbo.cpp:1264:27: warning: Access to field 'numVerts' results in a dereference of a null pointer (loaded from variable 'goreSurface') [clang-analyzer-core.NullDereference]"
+              ]
+            }
+          ]
+        }
+      },
+      "initial_failure_history": "4dd25b0 real MAX-macro regression and substituted-fixture gap retained; corrected in 0f92d64; original manually stopped GPU failure is not a clean-exit claim.",
+      "historical_285_triage": "unchanged: 46 fixed / 63 provisional / 176 unresolved",
+      "performance_claim": "No new loading/FPS measurement for correctness audit.",
+      "blocked_window_bridge": "Automatic approval review rejected separate step; unimplemented, not retried."
+    },
+    "vulkan_followup_81b": {
+      "code_checkpoint": "81b10be3490a2f08884110717583aaa6e0873e28",
+      "ledger": "tests/vulkan-audit/followup-81b10be.json",
+      "focused_cases": 106,
+      "suites": 10,
+      "builds": {
+        "status": "passed",
+        "summary": "Full ordinary Windows x64/x86 builds passed for the frozen 81b10be source; root verified explicit native-command exit 0 for both architectures.",
+        "artifacts": [
+          "vulkan-followup-full-x64-check.log",
+          "vulkan-followup-full-x86-check.log"
+        ],
+        "qualification": "The first logging wrapper returned 1 without a FAILED build line. Direct command rechecks exited 0 and the check logs report ninja: no work to do. The wrapper return is not used as a successful native-build exit."
+      },
+      "whole_suite": {
+        "status": "passed",
+        "expected_suites": 66,
+        "completed_suites": 66,
+        "passed_suites": 66,
+        "artifact": "vulkan-followup-all-regressions-81b10be/results.json"
+      },
+      "static_analysis": {
+        "status": "completed-with-diagnostics",
+        "expected_contexts": 55,
+        "completed_contexts": 55,
+        "parse_errors": 0,
+        "diagnostic_contexts": 13,
+        "artifact": "vulkan-followup-analysis-81b10be-clang22/results.json",
+        "comparison_limit": "The previous 0fcdbdd run used Clang 19, while this compatible run uses Clang 22; differing diagnostic-context counts are not a like-for-like fix/regression count.",
+        "selected_contract_review": [
+          {
+            "contexts": [
+              "vk_instance.cpp",
+              "vk_swapchain.cpp"
+            ],
+            "disposition": "nonreturning error-import contract explanation, not a source fix or all-path proof",
+            "evidence": "Reports continue past ri.Error/VK_REQUIRE_SUCCESS failure branches that free partial lists or reject null/zero allocations. Production engine error handling is nonreturning; fixtures throw at that boundary."
+          },
+          {
+            "contexts": [
+              "tr_shader.cpp",
+              "tr_surface.cpp"
+            ],
+            "disposition": "new diagnostic contexts under a different compiler; source unchanged in this follow-up",
+            "evidence": "No edits to either file in eebb4d5..81b10be; selected source delta review does not establish these broader preexisting states."
+          },
+          {
+            "contexts": [
+              "tr_shader.cpp"
+            ],
+            "disposition": "caller-contract explanation only",
+            "evidence": "EqualTCgen returns false for NULL; source is unchanged and no warning fix is claimed."
+          },
+          {
+            "contexts": [
+              "tr_surface.cpp",
+              "tr_ghoul2.cpp"
+            ],
+            "disposition": "unresolved portability candidate",
+            "evidence": "BUFFER_OFFSET-style null-pointer arithmetic remains flagged; no source fix or arbitrary model-state proof is claimed."
+          }
+        ],
+        "compiler": "Clang 22.1.3 compatible with the installed MSVC 14.51 STL",
+        "initial_tooling_attempt": {
+          "compiler": "Clang 19",
+          "result": "55 parse errors due to installed MSVC 14.51 STL requiring Clang >=20; not renderer-analysis success",
+          "artifact": "vulkan-followup-analysis-81b10be/results.json"
+        },
+        "diagnostic_contexts_detail": [
+          {
+            "path": "codemp/rd-vulkan/G2_API.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\G2_API.cpp:926:10: warning: Forming reference to null pointer [clang-analyzer-core.NonNullParamChecker]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\G2_API.cpp:1275:26: warning: Access to field 'mSkelFrameNum' results in a dereference of a null pointer (loaded from variable 'ghlInfo') [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\G2_API.cpp:1512:26: warning: Access to field 'mSkelFrameNum' results in a dereference of a null pointer (loaded from variable 'ghlInfo') [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_backend.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_backend.cpp:301:70: warning: Access to field 'sort' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_backend.cpp:306:20: warning: Access to field 'sort' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_backend.cpp:374:6: warning: Access to field 'useDistortion' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_bsp.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_bsp.cpp:1360:9: warning: Access to field 'height' results in a dereference of a null pointer (loaded from variable 'grid2') [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_bsp.cpp:1723:15: warning: Access to field 'type' results in a dereference of a null pointer (loaded from variable 'model') [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_ghoul2.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_ghoul2.cpp:3100:43: warning: Access to field 'ofsVerts' results in a dereference of a null pointer (loaded from variable 'surface') [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_ghoul2.cpp:3705:23: warning: Addition of a null pointer and a probably nonzero integer value (from variable 'indexOffset') may result in undefined behavior [clang-analyzer-core.NullPointerArithm]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_scene.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_scene.cpp:620:34: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_shader.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_shader.cpp:4740:61: warning: Access to field 'tessFlags' results in a dereference of a null pointer [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_shade_calc.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_shade_calc.cpp:732:14: warning: Assigned value is uninitialized [clang-analyzer-core.uninitialized.Assign]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_shade_calc.cpp:803:13: warning: Assigned value is uninitialized [clang-analyzer-core.uninitialized.Assign]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_shade_calc.cpp:908:19: warning: 1st function call argument is an uninitialized value [clang-analyzer-core.CallAndMessage]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_shade_calc.cpp:1225:20: warning: Access to field 'ambientLightInt' results in a dereference of a null pointer (loaded from variable 'ent') [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_surface.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_surface.cpp:2272:21: warning: Addition of a null pointer and a probably nonzero integer value (via field 'indexOffset') may result in undefined behavior [clang-analyzer-core.NullPointerArithm]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_world.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_world.cpp:1394:10: warning: Access to field 'novis' results in a dereference of a null pointer (loaded from field 'world') [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/vk_instance.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:263:9: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:264:9: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:282:20: warning: Use of memory after it is released [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:303:44: warning: Use of memory after it is released [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:303:44: warning: Use of memory allocated with size zero [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:374:5: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:375:5: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:985:34: warning: Array access (from variable 'physical_devices') results in a null pointer dereference [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:985:34: warning: Use of memory after it is released [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:1007:2: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/vk_shade_geometry.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_shade_geometry.cpp:1596:7: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_shade_geometry.cpp:2535:47: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/vk_swapchain.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_swapchain.cpp:141:57: warning: Array access (from variable 'present_modes') results in a null pointer dereference [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_swapchain.cpp:141:57: warning: Use of memory after it is released [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_swapchain.cpp:151:5: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/vk_vbo.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_vbo.cpp:1223:27: warning: Access to field 'numVerts' results in a dereference of a null pointer (loaded from variable 'goreSurface') [clang-analyzer-core.NullDereference]"
+            ]
+          }
+        ]
+      },
+      "ci": {
+        "run_id": 43075400446,
+        "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/43075400446",
+        "status": "failed-macos-followup-pending",
+        "summary": "CI run 43075400446 passed Windows (66/66), Ubuntu (64/64 applicable with two explicit Windows-only skips) and the full native Linux client. macOS failed only material_fog-invalid-t in vulkan-material-runtime (63/64 applicable suites passed); the exact assertion and production-versus-fixture cause are under investigation.",
+        "failed_job": 130713776559,
+        "artifact_id": 13881937420,
+        "artifact": "ci-43075400446-macos.zip:vulkan-material-runtime.log",
+        "failed_case": "material_fog-invalid-t",
+        "failure": "invalid fog depth must be sanitized independently",
+        "compiler": "AppleClang 17.0.0.17000013",
+        "diagnosis": "pending frontend agent investigation; no weakened assertions or source fix claimed"
+      },
+      "gpu": {
+        "status": "failed-ssaa-hdr-followup-pending",
+        "summary": "The six ordinary 81b10be GPU profiles passed (23 map loads, 50 captures), as did weather and the corrected bot-shadow acceptance run (six maps, 33 captures). SSAA/HDR failed real driver validation for refraction blit destination width and dynamic-glow clear rectangles; owned polling aborted the process, with configuration/runtime preserved. Fullscreen/debug cases are unrun, corrections are in progress, and 81b10be will not be deployed.",
+        "basic": {
+          "artifact": "vulkan-followup-gpu-basic-81b10be-1/results.json",
+          "passed_profiles": 6,
+          "map_requests": 23,
+          "captures": 50,
+          "stress_seconds": 96.03
+        },
+        "features": {
+          "weather_artifact": "vulkan-followup-gpu-features-81b10be-1/results.json",
+          "bot_ssaa_artifact": "vulkan-followup-gpu-features-81b10be-2/results.json",
+          "weather": "passed: three maps, 21 captures",
+          "bot-shadows": "passed corrected acceptance: three maps, 12 captures",
+          "ssaa-hdr": "failed validation; owned forced termination true, configuration/runtime preserved",
+          "unrun": [
+            "fullscreen",
+            "debug-geometry"
+          ]
+        },
+        "failure": {
+          "artifact": "vulkan-followup-gpu-features-81b10be-2/ssaa-hdr/validation.log",
+          "vuids": [
+            "VUID-vkCmdBlitImage-dstOffset-00248",
+            "VUID-vkCmdClearAttachments-pRects-00016"
+          ],
+          "source_explanation": "Refraction destination used render-size/2 rather than actual capture-size/2; dynamic-glow clear rectangle used the larger SSAA render size for the smaller pass target.",
+          "status": "correction-and-new-code-checkpoint-pending"
+        },
+        "harness_history": "Initial bot-shadow acceptance failed because commands were rejected; process exit 0/no VUID/no force. Corrected command acceptance passed on the same frozen runtime; initial rejected-command run is not a renderer failure.",
+        "limits": "Lifecycle/stress durations are not FPS measurements; no full feature-matrix pass is claimed."
+      },
+      "deployment": {
+        "status": "not-deployed",
+        "summary": "TestClient still contains the validated 0fcdbdd build; 81b10be has not been installed."
+      },
+      "historical_285_triage": "unchanged: 46 fixed / 63 provisional / 176 unresolved"
+    },
+    "vulkan_followup_481": {
+      "code_checkpoint": "481800e92eeec4b1bdfd2500f63e46949769c30b",
+      "ledger": "tests/vulkan-audit/followup-481800e.json",
+      "focused_cases": 121,
+      "suites": 11,
+      "integration": {
+        "builds": {
+          "status": "passed",
+          "summary": "Final ordinary Windows x64/x86 builds passed at 481800e; root verified explicit BUILD_EXIT=0 for both architectures.",
+          "artifacts": [
+            "vulkan-followup-final-x64.log",
+            "vulkan-followup-final-x86.log"
+          ]
+        },
+        "whole_suite": {
+          "status": "passed",
+          "discovered_expected": 67,
+          "completed": 67,
+          "passed": 67,
+          "skipped": 0,
+          "artifact": "vulkan-followup-all-regressions-481800e/results.json"
+        },
+        "ci": {
+          "run_id": 43078570667,
+          "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/43078570667",
+          "status": "passed",
+          "summary": "CI run 43078570667 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 67/67 suites without skips; macOS/Ubuntu each passed 65/65 applicable suites plus two explicit Windows-only skips. The Mac material suite passed after the portable fixture correction.",
+          "material_macos": "passed suite; actual portable fog and buffer-offset tests passed",
+          "pointer_sanitizer": "conditional capability probe; enabled instrumentation is not exposed by success-only job summaries",
+          "jobs": [
+            {
+              "id": 130724820530,
+              "name": "native-vulkan (ubuntu-24.04)",
+              "status": "success",
+              "passed_suites": 65,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            },
+            {
+              "id": 130724821074,
+              "name": "native-vulkan (windows-2022)",
+              "status": "success",
+              "passed_suites": 67,
+              "skipped_suites": []
+            },
+            {
+              "id": 130724821088,
+              "name": "native-client-linux",
+              "status": "success"
+            },
+            {
+              "id": 130724821097,
+              "name": "native-vulkan (macos-15)",
+              "status": "success",
+              "passed_suites": 65,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            }
+          ]
+        },
+        "gpu": {
+          "status": "failed-fullscreen-incomplete-matrix",
+          "summary": "On the actual 481800e runtime, all six basic profiles plus weather, bot/shadows and SSAA/HDR passed (32 accepted map requests, 92 captures). Fullscreen crashed with access violation 0xC0000005 during the first video restart, without a preceding validation error or forced termination; configuration/runtime hashes remained unchanged. Debug/mips remains unrun, so the complete 11-profile matrix has not passed.",
+          "artifact": "vulkan-followup-gpu-481-summary.json",
+          "accepted_profiles": 9,
+          "planned_profiles": 11,
+          "passed_maps": 32,
+          "passed_captures": 92,
+          "failed_case": {
+            "Case": "fullscreen",
+            "Type": "Actual process access violation during first fullscreen video restart",
+            "Directory": "vulkan-followup-gpu-features-481800e-1/fullscreen",
+            "ExitCode": -1073741819,
+            "ExceptionHex": "0xC0000005",
+            "ForcedTermination": false,
+            "ConfigsPreserved": true,
+            "RuntimePreserved": true,
+            "ValidationReported": false
+          },
+          "unrun": [
+            "debug-mips"
+          ],
+          "runtime": [
+            {
+              "Path": "G:\\code\\JoF_EJK-performance-build\\eternaljk.x86_64.exe",
+              "Exists": true,
+              "SHA256": "D9EB2CA6C89FD79D413AD1C656F7322BB643C156EB8B6EB34AB1D0A5A98C8373"
+            },
+            {
+              "Path": "G:\\code\\JoF_EJK-performance-build\\rd-vulkan_x86_64.dll",
+              "Exists": true,
+              "SHA256": "E7B315E6AF26B4448349C40886ABC80ED011B2A9159E75AEBB4DBAD2A3B2112C"
+            },
+            {
+              "Path": "G:\\code\\JoF_EJK-performance-build\\cgamex86_64.dll",
+              "Exists": true,
+              "SHA256": "5C03A3AA92870268F05439C22B9E699B6FCF9F42F719650EFB8E2AA74A8A9A4B"
+            },
+            {
+              "Path": "G:\\code\\JoF_EJK-performance-build\\uix86_64.dll",
+              "Exists": true,
+              "SHA256": "5F0367EBEA118AFABDA63B62D99D19CA4481D347E8554D7A90E7EE9FD746061F"
+            },
+            {
+              "Path": "G:\\code\\JoF_EJK-performance-build\\jampgamex86_64.dll",
+              "Exists": true,
+              "SHA256": "84C7CD597CDB52EF03029C2D3CB1E20453488C81F32F0488BC9428BE6FAD9CC5"
+            }
+          ],
+          "source_provenance": {
+            "BasicManifestHead": "fc617e2440f58e08accea98d2d53b499fb04f6b0",
+            "FeatureManifestHead": "481800e92eeec4b1bdfd2500f63e46949769c30b",
+            "TransientMergeHead": "fc617e2440f58e08accea98d2d53b499fb04f6b0",
+            "Trees": {
+              "481800e92eeec4b1bdfd2500f63e46949769c30b": "7207cb7a06e79c2b646494feff5403276110851e",
+              "fc617e2440f58e08accea98d2d53b499fb04f6b0": "7207cb7a06e79c2b646494feff5403276110851e"
+            },
+            "IdenticalEntireTrackedTrees": true,
+            "Qualification": "Basic manifest captured an external transient merge; current481 and transientfc entire trees are byte-identical. No sources/binaries mutated by GPU agent."
+          },
+          "basic_artifact": "vulkan-followup-gpu-basic-481800e-1/results.json",
+          "feature_artifact": "vulkan-followup-gpu-features-481800e-1/results.json",
+          "limits": "481 SSAA/HDR now passes actual core/synchronization GPU validation. Fullscreen crashed; no universal feature/crash-free claim. Screenshot visual review remains required. No blocked SDL/window bridge or blocked VBO follow-up investigation performed."
+        },
+        "deployment": {
+          "status": "not-deployed",
+          "summary": "TestClient remains on validated 0fcdbdd; neither 81b10be nor 481800e is installed."
+        }
+      },
+      "prior_failed_checkpoint": "81b10be; separately retained",
+      "historical_285_triage": "unchanged: 46/63/176"
+    },
+    "vulkan_followup_7bd": {
+      "code_checkpoint": "7bd347034640286a2c1f6720dbd4f3e07049c9a6",
+      "ledger": "tests/vulkan-audit/followup-7bd3470.json",
+      "vulkan_cases": 126,
+      "engine_fatal_cases": 5,
+      "integration": {
+        "builds": {
+          "status": "passed",
+          "summary": "Final ordinary Windows x64/x86 builds passed at 7bd3470 with explicit BUILD_EXIT=0 for both architectures.",
+          "artifacts": [
+            "vulkan-followup-7bd3470-x64.log",
+            "vulkan-followup-7bd3470-x86.log"
+          ]
+        },
+        "whole_suite": {
+          "status": "passed",
+          "expected": 68,
+          "completed": 68,
+          "passed": 68,
+          "skipped": 0,
+          "artifact": "vulkan-followup-all-regressions-7bd3470/results.json"
+        },
+        "ci": {
+          "run_id": 43082756809,
+          "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/43082756809",
+          "status": "passed",
+          "summary": "CI run 43082756809 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 68/68 suites without skips; macOS/Ubuntu each passed 66/66 applicable suites with two explicit Windows-only skips. Material and fatal-shutdown suites passed on Mac.",
+          "jobs": [
+            {
+              "id": 130739278780,
+              "name": "native-vulkan (macos-15)",
+              "status": "success",
+              "passed_suites": 66,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            },
+            {
+              "id": 130739279218,
+              "name": "native-vulkan (windows-2022)",
+              "status": "success",
+              "passed_suites": 68,
+              "skipped_suites": []
+            },
+            {
+              "id": 130739279379,
+              "name": "native-client-linux",
+              "status": "success"
+            },
+            {
+              "id": 130739279438,
+              "name": "native-vulkan (ubuntu-24.04)",
+              "status": "success",
+              "passed_suites": 66,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            }
+          ],
+          "pointer_sanitizer": "Conditional probe; enabled instrumentation is not exposed by successful job summary logs."
+        },
+        "gpu": {
+          "status": "failed-debug-mip-descriptor-incomplete-matrix",
+          "planned_profiles": 12,
+          "passed_profiles": 11,
+          "passed_maps": 38,
+          "passed_captures": 108,
+          "summary": "On identical 7bd3470 runtime binaries, 11 of 12 GPU profiles passed: six basic plus weather, bot/shadows, SSAA/HDR and both FBO/direct fullscreen cases (38 accepted map requests, 108 captures). The final debug/mip profile failed Khronos required-handle validation because vkUpdateDescriptorSets received dstSet VK_NULL_HANDLE; owned polling forced an abort and preserved configuration/runtime hashes. No complete matrix pass or deployment is claimed.",
+          "artifact": "vulkan-followup-gpu-7bd-summary.json",
+          "basic_artifact": "vulkan-followup-gpu-basic-7bd3470-1/results.json",
+          "feature_artifact": "vulkan-followup-gpu-features-7bd3470-1/results.json",
+          "failed_cases": [
+            {
+              "Case": "debug-mips",
+              "Type": "Actual Khronos validation error",
+              "Message": "UNASSIGNED-GeneralParameterError-RequiredHandle: vkUpdateDescriptorSets pDescriptorWrites[0].dstSet VK_NULL_HANDLE",
+              "Directory": "vulkan-followup-gpu-features-7bd3470-1/debug-mips",
+              "ExitCode": 1,
+              "ForcedTermination": true,
+              "ConfigsPreserved": true,
+              "RuntimePreserved": true,
+              "Stage": "After first-map normals capture and colored-mip video restart, before first nearest-filter capture"
+            }
+          ],
+          "fullscreen_dimensions": {
+            "fullscreen": [
+              {
+                "Feature": "fullscreen",
+                "ModeAndRestorationConfirmed": true,
+                "FBO": 1,
+                "SSAA": 0,
+                "PresentationDimensions": {
+                  "Width": 1024,
+                  "Height": 768
+                },
+                "RenderDimensions": {
+                  "Width": 961,
+                  "Height": 541
+                },
+                "CaptureDimensions": {
+                  "Width": 961,
+                  "Height": 541
+                },
+                "CaptureTargetSource": "gfxinfo RENDER (explicit SSAA=0)",
+                "RestoredPresentationDimensions": {
+                  "Width": 961,
+                  "Height": 541
+                },
+                "RestoredCaptureDimensions": {
+                  "Width": 961,
+                  "Height": 541
+                }
+              }
+            ],
+            "fullscreen-direct": [
+              {
+                "Feature": "fullscreen",
+                "ModeAndRestorationConfirmed": true,
+                "FBO": 0,
+                "SSAA": 0,
+                "PresentationDimensions": {
+                  "Width": 1024,
+                  "Height": 768
+                },
+                "RenderDimensions": {
+                  "Width": 1024,
+                  "Height": 768
+                },
+                "CaptureDimensions": {
+                  "Width": 1024,
+                  "Height": 768
+                },
+                "CaptureTargetSource": "gfxinfo MODE (render and presentation equal)",
+                "RestoredPresentationDimensions": {
+                  "Width": 961,
+                  "Height": 541
+                },
+                "RestoredCaptureDimensions": {
+                  "Width": 961,
+                  "Height": 541
+                }
+              }
+            ]
+          },
+          "runtime": [
+            {
+              "Path": "eternaljk.x86_64.exe",
+              "Exists": true,
+              "SHA256": "734C0F8DA0E3DF91D8192CC2A08C38815A8B4AD77A9951722118DCE8E6602D01"
+            },
+            {
+              "Path": "rd-vulkan_x86_64.dll",
+              "Exists": true,
+              "SHA256": "D30BFB133B7632CC41F7669A3890A9817B441F7E4A7E078645945C75056D0AA6"
+            },
+            {
+              "Path": "cgamex86_64.dll",
+              "Exists": true,
+              "SHA256": "6CFFCF00D865D49DE7E47917DDB684EB4C20C5B8E3ABCB6BA4BFB4D598AD5424"
+            },
+            {
+              "Path": "uix86_64.dll",
+              "Exists": true,
+              "SHA256": "8A382D634A09DA8117F9446A0EEEF70AB308F3868D7A966A997FDBE076C868E7"
+            },
+            {
+              "Path": "jampgamex86_64.dll",
+              "Exists": true,
+              "SHA256": "5B673163303D460828618B7D379641EB27723B3D2C88F21051403DADBC1152B0"
+            }
+          ],
+          "source_diagnosis": "R_AllocImage normally registers a pending image placeholder with a null descriptor. Bulk texture-mode refresh treated every registered image as descriptor-ready. A narrow skip plus actual latest-filter assignment tests are in progress for the next checkpoint.",
+          "resolution_status": "new source checkpoint/candidate proof pending",
+          "limits": "Eleven profiles pass on identical final7bd runtime; debug/mip validation failure remains unresolved, no all-features/crash-free claim. Fullscreen now passes both FBO logical capture and direct presentation adoption. No blocked SDL/window bridge or blocked VBO follow-up investigation performed."
+        },
+        "deployment": {
+          "status": "not-deployed",
+          "summary": "TestClient remains on validated 0fcdbdd. The 81/481 stages were never installed, and 7bd3470 is not deployed."
+        }
+      },
+      "history": "81/481 failures and renderer-only candidate are separate evidence; 0fc deployment unchanged until final receipt."
+    },
+    "vulkan_followup_750": {
+      "code_checkpoint": "750ff044a1d9f90a623a73d5e674dae43a38e21e",
+      "ledger": "tests/vulkan-audit/followup-750ff04.json",
+      "vulkan_cases": 130,
+      "engine_fatal_cases": 5,
+      "integration": {
+        "builds": {
+          "status": "passed",
+          "summary": "Final ordinary Windows x64/x86 builds passed at 750ff04 with explicit BUILD_EXIT=0 for both architectures.",
+          "artifacts": [
+            "vulkan-followup-750ff04-x64.log",
+            "vulkan-followup-750ff04-x86.log"
+          ]
+        },
+        "whole_suite": {
+          "status": "passed",
+          "expected": 68,
+          "completed": 68,
+          "passed": 68,
+          "skipped": 0,
+          "artifact": "vulkan-followup-all-regressions-750ff04/results.json"
+        },
+        "ci": {
+          "run_id": 43087229764,
+          "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/43087229764",
+          "status": "passed",
+          "summary": "CI run 43087229764 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 68/68 suites without skips; macOS/Ubuntu each passed 66/66 applicable suites with two explicit Windows-only skips, including expanded asset integrity.",
+          "jobs": [
+            {
+              "id": 130754687122,
+              "name": "native-client-linux",
+              "status": "success"
+            },
+            {
+              "id": 130754687482,
+              "name": "native-vulkan (windows-2022)",
+              "status": "success",
+              "passed_suites": 68,
+              "skipped_suites": []
+            },
+            {
+              "id": 130754687522,
+              "name": "native-vulkan (macos-15)",
+              "status": "success",
+              "passed_suites": 66,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            },
+            {
+              "id": 130754687632,
+              "name": "native-vulkan (ubuntu-24.04)",
+              "status": "success",
+              "passed_suites": 66,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            }
+          ],
+          "pointer_sanitizer": "Conditional probe; enabled instrumentation is not exposed by successful job-summary logs."
+        },
+        "gpu": {
+          "status": "passed",
+          "planned_profiles": 12,
+          "passed_profiles": 12,
+          "map_requests": 41,
+          "captures": 123,
+          "summary": "The healthy E: run passed all 12 profiles on the same 750ff04 runtime: 41 map requests and 123 PNG captures, every exit normal with no forced termination, configurations/runtime preserved, clean core/synchronization validation and zero resident textures/pages at shutdown. The original disk-starved G: attempt is preserved but invalid for renderer-stability conclusions.",
+          "aggregate": "E:/Codex-EJK-audit/runtime/gpu-750ff04-summary.json",
+          "aggregate_sha256": "bbddc2345e0565a7508a7e39a9e14ebb4e325f2e0422ead15d3edbb5c5e53dc5",
+          "basic_artifact": "E:\\Codex-EJK-audit\\runtime\\gpu-basic-750ff04-2\\results.json",
+          "feature_artifact": "E:\\Codex-EJK-audit\\runtime\\gpu-features-750ff04-2\\results.json",
+          "runtime": [
+            {
+              "Path": "eternaljk.x86_64.exe",
+              "Exists": true,
+              "SHA256": "1251B7B744D80E8B2B8923AEFDA63F8363CE8210B21759CBF2E695E3B845479D"
+            },
+            {
+              "Path": "rd-vulkan_x86_64.dll",
+              "Exists": true,
+              "SHA256": "A702163B0B2D7D87357FE5EB93AC391F51FF507C99F1BF61E7940AFCA71320BA"
+            },
+            {
+              "Path": "cgamex86_64.dll",
+              "Exists": true,
+              "SHA256": "7B1FF66936BAC3B0562C9D2A3A052A8BE31F0FE7408108539ADA8A2D1008C40B"
+            },
+            {
+              "Path": "uix86_64.dll",
+              "Exists": true,
+              "SHA256": "79A0B0828CE9C3ECBA81A6382140E5DBE3C0AFE3CCAD00648711BAABB7DB22A7"
+            },
+            {
+              "Path": "jampgamex86_64.dll",
+              "Exists": true,
+              "SHA256": "38941F24CD14687B74F746A7B4594D1F4C75CF003DBEE3F73C44178839CA2864"
+            }
+          ],
+          "runtime_hashes_match_both_manifests": true,
+          "source_documentation_heads": {
+            "a8bca668fe631acf0a4eb6239c159e19a1ed603e": {
+              "OnlyAuditDocumentationDiffers": true,
+              "ChangedPaths": [
+                "tests/loading-audit/README.md",
+                "tests/project-audit/coverage.json",
+                "tests/vulkan-audit/README.md",
+                "tests/vulkan-audit/coverage.json",
+                "tests/vulkan-audit/followup-481800e.json",
+                "tests/vulkan-audit/followup-750ff04.json",
+                "tests/vulkan-audit/followup-7bd3470.json",
+                "tests/vulkan-audit/followup-81b10be.json"
+              ]
+            }
+          },
+          "capacity": {
+            "Policy": {
+              "EvidenceStartBytes": 2147483648,
+              "EvidenceLiveMinimumBytes": 536870912,
+              "WorkspaceStartBytes": 536870912,
+              "WorkspaceLiveMinimumBytes": 134217728,
+              "WorkspaceVolume": "G:\\",
+              "EvidenceVolume": "E:\\",
+              "Qualification": "Correctness/evidence capacity guard only; not a performance measurement."
+            },
+            "MinimumRecordedEvidenceFreeBytes": 115549335552,
+            "MinimumRecordedWorkspaceFreeBytes": 890540032,
+            "FinalRecordedVolumes": {
+              "UTC": "2026-11-11T21:58:23.3993804Z",
+              "EvidenceVolume": "E:\\",
+              "EvidenceFreeBytes": 115549335552,
+              "WorkspaceVolume": "G:\\",
+              "WorkspaceFreeBytes": 890540032
+            },
+            "LiveGuardPassedAllCases": true,
+            "Qualification": "Minima cover saved before/last-live/after snapshots; every running 100ms poll enforced live floors."
+          },
+          "window_proof_qualification": "Basic checks prove owned HWND/PID only and do not instrument window class. All six feature cases prove actual visible SDL render-window identity; both fullscreen profiles additionally prove minimize/restore while fullscreen.",
+          "feature_render_window_proof_cases": [
+            "weather",
+            "bot-shadows",
+            "ssaa-hdr",
+            "fullscreen",
+            "fullscreen-direct",
+            "debug-mips"
+          ],
+          "fullscreen_phase_proof_cases": [
+            "fullscreen",
+            "fullscreen-direct"
+          ],
+          "visual_review": "Limited spot-checks: fbo-hdr-msaa/world-1, ssaa-hdr/world-1, fullscreen/fullscreen-active, debug-normals-map1 and mips-map1-GL_LINEAR_MIPMAP_LINEAR showed the expected world/HUD/glow/aspect, normal lines and colored mips. Not all 123 images were visually inspected; this is not a universal feature-quality guarantee.",
+          "limits": "Controlled correctness/lifecycle tests on one GPU/driver; no FPS claim or universal crash-free/device-loss/OOM/material/hardware certification. Earlier disk-full AV remains historical confounded evidence; healthy E: retest passes on identical runtime. Root performs screenshot visual review."
+        },
+        "deployment": {
+          "status": "installed-and-independently-verified",
+          "installed": true,
+          "code": "750ff044a1d9f90a623a73d5e674dae43a38e21e",
+          "target": "E:/Games/testClient/GameData",
+          "summary": "750ff04 is installed at E:/Games/testClient/GameData: all 54 installed-file hashes, 54 overwritten-file backups, both PK3 DLL triplets and eight unchanged configuration hashes were verified. Play EJK Dev.cmd selects 64-bit native Vulkan; Play EJK Dev - OpenGL.cmd provides the fallback. No game was launched after copying; installed hashes match the tested build.",
+          "installed_file_hashes_verified": 54,
+          "overwritten_backups_verified": 54,
+          "protected_configurations_unchanged": 8,
+          "code_packages_verified": 2,
+          "backup": "testclient-deploy-vulkan-750ff04/backup-20261111-215912",
+          "receipt": "testclient-deploy-vulkan-750ff04/deployment-receipt.json",
+          "verification": "testclient-deploy-vulkan-750ff04/post-deploy-verification.json",
+          "no_game_launched_after_copy": true
+        }
+      },
+      "history": "Failed 7bd debug/mips and older-engine candidate remain separate; earlier deployment unchanged until final receipt."
+    }
+  },
+  "additional_verified_fixes": {
+    "scope": "Later BSP/VBO/CLI fixes are separate from the initial diagnostic set. Lead findings 177/180 now increase the confirmed count within that original set; snapshot findings 183-186 have provisional caller evidence. Historical measurement/scan counts remain separately recorded.",
+    "desktop_bsp_registration": {
+      "verification": [
+        "tests/bsp-registration",
+        "383785a 42-suite results"
+      ],
+      "notes": "Renderer capacity guards preserve distinct instances and reject overflow without writes/allocations; debug testmodel retains one BSP handle across frames and resets its lifetime correctly."
+    },
+    "vulkan_main_world_vbo_scope": {
+      "verification": [
+        "tests/vulkan-world-vbo-scope",
+        "383785a 42-suite results",
+        "project-remote-gridfix-profile/EternalJK/qconsole.log"
+      ],
+      "notes": "Instanced BSP loads do not rebuild the global main-world VBO outside loading phase; cached/file-backed subworld fixtures preserve its resources."
+    },
+    "vulkan_static_vbo_identity": {
+      "verification": [
+        "tests/vulkan-sprite-vbo-identity",
+        "383785a 42-suite results"
+      ],
+      "notes": "Actual static VBO identities, complete sprite grouping bit range/capacity and resource ownership across renderer restart are checked."
+    },
+    "startup_command_storage": {
+      "verification": [
+        "cli-command-lines-before-long/results.json",
+        "cli-command-lines-after-long/results.json"
+      ],
+      "notes": "Before-fix live 40-command long launch missed its final sentinel and needed termination. Updated 40/63-command launches preserve quoted/final sentinels and exit normally with code 0."
+    },
+    "vehicle_boarding_and_passenger_ownership": {
+      "source": "1e8a5a5",
+      "verification": "tests/vehicle-lifecycle actual target activation/Board/Eject/Update/Inhabited paths; 12 cases pass x64/x86 ASan, 9 fail before; valid state outputs match.",
+      "limit": "Two separately reproduced defects; original analyzer vehicle findings108-122 remain individually unresolved where full lifecycle/caller proof is incomplete."
+    },
+    "vehicle_sparse_seats": {
+      "source": "a0e287c",
+      "verification": "Actual AttachRiders/Pmove/pilot-promotion scans, configured-capacity bounds and seat/bolt coordinates; expanded31 cases pass x64/x86 ASan, prior source fails12 consumer cases independently of count bug.",
+      "limit": "Keeps seat identities and dense behavior. EjectAll follow-up is not covered by this verified snapshot."
+    },
+    "vehicle_eject_all": {
+      "source": "d2c47d9",
+      "verification": "58 actual-path checks pass x64/x86 ASan;22 new cleanup cases fail before while31 earlier cases pass.23 baseline-valid state summaries match.",
+      "notes": "Bounded original rider snapshot prevents skipped promotions and duplicate alias damage. Failed exits retain slots/counts, successful pilot ejection clears only its exact old-pilot alias, callback detach/free and droid behavior are covered.",
+      "limit": "Later actual-game full-build/checkpoint integration is tracked separately; no speed claim or automatic reclassification of original vehicle findings."
+    }
+  }
+}

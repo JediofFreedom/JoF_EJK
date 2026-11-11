@@ -11303,7 +11303,13 @@ static void BG_G2ClientSpineAngles( void *ghoul2, int motionBolt, vec3_t cent_le
 	//*tYawAngle = viewAngles[YAW];
 
 #if 1
-	if ( !BG_FlippingAnim( cent->legsAnim ) &&
+	// Equal upper/lower animations need no motion-bolt correction. Reject the
+	// cheap scalar cases before classifying four animations for special moves.
+	if ( !(cent->eFlags & EF_DEAD) &&
+		(cent->legsAnim) != (cent->torsoAnim) &&
+		(ciLegs) != (ciTorso) &&
+		!cent->m_iVehicleNum &&
+		!BG_FlippingAnim( cent->legsAnim ) &&
 		!BG_SpinningSaberAnim( cent->legsAnim ) &&
 		!BG_SpinningSaberAnim( cent->torsoAnim ) &&
 		!BG_InSpecialJump( cent->legsAnim ) &&
@@ -11329,12 +11335,7 @@ static void BG_G2ClientSpineAngles( void *ghoul2, int motionBolt, vec3_t cent_le
 		!BG_InDeathAnim(ciLegs) &&
 		!BG_InDeathAnim(ciTorso) &&
 		!BG_SaberInSpecialAttack(ciTorso) &&
-		!BG_SaberInSpecialAttack(ciLegs) &&
-
-		!(cent->eFlags & EF_DEAD) &&
-		(cent->legsAnim) != (cent->torsoAnim) &&
-		(ciLegs) != (ciTorso) &&
-		!cent->m_iVehicleNum)
+		!BG_SaberInSpecialAttack(ciLegs))
 	{
 		doCorr = qtrue;
 	}
@@ -13700,7 +13701,8 @@ void PmoveSingle (pmove_t *pmove) {
 
 			veh->m_pVehicle->m_pVehicleInfo->UpdateRider(veh->m_pVehicle, self, &veh->m_pVehicle->m_ucmd);
 			//update the passengers
-			while (i < veh->m_pVehicle->m_iNumPassengers)
+			// Seats can have holes, and UpdateRider can eject a passenger.
+			while (i < veh->m_pVehicle->m_pVehicleInfo->maxPassengers && i < VEH_MAX_PASSENGERS)
 			{
 				if (veh->m_pVehicle->m_ppPassengers[i])
 				{

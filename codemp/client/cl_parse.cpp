@@ -335,6 +335,8 @@ void CL_ParseSnapshot( msg_t *msg ) {
 
 	// copy to the current good spot
 	cl.snap = newSnap;
+	if (cls.state == CA_PRIMED && !(cl.snap.snapFlags & SNAPFLAG_NOT_ACTIVE))
+		CL_LoadProfileEvent(CL_LOAD_SNAPSHOT);
 	cl.snap.ping = 999;
 	// calculate ping time
 	for ( i = 0 ; i < PACKET_BACKUP ; i++ ) {
@@ -541,6 +543,8 @@ void CL_ParseGamestate( msg_t *msg ) {
 	entityState_t	nullstate;
 	int				cmd;
 	char			*s;
+	const int gamestateStarted = Sys_Milliseconds();
+	CL_LoadProfileEvent(CL_LOAD_GAMESTATE);
 
 	Con_Close();
 
@@ -640,9 +644,15 @@ void CL_ParseGamestate( msg_t *msg ) {
 
 	// parse serverId and other cvars
 	CL_SystemInfoChanged();
+	CL_LoadProfileStage("gamestate parsing and systeminfo", gamestateStarted);
 
 	// reinitialize the filesystem if the game directory has changed
-	if( FS_ConditionalRestart( clc.checksumFeed ) ) {
+	const int filesystemStarted = Sys_Milliseconds();
+	const qboolean filesystemRestarted = FS_ConditionalRestart(clc.checksumFeed);
+	if (Cvar_VariableIntegerValue("cl_loadTimings"))
+		Com_Printf("LOADPROFILE gamestate filesystem restart: %d ms (%s)\n",
+			Sys_Milliseconds() - filesystemStarted, filesystemRestarted ? "restarted" : "unchanged");
+	if (filesystemRestarted) {
 		// don't set to true because we yet have to start downloading
 		// enabling this can cause double loading of a map when connecting to
 		// a server which has a different game directory set

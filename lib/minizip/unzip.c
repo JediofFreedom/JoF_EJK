@@ -235,120 +235,70 @@ local int unz64local_getByte(const zlib_filefunc64_32_def* pzlib_filefunc_def, v
 }
 
 
-/* ===========================================================================
-   Reads a long in LSB order from the given gz_stream. Sets
-*/
-local int unz64local_getShort OF((
-    const zlib_filefunc64_32_def* pzlib_filefunc_def,
-    voidpf filestream,
-    uLong *pX));
+/* Read a complete little-endian field in one callback on the common path.
+   A callback may return fewer bytes than requested even before EOF. Continue
+   those reads through getByte so errors, positions and the legacy UNZ_EOF
+   (which equals UNZ_OK) behavior remain the same as the byte-at-a-time reader. */
+local int unz64local_getBytes(const zlib_filefunc64_32_def* pzlib_filefunc_def,
+                             voidpf filestream, unsigned char* bytes, uLong size)
+{
+    uLong read = ZREAD64(*pzlib_filefunc_def,filestream,bytes,size);
+    int i;
+    int err;
+    if (read == size)
+        return UNZ_OK;
 
+    if (read == 0)
+    {
+        if (ZERROR64(*pzlib_filefunc_def,filestream))
+            return UNZ_ERRNO;
+        bytes[read++] = 0;
+    }
+    i = bytes[read-1];
+    while (read < size)
+    {
+        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
+        if (err != UNZ_OK)
+            return err;
+        bytes[read++] = (unsigned char)i;
+    }
+    return UNZ_OK;
+}
+
+/* ===========================================================================
+   Read little-endian fields without depending on host byte order or alignment.
+*/
 local int unz64local_getShort (const zlib_filefunc64_32_def* pzlib_filefunc_def,
                              voidpf filestream,
                              uLong *pX)
 {
-    uLong x ;
-    int i = 0;
-    int err;
-
-    err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x = (uLong)i;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((uLong)i)<<8;
-
-    if (err==UNZ_OK)
-        *pX = x;
-    else
-        *pX = 0;
+    unsigned char bytes[2];
+    int err = unz64local_getBytes(pzlib_filefunc_def,filestream,bytes,2);
+    *pX = (err == UNZ_OK) ? (uLong)bytes[0] | ((uLong)bytes[1] << 8) : 0;
     return err;
 }
-
-local int unz64local_getLong OF((
-    const zlib_filefunc64_32_def* pzlib_filefunc_def,
-    voidpf filestream,
-    uLong *pX));
 
 local int unz64local_getLong (const zlib_filefunc64_32_def* pzlib_filefunc_def,
                             voidpf filestream,
                             uLong *pX)
 {
-    uLong x ;
-    int i = 0;
-    int err;
-
-    err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x = (uLong)i;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((uLong)i)<<8;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((uLong)i)<<16;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x += ((uLong)i)<<24;
-
-    if (err==UNZ_OK)
-        *pX = x;
-    else
-        *pX = 0;
+    unsigned char bytes[4];
+    int err = unz64local_getBytes(pzlib_filefunc_def,filestream,bytes,4);
+    *pX = (err == UNZ_OK) ? (uLong)bytes[0] | ((uLong)bytes[1] << 8) |
+                          ((uLong)bytes[2] << 16) | ((uLong)bytes[3] << 24) : 0;
     return err;
 }
 
-local int unz64local_getLong64 OF((
-    const zlib_filefunc64_32_def* pzlib_filefunc_def,
-    voidpf filestream,
-    ZPOS64_T *pX));
-
-
 local int unz64local_getLong64 (const zlib_filefunc64_32_def* pzlib_filefunc_def,
-                            voidpf filestream,
-                            ZPOS64_T *pX)
+                              voidpf filestream,
+                              ZPOS64_T *pX)
 {
-    ZPOS64_T x ;
-    int i = 0;
-    int err;
-
-    err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x = (ZPOS64_T)i;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<8;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<16;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<24;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<32;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<40;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<48;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<56;
-
-    if (err==UNZ_OK)
-        *pX = x;
-    else
-        *pX = 0;
+    unsigned char bytes[8];
+    int err = unz64local_getBytes(pzlib_filefunc_def,filestream,bytes,8);
+    *pX = (err == UNZ_OK) ? (ZPOS64_T)bytes[0] | ((ZPOS64_T)bytes[1] << 8) |
+                          ((ZPOS64_T)bytes[2] << 16) | ((ZPOS64_T)bytes[3] << 24) |
+                          ((ZPOS64_T)bytes[4] << 32) | ((ZPOS64_T)bytes[5] << 40) |
+                          ((ZPOS64_T)bytes[6] << 48) | ((ZPOS64_T)bytes[7] << 56) : 0;
     return err;
 }
 
@@ -768,6 +718,42 @@ local unzFile unzOpenInternal (const void *path,
     return (unzFile)s;
 }
 
+
+extern unzFile ZEXPORT unzReOpen64(const void *path, unzFile source)
+{
+    const unz64_s *original = (const unz64_s *)source;
+    unz64_s *copy;
+    if (original == NULL || path == NULL)
+        return NULL;
+    copy = (unz64_s *)ALLOC(sizeof(unz64_s));
+    if (copy == NULL)
+        return NULL;
+    memset(copy, 0, sizeof(*copy));
+    /* Do not copy mutable cursor/decompressor fields: the mounted handle can
+       be reading another member while this independent stream is opened. */
+    copy->z_filefunc = original->z_filefunc;
+    copy->is64bitOpenFunction = original->is64bitOpenFunction;
+    copy->gi = original->gi;
+    copy->byte_before_the_zipfile = original->byte_before_the_zipfile;
+    copy->central_pos = original->central_pos;
+    copy->size_central_dir = original->size_central_dir;
+    copy->offset_central_dir = original->offset_central_dir;
+    copy->isZip64 = original->isZip64;
+    copy->filestream = ZOPEN64(copy->z_filefunc, path,
+                              ZLIB_FILEFUNC_MODE_READ | ZLIB_FILEFUNC_MODE_EXISTING);
+    if (copy->filestream == NULL)
+    {
+        TRYFREE(copy);
+        return NULL;
+    }
+    if (copy->gi.number_entry != 0 && unzGoToFirstFile((unzFile)copy) != UNZ_OK)
+    {
+        ZCLOSE64(copy->z_filefunc, copy->filestream);
+        TRYFREE(copy);
+        return NULL;
+    }
+    return (unzFile)copy;
+}
 
 extern unzFile ZEXPORT unzOpen2 (const char *path,
                                         zlib_filefunc_def* pzlib_filefunc32_def)
@@ -1224,6 +1210,73 @@ extern int ZEXPORT unzGoToNextFile (unzFile  file)
                                                &s->cur_file_info_internal,
                                                NULL,0,NULL,0,NULL,0);
     s->current_file_ok = (err == UNZ_OK);
+    return err;
+}
+
+/* Engine-only catalogue navigation. Keep the ordinary API and its callback/
+   error behavior untouched. The same parser handles ZIP64 extras and SFX
+   offsets; supplying the filename here avoids GetInfo parsing it all again. */
+local void unz64local_ExportCatalogInfo(const unz_file_info64* source,
+                                      unz_file_info* target)
+{
+    if (target == NULL)
+        return;
+    target->version = source->version;
+    target->version_needed = source->version_needed;
+    target->flag = source->flag;
+    target->compression_method = source->compression_method;
+    target->dosDate = source->dosDate;
+    target->crc = source->crc;
+    target->compressed_size = (uLong)source->compressed_size;
+    target->uncompressed_size = (uLong)source->uncompressed_size;
+    target->size_filename = source->size_filename;
+    target->size_file_extra = source->size_file_extra;
+    target->size_file_comment = source->size_file_comment;
+    target->disk_num_start = source->disk_num_start;
+    target->internal_fa = source->internal_fa;
+    target->external_fa = source->external_fa;
+    target->tmu_date = source->tmu_date;
+}
+
+extern int ZEXPORT unzGoToFirstFileInfo(unzFile file, unz_file_info* info,
+                                      char* name, uLong nameSize)
+{
+    unz64_s* s;
+    int err;
+    if (file == NULL)
+        return UNZ_PARAMERROR;
+    s = (unz64_s*)file;
+    s->pos_in_central_dir = s->offset_central_dir;
+    s->num_file = 0;
+    err = unz64local_GetCurrentFileInfoInternal(file, &s->cur_file_info,
+        &s->cur_file_info_internal, name, nameSize, NULL, 0, NULL, 0);
+    s->current_file_ok = (err == UNZ_OK);
+    if (err == UNZ_OK)
+        unz64local_ExportCatalogInfo(&s->cur_file_info, info);
+    return err;
+}
+
+extern int ZEXPORT unzGoToNextFileInfo(unzFile file, unz_file_info* info,
+                                     char* name, uLong nameSize)
+{
+    unz64_s* s;
+    int err;
+    if (file == NULL)
+        return UNZ_PARAMERROR;
+    s = (unz64_s*)file;
+    if (!s->current_file_ok)
+        return UNZ_END_OF_LIST_OF_FILE;
+    if (s->gi.number_entry != 0xffff)
+        if (s->num_file + 1 == s->gi.number_entry)
+            return UNZ_END_OF_LIST_OF_FILE;
+    s->pos_in_central_dir += SIZECENTRALDIRITEM + s->cur_file_info.size_filename +
+        s->cur_file_info.size_file_extra + s->cur_file_info.size_file_comment;
+    s->num_file++;
+    err = unz64local_GetCurrentFileInfoInternal(file, &s->cur_file_info,
+        &s->cur_file_info_internal, name, nameSize, NULL, 0, NULL, 0);
+    s->current_file_ok = (err == UNZ_OK);
+    if (err == UNZ_OK)
+        unz64local_ExportCatalogInfo(&s->cur_file_info, info);
     return err;
 }
 

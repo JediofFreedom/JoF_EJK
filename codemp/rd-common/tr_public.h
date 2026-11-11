@@ -30,7 +30,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "../qcommon/qcommon.h"
 #include "../ghoul2/ghoul2_shared.h"
 
-#define	REF_API_VERSION 9
+#define	REF_API_VERSION 11
 
 //
 // these are the functions exported by the refresh module
@@ -358,6 +358,8 @@ typedef struct refimport_s {
 	void* (*VK_GetInstanceProcAddress)		(void);
 	qboolean(*VK_createSurfaceImpl)				(VkInstance instance, VkSurfaceKHR* surface);
 	void			(*VK_destroyWindow)					(void);
+	qboolean (*FS_GetReadFileIdentity)(const char *qpath, fsReadFileIdentity_t *identity, qboolean markReferenced);
+	qboolean (*FS_GetWritePath)(const char *qpath, char *destination, size_t size);
 } refimport_t;
 
 // this is the only function actually exported at the linker level

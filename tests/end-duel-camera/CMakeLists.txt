@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(end_duel_camera C)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../TestPlatform.cmake")
 
 get_filename_component(repo "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 configure_file("${repo}/codemp/versionfile/jofversion.h.in"
@@ -29,6 +30,7 @@ file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "} }\n")
 extract(codemp/cgame/cg_view.c "#define END_DUEL_CAMERA_DURATION" "static void CG_OffsetThirdPersonView( void )\n")
 
 add_executable(end_duel_camera check.c)
+ejk_test_platform(end_duel_camera)
 target_compile_definitions(end_duel_camera PRIVATE _CGAME)
 target_include_directories(end_duel_camera PRIVATE
   "${CMAKE_CURRENT_BINARY_DIR}" "${repo}/codemp" "${repo}/shared")

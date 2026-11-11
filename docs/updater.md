@@ -166,10 +166,14 @@ and `beta` branches can read its secret. Never use the environment in a
 those run as `beta` or `master` too.
 
 What the key signs is only as trustworthy as what the build puts in GameData.
-That includes `JoF_Animations.pk3` and `JoF_AssetsExtra.pk3` from jofhub.eu and
-`rd-vulkan` from JKSunny's latest EternalJK release. A pk3 can carry code: the
-client loads cgame and ui from pk3s. `make_update_package.py` refuses a pk3 that is
-not a valid zip, such as a download that failed into an error page.
+That includes `JoF_Animations.pk3` and `JoF_AssetsExtra.pk3` from jofhub.eu.
+The release jobs build `rd-vulkan` from this repository alongside the engine
+(`BuildMPRdVulkan=ON`), and the updater installs that release's signed files.
+They do not download Sunny's renderer binaries or synchronize his source.
+Our renderer derives from Sunny's native JKA port; its provenance and our changes
+are recorded in [UPSTREAM.md](../codemp/rd-vulkan/UPSTREAM.md). A pk3 can carry code:
+the client loads cgame and ui from pk3s. `make_update_package.py` refuses a pk3
+that is not a valid zip, such as a download that failed into an error page.
 
 ## Rotating the key
 

@@ -2237,6 +2237,22 @@ void Menu_SetItemText(const menuDef_t *menu,const char *itemName, const char *te
 
 int scriptCommandCount = sizeof(commandList) / sizeof(commandDef_t);
 
+static menuDef_t *scriptMenu;
+
+menuDef_t *Menu_GetScriptMenu(void)
+{
+	return scriptMenu;
+}
+
+static void Item_RunMenuScript(itemDef_t *item, char **args)
+{
+	menuDef_t *previousMenu = scriptMenu;
+	// onOpen runs before the previous menu necessarily loses focus.
+	scriptMenu = item ? (menuDef_t *)item->parent : NULL;
+	DC->runScript(args);
+	scriptMenu = previousMenu;
+}
+
 void Item_RunScript(itemDef_t *item, const char *s)
 {
 	char script[2048], *p;
@@ -2284,7 +2300,7 @@ void Item_RunScript(itemDef_t *item, const char *s)
 			// not in our auto list, pass to handler
 			if (!bRan)
 			{
-				DC->runScript(&p);
+				Item_RunMenuScript(item, &p);
 			}
 		}
 	}
@@ -3420,6 +3436,9 @@ qboolean Item_YesNo_HandleKey(itemDef_t *item, int key) {
 }
 
 int Item_Multi_CountSettings(itemDef_t *item) {
+#ifdef UI_BUILD
+	UI_EnsureSpeciesOptions(item);
+#endif
 	multiDef_t *multiPtr = item->typeData.multi;
 	if (multiPtr == NULL) {
 		return 0;
@@ -3428,6 +3447,9 @@ int Item_Multi_CountSettings(itemDef_t *item) {
 }
 
 int Item_Multi_FindCvarByValue(itemDef_t *item) {
+#ifdef UI_BUILD
+	UI_EnsureSpeciesOptions(item);
+#endif
 	char buff[2048];
 	float value = 0;
 	int i;
@@ -3454,6 +3476,9 @@ int Item_Multi_FindCvarByValue(itemDef_t *item) {
 }
 
 const char *Item_Multi_Setting(itemDef_t *item) {
+#ifdef UI_BUILD
+	UI_EnsureSpeciesOptions(item);
+#endif
 	char buff[2048];
 	float value = 0;
 	int i;
@@ -3507,6 +3532,7 @@ qboolean Item_Multi_HandleKey(itemDef_t *item, int key)
 			{
 				int current = Item_Multi_FindCvarByValue(item);
 				int max = Item_Multi_CountSettings(item);
+				if (max <= 0) return qfalse;
 
 				if (key == A_MOUSE2 || key == A_CURSOR_LEFT || key == A_MWHEELDOWN)	// Xbox uses CURSOR_LEFT
 			//	if (key == A_MOUSE2 || key == A_CURSOR_LEFT)	// Xbox uses CURSOR_LEFT
@@ -8522,9 +8548,11 @@ qboolean ItemParse_cvarInt(itemDef_t *item, int handle) {
 
 	if (PC_String_Parse(handle, &item->cvar)) {
 		int defVal, minVal, maxVal;
-		PC_Int_Parse(handle, &defVal);
-		PC_Int_Parse(handle, &minVal);
-		PC_Int_Parse(handle, &maxVal);
+		if (!PC_Int_Parse(handle, &defVal) ||
+			!PC_Int_Parse(handle, &minVal) ||
+			!PC_Int_Parse(handle, &maxVal)) {
+			return qfalse;
+		}
 		editPtr->defVal = defVal;
 		editPtr->minVal = minVal;
 		editPtr->maxVal = maxVal;
@@ -8620,6 +8648,7 @@ qboolean ItemParse_cvarStrList( itemDef_t *item, int handle ) {
 
 	multiPtr->count = 0;
 	multiPtr->strDef = qtrue;
+	multiPtr->speciesFeeder = qfalse;
 
 	if (!trap->PC_ReadToken(handle, &token))
 	{
@@ -8629,13 +8658,10 @@ qboolean ItemParse_cvarStrList( itemDef_t *item, int handle ) {
 	if (!Q_stricmp(token.string, "feeder")) {
 		if (item->special == FEEDER_PLAYER_SPECIES)
 		{
-#ifndef _CGAME
-			for (; multiPtr->count < uiInfo.playerSpeciesCount; multiPtr->count++)
-			{
-				multiPtr->cvarList[multiPtr->count] = String_Alloc(Q_strupr(va("@MENUS_%s",uiInfo.playerSpecies[multiPtr->count].Name )));	//look up translation
-				multiPtr->cvarStr[multiPtr->count] = uiInfo.playerSpecies[multiPtr->count].Name;	//value
-			}
-#endif
+			// Parsing a closed customization menu must not scan every player
+			// directory during startup/join. Fill choices when the item is used.
+			multiPtr->speciesGeneration = 0;
+			multiPtr->speciesFeeder = qtrue;
 			return qtrue;
 		}
 		// languages
@@ -8741,6 +8767,7 @@ qboolean ItemParse_cvarFloatList( itemDef_t *item, int handle )
 
 	multiPtr->count = 0;
 	multiPtr->strDef = qfalse;
+	multiPtr->speciesFeeder = qfalse;
 
 	if (!trap->PC_ReadToken(handle, &token))
 	{
@@ -9796,7 +9823,11 @@ qboolean MenuParse_fadeCycle( itemDef_t *item, int handle ) {
 qboolean MenuParse_itemDef( itemDef_t *item, int handle ) {
 	menuDef_t *menu = (menuDef_t*)item;
 	if (menu->itemCount < MAX_MENUITEMS) {
-		itemDef_t *newItem = menu->items[menu->itemCount] = (itemDef_t *) UI_Alloc(sizeof(itemDef_t));
+		itemDef_t *newItem = (itemDef_t *) UI_Alloc(sizeof(itemDef_t));
+		if (!newItem) {
+			return qfalse;
+		}
+		menu->items[menu->itemCount] = newItem;
 		Item_Init(newItem);
 		if (!Item_Parse(handle, newItem))
 		{

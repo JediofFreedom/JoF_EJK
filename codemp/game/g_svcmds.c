@@ -1321,14 +1321,12 @@ void Svcmd_MiscBsp_f(void) {
 	char	*out;
 	float	newAngle = 0;
 	int		tempint = 0;
-	vec3_t origin;
+	vec3_t origin = { 0, 0, 0 };
 
 	if (!sv_cheats.integer)
 		return;
 	
 	Com_Printf("hi\n");
-
-	origin[0] = origin[1] = origin[2];
 
 	if (trap->Argc() == 2) {
 		char arg1[16] = { 0 };

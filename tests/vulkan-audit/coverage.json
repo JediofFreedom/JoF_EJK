@@ -1,0 +1,3209 @@
+{
+  "scope": "Targeted native Vulkan source/interface audit, reproduced fixes and explicit gaps; source review is not exhaustive correctness or hardware certification.",
+  "initial_code_checkpoint": "4dd25b09d8873199028b9a348258ae3f12d8102c",
+  "audit_baseline": "54384fc758eca7b1a38f8a0c904d1cec28096a88",
+  "inventory": {
+    "direct_compiled_cpp_count": 55,
+    "direct_compiled_cpp": [
+      "codemp/rd-vulkan/G2_API.cpp",
+      "codemp/rd-vulkan/G2_bolts.cpp",
+      "codemp/rd-vulkan/G2_bones.cpp",
+      "codemp/rd-vulkan/G2_gore_r2.cpp",
+      "codemp/rd-vulkan/G2_misc.cpp",
+      "codemp/rd-vulkan/G2_surfaces.cpp",
+      "codemp/rd-vulkan/tr_WorldEffects.cpp",
+      "codemp/rd-vulkan/tr_backend.cpp",
+      "codemp/rd-vulkan/tr_bsp.cpp",
+      "codemp/rd-vulkan/tr_cache.cpp",
+      "codemp/rd-vulkan/tr_cmds.cpp",
+      "codemp/rd-vulkan/tr_curve.cpp",
+      "codemp/rd-vulkan/tr_decals.cpp",
+      "codemp/rd-vulkan/tr_ghoul2.cpp",
+      "codemp/rd-vulkan/tr_image.cpp",
+      "codemp/rd-vulkan/tr_init.cpp",
+      "codemp/rd-vulkan/tr_light.cpp",
+      "codemp/rd-vulkan/tr_main.cpp",
+      "codemp/rd-vulkan/tr_marks.cpp",
+      "codemp/rd-vulkan/tr_mesh.cpp",
+      "codemp/rd-vulkan/tr_model.cpp",
+      "codemp/rd-vulkan/tr_quicksprite.cpp",
+      "codemp/rd-vulkan/tr_scene.cpp",
+      "codemp/rd-vulkan/tr_shade.cpp",
+      "codemp/rd-vulkan/tr_shade_calc.cpp",
+      "codemp/rd-vulkan/tr_shader.cpp",
+      "codemp/rd-vulkan/tr_shadows.cpp",
+      "codemp/rd-vulkan/tr_skin.cpp",
+      "codemp/rd-vulkan/tr_sky.cpp",
+      "codemp/rd-vulkan/tr_subs.cpp",
+      "codemp/rd-vulkan/tr_surface.cpp",
+      "codemp/rd-vulkan/tr_surfacesprites.cpp",
+      "codemp/rd-vulkan/tr_world.cpp",
+      "codemp/rd-vulkan/vk_attachments.cpp",
+      "codemp/rd-vulkan/vk_bloom.cpp",
+      "codemp/rd-vulkan/vk_cmd.cpp",
+      "codemp/rd-vulkan/vk_debug.cpp",
+      "codemp/rd-vulkan/vk_dynamic_glow.cpp",
+      "codemp/rd-vulkan/vk_flares.cpp",
+      "codemp/rd-vulkan/vk_frame.cpp",
+      "codemp/rd-vulkan/vk_image.cpp",
+      "codemp/rd-vulkan/vk_image_process.cpp",
+      "codemp/rd-vulkan/vk_info.cpp",
+      "codemp/rd-vulkan/vk_init.cpp",
+      "codemp/rd-vulkan/vk_instance.cpp",
+      "codemp/rd-vulkan/vk_pipeline_cache.cpp",
+      "codemp/rd-vulkan/vk_pipelines.cpp",
+      "codemp/rd-vulkan/vk_prepared_cache.cpp",
+      "codemp/rd-vulkan/vk_renderpass.cpp",
+      "codemp/rd-vulkan/vk_runtime_profile.cpp",
+      "codemp/rd-vulkan/vk_shade_geometry.cpp",
+      "codemp/rd-vulkan/vk_shaders.cpp",
+      "codemp/rd-vulkan/vk_swapchain.cpp",
+      "codemp/rd-vulkan/vk_vbo.cpp",
+      "codemp/rd-vulkan/vk_vbo_surfacesprites.cpp"
+    ],
+    "unbuilt_legacy_cpp": [
+      "codemp/rd-vulkan/tr_terrain.cpp"
+    ],
+    "project_headers_count": 22,
+    "shader_sources_templates_count": 25,
+    "developer_tools_count": 5,
+    "unique_reviewed_entries": 108,
+    "coowned_entries": 3,
+    "limits": [
+      "Counts concern direct rd-vulkan sources; shared image/font/Ghoul2/math/string dependencies retain separate project verification.",
+      "Vendored Khronos headers are not treated as newly audited first-party code.",
+      "Developer shader tools and tr_terrain.cpp are not deployed runtime coverage.",
+      "Fingerprints describe the supplied agent ledger snapshots; ongoing follow-ups can change final source hashes."
+    ]
+  },
+  "files": [
+    {
+      "path": "codemp/rd-vulkan/G2_API.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "877cfdbe645faf0737d72ce2b19e64b1be4cd12c1ecc3c519bc269bf79711df8",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Public model initialization, setup success guards, removal/copy/bolt and ragdoll dispatch reviewed; fixed filename copy before registration checks. Other API index contracts retain callers and need broader malformed/stateful proof."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/G2_bolts.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "5de18adde7fd0ba26b1b6dd9a368af69ddfda5d3e7b2ee587057460903799e84",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Generated-surface index helper already has tested bounds. Bone/surface lookup and slot reuse/usage counts reviewed; malformed model hierarchy and refcount overflow remain outside fixture proof."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/G2_bones.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "da9ee0be3bdbdfd1c6deb06169853d2c7bf82b510f204f14b039943d7fbe0149",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Animation frame/index and ragdoll/matrix paths scanned, selected mutation/resize paths read. The full skeleton/callback state machine and arbitrary GLA data are not proved safe."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/G2_gore_r2.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "a80edc728b2932e55d790492674267da6ce5f176c24de2336baecb25ed3fe956",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Destructor representation ownership read. CPU/VBO dual-representation transition contract needs an end-to-end toggling/serialization fixture before claiming every gore lifetime is proved."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/G2_gore_r2.h",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "2513d8db402c54423a49fb6063b25600a28d550730b47f89a5939d8389479fb9",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Gore capacities and dual CPU/VBO pointer representation inspected with destructor/users."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/G2_misc.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "986b5fff8dcad4dddcbccedc686397bca5a5611d79aa479b33cc01ee465027e4",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Gore map erase/create, data layouts and Ghoul2 save/load memory transfers inspected. Deserialization has no length parameter and requires caller-buffer provenance; arbitrary save data is not proved safe."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/G2_surfaces.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "e252ebf35ec3bcb21b26f5c9da0ce56c4787d39ccdee07da09b9ca629f127e49",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Surface hierarchy traversal, generated-surface remove/reuse and previous bounds fixtures inspected; embedded hierarchy offsets remain trusted model data."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/compile.bat",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "8e94e70653dddc8fc1682ff4714703e6474612ab75353eba4975f5b69f60c186",
+          "review": "developer-build-interface-review",
+          "notes": "Developer regeneration tooling is not the runtime. Bounded formatting, input/read failure reporting and threaded failure-counter safety remain unresolved. Asset agent uses selective checked regeneration."
+        }
+      ],
+      "kind": "developer-tool"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/compile_threaded.bat",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "58c29346c743fb1aadaf175b31634fad770f953f5d574378465980839dbf8305",
+          "review": "developer-build-interface-review",
+          "notes": "Developer regeneration tooling is not the runtime. Bounded formatting, input/read failure reporting and threaded failure-counter safety remain unresolved. Asset agent uses selective checked regeneration."
+        }
+      ],
+      "kind": "developer-tool"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/blend.frag",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "6a56708a8c8c2b510c74dfa29a005f8cec7532fec59b96646463a855b5be893c",
+          "review": "shader-interface-and-use-review",
+          "notes": "Reviewed descriptors/locations/specialization/output interactions. FBO capture gamma and storage flare behavior recorded as remaining contracts; no template change in this core step."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/bloom.frag",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "e27ad7260fce6024ff455be7d941c4fcb9772498d09bd724167c6e5b5ee9e157",
+          "review": "shader-interface-and-use-review",
+          "notes": "Reviewed descriptors/locations/specialization/output interactions. FBO capture gamma and storage flare behavior recorded as remaining contracts; no template change in this core step."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/blur.frag",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "73f2c824ba842ee3b085190318e98c0d28d18986ee954e25c6c22940e34cebc6",
+          "review": "shader-interface-and-use-review",
+          "notes": "Reviewed descriptors/locations/specialization/output interactions. FBO capture gamma and storage flare behavior recorded as remaining contracts; no template change in this core step."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/color.frag",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "16b857fca46e97fc651f317cd0b95037c68f08569fbcfc151dfc57123c28aad3",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed debug specialization color output."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/color.vert",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "e3f21c04bea96cd7d747baa7eabf1105cacc20eb378834931cbc20b9cdd06018",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed debug-color position interface."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/common/color.glsl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "40c829f0b4850e62674866aef21a6e90318f1af7b471e6209bb253bf753285e2",
+          "review": "source-and-interface-reviewed",
+          "notes": "Fixed model portal alpha distance and vertex RGB overriding separately prepared alpha. Entity tint issue57 is not independently reproduced or claimed fixed."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/common/deform.glsl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "b350cfe558953d23b49a1950d08beb3afa4ed8a5d2b9b834eaede080b3a311b0",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed deformation dispatch and texture-coordinate dependencies. Bulge caller corrected in gen_vert. Noise/projection/disintegration numerical edge cases need targeted GPU content fixtures."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/common/fog.glsl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "4538262106b17cce16cf369ca6a4cf00a5f738504751c2867c3067b225a60109",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed world-space plane intersection/fallback and UBO indexing; >16-fog mismatch reported. Degenerate/parallel-plane behavior remains a numerical fixture gap."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/common/skinning.glsl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "b7c808687787ebc79e6756f5dc41bcfe19afac92b5d3c5dc42d41fa06a4ae71c",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed CPU mat3x4 to GLSL mat4x3 indexing and bone array correspondence; bounds depend on validated model bone refs."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/common/utils.glsl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "b20fe98acd7c19bcd43ade3520792acf0246594d9144af7d19365888c8cdeae0",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed texcoord generation/modulation and alpha derivatives; no additional confirmed ordinary-path defect."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/dot.frag",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "8c257cc77dbe1f2b7e3b66645e38748306044f4fbb2f7c4123ef8e1fef08941b",
+          "review": "shader-interface-and-use-review",
+          "notes": "Reviewed descriptors/locations/specialization/output interactions. FBO capture gamma and storage flare behavior recorded as remaining contracts; no template change in this core step."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/dot.vert",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "cfa56dbcc975de2fd1db2de0f4d9582a8858643f265c5a66cc30bbce31ae1c0c",
+          "review": "shader-interface-and-use-review",
+          "notes": "Reviewed descriptors/locations/specialization/output interactions. FBO capture gamma and storage flare behavior recorded as remaining contracts; no template change in this core step."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/fog_frag.tmpl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "f62597f0460107b4b6e648a21ec8ac5ffaa5957144abd581687a80c98dd14738",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed sampler vs hardware fog modes and inherited fog UBO indexing; capacity issue reported."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/fog_vert.tmpl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "a14862ac4e66050ab1c55dee59763ae69309417045ce8f27b8c0e7132eb9f308",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed Ghoul2/MDV transform and fog varying paths. Animated linear-fog model positioning requires broader visual fixture coverage."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/gamma.frag",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "394d5837ea09ed72d3120c9cf9d5be14006ac663b46211960d260b62a60e6e4a",
+          "review": "shader-interface-and-use-review",
+          "notes": "Reviewed descriptors/locations/specialization/output interactions. FBO capture gamma and storage flare behavior recorded as remaining contracts; no template change in this core step."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/gamma.vert",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "5ad8c8074b992b0ff7b8a4e04c4346f0f5956b50f05036862a30e6b49986c4a4",
+          "review": "shader-interface-and-use-review",
+          "notes": "Reviewed descriptors/locations/specialization/output interactions. FBO capture gamma and storage flare behavior recorded as remaining contracts; no template change in this core step."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/gen_frag.tmpl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "eca9d70fc7422325c9052262b2684ebd5b60fdfeff9637500953176791d41cae",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed texture/color blending, model lighting, alpha test, fog and descriptor interfaces. Mathematical/visual equivalence across every blend combination still needs image comparisons."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/gen_vert.tmpl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "7aed83c90ee748dffecf1f23f06c9c3e85db41dd312819a3a5f438c913b34266",
+          "review": "source-and-interface-reviewed",
+          "notes": "Fixed use of unassigned frag_tex_coord0 output in both model deform paths; use original in_tex_coord0 including ENV input declaration. All model variants regenerated."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/global.h",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "1826ac783b93a794a3bb406c4a504335db7b8c5bd5865def72cb6e2ef575077f",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed shared C/GLSL descriptors, padding and UBO types. Confirmed fog-array capacity mismatch reported to root; follow-up not yet applied at this ledger checkpoint."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/light_frag.tmpl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "ed9190bc944a00e6f93e5dae06f1f25684b0e9e681d7a380e2b5d7aa72ccd25d",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed attenuation, alpha coverage and diffuse/specular path. Degenerate direction and negative pow bases remain numerical candidate cases requiring visual reproduction."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/light_vert.tmpl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "d44f8e6cdd62d1b5e20a57754a43baed5bfb13bb8c5a0d980ec373f07f942429",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed input locations/uniforms and optional fog varyings."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/refraction.frag",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "3a8cdd0ac9d506377c6196f33a63038169cb1e5b4dbc1fe29e7f0b051fa4a98d",
+          "review": "shader-interface-and-use-review",
+          "notes": "Reviewed descriptors/locations/specialization/output interactions. FBO capture gamma and storage flare behavior recorded as remaining contracts; no template change in this core step."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/refraction.tmpl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "b435f22b6b148e1a7471f1b27a122202ae56f4f2169d00edd8a68c20a165191c",
+          "review": "source-and-interface-reviewed",
+          "notes": "Portal/alpha fixes propagate through CalcColor; module regenerated. Existing zero ws_ViewDir/projection behavior remains an unverified visual candidate, not claimed repaired."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/surface_sprite_frag.tmpl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "d3d880d7240101d528dfe9242b7871c0e3077ef9cc05e7b509bfecc53f12fe46",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed stage color, effect alpha, alpha coverage/discard and fog interfaces. Additional visual comparisons are still required."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/glsl/surface_sprite_vert.tmpl",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "87e04a2ad5ffb8de7e67b5d89bda45366c1f973497d496ace23f0c38aca72eab",
+          "review": "source-and-interface-reviewed",
+          "notes": "Reviewed generated mesh/SSBO and interface to fog fragment variants. Effect-position output is consumed only by matching specialization; degenerate view direction remains numerical confidence gap."
+        }
+      ],
+      "kind": "shader-source-or-template"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/tools/bin2hex.c",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "c2e8f4c6930f0df72eb0ffe22072f7137c322157308e5c3619bdff7c393e074e",
+          "review": "developer-build-interface-review",
+          "notes": "Developer regeneration tooling is not the runtime. Bounded formatting, input/read failure reporting and threaded failure-counter safety remain unresolved. Asset agent uses selective checked regeneration."
+        }
+      ],
+      "kind": "developer-tool"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/tools/bindshader.c",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "c60625513eaa87b88d86651ce29759953ea6bb787cd8e34ef336b82d8cfb83a9",
+          "review": "developer-build-interface-review",
+          "notes": "Developer regeneration tooling is not the runtime. Bounded formatting, input/read failure reporting and threaded failure-counter safety remain unresolved. Asset agent uses selective checked regeneration."
+        }
+      ],
+      "kind": "developer-tool"
+    },
+    {
+      "path": "codemp/rd-vulkan/shaders/tools/compile_threaded.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "de1149acb01aa7076f4390eaaf50f4d652e4f22db8e376518f6a0ddcb415195e",
+          "review": "developer-build-interface-review",
+          "notes": "Developer regeneration tooling is not the runtime. Bounded formatting, input/read failure reporting and threaded failure-counter safety remain unresolved. Asset agent uses selective checked regeneration."
+        }
+      ],
+      "kind": "developer-tool"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_WorldEffects.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "3438d9e2433ea516db3936d27c264c321741d03c069464ecbcfe515bd6f8d10d",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Weather command vectors, bounded wind/cloud containers, clear/reset and render loops inspected. Full weather combinations and outside-world persistence are not exhaustively exercised."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_WorldEffects.h",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "7ee09b0d65bd5347b1b7d6019ea4fa14f1f40f5d6c7fb23c8216409044ac1a86",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Weather command and renderer declarations inspected with implementation."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_backend.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "9fbee4faa26d62cf34a10ec8cd09d8ac1f90caac7008d038c13d907264b1f178",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Targeted actual DrawBuffer/command-dispatch integration; skips GPU commands with exact advances, retains set-color and per-frame heap/state reset. Other backend paths coordinated with frontend agent."
+        },
+        {
+          "group": "frontend",
+          "sha256_at_review": "47a91c63dff392730f74f33c5457754c9cac36e0579cb5fb147e4f5e3e3623a2",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Read draw-surface shader decomposition and currentEntity/world transitions for original findings267-269; core agent owns its new frame-availability writes."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_bsp.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "9762aea30f228bc04a93c978e06f875bf5d3646fdcd683c6db682e9455f5fe30",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Patch stitch and relocation deeply reviewed/tested; fixed reverse midpoint error reads and lost height errors. Checked submodel allocation fail contract and grid insertion capacity contract. Arbitrary BSP lump/index/span validity still needs comprehensive loader fixtures."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_cache.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "85cef6d3e9376f4df974758cc822df85b38bf98a0792f5a088db3d8646dd60c8",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "File/cache allocation, model-handle identity and pure/level invalidation reviewed. LoadFile does not propagate actual buffer length to model loaders; malformed model spans remain a credible coverage gap."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_cache.h",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "5c0d863fef6a7898a1f37eec441337720b12f020d1935186b0c8e5d4f86527b8",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Model cache API and retained-file ownership/size fields inspected against implementation."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_cmds.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "4fe4dcead8276086b99ac0db9a70edfe536eef5c5de3df24af61cd04b8c264e3",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Command allocation/end marker, minimized backend early-return and screenshot reservations reviewed. Core frame agent owns actual Vulkan frame lifecycle proof."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_curve.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "1b34cdf6ee738775a48907f81feeda730097e762646c35ce27c80de4f18cee53",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Grid allocation, row/column insertion limits and old-grid replacement contracts read. Insertion NULL only follows dimension overrun; callers check MAX_GRID_SIZE. Malformed initial patch dimensions remain loader-contract dependent."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_decals.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "1869f55186c83f41efa8816b480f2d1baef381eaff0517d772b6b8b34af4365b",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Decal ring allocation, bounded mark fragments and submission paths inspected. Full runtime markcount changes and malformed custom fragment sources remain unproved."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_ghoul2.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "759e9c8ac71b7349c8e215f9bf4e70da74b0ba548b4c5e69a6ff7a752388e8f7",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Selected bone-cache, surface-bolt, generated bolt and mesh loader paths inspected; original null surface finding273 remains unresolved for invalid/generated override combinations. Arbitrary GLM/GLA ranges remain a gap."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_image.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "d4a28c5fcfff4e47cca61846ea3cc60bf32a8c86d21923e4334c4bd4d0ddd7a3",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Image-name normalization, gamma wrapper and image-list accounting reviewed. Upload/decode/resource ownership belongs to asset agent."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_init.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "6daefc9ba4625e82364db7b54e146d0b0d7687e9c7c03521308abe5ac35ad281",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Renderer registration/restart and backend allocation input arithmetic reviewed. Fixed negative polygon settings before allocation; preserves valid zero/default limits."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_light.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "859b154e3ab8ec3df48e68eb8b955734d7d8962ced3201dad68f463c3de3b774",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Light-grid interpolation array/data access and dynamic entity setup reviewed. Independent full malformed light-grid index/span validation remains a loader concern."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_main.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "5f754b464bc27bbbc66bb2ed1ebdb2a2e631a92e7079e18c0182188289e2740f",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Sort key creation/decomposition, shader source invariants, draw view/world preconditions and portal command paths inspected. No all-future-caller proof."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_marks.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "5e766f7b68844bc95dfbed04804cb7d783b7a5a7fabdd5deff0bd39cb31bf37a",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Clipping and fragment/list capacity paths inspected alongside existing renderer-mark fixtures; invalid public pointer/count combinations are not comprehensively fuzzed."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_mesh.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "792fa51b4b159c8d082cd1ed1953ef26238b8952262cafff740aac2c239b5fcb",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "MD3 frame checks, selected LOD, culling/fog and surface shader selection inspected. Different frame counts between separately supplied LOD files need a full loader/consumer fixture."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_model.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "b498f3d17c2878868bf2b308be69c8bf5d8f011b11b782d4704e5a1c6b8fea0c",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "MD3/GLM/GLA dispatch, external LOD registration and cached-buffer mutation inspected. Current loader APIs omit actual buffer length; malformed headers/offsets not comprehensively validated."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_quicksprite.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "f920357f9944c0a8b94b5d8f764d81b425fab90655977230b40ccd52b20d8c01",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Sprite vertex/index appends, flush and fog-pass indexing reviewed; fogPass nonzero is required by actual surface-sprite caller. Repeated identical index assignment is redundant but does not change buffer contents."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_quicksprite.h",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "39ee81ac41f652328494497c17893f1675c2d788638c0a15f4121e8f01f3f1ee",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Fixed sprite/fog coordinate capacities inspected with implementation."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_scene.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "e0ae8c4c32ec245435113b6f9ae4b5949467fc0e0e3aa9868a732fc720cf347e",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Production polygon/entity/light functions and screen-map copies deeply reviewed/tested. Fixed invalid polygon inputs/overflow/exact capacity, null and empty entity diagnostics, light saturation, and command-buffer exhaustion handling."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_shade.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "50824e754092dcd980d003d1ea6511b912b825137b90a942a6b74edff0eb7f58",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Surface begin/end, shader remap, limit checks and VBO cleanup state read; backend shader provenance is caller dependent."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_shade_calc.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "e212ac44657c30c77136cc0bd393259864b8ae9eaaa4039151821c5164e926eb",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Entity RGBA generation, wave local initialization, fog coordinate generation and diffuse currentEntity callers inspected. Original fog uninitialized finding277 requires targeted full arithmetic/early-return proof; retained unresolved."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_shader.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "a5d4662e9459df7de5baa043a68b9372f6d4b8286111505d0ced05d4a6866258",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Shader stage parser optional token path, sorted registration, cache initialization and entity/stage defaults reviewed. Fixed long ss* token stack copy. Complete shader grammar/state combinations are not fuzz-proved."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_shadows.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "7af45a8bb92010726019c2a8cce73401f540b8af9f24faa8012f4ac405c77fef",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Shadow edge counts, index overflow guard and doubled vertex/color buffer contract reviewed; model triangle validity depends on loaders."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_skin.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "cb5ba71c8263556c2f46fc2700eaa3ea2ab0291c204a7510bd2aaa69ede79d63",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Skin-name length guarding, macro split paths, bounded surface names and comma parsing reviewed. Suspected SplitSkins truncation null dereference is excluded by its sole registration caller MAX_QPATH guard."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_sky.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "47248be567c06e7bb9fac2764d4615f1c810e711b67c70e6801233205b22ef59",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Sky clipping, cloud data, sun world entity reset and depth-range restoration inspected. Broad visual combinations require real GPU matrix coverage."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_subs.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "2544013a2ac92aa1693f39faf0ffb8587d8e13a6cee608b1c56ae54f28816288",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Printf/Error formatting and engine allocator forwarding reviewed; error nonreturn and allocator failure behavior come from engine services."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_surface.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "2ec6b62a7862e0b9e149c9acfef84ca5e8a054a26973b09ce876dfc95b69e75d",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Surface mesh overflow checks, interpolation and CPU/VBO selection inspected, including MD3 fallback path. MD3 VBO upstream missing-surface case delegated to asset owner."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_surfacesprites.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "d59a826af038bcb65bd6cfd9bab1de076f97c9f55786ccb1350d32f01dd28667",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "QuickSprite fog precondition, counts/density and normal/effect sprite paths inspected; arbitrary malformed ss numerical configurations require broader grammar fuzzing."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_terrain.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "08bc33cf3d9023b97f9a0fac106ac4759e7a8aeec6d4796b59be4a4f7e8af81e",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "Legacy/unbuilt file: negative altitude could index before height detail array; corrected and actual method fixture added. NOT in current Vulkan target, so no deployed runtime gain claimed."
+        }
+      ],
+      "kind": "unbuilt-legacy-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/tr_world.cpp",
+      "reviews": [
+        {
+          "group": "frontend",
+          "sha256_at_review": "69abef010ce305cebad475c3e5717423af1330ae6d671e5517deaf50693742b7",
+          "review": "Lexical whole-file scan and selected semantic/caller paths; not all-path proof",
+          "notes": "World/PVS/leaf preconditions, light masks and brush traversal inspected; original R_ClusterPVS null branch still relies on guarded R_MarkLeaves caller and nonreturning world error."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_allocation_ranges.h",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "505c9694241603371484b7242c59154d87f99bac642ff2b2ce2e9193f33dccc5",
+          "review": "source-reviewed",
+          "notes": "Reviewed aligned free-range splits and coalescing with caller-owned valid release ranges. No new defect in validated caller use; arbitrary invalid double release is outside this internal allocator contract."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_api_version.h",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "f50eb3345aa33f49af08b6ab9f0844c25986a6e23228cce83d28371c40f457a3",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed 1.0 fallback, patch-zero and 1.4 cap; existing focused tests, no extra defect."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_attachments.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "81da66edf61a0631d440b31245301e165e0dc9498e5912ba6eba499a6b55f8fc",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed image groups, alignment, shared memory intersection, framebuffer formats, capture/MSAA/depth and destruction. Dedicated-allocation requiresDedicatedAllocation is queried then discarded; allocation and partial-failure contracts unresolved."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_bloom.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "fad521d6a89f9a8b2549bc004aa6ec5b9989b0b47eca1c032ebaa72febaa63ed",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed pass/descriptor restoration and fixed blur-pass indexing; no new reproduced normal-path defect. Tiny extents and reduced descriptor-set capabilities still need coverage."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_cmd.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "ec0e2ebf23a718bda2b7d97beaec735d266e37930b0c08c4221f0a68cbd98805",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed main and temporary command allocation/submit/completion. Logging-only VK_CHECK permits invalid continuation after failures in temporary command paths; not fixed by main-frame checks."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_debug.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "7b8fb2cdbc44997ca34a857dd34f554a4d0348bf9798ac9d42ecdff59dd59a8e",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed diagnostics and debug geometry; unbounded doubled DrawNormals/R_DebugPolygon tessellation requires follow-up fixture/fix. Developer log fopen failure is another unchecked debug-only contract."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_device_extensions.h",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "8c6362518ae16719e84eae1a40a3087a001694d130855a6543576fd3525d5eba",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed bounded full enumeration retries and exact extension names; existing focused tests, no extra defect."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_dynamic_glow.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "64e1a756d2d8186880aa9bc772f5f9fd878d0d694136e7412bd4c0e76124ad28",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed pass/descriptor restoration, layer and sample usage. No extra confirmed normal-path fix. Tiny extents and format/usage support require GPU matrix."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_flares.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "ee5c13abcea20e098df9669e3f0c001d9e4f45acef16adee9b8e6c13fa685441",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed list bounds, per-view state and storage readback. Dlight-flare injection is currently commented out; potential null-normal/surface type assumptions are not reachable through that disabled call. Cross-frame storage relies on current end-frame queue-idle behavior; not a blanket synchronization proof."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_frame.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "b4f7e729707c91435d9fc7715903f520f03a6aaa8d0c72588639b16ccfbb24ba",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed acquire/begin/end/present fences, minimized/offscreen paths, geometry abort and capture ownership/layout. Actual-path driver fault fixtures. Remaining create/map error policy outside explicit frame checks is not proven safe."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_host_image_copy.h",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "e416175d6a71d45af26d333fa08f23bea17fcc0057ed716800009036c479dd7d",
+          "review": "source-reviewed",
+          "notes": "Reviewed feature/performance gating, region construction, layout transition, bounded region count and fallback contract. Optional path remains off; all-byte-span bounds depend on trusted caller-built mip regions."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_image.cpp",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "074a0efb7d2d73e12e6913d730b7326c7abeae13c57af375b7a4914932b78f2a",
+          "review": "source-reviewed",
+          "notes": "Reviewed image pool/scratch, sampler refresh, memory type selection, texture creation/replacement, upload batching/conversion, resident keys/budgets/pages and worker admission/commit/cancellation. Fixed thin device-limit scaling, stale non-mip sampler descriptors and replacement wait ordering. Vulkan allocation/create/map failures still need stronger handling beyond logging-only VK_CHECK."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_image_process.cpp",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "1fe05934a17379810fe1cc7b5625210fffdcb794096c1ba5c1d530a7edae0b05",
+          "review": "source-reviewed",
+          "notes": "Reviewed color mappings/scales, mip filters, resampling and private worker scratch. Corrected singleton-axis HQ tail filtering; valid square HQ output remains byte-identical in fixture."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_info.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "2f7bce201601945902f20d8b75b09d4a1143b20c1bade5a6ab5089eaad0942da",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed result/format/renderer strings and bounded diagnostics; debug VBO cvar indexing needs nonnegative cvar contract. No additional reproduced runtime defect."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_init.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "c3d9e0f02e972229662ce0a7e2c1fc9ee709a173e6c681e5c8d44bfa7eb41b43",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed window setup, splash, MSAA/format selection, initialization/shutdown ordering. Fixed actual sample intersection/1x disable and FBO splash capability gate. Failure cleanup/format-specific resource-allocation paths still need injected tests."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_instance.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "30d9ec8d7ca665f12e6bcfa995218ed58cf8ac4ac203547f831e654caf826e82",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed instance/device enumeration, extension feature negotiation, function imports/deinit. Removed duplicate instance leak; preserve layer fallbacks. Enumeration allocation failures and failed-device feature-state reset require further fixture review."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_load_profile.h",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "e8d1b607807eeaf4a182a64e3794cdc4302d92bc24b7c186bec1381ef4a95f3b",
+          "review": "source-reviewed",
+          "notes": "Reviewed monotonic timer/counter nesting exclusions and owning-thread use; no new defect."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_local.h",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "55a5da726c6a8a61dbb064e24684fd96cee22fa93ef7d01cc183e70e8dd1b120",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Targeted declaration/state audit for frame return, transfer-destination capability and core format-properties pointer; full shared-state audit belongs to integration."
+        },
+        {
+          "group": "asset",
+          "sha256_at_review": "55a5da726c6a8a61dbb064e24684fd96cee22fa93ef7d01cc183e70e8dd1b120",
+          "review": "source-reviewed",
+          "notes": "Coordinated enum endpoint only: include last two DST_COLOR_SRC_ALPHA generic variants. Other header changes belong to core agent."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_pipeline_cache.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "3a2bbe6574db6cac65d648fe3e030a21a3b0902ade1c40159009dda383227947",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed bounded/checksummed read, empty-cache fallback, complete write and device identity. Existing focused tests cover validation. Final qvkCreatePipelineCache failure remains logging-only via VK_CHECK."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_pipeline_cache_file.h",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "83d4f3639196240ffa70f2e6fb633e88070198caf09c2b9cdc623b93f0b94dab",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed bounded size/header/checksum/device/driver/architecture validation and bytewise loads. No additional reproduced defect."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_pipeline_index.h",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "1bc73f7b17294e30629249dd68229c3e06e67e69586049085a0016ab697a1d19",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed complete-key bucket equality, sorted index insertion assumptions, base-index lower_bound and reset lifetime against production callers; no additional reproduced defect."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_pipelines.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "f2ea5b474636a9cffb686db84652801764963e025f0b5e61f5ca0863796cf0a2",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed descriptor layouts, shader module selection, semantic pipeline index/reset, postfx creation and renderpass compatibility. Asset agent owns targeted VBO vertex-input fix. Pipeline creation failure still only logs then returns an output handle; failure fixture outstanding."
+        },
+        {
+          "group": "asset",
+          "sha256_at_review": "f2ea5b474636a9cffb686db84652801764963e025f0b5e61f5ca0863796cf0a2",
+          "review": "source-reviewed",
+          "notes": "Coordinated targeted vertex-input helper only: original ST0 supplied for ENV model deformation. Enumerated192 ordinary/Ghoul2/MDV shader-type cases plus sprite layout; maximum7 bindings and7 attributes. Full core pipeline audit belongs to core agent."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_prepared_cache.cpp",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "ec64c8e0898e27aabb3403c72967cbbc826549be9e1fe3aecba8eb7f7ec333ac",
+          "review": "source-reviewed",
+          "notes": "Reviewed key/header/payload bounds, format/size validation, writer lock/atomic publish, queue budgets, shutdown/join and failure paths. Bumped content domain to v3 to invalidate changed mip results. Cache read path construction/allocation failure on worker still requires fault injection."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_prepared_cache.h",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "14a5d3c2d7076197fc47b0f3ed1dfac45db58ebd9b1476ad3a7c6d32c08dda36",
+          "review": "source-reviewed",
+          "notes": "Reviewed public cache contracts, ownership, format/payload limits and thread configuration contract."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_renderpass.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "0a770178d3cb4c4dc252987f567087d5350d37ac9928186c106effd0e7dbd237",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed attachment load/store/layout and subpass dependency construction, main/postfx/screenmap/capture flows. GPU validation needed for rare effect/resolve combinations; depth reuse and host-capture paths not a full proof."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_resident_cache.h",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "ede4b39a7041daaa0109e551e3fb380ec694eb36953f770a46f39120dcbe813d",
+          "review": "source-reviewed",
+          "notes": "Reviewed cold/hot list iterator validity, source equality, bounded store arithmetic, active shared ownership and idle eviction. No confirmed new defect in reviewed ordinary paths."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_result_check.h",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "08cc437039eee1c5b01e6b0372f92bf9d01467d416126947d4b2708c5925005f",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Confirmed logging-only negative-error policy; positive timeout/incomplete does not abort. New fixtures include actual header. It is NOT treated as a resource/error guard."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_runtime_profile.cpp",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "f8715240d48710f343e3437571319510c08f88ff7cc8e83636162094efa5a6d5",
+          "review": "source-reviewed",
+          "notes": "Reviewed owner-thread setup/reset/report/teardown and stage count mapping; default-off instrumentation, no new defect."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_runtime_profile.h",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "815f99ed42a3f18a868a4aae15ae4ed37e88d1e66155e72c2b7adfa136e9b8e0",
+          "review": "source-reviewed",
+          "notes": "Reviewed owner checks, relaxed atomic level, reset epoch invalidation and counter indexing from enum constants; no new defect in valid internal calls."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_sample_counts.h",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "71b526306bbbb0628a76e42e24a6ea33ed14372ffeed95db7e54aa0c2e8d8a73",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "New production-used sparse mask intersection/selection tested across 4224 mask/request combinations plus stencil/format restrictions."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_shade_geometry.cpp",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "34a682b1ab29b21b8af672892092b430cb23890bcc95c63e43caf65d8801e397",
+          "review": "source-reviewed",
+          "notes": "Reviewed vertex/index binding, descriptor batching, geometry guards, uniform/indirect reservations, material colors, texture-coordinate generation, fog and sprite submission. Confirmed new uniform append exhaustion sentinel bug and >16-fog UBO indexing mismatch; reported to root after production freeze. Null-state warnings282/283 retain unresolved status pending actual caller-path fixtures."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_shaders.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "11e3fc28cf5f1d4c2209ca08045b4eeb988f45c8cc434825eabbfe1365fba24c",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed module array binding and destroy loops. Embedded uint8 SPIR-V alignment and module-creation failure output lifetime remain portability/fault candidates."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_swapchain.cpp",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "8b1cd521563f4dc92954a1de199d68ef1f3f7ad4f705d88ddd90b298b0900957",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed capability selection, image/semaphore creation and restart/destruction. Fixed transfer usage and composite alpha. Current-extent clamp and image-count truncation remain explicit portability risks."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_sync2.h",
+      "reviews": [
+        {
+          "group": "core",
+          "sha256_at_review": "eec01ca8f8f12f8aea4880a4d65e8c927ab757f1bda08c157da536c4777e3d92",
+          "review": "targeted-source-and-caller-contract-review",
+          "notes": "Reviewed binary semaphore submit translation, command device masks and barrier stage/access preservation. Unsupported pNext/counts fall back to original submit. Existing tests plus GPU matrix required."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_texture_budget.h",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "0663293004859349a676709b5e779136e651d2ef7069fda18f32a419cfd64a21",
+          "review": "source-reviewed",
+          "notes": "Reviewed heap budget/headroom, 32-bit caps and subtraction/size boundaries. No confirmed new defect."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_texture_context.h",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "cdc1e7bc7d21f62d1248cbc4a5f7bc6bdc3c301c14997d3dcbe9ddc7a2565675",
+          "review": "source-reviewed",
+          "notes": "Reviewed captured processing inputs and immutable cache-key correspondence. No new defect."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_texture_jobs.h",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "6f14b5803040a7d0be2c26326baf5a9df2c7e44c94fb2a7be4054157cc998b0f",
+          "review": "source-reviewed",
+          "notes": "Reviewed job queue locking, worker start/shutdown/join and queued cancellation. Unhandled exceptions escaping individual decode jobs remain an allocation-failure confidence gap."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_texture_scratch.h",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "bcd7569e1e5a04b2462716f9724875d5e9f4ceaa603b6bda480d766d4c389cae",
+          "review": "source-reviewed",
+          "notes": "Reviewed slot replacement, used/limit arithmetic, allocation failure and private ownership. No confirmed new ordinary-path defect."
+        }
+      ],
+      "kind": "project-header"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_vbo.cpp",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "fd108d650aa3f77e87f0cd84079382fffa4d8a5fb7aca0946ebaf3d9086ad25f",
+          "review": "source-reviewed",
+          "notes": "Reviewed static/dynamic buffer creation/release, MD3/MDXM mesh gathering, weights, indices, world batching, soft buffers, queue sorting and overflow draw suppression. Gore null error is nonreturning. Pre-existing Vulkan allocation/map/bind failure checks remain weak. Model UV/tangent/animation upstream cases need actual content reproductions."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    },
+    {
+      "path": "codemp/rd-vulkan/vk_vbo_surfacesprites.cpp",
+      "reviews": [
+        {
+          "group": "asset",
+          "sha256_at_review": "0fc1cff3774b03de1c448ceab30cbe902c2b6873f3e3b67d695a1a903ac5777f",
+          "review": "source-reviewed",
+          "notes": "Reviewed stage SSBO allocation/descriptors, sprite estimation/construction, batching, flags, instance hashes and cleanup. Fixed skipped odd animation images and unbounded full image-array hash scan. Density/nonfinite/extreme-count handling needs malformed-shader fixtures."
+        }
+      ],
+      "kind": "compiled-renderer-cpp"
+    }
+  ],
+  "confirmed_initial_fixes": [
+    {
+      "group": "core",
+      "id": "core-acquire-ownership",
+      "behavior": "Only successful/suboptimal acquisition grants image ownership; unavailable direct frames skipped, unavailable FBO frames remain offscreen. Mid-frame minimize/restore cannot change semaphore or present ownership.",
+      "fixture": "tests/vulkan-core-lifecycle",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "core",
+      "id": "core-pending-command-failure",
+      "behavior": "Explicit non-success abort before pending command reuse/reset/submission; production logging-only VK_CHECK is not assumed to abort.",
+      "fixture": "tests/vulkan-core-lifecycle",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "core",
+      "id": "core-frame-capture",
+      "behavior": "No waiting on never-submitted fence or reading released direct image; zero/oversized bounds guarded, transfer-to-host dependency recorded.",
+      "fixture": "tests/vulkan-core-lifecycle",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "core",
+      "id": "core-msaa-support",
+      "behavior": "Intersect framebuffer color/depth/stencil limits and selected format/usage sample counts; sparse counts selected by actual flags; 1x disables resolve-MSAA.",
+      "fixture": "tests/vulkan-core-lifecycle",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "core",
+      "id": "core-swapchain-capabilities",
+      "behavior": "Request TRANSFER_DST for splash when supported even with FBO; omit unsupported destination usage; use an advertised composite-alpha mode.",
+      "fixture": "tests/vulkan-core-lifecycle",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "core",
+      "id": "core-instance-lifetime",
+      "behavior": "Remove unconditional duplicate successful instance creation; retain validation-layer fallbacks and reject final failure.",
+      "fixture": "tests/vulkan-core-lifecycle",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "asset",
+      "behavior": "thin texture device-limit zero axis",
+      "fixture": "tests/vulkan-asset-integrity",
+      "status": "initial-macro-regression-corrected-in-0f92d64",
+      "initial_status": "initial-fix-has-production-macro-regression-correction-pending"
+    },
+    {
+      "group": "asset",
+      "behavior": "HQ rectangular mip-tail stale pixels",
+      "fixture": "tests/vulkan-asset-integrity",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "asset",
+      "behavior": "non-mip descriptors referencing destroyed samplers",
+      "fixture": "tests/vulkan-asset-integrity",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "asset",
+      "behavior": "sprite bundle skipped odd images and full-array overrun",
+      "fixture": "tests/vulkan-asset-integrity",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "asset",
+      "behavior": "model portal alpha normalized distance",
+      "fixture": "tests/vulkan-asset-integrity",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "asset",
+      "behavior": "model deformation read unassigned output UV",
+      "fixture": "tests/vulkan-asset-integrity",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "asset",
+      "behavior": "last generic shader enum variants excluded",
+      "fixture": "tests/vulkan-asset-integrity",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "asset",
+      "behavior": "vertex RGB discarded explicit model alpha",
+      "fixture": "tests/vulkan-asset-integrity",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "asset",
+      "behavior": "image replacement before prior GPU users complete",
+      "fixture": "tests/vulkan-asset-integrity",
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "frontend",
+      "id": "reverse-patch-lod",
+      "path": "codemp/rd-vulkan/tr_bsp.cpp",
+      "function": "R_StitchPatches",
+      "behavior": "Four reverse edge directions selected k+1 beyond the error array instead of the inserted midpoint k-1.",
+      "fixture": "vulkan-frontend-patches:patch_stitch",
+      "compiled_runtime": true,
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "frontend",
+      "id": "retained-patch-height-errors",
+      "path": "codemp/rd-vulkan/tr_bsp.cpp",
+      "function": "R_MovePatchSurfacesToHunk",
+      "behavior": "Height error data was self-copied in temporary storage, leaving new retained array unfilled.",
+      "fixture": "vulkan-frontend-patches:patch_move",
+      "compiled_runtime": true,
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "frontend",
+      "id": "linear-light-saturation",
+      "path": "codemp/rd-vulkan/tr_scene.cpp",
+      "function": "RE_AddLinearLightToScene",
+      "behavior": "Linear lights used map greyscale instead of dlight saturation.",
+      "fixture": "vulkan-frontend-scene:scene_*_lights",
+      "compiled_runtime": true,
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "frontend",
+      "id": "polygon-submission-bounds",
+      "path": "codemp/rd-vulkan/tr_scene.cpp",
+      "function": "RE_AddPolyToScene",
+      "behavior": "Invalid counts/null input were accepted and signed addition could overflow; exact buffer capacity was unnecessarily rejected.",
+      "fixture": "vulkan-frontend-scene:scene_*_polygons",
+      "compiled_runtime": true,
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "frontend",
+      "id": "entity-submission-null-empty",
+      "path": "codemp/rd-vulkan/tr_scene.cpp",
+      "function": "RE_AddRefEntityToScene",
+      "behavior": "Null entity and diagnostic access to empty Ghoul2 instance could dereference invalid storage.",
+      "fixture": "vulkan-frontend-scene:scene_*_entities",
+      "compiled_runtime": true,
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "frontend",
+      "id": "ghoul2-model-name-copy",
+      "path": "codemp/rd-vulkan/G2_API.cpp",
+      "function": "G2API_InitGhoul2Model",
+      "behavior": "Unbounded copy preceded the later model registration path-length check.",
+      "fixture": "vulkan-frontend-scene:model_names",
+      "compiled_runtime": true,
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "frontend",
+      "id": "surface-sprite-token-copy",
+      "path": "codemp/rd-vulkan/tr_shader.cpp",
+      "function": "ParseStage optional ss* branch",
+      "behavior": "COM tokens up to1023 bytes were copied into a128-byte stack array.",
+      "fixture": "vulkan-frontend-shader-token:shader_token",
+      "compiled_runtime": true,
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "frontend",
+      "id": "polygon-allocation-negative-settings",
+      "path": "codemp/rd-vulkan/tr_init.cpp",
+      "function": "R_Init backend allocation",
+      "behavior": "Negative polygon limits entered unsigned allocation/pointer arithmetic.",
+      "fixture": "vulkan-frontend-scene:polygon_allocation",
+      "compiled_runtime": true,
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "frontend",
+      "id": "screen-map-command-exhaustion",
+      "path": "codemp/rd-vulkan/tr_scene.cpp",
+      "function": "RE_RenderScene screen-map copy",
+      "behavior": "A nullable command allocation was dereferenced, and partial copies could leave render-pass flags inconsistent.",
+      "fixture": "vulkan-frontend-scene:screen_map_commands",
+      "compiled_runtime": true,
+      "status": "initial-checkpoint-fixed-focused-verified"
+    },
+    {
+      "group": "frontend",
+      "id": "legacy-terrain-negative-altitude",
+      "path": "codemp/rd-vulkan/tr_terrain.cpp",
+      "function": "CTRLandScape::SetShaders",
+      "behavior": "Negative terrain altitude indexed the height table before its beginning.",
+      "fixture": "vulkan-frontend-scene:terrain_heights",
+      "compiled_runtime": false,
+      "status": "unbuilt-legacy-fix-focused-verified"
+    }
+  ],
+  "focused_verification": {
+    "core": {
+      "suite": "tests/vulkan-core-lifecycle",
+      "cases": 6,
+      "x64_release": "passed",
+      "x86": "passed",
+      "x64_asan": "passed",
+      "baseline": "All six cases fail on54384fc snapshots; actual logging-only result helper retained."
+    },
+    "assets": {
+      "suite": "tests/vulkan-asset-integrity",
+      "cases": 10,
+      "x64_release": "passed",
+      "x86_release": "passed",
+      "x64_asan": "passed",
+      "x86_asan": "passed",
+      "baseline": "Nine defect cases fail; ordinary square HQ filter control passes.",
+      "pipeline_layout_cases": 192,
+      "max_bindings": 7,
+      "max_attributes": 7,
+      "initial_fixture_gap": "Historical initial 10-case fixture used a safe MAX substitute and missed production interaction. Corrected in 0f92d64 with real stb macros and two added output/failure cases; see current_focused_verification and preserved initial failure history."
+    },
+    "frontend": {
+      "suites": [
+        "tests/vulkan-frontend-patches",
+        "tests/vulkan-frontend-scene",
+        "tests/vulkan-frontend-shader-token"
+      ],
+      "cases": 13,
+      "x64_asan": "passed",
+      "x86_asan": "passed",
+      "baseline": "All13 cases fail; one terrain case concerns an unbuilt legacy source.",
+      "fixture_limits": "Production functions or verbatim production blocks compile against stubbed engine/GPU/token/model services; this is not a full model-file/caller/hardware proof."
+    },
+    "full_windows_x64_x86_builds": {
+      "status": "passed",
+      "checkpoint": "4dd25b0",
+      "artifacts": [
+        "vulkan-audit-x64-build-4dd25b0.log",
+        "vulkan-audit-x86-build-4dd25b0.log"
+      ]
+    },
+    "whole_suite": {
+      "status": "historical-pending-at-4dd25b0; superseded by current_integration",
+      "initial_checkpoint_discovered_suites": 61,
+      "current_followup_discovered_suites": 63,
+      "note": "Initial61-suite checkpoint plus asset-capacity and debug-capture follow-ups; final runner/pass totals pending."
+    },
+    "gpu_matrix": {
+      "status": "historical-initial-failure-at-4dd25b0; correction verified later",
+      "initial_checkpoint": "4dd25b0",
+      "failure": "Real Khronos validation reported mipLevels0 and height0x80000000; new MAX(1,dimension>>1) expressions interacted with the actual leaked branchless/unparenthesized stb_dxt.h MAX macro.",
+      "failure_artifact": "expanded-vulkan-validation-4dd25b0-direct-2/direct/validation.log",
+      "harness_result_artifact": "expanded-vulkan-validation-4dd25b0-direct-2/direct/result.json",
+      "cleanup_qualification": "Root manually stopped only ownedPID25056 after verifying original start/path. The harness reported ForcedTermination=false because termination occurred externally; this is not a clean-exit or no-force claim.",
+      "preceding_harness_case": "direct-1 stopped on a live-log sharing error, not a renderer pass/fail diagnosis.",
+      "next_step": "Historical action at 4dd25b0: correct real-macro use/output handling, rebuild and rerun; completed in subsequent checkpoints as current_integration records."
+    },
+    "latest_followup_code": {
+      "status": "historical-pre-integration-snapshot; superseded by current_integration",
+      "areas": [
+        "debug geometry capacity",
+        "FBO capture gamma/failure paths",
+        "uniform append exhaustion",
+        "hardware fog UBO capacity",
+        "production MAX macro interaction and image-preparation failure output"
+      ]
+    },
+    "scope": "Historical initial-checkpoint evidence/pending states; see current_focused_verification and current_integration for final results."
+  },
+  "initial_shader_regeneration": {
+    "artifact": "vulkan-model-shaders-20261111/result.json",
+    "generated_source": "codemp/rd-vulkan/shaders/spirv/shader_data.c",
+    "changed_modules": 74,
+    "total_modules": 194,
+    "unrelated_modules_unchanged": 120,
+    "binding_file_unchanged": true,
+    "validation_target": "vulkan1.0",
+    "compiler_version": "Glslang Version: 11:16.6.0",
+    "compiler_sha256": "7AE115BB31F7E4FFB2862D40AF05637DDE9DB2A770AEBEB8366063C174C18430",
+    "validator_sha256": "D1930E9772E19D0A7393A6C17CBBFC09959AFA8AD87E37300391A4631E9AAB68",
+    "generated_source_before_sha256": "01A9E3DD34B2CE208994E663AD98689C687187357B424A27A08A2B311BA5636D",
+    "generated_source_after_sha256": "3C3E29743AE7EB752D1A6B54C30F26CF1E39530EB8DD70CCD2BB74024E80C7B5",
+    "binding_sha256": "6E04A5FF07181D9E8A050BEFE5541975A515C20C40C4A78D192DD6A563F461E1",
+    "module_names": [
+      "vert_ghoul2_tx0_ident1",
+      "vert_ghoul2_tx0_ident1_fog",
+      "vert_ghoul2_tx0_ident1_env",
+      "vert_ghoul2_tx0_ident1_env_fog",
+      "vert_ghoul2_tx0_fixed",
+      "vert_ghoul2_tx0_fixed_fog",
+      "vert_ghoul2_tx0_fixed_env",
+      "vert_ghoul2_tx0_fixed_env_fog",
+      "vert_ghoul2_tx1_ident1",
+      "vert_ghoul2_tx1_ident1_fog",
+      "vert_ghoul2_tx1_ident1_env",
+      "vert_ghoul2_tx1_ident1_env_fog",
+      "vert_ghoul2_tx1_fixed",
+      "vert_ghoul2_tx1_fixed_fog",
+      "vert_ghoul2_tx1_fixed_env",
+      "vert_ghoul2_tx1_fixed_env_fog",
+      "vert_mdv_tx0_ident1",
+      "vert_mdv_tx0_ident1_fog",
+      "vert_mdv_tx0_ident1_env",
+      "vert_mdv_tx0_ident1_env_fog",
+      "vert_mdv_tx0_fixed",
+      "vert_mdv_tx0_fixed_fog",
+      "vert_mdv_tx0_fixed_env",
+      "vert_mdv_tx0_fixed_env_fog",
+      "vert_mdv_tx1_ident1",
+      "vert_mdv_tx1_ident1_fog",
+      "vert_mdv_tx1_ident1_env",
+      "vert_mdv_tx1_ident1_env_fog",
+      "vert_mdv_tx1_fixed",
+      "vert_mdv_tx1_fixed_fog",
+      "vert_mdv_tx1_fixed_env",
+      "vert_mdv_tx1_fixed_env_fog",
+      "refraction_ghoul2_",
+      "vert_ghoul2_tx0",
+      "vert_ghoul2_tx0_fog",
+      "vert_ghoul2_tx0_env",
+      "vert_ghoul2_tx0_env_fog",
+      "vert_ghoul2_tx1",
+      "vert_ghoul2_tx1_cl",
+      "vert_ghoul2_tx1_fog",
+      "vert_ghoul2_tx1_cl_fog",
+      "vert_ghoul2_tx1_env",
+      "vert_ghoul2_tx1_cl_env",
+      "vert_ghoul2_tx1_env_fog",
+      "vert_ghoul2_tx1_cl_env_fog",
+      "vert_ghoul2_tx2",
+      "vert_ghoul2_tx2_cl",
+      "vert_ghoul2_tx2_fog",
+      "vert_ghoul2_tx2_cl_fog",
+      "vert_ghoul2_tx2_env",
+      "vert_ghoul2_tx2_cl_env",
+      "vert_ghoul2_tx2_env_fog",
+      "vert_ghoul2_tx2_cl_env_fog",
+      "refraction_mdv_",
+      "vert_mdv_tx0",
+      "vert_mdv_tx0_fog",
+      "vert_mdv_tx0_env",
+      "vert_mdv_tx0_env_fog",
+      "vert_mdv_tx1",
+      "vert_mdv_tx1_cl",
+      "vert_mdv_tx1_fog",
+      "vert_mdv_tx1_cl_fog",
+      "vert_mdv_tx1_env",
+      "vert_mdv_tx1_cl_env",
+      "vert_mdv_tx1_env_fog",
+      "vert_mdv_tx1_cl_env_fog",
+      "vert_mdv_tx2",
+      "vert_mdv_tx2_cl",
+      "vert_mdv_tx2_fog",
+      "vert_mdv_tx2_cl_fog",
+      "vert_mdv_tx2_env",
+      "vert_mdv_tx2_cl_env",
+      "vert_mdv_tx2_env_fog",
+      "vert_mdv_tx2_cl_env_fog"
+    ],
+    "limit": "This proves regeneration/structural validation at the initial checkpoint, not visual correctness or later shader follow-up validation."
+  },
+  "remaining_risks": [
+    {
+      "area": "new image-preparation regression",
+      "status": "corrected-in-0f92d64-focused-and-direct-gpu-verified",
+      "detail": "Use std::max with real stb macros, validate/clear preparation metadata and check producer failures; 12-case fixture passes on x64/x86 Release/ASan and corrected direct GPU case passed. Initial 4dd25b0 failure remains recorded; latest matrix status is separate."
+    },
+    {
+      "area": "general Vulkan errors",
+      "status": "unresolved",
+      "detail": "VK_CHECK remains logging-only. Selected main-frame, one-shot and normal backend failures now stop invalid continuation, but other allocation/create/bind/map/module/pipeline failures and global teardown/device-loss/OOM recovery remain unresolved."
+    },
+    {
+      "area": "WSI portability",
+      "status": "unresolved",
+      "detail": "Surface currentExtent/min/max contracts, image-count truncation and rare resize/capability combinations need further coverage."
+    },
+    {
+      "area": "debug/capture",
+      "status": "selected-defects-corrected-with-explicit-fidelity-limit",
+      "detail": "Bounded debug batches, raw-FBO gamma and PNG alignment have production-path fixtures. Exact HDR shader/dither/greyscale fidelity is not established by the 8-bit CPU gamma table tests."
+    },
+    {
+      "area": "asset capacity",
+      "status": "selected-uniform-fog-defects-corrected",
+      "detail": "Uniform overflow does not advance/write/publish offsets and requests safe growth. All 256 fog entries fit a 12,304-byte shared UBO below the guaranteed 16 KiB range; actual upload/layout fixtures and 29 rebuilt fog modules pass. This does not prove every OOM path."
+    },
+    {
+      "area": "resource memory",
+      "status": "unresolved",
+      "detail": "Dedicated allocation requirements, embedded SPIR-V alignment, worker allocation exceptions and partial-failure cleanup need targeted proofs."
+    },
+    {
+      "area": "models and content",
+      "status": "unresolved",
+      "detail": "Full MD3/GLM/GLA spans/cross-LOD frames, serialized Ghoul2 buffers, nonfinite terrain/weather/gore/fog and all material states are not exhaustively tested."
+    },
+    {
+      "area": "upstream reports",
+      "status": "partially-reviewed-unproven",
+      "detail": "Do not mark entity tint, arbitrary missing-model surfaces, skyportal phasing, weapon lighting, legacy shadow artifacts or z-fighting fixed without their exact reproductions."
+    },
+    {
+      "area": "shader developer tools",
+      "status": "unresolved-not-runtime",
+      "detail": "Formatting/read failures and threaded compiler counters remain outside the selected checked regeneration."
+    }
+  ],
+  "blocked_window_bridge": {
+    "status": "blocked-unimplemented",
+    "reason": "Automatic approval review rejected a separate SDL/window bridge follow-up as possible cybersecurity work.",
+    "action": "The task was not retried or rephrased; bridge code was not read or changed by this documentation step."
+  },
+  "historical_triage": {
+    "confirmed_fixed": 46,
+    "provisional_contract": 63,
+    "unresolved_candidates": 176,
+    "total": 285,
+    "disposition": "unchanged; newly reproduced defects are recorded independently, not blanket reclassification",
+    "frontend_entries": [
+      {
+        "ids": [
+          264,
+          265,
+          266
+        ],
+        "disposition": "retain provisional caller-contract explanation",
+        "evidence": "G2_SetupModelPointers(CGhoul2Info*) returns failure for invalid/null models; index variant sets res only after successful setup. Vector angles path constructs pointer from a size-checked modelIndex. No new regression for every overload/caller."
+      },
+      {
+        "ids": [
+          267,
+          268,
+          269
+        ],
+        "disposition": "retain unresolved, source supports valid-input invariant",
+        "evidence": "Draws obtain shaders through R_GetShaderByHandle/R_FindShader; registration fills sortedShaders and sort keys pack only shader index. Backend currentEntity starts at world. Arbitrary corrupt queues not fixture-proved; no silent conversion to fixed."
+      },
+      {
+        "ids": [
+          270,
+          271
+        ],
+        "disposition": "retain unresolved with specific capacity/allocation contract evidence",
+        "evidence": "R_GridInsertRow/Column return NULL only when adding a dimension above MAX_GRID_SIZE; every relevant stitch branch checks corresponding dimension first. R_CreateSurfaceGridMesh uses engine fatal allocator contract. Separate reverse index and lost height array defects fixed, not these null warnings."
+      },
+      {
+        "ids": [
+          272
+        ],
+        "disposition": "retain provisional nonreturning error contract",
+        "evidence": "R_LoadSubmodels calls ri.Error(ERR_DROP) if R_AllocModel returnsNULL before model dereference; tests/bsp-registration already exercises capacity paths."
+      },
+      {
+        "ids": [
+          273
+        ],
+        "disposition": "unresolved-needs-fixture",
+        "evidence": "Normal surface bolts request G2_FindSurface_BC while generated overrides intentionally pass NULL and use generated branch. Inconsistent override flag/index combinations and malformed model geometry lack a full producer-to-consumer fixture."
+      },
+      {
+        "ids": [
+          274
+        ],
+        "disposition": "retain provisional allocator initialization contract",
+        "evidence": "Shader source buffer pointer array comes from engine Hunk allocation; complete cache/source load paths must be covered with production initialization rather than synthetic uninitialized pointers."
+      },
+      {
+        "ids": [
+          275,
+          276
+        ],
+        "disposition": "retain provisional byte-alias initialization explanation",
+        "evidence": "OneMinusEntity initializes all4invModulate bytes; WaveColor initializes RGB and alpha before byteAlias_t read. No production change."
+      },
+      {
+        "ids": [
+          277
+        ],
+        "disposition": "unresolved-needs-fixture",
+        "evidence": "RB_CalcFogTexCoords writes texcoords for tess.numVertexes in ordinary fog paths, but full malformed/nonfinite fog and all early paths are not reproduced in this pass."
+      },
+      {
+        "ids": [
+          278
+        ],
+        "disposition": "retain unresolved with currentEntity provenance evidence",
+        "evidence": "Backend begins world entity and sets entity pointer before surface shading. No full shader-consumer fixture proves every supported render-pass path."
+      },
+      {
+        "ids": [
+          279
+        ],
+        "disposition": "retain unresolved with guarded current caller evidence",
+        "evidence": "R_ClusterPVS is static and reached through R_MarkLeaves after R_PointInLeaf, which raises ERR_DROP without world; RE_RenderScene also rejects missing required world. Full all-caller/reset proof not claimed."
+      }
+    ],
+    "asset_entries": {
+      "282": "source callers establish currentEntity at ordinary world/model/2D entries; no new full caller fixture, retain unresolved",
+      "283": "same caller-state contract, no automatic reclassification; retain unresolved",
+      "284": "ri.Error(ERR_DROP) bound to engine nonreturning Com_Error; retain provisional contract explanation"
+    }
+  },
+  "private_source_ledgers": [
+    "vulkan-core-audit-20261111.json",
+    "vulkan-asset-audit-20261111.json",
+    "vulkan-frontend-audit-20261111.json"
+  ],
+  "static_analysis": {
+    "checkpoint": "4dd25b0",
+    "contexts": 55,
+    "analyzed": 55,
+    "parse_errors": 0,
+    "diagnostic_contexts": 9,
+    "status": "source analysis completed with findings; not a clean-warning or correctness certification",
+    "artifacts": [
+      "vulkan-audit-analysis-4dd25b0/results.json",
+      "vulkan-audit-analysis-4dd25b0/summary.json"
+    ],
+    "extra_scene_diagnostic": {
+      "path": "codemp/rd-vulkan/tr_scene.cpp",
+      "line_at_checkpoint": 620,
+      "status": "caller-contract explanation only; no code change or fixed-count promotion",
+      "evidence": "The caller checks numDrawSurfCmds>0. R_GetCommandBuffer changes lastRenderCommand and command-list allocation state; its production helper does not mutate numDrawSurfCmds. The positive-count copy loop therefore assigns src before its post-loop use under that contract. The analyzer loses the global count across the opaque call; broader arbitrary/reentrant state correctness is not claimed."
+    }
+  },
+  "latest_code_checkpoint": "0fcdbdd0d7a5f0dbb5998a96d78ce2ea8ab1b59d",
+  "final_source_manifest": {
+    "checkpoint": "0fcdbdd0d7a5f0dbb5998a96d78ce2ea8ab1b59d",
+    "entries": 110,
+    "tracked_source_entries": 107,
+    "untracked_tooling_snapshots": 3,
+    "tracked_working_files_match_checkpoint": true,
+    "hash_semantics": "SHA256 covers actual frozen working-file bytes; Git blob IDs use repository content normalization. Three tooling-only local files are not in the commit. These fingerprints are separate from initial review-snapshot hashes; latest integration status is separate.",
+    "files": [
+      {
+        "path": "codemp/rd-vulkan/G2_API.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "877cfdbe645faf0737d72ce2b19e64b1be4cd12c1ecc3c519bc269bf79711df8",
+        "git_blob_at_checkpoint": "3537a0088c66066c0d7f755a5f32889ef1dfdc02",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/G2_bolts.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "5de18adde7fd0ba26b1b6dd9a368af69ddfda5d3e7b2ee587057460903799e84",
+        "git_blob_at_checkpoint": "bdc5ccc65ef611884c25becbe848849196d8c52a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/G2_bones.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "da9ee0be3bdbdfd1c6deb06169853d2c7bf82b510f204f14b039943d7fbe0149",
+        "git_blob_at_checkpoint": "d9bf52aeb600917113239a44e4b018f6f9be1e35",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/G2_gore_r2.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "a80edc728b2932e55d790492674267da6ce5f176c24de2336baecb25ed3fe956",
+        "git_blob_at_checkpoint": "234a2e56ec10a84621a9536ebccc69479b576d82",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/G2_gore_r2.h",
+        "kind": "project-header",
+        "sha256_working_file": "2513d8db402c54423a49fb6063b25600a28d550730b47f89a5939d8389479fb9",
+        "git_blob_at_checkpoint": "081551124b73f1c65eacc977a75bded194ca7001",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/G2_misc.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "986b5fff8dcad4dddcbccedc686397bca5a5611d79aa479b33cc01ee465027e4",
+        "git_blob_at_checkpoint": "022417e4c235718466ddb12fee5ad8c4165e068f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/G2_surfaces.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "e252ebf35ec3bcb21b26f5c9da0ce56c4787d39ccdee07da09b9ca629f127e49",
+        "git_blob_at_checkpoint": "53761b48b56dcc0606bd7fd492c9adeec5d5319c",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/compile.bat",
+        "kind": "developer-tool",
+        "sha256_working_file": "8e94e70653dddc8fc1682ff4714703e6474612ab75353eba4975f5b69f60c186",
+        "git_blob_at_checkpoint": "94068262ee48ace31c34603a4c1e72073adb5ece",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/compile_threaded.bat",
+        "kind": "developer-tool",
+        "sha256_working_file": "58c29346c743fb1aadaf175b31634fad770f953f5d574378465980839dbf8305",
+        "git_blob_at_checkpoint": "5deb0767661b3fff6b8f8886d6bb5374437c0eff",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/blend.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "6a56708a8c8c2b510c74dfa29a005f8cec7532fec59b96646463a855b5be893c",
+        "git_blob_at_checkpoint": "c8542bf9e1c15a5bd375198315236983c384f032",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/bloom.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "e27ad7260fce6024ff455be7d941c4fcb9772498d09bd724167c6e5b5ee9e157",
+        "git_blob_at_checkpoint": "a162fc9af84269e25b2fb18e3a862a68a4ebd3d3",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/blur.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "73f2c824ba842ee3b085190318e98c0d28d18986ee954e25c6c22940e34cebc6",
+        "git_blob_at_checkpoint": "264fe80a7c6c2f53a496b1425684b0a6e3eb99c1",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/color.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "16b857fca46e97fc651f317cd0b95037c68f08569fbcfc151dfc57123c28aad3",
+        "git_blob_at_checkpoint": "01e68da9718430d081926491c7db66e242a56eec",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/color.vert",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "e3f21c04bea96cd7d747baa7eabf1105cacc20eb378834931cbc20b9cdd06018",
+        "git_blob_at_checkpoint": "d99284228d26fea6700f3e82f778b9d3d8c03e1e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/common/color.glsl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "40c829f0b4850e62674866aef21a6e90318f1af7b471e6209bb253bf753285e2",
+        "git_blob_at_checkpoint": "6c1d68ab10e760eba7b3a13e139df6a50b90e07c",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/common/deform.glsl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "b350cfe558953d23b49a1950d08beb3afa4ed8a5d2b9b834eaede080b3a311b0",
+        "git_blob_at_checkpoint": "4caf5171bfb62bb9cd6af46c3ca0464eb25b40e0",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/common/fog.glsl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "4538262106b17cce16cf369ca6a4cf00a5f738504751c2867c3067b225a60109",
+        "git_blob_at_checkpoint": "a9f247ecff30e8e2f9ed5eef064339c080ee1d04",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/common/skinning.glsl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "b7c808687787ebc79e6756f5dc41bcfe19afac92b5d3c5dc42d41fa06a4ae71c",
+        "git_blob_at_checkpoint": "7374f300e4ca00a9acc174dd2a4553e9d97a098a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/common/utils.glsl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "b20fe98acd7c19bcd43ade3520792acf0246594d9144af7d19365888c8cdeae0",
+        "git_blob_at_checkpoint": "b441772174e0facd3772d0f3e27d1fdd8daaa039",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/dot.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "8c257cc77dbe1f2b7e3b66645e38748306044f4fbb2f7c4123ef8e1fef08941b",
+        "git_blob_at_checkpoint": "7898004787ccc83d40b23c90b534d5f6e149f262",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/dot.vert",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "cfa56dbcc975de2fd1db2de0f4d9582a8858643f265c5a66cc30bbce31ae1c0c",
+        "git_blob_at_checkpoint": "fe1beb66c6ee0306cb564973513707a1a59f79b6",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/fog_frag.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "f62597f0460107b4b6e648a21ec8ac5ffaa5957144abd581687a80c98dd14738",
+        "git_blob_at_checkpoint": "466e257f03c4cd790b9d3197d33e4fbd947e284a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/fog_vert.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "a14862ac4e66050ab1c55dee59763ae69309417045ce8f27b8c0e7132eb9f308",
+        "git_blob_at_checkpoint": "1a55d5f1e8fa0a65995599a8ea1a1d3a0d774c27",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/gamma.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "394d5837ea09ed72d3120c9cf9d5be14006ac663b46211960d260b62a60e6e4a",
+        "git_blob_at_checkpoint": "5befb87878f406978aefc8f1e2b0291dff00411c",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/gamma.vert",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "5ad8c8074b992b0ff7b8a4e04c4346f0f5956b50f05036862a30e6b49986c4a4",
+        "git_blob_at_checkpoint": "13c88a8c493349f47519713922eefa7201ad6ea9",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/gen_frag.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "eca9d70fc7422325c9052262b2684ebd5b60fdfeff9637500953176791d41cae",
+        "git_blob_at_checkpoint": "9b50b54310bc18b391562c5c6888a56a8cd7c40d",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/gen_vert.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "7aed83c90ee748dffecf1f23f06c9c3e85db41dd312819a3a5f438c913b34266",
+        "git_blob_at_checkpoint": "4176e3c8286693fae328f9e959f634e7c5ac38b4",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/global.h",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "8c76d0c1309e0de940af403430bb821867cc05d47ca953f33bdf3082f5eeddce",
+        "git_blob_at_checkpoint": "4fee74771ebf18e5cd0db1a0f1f533ad5fcaf39e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/light_frag.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "ed9190bc944a00e6f93e5dae06f1f25684b0e9e681d7a380e2b5d7aa72ccd25d",
+        "git_blob_at_checkpoint": "166b7f4c04527484cae4d670adfacaae562f4f5b",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/light_vert.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "d44f8e6cdd62d1b5e20a57754a43baed5bfb13bb8c5a0d980ec373f07f942429",
+        "git_blob_at_checkpoint": "032e8a967332a657e9f35079c6c75d3c30762da3",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/refraction.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "3a8cdd0ac9d506377c6196f33a63038169cb1e5b4dbc1fe29e7f0b051fa4a98d",
+        "git_blob_at_checkpoint": "07e8d39d8b9df8f2e523b6514629423a2e9c7356",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/refraction.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "b435f22b6b148e1a7471f1b27a122202ae56f4f2169d00edd8a68c20a165191c",
+        "git_blob_at_checkpoint": "e3d1c92f7d3a33eab66a1c3254ed9cc2c60de088",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/surface_sprite_frag.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "d3d880d7240101d528dfe9242b7871c0e3077ef9cc05e7b509bfecc53f12fe46",
+        "git_blob_at_checkpoint": "df6cb933db74c9d47102ff79f5e6a890c3de1e38",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/surface_sprite_vert.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "87e04a2ad5ffb8de7e67b5d89bda45366c1f973497d496ace23f0c38aca72eab",
+        "git_blob_at_checkpoint": "ab938772e72768971f61858e68b2e21a8609d67e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/spirv/shader_binding.c",
+        "kind": "included-generated-source",
+        "sha256_working_file": "6e04a5ff07181d9e8a050befe5541975a515c20c40c4a78d192dd6a563f461e1",
+        "git_blob_at_checkpoint": "896975f0cafb11d7757e237dd90e0a4d6970c907",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/spirv/shader_data.c",
+        "kind": "included-generated-source",
+        "sha256_working_file": "397d2edcaff820a020d0de499880bbec6d568ca75acc1f4b988c18c3e85bfe66",
+        "git_blob_at_checkpoint": "2702b6e33e548501e673c83c6bd6c5187f5cf97d",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/tools/bin2hex.c",
+        "kind": "developer-tool",
+        "sha256_working_file": "c2e8f4c6930f0df72eb0ffe22072f7137c322157308e5c3619bdff7c393e074e",
+        "git_blob_at_checkpoint": null,
+        "tracked_at_checkpoint": false
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/tools/bindshader.c",
+        "kind": "developer-tool",
+        "sha256_working_file": "c60625513eaa87b88d86651ce29759953ea6bb787cd8e34ef336b82d8cfb83a9",
+        "git_blob_at_checkpoint": null,
+        "tracked_at_checkpoint": false
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/tools/compile_threaded.cpp",
+        "kind": "developer-tool",
+        "sha256_working_file": "de1149acb01aa7076f4390eaaf50f4d652e4f22db8e376518f6a0ddcb415195e",
+        "git_blob_at_checkpoint": null,
+        "tracked_at_checkpoint": false
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_WorldEffects.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "3438d9e2433ea516db3936d27c264c321741d03c069464ecbcfe515bd6f8d10d",
+        "git_blob_at_checkpoint": "387532851090c5e7e13a70e8d5ab4e8c0a20d94b",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_WorldEffects.h",
+        "kind": "project-header",
+        "sha256_working_file": "7ee09b0d65bd5347b1b7d6019ea4fa14f1f40f5d6c7fb23c8216409044ac1a86",
+        "git_blob_at_checkpoint": "3aee6d348d95cb06aab2218c42fb0a4931e62514",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_backend.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "ab2044dd6ea0727cf8bf698ff61c201f31e90136b4683f4e7ae27b90ad3bb213",
+        "git_blob_at_checkpoint": "4a3eadf5f87e92b284601273127d9944b5c8b747",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_bsp.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "9762aea30f228bc04a93c978e06f875bf5d3646fdcd683c6db682e9455f5fe30",
+        "git_blob_at_checkpoint": "3e6a2d0a21536f233f82f1ce1b421d00d2034b1a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_cache.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "85cef6d3e9376f4df974758cc822df85b38bf98a0792f5a088db3d8646dd60c8",
+        "git_blob_at_checkpoint": "a1a15305623fc9b1bf493febf8bece2babc684a3",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_cache.h",
+        "kind": "project-header",
+        "sha256_working_file": "5c0d863fef6a7898a1f37eec441337720b12f020d1935186b0c8e5d4f86527b8",
+        "git_blob_at_checkpoint": "9a0d5fea32d8a2fc65cfea507167f57fd845e5d3",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_cmds.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "4fe4dcead8276086b99ac0db9a70edfe536eef5c5de3df24af61cd04b8c264e3",
+        "git_blob_at_checkpoint": "caf9a169d30fa3fe74531d2be6c47d4e4b04a575",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_curve.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "1b34cdf6ee738775a48907f81feeda730097e762646c35ce27c80de4f18cee53",
+        "git_blob_at_checkpoint": "4367eb4515cd51d199b04c993872fac2d4fa0047",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_decals.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "1869f55186c83f41efa8816b480f2d1baef381eaff0517d772b6b8b34af4365b",
+        "git_blob_at_checkpoint": "6e52131211cbcfa654b5ffa6f985d8db87538297",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_ghoul2.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "759e9c8ac71b7349c8e215f9bf4e70da74b0ba548b4c5e69a6ff7a752388e8f7",
+        "git_blob_at_checkpoint": "04429d1e8ab3d3d0eaebbb4c808d387f4b567219",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_image.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "d4a28c5fcfff4e47cca61846ea3cc60bf32a8c86d21923e4334c4bd4d0ddd7a3",
+        "git_blob_at_checkpoint": "85e1b0b45ffa71ae2122e6ed6c739b453747c04a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_init.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "b11b493bf980753f070e515279c485761d1da955f5f20de16bb769c3f93a4dbf",
+        "git_blob_at_checkpoint": "384c30adaf669cb0403c46013f987349a315134f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_light.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "859b154e3ab8ec3df48e68eb8b955734d7d8962ced3201dad68f463c3de3b774",
+        "git_blob_at_checkpoint": "b0df22b3932653cf963ba8e75274e73f23fd5b73",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_main.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "5f754b464bc27bbbc66bb2ed1ebdb2a2e631a92e7079e18c0182188289e2740f",
+        "git_blob_at_checkpoint": "6bef556c522fd68a344ec939164725820a0729ea",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_marks.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "5e766f7b68844bc95dfbed04804cb7d783b7a5a7fabdd5deff0bd39cb31bf37a",
+        "git_blob_at_checkpoint": "5da5c7e0ee9968752950c66264191fd2a1bb6e8b",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_mesh.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "792fa51b4b159c8d082cd1ed1953ef26238b8952262cafff740aac2c239b5fcb",
+        "git_blob_at_checkpoint": "0a2817e6a18d4870ea063c31736ba7579dea3d1d",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_model.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "b498f3d17c2878868bf2b308be69c8bf5d8f011b11b782d4704e5a1c6b8fea0c",
+        "git_blob_at_checkpoint": "320ae833c6b3b691721643de0f4b9cd1d96038aa",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_quicksprite.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "f920357f9944c0a8b94b5d8f764d81b425fab90655977230b40ccd52b20d8c01",
+        "git_blob_at_checkpoint": "012e259991c37b1e04bb94183008ac1f8e9ec2c8",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_quicksprite.h",
+        "kind": "project-header",
+        "sha256_working_file": "39ee81ac41f652328494497c17893f1675c2d788638c0a15f4121e8f01f3f1ee",
+        "git_blob_at_checkpoint": "8bf2b1b27da5093b78890233dd02098a6a42244e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_scene.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "e0ae8c4c32ec245435113b6f9ae4b5949467fc0e0e3aa9868a732fc720cf347e",
+        "git_blob_at_checkpoint": "3d38374603650d8d67868036af5ce1c7e37a62d0",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_shade.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "50824e754092dcd980d003d1ea6511b912b825137b90a942a6b74edff0eb7f58",
+        "git_blob_at_checkpoint": "dd055c97c853c49e32228dd5a2ef842e17d9bae2",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_shade_calc.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "e212ac44657c30c77136cc0bd393259864b8ae9eaaa4039151821c5164e926eb",
+        "git_blob_at_checkpoint": "c3894ea95766c334ebd3eaf69597d2743b663ab4",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_shader.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "a5d4662e9459df7de5baa043a68b9372f6d4b8286111505d0ced05d4a6866258",
+        "git_blob_at_checkpoint": "05c1eeac0cc6cbca3b11ac9782c02eb01aa7785e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_shadows.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "7af45a8bb92010726019c2a8cce73401f540b8af9f24faa8012f4ac405c77fef",
+        "git_blob_at_checkpoint": "103cf88364f546b8001acc12f7b1200f87ca73fa",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_skin.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "cb5ba71c8263556c2f46fc2700eaa3ea2ab0291c204a7510bd2aaa69ede79d63",
+        "git_blob_at_checkpoint": "b990e58e93c983a497f7675d7b0ff3870378b420",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_sky.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "47248be567c06e7bb9fac2764d4615f1c810e711b67c70e6801233205b22ef59",
+        "git_blob_at_checkpoint": "8689aeb79dfa98d4cd07cd4dc1aec3d54057f65f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_subs.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "2544013a2ac92aa1693f39faf0ffb8587d8e13a6cee608b1c56ae54f28816288",
+        "git_blob_at_checkpoint": "1f6d1dbc3e09eead20c69d65dc5326d3e0b9c71b",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_surface.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "2ec6b62a7862e0b9e149c9acfef84ca5e8a054a26973b09ce876dfc95b69e75d",
+        "git_blob_at_checkpoint": "4c834bbd31e679d8784c1cc3761776b98c509ee9",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_surfacesprites.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "d59a826af038bcb65bd6cfd9bab1de076f97c9f55786ccb1350d32f01dd28667",
+        "git_blob_at_checkpoint": "c3fc5534bfb790c0d63aaf1d8b6435a42ab45e9e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_terrain.cpp",
+        "kind": "unbuilt-legacy-cpp",
+        "sha256_working_file": "08bc33cf3d9023b97f9a0fac106ac4759e7a8aeec6d4796b59be4a4f7e8af81e",
+        "git_blob_at_checkpoint": "4252415ed0fce4adf2c66ec25898cdeaa794c10c",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_world.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "69abef010ce305cebad475c3e5717423af1330ae6d671e5517deaf50693742b7",
+        "git_blob_at_checkpoint": "fc95ccc5b8791aff56433b20598215586d57df9a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_allocation_ranges.h",
+        "kind": "project-header",
+        "sha256_working_file": "505c9694241603371484b7242c59154d87f99bac642ff2b2ce2e9193f33dccc5",
+        "git_blob_at_checkpoint": "987a69c7f81dada0cd0267f64ca6e0b30d7ff840",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_api_version.h",
+        "kind": "project-header",
+        "sha256_working_file": "f50eb3345aa33f49af08b6ab9f0844c25986a6e23228cce83d28371c40f457a3",
+        "git_blob_at_checkpoint": "f44a8046a3fa658cb6e6a72f30e405a46a747a0f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_attachments.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "81da66edf61a0631d440b31245301e165e0dc9498e5912ba6eba499a6b55f8fc",
+        "git_blob_at_checkpoint": "ef503d9c5b95cb20a7bde465fbdc91f570c1e5ae",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_bloom.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "67ca60c86e48fdb306a3a1f8914b281e7d84a39d17c42063f643b6ad5c42d1e2",
+        "git_blob_at_checkpoint": "1ba5da1e29bd566f2a5c507bb946c989391af665",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_cmd.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "0e41dfecb6b52ee3ea93b0982849adbfa68075c2086ea76ae7dcc0ac469709d2",
+        "git_blob_at_checkpoint": "d62108bb18f2eebf0ad2e8b3533247ce046d02fd",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_debug.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "74fc84200eec3aa9e3b5324d9774b1c335ff25ba23a03fc7ba7315ac7c497d5f",
+        "git_blob_at_checkpoint": "1b29817e827a4b966a953dc3b74220c74dbcb6d4",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_device_extensions.h",
+        "kind": "project-header",
+        "sha256_working_file": "8c6362518ae16719e84eae1a40a3087a001694d130855a6543576fd3525d5eba",
+        "git_blob_at_checkpoint": "1e7547e3e46862be0e822547c3155d6281a58a0a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_dynamic_glow.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "57a1e63a39cca8ec7d6e6a39019d8db4b6c9754ceaa7676c5d6a249d5b66abe8",
+        "git_blob_at_checkpoint": "f23013318751d249d9b34002ce9940a4ec17273f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_flares.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "ee5c13abcea20e098df9669e3f0c001d9e4f45acef16adee9b8e6c13fa685441",
+        "git_blob_at_checkpoint": "409e883374a3ec3e71a843e1f1e3185871edda69",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_frame.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "3947d05b71beaebdf633af0f7124f08923ecfa1cd1c3243c928b97d10226f9f0",
+        "git_blob_at_checkpoint": "4f4e82524f2acc8644192ca0a40cb7b760de5bb5",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_host_image_copy.h",
+        "kind": "project-header",
+        "sha256_working_file": "e416175d6a71d45af26d333fa08f23bea17fcc0057ed716800009036c479dd7d",
+        "git_blob_at_checkpoint": "5c975f36110ded2b265d16170710ca054b157ec6",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_image.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "037a6ea54410c57173f9fc5f8bdf98473a24f13d151cdabbaea7a74999ba2adf",
+        "git_blob_at_checkpoint": "ff4bffb5a78d7b9e02e050e8955a6dc07acae712",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_image_process.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "10fab55eb90b841548216f786a62677a0cb031eae131e03709b3da4c5a9ffde5",
+        "git_blob_at_checkpoint": "8e9f4848afefce0f0e33c09d6473c5e29e539588",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_info.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "2f7bce201601945902f20d8b75b09d4a1143b20c1bade5a6ab5089eaad0942da",
+        "git_blob_at_checkpoint": "1c010c5896a129928ae36b8beab97ba6f8393a0c",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_init.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "c3d9e0f02e972229662ce0a7e2c1fc9ee709a173e6c681e5c8d44bfa7eb41b43",
+        "git_blob_at_checkpoint": "9e8b23eef73a9f73ec9bea8d0d7648ad57a3c3e8",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_instance.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "30d9ec8d7ca665f12e6bcfa995218ed58cf8ac4ac203547f831e654caf826e82",
+        "git_blob_at_checkpoint": "af2a209a70df20ac1a0722f48dc86c8af026ee0a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_load_profile.h",
+        "kind": "project-header",
+        "sha256_working_file": "e8d1b607807eeaf4a182a64e3794cdc4302d92bc24b7c186bec1381ef4a95f3b",
+        "git_blob_at_checkpoint": "7c847c5285a0eb8e398fe6ea6aeaa5c8eecd0352",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_local.h",
+        "kind": "project-header",
+        "sha256_working_file": "55a5da726c6a8a61dbb064e24684fd96cee22fa93ef7d01cc183e70e8dd1b120",
+        "git_blob_at_checkpoint": "1ef3dd98c383d90eb49a19ebc8674caa4a41334e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_pipeline_cache.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "3a2bbe6574db6cac65d648fe3e030a21a3b0902ade1c40159009dda383227947",
+        "git_blob_at_checkpoint": "d847a8eb56f6cc852fd0e7b8b312df18f3af3624",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_pipeline_cache_file.h",
+        "kind": "project-header",
+        "sha256_working_file": "83d4f3639196240ffa70f2e6fb633e88070198caf09c2b9cdc623b93f0b94dab",
+        "git_blob_at_checkpoint": "c63e712b8fd9757ed7ccf23e1e5a83583cfbdf6f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_pipeline_index.h",
+        "kind": "project-header",
+        "sha256_working_file": "1bc73f7b17294e30629249dd68229c3e06e67e69586049085a0016ab697a1d19",
+        "git_blob_at_checkpoint": "53bea932660e3caa5d84bf05077f9f06f7ec5ace",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_pipelines.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "f2ea5b474636a9cffb686db84652801764963e025f0b5e61f5ca0863796cf0a2",
+        "git_blob_at_checkpoint": "9b72d34a21f1ddf5578a8af182d263551252161b",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_prepared_cache.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "ec64c8e0898e27aabb3403c72967cbbc826549be9e1fe3aecba8eb7f7ec333ac",
+        "git_blob_at_checkpoint": "f3681ced517a58c5b85508e387e76a8321dd39b5",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_prepared_cache.h",
+        "kind": "project-header",
+        "sha256_working_file": "14a5d3c2d7076197fc47b0f3ed1dfac45db58ebd9b1476ad3a7c6d32c08dda36",
+        "git_blob_at_checkpoint": "f43c9645fc0693577e1d7c5f266e478034ad12e8",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_renderpass.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "0a770178d3cb4c4dc252987f567087d5350d37ac9928186c106effd0e7dbd237",
+        "git_blob_at_checkpoint": "fa8f69d34c5ee59d179e8b0c4eee9fdf1ea0eff4",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_resident_cache.h",
+        "kind": "project-header",
+        "sha256_working_file": "ede4b39a7041daaa0109e551e3fb380ec694eb36953f770a46f39120dcbe813d",
+        "git_blob_at_checkpoint": "e4927cb0e344e90171678a953dc8f9a314dee6eb",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_result_check.h",
+        "kind": "project-header",
+        "sha256_working_file": "08cc437039eee1c5b01e6b0372f92bf9d01467d416126947d4b2708c5925005f",
+        "git_blob_at_checkpoint": "9997799565f5d5fa14199e84ce8c5001548fa38b",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_runtime_profile.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "f8715240d48710f343e3437571319510c08f88ff7cc8e83636162094efa5a6d5",
+        "git_blob_at_checkpoint": "c34441155ca5b751096554c28493210cd08d2fa8",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_runtime_profile.h",
+        "kind": "project-header",
+        "sha256_working_file": "815f99ed42a3f18a868a4aae15ae4ed37e88d1e66155e72c2b7adfa136e9b8e0",
+        "git_blob_at_checkpoint": "6c62b2c27f62a9880b6dc6f8750f53738bdb182a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_sample_counts.h",
+        "kind": "project-header",
+        "sha256_working_file": "71b526306bbbb0628a76e42e24a6ea33ed14372ffeed95db7e54aa0c2e8d8a73",
+        "git_blob_at_checkpoint": "6ab65bc8918fdc57eaeca59370fd5225e5a7fca1",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_shade_geometry.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "6d61d1db1bffa96880264c1c75fb3ef64b3e60711f1aff5ccb6d4f534a1a6909",
+        "git_blob_at_checkpoint": "4559941a3ae1a5409ff99de7a84b08b2c293047e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_shaders.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "11e3fc28cf5f1d4c2209ca08045b4eeb988f45c8cc434825eabbfe1365fba24c",
+        "git_blob_at_checkpoint": "3fab306968a170927dd375d01dadf6967642236e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_swapchain.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "8b1cd521563f4dc92954a1de199d68ef1f3f7ad4f705d88ddd90b298b0900957",
+        "git_blob_at_checkpoint": "181ccf1ab04f36aa647bba872ae041c8f5a4aa88",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_sync2.h",
+        "kind": "project-header",
+        "sha256_working_file": "eec01ca8f8f12f8aea4880a4d65e8c927ab757f1bda08c157da536c4777e3d92",
+        "git_blob_at_checkpoint": "e1ffe1d5881c19dc20845dc941504331a06dbfa3",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_texture_budget.h",
+        "kind": "project-header",
+        "sha256_working_file": "0663293004859349a676709b5e779136e651d2ef7069fda18f32a419cfd64a21",
+        "git_blob_at_checkpoint": "74d1889b9362325c0ff52ce3499ead4fbad4d532",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_texture_context.h",
+        "kind": "project-header",
+        "sha256_working_file": "cdc1e7bc7d21f62d1248cbc4a5f7bc6bdc3c301c14997d3dcbe9ddc7a2565675",
+        "git_blob_at_checkpoint": "2eee1723bab4878621a608433b9fd6c3557345ea",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_texture_jobs.h",
+        "kind": "project-header",
+        "sha256_working_file": "6f14b5803040a7d0be2c26326baf5a9df2c7e44c94fb2a7be4054157cc998b0f",
+        "git_blob_at_checkpoint": "8372de4d9fd695a8405bca59a85ae219b3c9d01d",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_texture_scratch.h",
+        "kind": "project-header",
+        "sha256_working_file": "bcd7569e1e5a04b2462716f9724875d5e9f4ceaa603b6bda480d766d4c389cae",
+        "git_blob_at_checkpoint": "d18350bd6479636cd70b6751fd1a1024017e1df1",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_vbo.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "fd108d650aa3f77e87f0cd84079382fffa4d8a5fb7aca0946ebaf3d9086ad25f",
+        "git_blob_at_checkpoint": "19a9447a4e7c7f1e893cfbfb7b324faee8cb3bab",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_vbo_surfacesprites.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "0fc1cff3774b03de1c448ceab30cbe902c2b6873f3e3b67d695a1a903ac5777f",
+        "git_blob_at_checkpoint": "fe81bff5ae9c8486d7c5e385b8f430c69fd47e5c",
+        "tracked_at_checkpoint": true
+      }
+    ]
+  },
+  "current_followup_fixes": {
+    "core": [
+      {
+        "time": "2026-11-11T16:47:08.619038+00:00",
+        "baseline": "4dd25b0 for debug/capture;0f92d64 for common command faults",
+        "fixed": [
+          "Bound normal-line batches by color/UV/index capacity while retaining every endpoint/color; xyz already had2x capacity, the neighboring color/UV arrays did not.",
+          "Split polygon triangle fans and outline edges into bounded draws, preserve primitive order/closing edge and reject null input.",
+          "Apply existing8-bit gamma/overbright lookup once to raw regular-FBO RGB; SSAA capture remains already shader-corrected and existing non-FBO behavior remains.",
+          "Honor actual aligned readback offset in PNG encoder input; odd641x479 patterned rows tested with deliberately unaligned temporary allocations.",
+          "Single-use command allocation/begin/end failures abort before invalid operations; free never-submitted buffers, and safely free unchanged OOM submissions.",
+          "Submission device-loss and unsuccessful queue-idle leave possibly pending command buffers owned by the pool for device teardown; normal backend queue wait explicitly aborts on failure."
+        ],
+        "corrections": [
+          "Initial suspicion of SSAA double-gamma was withdrawn: R_GammaCorrect already skipped the dedicated capture target. New handoff tests preserve that behavior.",
+          "Fixture now extracts actual log2pad from production header;3/5 MSAA request cases cover round-up behavior.",
+          "Fixtures include actual logging-only vk_result_check.h; no stronger fake error policy is assumed."
+        ],
+        "tests": {
+          "core_lifecycle": "6/6 passed x64,x86,x64ASan after latest actual log2pad/gamma tests",
+          "debug_capture": "7/7 passed x64,x86,x64ASan; all7fail against4dd25b0 source snapshots",
+          "numeric_raw_fbo_gamma": "old4dd25b0 production fails only the new raw-FBO gamma assertion; other5core groups pass",
+          "command_lifetime": "8/8 passed x64,x86,x64ASan; pre-fix production fails7faultgroups while success control passes",
+          "gpu": "parent-owned integration; this agent launched no game and changed no binary/install files"
+        },
+        "source_hashes": {
+          "codemp/rd-vulkan/vk_debug.cpp": "74fc84200eec3aa9e3b5324d9774b1c335ff25ba23a03fc7ba7315ac7c497d5f",
+          "codemp/rd-vulkan/vk_frame.cpp": "e7e3ea5145f2beb6baad5a4eec7bd9ef594603a375a09f1f6c28d53bf7574774",
+          "codemp/rd-vulkan/tr_init.cpp": "b11b493bf980753f070e515279c485761d1da955f5f20de16bb769c3f93a4dbf",
+          "codemp/rd-vulkan/vk_cmd.cpp": "0e41dfecb6b52ee3ea93b0982849adbfa68075c2086ea76ae7dcc0ac469709d2"
+        },
+        "remaining": [
+          "Global device-idle policy during renderer teardown is still logging-only and needs separate cleanup-state design; main/temporary/normal backend checks do not prove universal lost-device/OOM recovery.",
+          "Unchecked create/allocate/bind/map paths outside new command helpers remain explicitly unresolved.",
+          "Raw-FBO correction uses the established8-bit gamma table; exact HDR shader precision/dither/greyscale fidelity is not established by these CPU fixtures.",
+          "SDL/window-bridge step was blocked by automatic review and is excluded; this agent did not retry or implement those changes."
+        ],
+        "references": [
+          "https://docs.vulkan.org/refpages/latest/refpages/source/vkQueueSubmit.html",
+          "https://docs.vulkan.org/refpages/latest/refpages/source/vkQueueWaitIdle.html",
+          "https://docs.vulkan.org/refpages/latest/refpages/source/vkFreeCommandBuffers.html"
+        ],
+        "snapshot_status": "Historical agent report at the recorded timestamp; GPU pending/required notes are superseded by current_integration."
+      },
+      {
+        "time": "2026-11-11T17:06:41.815505+00:00",
+        "baseline": "003609f",
+        "trigger": "Parent real-driver validation FBO/HDR/MSAA4/bloom+DGlow after FFA1+FFA3 and vid_restart, first JKSide1 frame: VUID-vkCmdDrawIndexed-None-07832",
+        "driver_log": "expanded-vulkan-validation-003609f-final-1/fbo-hdr-msaa/validation.log",
+        "fixed": [
+          "Static postprocess pipeline binds invalidate Vulkan dynamic scissor even when restoring the same world pipeline. Invalidate the existing CPU scissor cache at every static bind so the existing restore/update path emits vkCmdSetScissor for the same rectangle.",
+          "Initialize fresh command buffers with the same invalid cache sentinel; keep all dynamic-only pipeline/draw cache behavior unchanged."
+        ],
+        "scope_proof": "All runtime qvkCmdBindPipeline calls inspected: nine static postprocess call sites (4 bloom,3glow,2frame), two last_pipeline restores, one dynamic world binding helper. Flares/debug/screenmap use the dynamic helper. Actual pipeline builders use dynamic viewport/scissor/depth-bias for world and NULL dynamic state for postprocessing.",
+        "tests": {
+          "core_lifecycle": "10/10 PASS x64,x86,x64ASan; descriptors/enum constants extracted from actual production headers",
+          "before": "Actual003609f bloom/glow/geometry snapshots: same-rectangle bloom and glow cases FAIL invalid native dynamic state; other8groups including changed-rectangle and dynamic-only controls PASS",
+          "fast_path": "100dynamic-only geometry draws assert1pipelinebind,1scissorupdate,1viewportupdate; switching dynamic pipelines retains cached valid state",
+          "gpu": "Parent-owned incremental renderer integration pending; child launched no games, rebuilt no game binaries and touched no installs"
+        },
+        "source_hashes": {
+          "codemp/rd-vulkan/vk_bloom.cpp": "f506007f3e486c830ca00ede81f994944a4fabdc6dc9714c75ce5698f31ee7b4",
+          "codemp/rd-vulkan/vk_dynamic_glow.cpp": "57a1e63a39cca8ec7d6e6a39019d8db4b6c9754ceaa7676c5d6a249d5b66abe8",
+          "codemp/rd-vulkan/vk_frame.cpp": "3947d05b71beaebdf633af0f7124f08923ecfa1cd1c3243c928b97d10226f9f0",
+          "tests/vulkan-core-lifecycle/CMakeLists.txt": "aaa3e415cb90c83cb73516c3c6a4d147c76e87371fcd391ddc43cf15dc01c6d5",
+          "tests/vulkan-core-lifecycle/dynamic_state.cpp": "63e769a251751246f284237adc770138739121040cf0bf5f1ac7f93a6ff412e1",
+          "tests/vulkan-core-lifecycle/README.md": "e04252898cb2e088e58cee637e4e8cb8c87a857168c0eca8b9976662755d0162"
+        },
+        "logs": [
+          "vulkan-core-lifecycle-x64/Testing/Temporary/LastTest.log",
+          "vulkan-core-lifecycle-x86/Testing/Temporary/LastTest.log",
+          "vulkan-core-lifecycle-asan/Testing/Temporary/LastTest.log",
+          "vulkan-dynamic-state-before/Testing/Temporary/LastTest.log"
+        ],
+        "references": [
+          "https://docs.vulkan.org/spec/latest/chapters/drawing.html#VUID-vkCmdDrawIndexed-None-07832"
+        ],
+        "remaining": [
+          "GPUreproduction of parent FBO case still required.",
+          "Additional bloom descriptor restoration candidate under investigation; no extra production modifications.",
+          "No SDL/windowbridge work performed or retried."
+        ],
+        "snapshot_status": "Historical agent report at the recorded timestamp; GPU pending/required notes are superseded by current_integration."
+      },
+      {
+        "time": "2026-11-11T17:10:08.649626+00:00",
+        "baseline": "1236cf5",
+        "fixed": [
+          "Bloom descriptor restoration covered4blurpasses rather than5main descriptor sets; incompatible postprocess layout disturbed cached fog-collapse set4 and restoration omitted it. Change restore bound to VK_DESC_COUNT, retain existing nonnull check."
+        ],
+        "production_sequence": [
+          "Initial actual descriptor cache/update/bind helpers bind uniform set0, sampler1, fog4 with gaps filled as existing production behavior.",
+          "Actual bloom binds incompatible sampler-only postprocess layouts, disturbing higher sets; restores first4beforefix.",
+          "Subsequent actual fogged-stage pattern resets/rebinds uniform0 but requests the same fog4handle. Actual cache updater does not mark4dirty, and binding0does not restore disturbed4.",
+          "Actual geometry draw requires original valid main-layout fog4. Beforefixfails; new restore rebinds4andpasses."
+        ],
+        "tests": {
+          "after": "13/13PASS x64,x86,x64ASan",
+          "before": "Actual1236cf5 bloom/glow/geometry snapshots: fog_bloomFAILS invalid/disturbed native descriptor4; other12groupsPASS",
+          "controls": "Actual glow restores all sets and passes; no-fog UI retains NULL unused fog4and passes without NULL binds; dynamic-only100draw1bind/1scissor/1viewport fastpath remainsPASS",
+          "gpu": "Parent reports all3map FBO scissor reproduction PASS on previous candidate; final build/validation parent-owned, no child game/build/install writes"
+        },
+        "source_hashes": {
+          "codemp/rd-vulkan/vk_bloom.cpp": "67ca60c86e48fdb306a3a1f8914b281e7d84a39d17c42063f643b6ad5c42d1e2",
+          "tests/vulkan-core-lifecycle/CMakeLists.txt": "74fa519f4a80a549bdbb5074f34d26f0b67846d4c896b3fef0c1c9232c011d16",
+          "tests/vulkan-core-lifecycle/dynamic_state.cpp": "4e395f9c9ed1dce7d928cf64cfc627bc5e1b35494cf87852afa83ecc5445c1d4",
+          "tests/vulkan-core-lifecycle/README.md": "a4831d1f5c89c9b08e5f89dcee40dcdffa4c4a85e3374d8efeff8fa81e466026"
+        },
+        "logs": [
+          "vulkan-core-lifecycle-x64/Testing/Temporary/LastTest.log",
+          "vulkan-core-lifecycle-x86/Testing/Temporary/LastTest.log",
+          "vulkan-core-lifecycle-asan/Testing/Temporary/LastTest.log",
+          "vulkan-descriptor-before/Testing/Temporary/LastTest.log"
+        ],
+        "references": [
+          "https://docs.vulkan.org/spec/latest/chapters/descriptorsets.html#descriptorsets-compatibility"
+        ],
+        "remaining": [
+          "Parent final version build/realGPUvalidation remains pending; this CPU fixture is not a universal driverproof.",
+          "All repository edits frozen after this targeted fix and regression."
+        ],
+        "snapshot_status": "Historical agent report at the recorded timestamp; GPU pending/required notes are superseded by current_integration."
+      }
+    ],
+    "assets": [
+      "uniform exhaustion fails safely, requests growth and never publishes sentinel offsets",
+      "hardware fog UBO/upload handles all256 legal entries",
+      "production stb MAX shift-argument integration regression corrected with std::max",
+      "image preparation failure cannot publish uninitialized upload metadata"
+    ],
+    "production_regression": {
+      "introducedIn": "4dd25b09d8873199028b9a348258ae3f12d8102c",
+      "fixedIn": "0f92d64d97c7df099e7552c6abeeea439b7d3c07",
+      "detectedBy": "Root real Vulkan direct profile with installed assets; invalid vkCreateImage height2147483648 and mipLevels0",
+      "runtimeEvidence": "expanded-vulkan-validation-4dd25b0-direct-2\\direct",
+      "rootCause": "NEW_OPTIMISATIONS stb_dxt.h MAX macro does not parenthesize its operands. Initial MAX(1, dimension>>1) clamp expanded incorrectly, caused texture preparation failure and exposed an existing unchecked generator result.",
+      "correction": "Use std::max for dimension shifts, validate dimensions/limit, clear output metadata, check bool at both immediate and file producers, diagnose image name/dimensions/flags/limit on failure. Current fixture includes actual stb macro environment.",
+      "newGpuRetry": "Root owns validation of corrected build; not claimed passed by this agent."
+    },
+    "scope": "Selected reproduced source paths; not universal driver/OOM/model safety. Agent-ledger GPU/pending notes describe their snapshot times; current_integration records later external validation."
+  },
+  "current_focused_verification": {
+    "total_cases": 55,
+    "new_suites": 8,
+    "core": {
+      "suite": "tests/vulkan-core-lifecycle",
+      "cases": 13,
+      "x64": "passed",
+      "x86": "passed",
+      "x64_asan": "passed",
+      "production_helpers": "Actual logging-only result helper, actual log2pad and gamma table."
+    },
+    "assets": {
+      "suite": "tests/vulkan-asset-integrity",
+      "caseCount": 12,
+      "x64Release": "12/12 passed",
+      "x64ASan": "12/12 passed",
+      "x86Release": "12/12 passed",
+      "x86ASan": "12/12 passed",
+      "actualStbMacroEnvironment": true,
+      "beforeSnapshot": "11 defect cases fail; unchanged square-HQ control passes",
+      "beforeEvidence": "vulkan-asset-integrity-real-stb-before.log",
+      "afterEvidence": [
+        "vulkan-asset-integrity-real-stb-final.log",
+        "vulkan-asset-integrity-real-stb-x64-asan.log",
+        "vulkan-asset-integrity-real-stb-x86.log",
+        "vulkan-asset-integrity-real-stb-x86-asan.log"
+      ]
+    },
+    "capacity": {
+      "suite": "tests/vulkan-asset-capacity",
+      "caseCount": 2,
+      "x64Release": "2/2 passed",
+      "x64ASan": "2/2 passed",
+      "x86Release": "2/2 passed",
+      "x86ASan": "2/2 passed",
+      "beforeSnapshot": "2/2 defect cases fail",
+      "beforeEvidence": "vulkan-asset-capacity-before-final.log",
+      "afterEvidence": [
+        "vulkan-asset-capacity-x64-asan.log",
+        "vulkan-asset-capacity-x86.log",
+        "vulkan-asset-capacity-x86-asan.log"
+      ],
+      "contracts": [
+        "extracts actual production log2pad",
+        "exercises actual sprite descriptor-submission statements",
+        "fog uses shared production C++/GLSL layout and actual upload function",
+        "growth above2GiB rejected before rounding helper"
+      ]
+    },
+    "debug_capture": {
+      "suite": "tests/vulkan-debug-capture",
+      "cases": 7,
+      "x64": "passed",
+      "x86": "passed",
+      "x64_asan": "passed",
+      "baseline": "All seven fail against 4dd25b0 production; patterned odd PNG uses deliberately unaligned temporary storage."
+    },
+    "command_lifetime": {
+      "suite": "tests/vulkan-command-lifetime",
+      "cases": 8,
+      "x64": "passed",
+      "x86": "passed",
+      "x64_asan": "passed",
+      "baseline": "Seven fault groups fail against 0f92d64; success control passes; actual logging-only checker retained."
+    },
+    "frontend": {
+      "suites": [
+        "tests/vulkan-frontend-patches",
+        "tests/vulkan-frontend-scene",
+        "tests/vulkan-frontend-shader-token"
+      ],
+      "cases": 13,
+      "x64_asan": "passed",
+      "x86_asan": "passed",
+      "baseline": "All13 cases fail; one terrain case concerns an unbuilt legacy source.",
+      "fixture_limits": "Production functions or verbatim production blocks compile against stubbed engine/GPU/token/model services; this is not a full model-file/caller/hardware proof."
+    },
+    "limits": "Production functions/blocks compile with documented service stubs. One frontend terrain case is unbuilt; these tests do not prove all caller, file or GPU states."
+  },
+  "current_shader_regeneration": {
+    "changed_model_refraction_modules": 74,
+    "changed_fog_fragment_modules": 29,
+    "unique_changed_modules": 103,
+    "total_modules": 194,
+    "unrelated_modules_unchanged": 91,
+    "binding_symbols_unchanged": true,
+    "validation_target": "vulkan1.0",
+    "compiler_sha256": "7AE115BB31F7E4FFB2862D40AF05637DDE9DB2A770AEBEB8366063C174C18430",
+    "validator_sha256": "D1930E9772E19D0A7393A6C17CBBFC09959AFA8AD87E37300391A4631E9AAB68",
+    "shared_fog_layout_sha256": "8C76D0C1309E0DE940AF403430BB821867CC05D47CA953F33BDF3082F5EEDDCE",
+    "generated_source_after_sha256": "397D2EDCAFF820A020D0DE499880BBEC6D568CA75ACC1F4B988C18C3E85BFE66",
+    "binding_sha256": "6E04A5FF07181D9E8A050BEFE5541975A515C20C40C4A78D192DD6A563F461E1",
+    "fog_module_names": [
+      "frag_surface_sprites_fog",
+      "frag_fog_only_exp",
+      "frag_tx0_ident1_fog",
+      "frag_tx0_fixed_fog",
+      "frag_tx1_ident1_fog",
+      "frag_tx1_fixed_fog",
+      "frag_ghoul2_tx0_ident1_fog",
+      "frag_ghoul2_tx0_fixed_fog",
+      "frag_ghoul2_tx1_ident1_fog",
+      "frag_ghoul2_tx1_fixed_fog",
+      "frag_mdv_tx0_ident1_fog",
+      "frag_mdv_tx0_fixed_fog",
+      "frag_mdv_tx1_ident1_fog",
+      "frag_mdv_tx1_fixed_fog",
+      "frag_tx0_fog",
+      "frag_tx1_fog",
+      "frag_tx1_cl_fog",
+      "frag_tx2_fog",
+      "frag_tx2_cl_fog",
+      "frag_ghoul2_tx0_fog",
+      "frag_ghoul2_tx1_fog",
+      "frag_ghoul2_tx1_cl_fog",
+      "frag_ghoul2_tx2_fog",
+      "frag_ghoul2_tx2_cl_fog",
+      "frag_mdv_tx0_fog",
+      "frag_mdv_tx1_fog",
+      "frag_mdv_tx1_cl_fog",
+      "frag_mdv_tx2_fog",
+      "frag_mdv_tx2_cl_fog"
+    ],
+    "artifacts": [
+      "vulkan-model-shaders-20261111/result.json",
+      "vulkan-fog-shaders-20261111/result.json"
+    ],
+    "limits": "Structural SPIR-V validation and unchanged-array checks do not establish every material visual state."
+  },
+  "current_integration": {
+    "checkpoint": "0fcdbdd0d7a5f0dbb5998a96d78ce2ea8ab1b59d",
+    "windows_builds": {
+      "status": "passed",
+      "summary": "Full ordinary Windows x64/x86 builds passed at 0fcdbdd.",
+      "artifacts": [
+        "vulkan-audit-x64-build-0fcdbdd.log",
+        "vulkan-audit-x86-build-0fcdbdd.log"
+      ]
+    },
+    "gpu_matrix": {
+      "status": "passed-with-explicit-multiple-build-provenance",
+      "summary": "Actual final 0fcdbdd direct and FBO/HDR/MSAA cases passed all strict lifecycle checks (six map loads, 12 captures, video restarts, owned minimize/restore, exit 0, zero retained resources and no validation messages). Five additional configurations passed on the immutable scissor candidate; they are separate versioned evidence, not six cases on identical final binaries.",
+      "provenance_artifact": "vulkan-0fcdbdd-validation-provenance.json",
+      "candidate": {
+        "EngineCode": "003609fc799905a972d8fa00b8c157ca68a4c827",
+        "RendererCode": "003609f plus recorded three-file scissor fix",
+        "SourceDiffSHA256": "0915C7036B87ED0D3F7D410FAD48A5E88763E48153D7363332F4DBDF96E202E9",
+        "ArtifactManifest": "vulkan-scissor-candidate-bin/candidate-manifest.json",
+        "Cases": [
+          "fbo-hdr-msaa",
+          "legacy",
+          "texture16",
+          "filters-shadows",
+          "stress"
+        ],
+        "Results": "expanded-vulkan-validation-scissor-candidate-1/results.json"
+      },
+      "final": {
+        "Code": "0fcdbdd0d7a5f0dbb5998a96d78ce2ea8ab1b59d",
+        "Cases": [
+          "direct",
+          "fbo-hdr-msaa"
+        ],
+        "Results": "expanded-vulkan-validation-0fcdbdd-final-1/results.json",
+        "Runtime": [
+          {
+            "Path": "eternaljk.x86_64.exe",
+            "Exists": true,
+            "SHA256": "20D40AE438964F9CEADA559ED2756F60D3D179971DAED5CED9C9E1D79C3BCF5F"
+          },
+          {
+            "Path": "rd-vulkan_x86_64.dll",
+            "Exists": true,
+            "SHA256": "4562CA07900EF5E1B2B6BA5CC11C391272D8918E96E436333AE6112F00A056EF"
+          },
+          {
+            "Path": "cgamex86_64.dll",
+            "Exists": true,
+            "SHA256": "BE67F27EEF6F068014DEF037BF757513C81F2782280C68A41326015A3E03EEDC"
+          },
+          {
+            "Path": "uix86_64.dll",
+            "Exists": true,
+            "SHA256": "9BBCCC2B8673778BFD8A6694C0C1FE40BE23A9DF74F125D60873758F147C684E"
+          },
+          {
+            "Path": "jampgamex86_64.dll",
+            "Exists": true,
+            "SHA256": "AEEE3715BF44904E5F2D9570D0321066C3E1C43109CE68BF2A7800476567A4FE"
+          }
+        ],
+        "ChangeBeyondCandidate": "Bloom fog descriptor restoration and version stamp; direct/FBO targeted validation repeated on actual final build"
+      },
+      "candidate_passed_cases": 5,
+      "candidate_maps": 20,
+      "candidate_captures": 44,
+      "candidate_stress_seconds": 113.82,
+      "final_passed_cases": 2,
+      "final_maps": 6,
+      "final_captures": 12,
+      "limits": "Screenshot capture/validation is separate from exhaustive visual review. Durations are lifecycle/stress coverage, not FPS measurements."
+    },
+    "ci": {
+      "run_id": 43065663481,
+      "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/43065663481",
+      "status": "passed",
+      "summary": "CI run 43065663481 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 64/64 suites without skips; macOS/Ubuntu each passed 62/62 applicable suites plus two explicit Windows-only skips (sjk-chat and updater).",
+      "jobs": [
+        {
+          "id": 130679811216,
+          "name": "native-client-linux",
+          "status": "success",
+          "linked_target": "eternaljk.x86_64"
+        },
+        {
+          "id": 130679811434,
+          "name": "native-vulkan (windows-2022)",
+          "status": "success",
+          "passed_suites": 64,
+          "skipped_suites": []
+        },
+        {
+          "id": 130679811658,
+          "name": "native-vulkan (macos-15)",
+          "status": "success",
+          "passed_suites": 62,
+          "skipped_suites": [
+            "sjk-chat",
+            "updater"
+          ]
+        },
+        {
+          "id": 130679811798,
+          "name": "native-vulkan (ubuntu-24.04)",
+          "status": "success",
+          "passed_suites": 62,
+          "skipped_suites": [
+            "sjk-chat",
+            "updater"
+          ]
+        }
+      ]
+    },
+    "deployment": {
+      "code": "0fcdbdd0d7a5f0dbb5998a96d78ce2ea8ab1b59d",
+      "status": "installed-and-independently-verified",
+      "target": "E:/Games/testClient/GameData",
+      "launchers": [
+        "Play EJK Dev.cmd",
+        "Play EJK Dev - OpenGL.cmd"
+      ],
+      "installed_files_verified": 54,
+      "protected_configurations_unchanged": 8,
+      "backup": "testclient-deploy-vulkan-0fcdbdd/backup-20261111-171822",
+      "artifacts": [
+        "testclient-deploy-vulkan-0fcdbdd/deployment-receipt.json",
+        "testclient-deploy-vulkan-0fcdbdd/post-deploy-verification.json",
+        "testclient-deploy-vulkan-0fcdbdd/manifest.json"
+      ],
+      "summary": "Validated 0fcdbdd is installed at `E:/Games/testClient/GameData`: launch `Play EJK Dev.cmd` for native Vulkan or `Play EJK Dev - OpenGL.cmd`. All 54 destination SHA256 checks passed, eight existing configuration hashes are unchanged, and overwritten files were backed up (`backup-20261111-171822`)."
+    },
+    "whole_suite": {
+      "checkpoint": "003609fc799905a972d8fa00b8c157ca68a4c827",
+      "status": "passed",
+      "discovered": 64,
+      "passed": 64,
+      "skipped": 0,
+      "artifact": "vulkan-audit-all-regressions-final-1/results.json"
+    },
+    "static_analysis": {
+      "contexts": 55,
+      "analyzed": 55,
+      "parse_errors": 0,
+      "diagnostic_contexts": 9,
+      "artifact": "vulkan-audit-analysis-0fcdbdd/results.json",
+      "status": "completed with diagnostics; original finding triage unchanged",
+      "diagnostic_contexts_detail": [
+        {
+          "path": "codemp/rd-vulkan/G2_API.cpp",
+          "diagnostics": [
+            "codemp\\rd-vulkan\\G2_API.cpp:926:10: warning: Forming reference to null pointer [clang-analyzer-core.NonNullParamChecker]",
+            "codemp\\rd-vulkan\\G2_API.cpp:1275:26: warning: Access to field 'mSkelFrameNum' results in a dereference of a null pointer (loaded from variable 'ghlInfo') [clang-analyzer-core.NullDereference]",
+            "codemp\\rd-vulkan\\G2_API.cpp:1512:26: warning: Access to field 'mSkelFrameNum' results in a dereference of a null pointer (loaded from variable 'ghlInfo') [clang-analyzer-core.NullDereference]"
+          ]
+        },
+        {
+          "path": "codemp/rd-vulkan/tr_backend.cpp",
+          "diagnostics": [
+            "codemp\\rd-vulkan\\tr_backend.cpp:301:70: warning: Access to field 'sort' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]",
+            "codemp\\rd-vulkan\\tr_backend.cpp:306:20: warning: Access to field 'sort' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]",
+            "codemp\\rd-vulkan\\tr_backend.cpp:374:6: warning: Access to field 'useDistortion' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]"
+          ]
+        },
+        {
+          "path": "codemp/rd-vulkan/tr_bsp.cpp",
+          "diagnostics": [
+            "codemp\\rd-vulkan\\tr_bsp.cpp:1360:9: warning: Access to field 'height' results in a dereference of a null pointer (loaded from variable 'grid2') [clang-analyzer-core.NullDereference]",
+            "codemp\\rd-vulkan\\tr_bsp.cpp:1417:10: warning: Access to field 'width' results in a dereference of a null pointer (loaded from variable 'grid2') [clang-analyzer-core.NullDereference]",
+            "codemp\\rd-vulkan\\tr_bsp.cpp:1723:15: warning: Access to field 'type' results in a dereference of a null pointer (loaded from variable 'model') [clang-analyzer-core.NullDereference]"
+          ]
+        },
+        {
+          "path": "codemp/rd-vulkan/tr_ghoul2.cpp",
+          "diagnostics": [
+            "codemp\\rd-vulkan\\tr_ghoul2.cpp:3100:43: warning: Access to field 'ofsVerts' results in a dereference of a null pointer (loaded from variable 'surface') [clang-analyzer-core.NullDereference]"
+          ]
+        },
+        {
+          "path": "codemp/rd-vulkan/tr_scene.cpp",
+          "diagnostics": [
+            "codemp\\rd-vulkan\\tr_scene.cpp:620:34: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+          ]
+        },
+        {
+          "path": "codemp/rd-vulkan/tr_shade_calc.cpp",
+          "diagnostics": [
+            "codemp\\rd-vulkan\\tr_shade_calc.cpp:732:14: warning: Assigned value is garbage or undefined [clang-analyzer-core.uninitialized.Assign]",
+            "codemp\\rd-vulkan\\tr_shade_calc.cpp:803:13: warning: Assigned value is garbage or undefined [clang-analyzer-core.uninitialized.Assign]",
+            "codemp\\rd-vulkan\\tr_shade_calc.cpp:908:19: warning: 1st function call argument is an uninitialized value [clang-analyzer-core.CallAndMessage]",
+            "codemp\\rd-vulkan\\tr_shade_calc.cpp:1225:20: warning: Access to field 'ambientLightInt' results in a dereference of a null pointer (loaded from variable 'ent') [clang-analyzer-core.NullDereference]"
+          ]
+        },
+        {
+          "path": "codemp/rd-vulkan/tr_world.cpp",
+          "diagnostics": [
+            "codemp\\rd-vulkan\\tr_world.cpp:1394:10: warning: Access to field 'novis' results in a dereference of a null pointer (loaded from field 'world') [clang-analyzer-core.NullDereference]"
+          ]
+        },
+        {
+          "path": "codemp/rd-vulkan/vk_shade_geometry.cpp",
+          "diagnostics": [
+            "codemp\\rd-vulkan\\vk_shade_geometry.cpp:1559:7: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+            "codemp\\rd-vulkan\\vk_shade_geometry.cpp:2495:47: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+          ]
+        },
+        {
+          "path": "codemp/rd-vulkan/vk_vbo.cpp",
+          "diagnostics": [
+            "codemp\\rd-vulkan\\vk_vbo.cpp:1264:27: warning: Access to field 'numVerts' results in a dereference of a null pointer (loaded from variable 'goreSurface') [clang-analyzer-core.NullDereference]"
+          ]
+        }
+      ]
+    }
+  },
+  "later_followups": [
+    {
+      "checkpoint": "81b10be3490a2f08884110717583aaa6e0873e28",
+      "ledger": "tests/vulkan-audit/followup-81b10be.json",
+      "note": "This file preserves 0fcdbdd history; later verification status lives in the versioned follow-up ledger."
+    },
+    {
+      "checkpoint": "481800e92eeec4b1bdfd2500f63e46949769c30b",
+      "ledger": "tests/vulkan-audit/followup-481800e.json",
+      "note": "Versioned final follow-up; earlier checkpoint histories and source manifests are preserved."
+    },
+    {
+      "checkpoint": "7bd347034640286a2c1f6720dbd4f3e07049c9a6",
+      "ledger": "tests/vulkan-audit/followup-7bd3470.json",
+      "note": "Versioned presentation/engine-cleanup follow-up; previous histories and manifests preserved."
+    },
+    {
+      "checkpoint": "750ff044a1d9f90a623a73d5e674dae43a38e21e",
+      "ledger": "tests/vulkan-audit/followup-750ff04.json",
+      "note": "Versioned narrow descriptor lifecycle follow-up; old failures/manifests preserved."
+    }
+  ]
+}

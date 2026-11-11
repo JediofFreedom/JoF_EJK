@@ -155,6 +155,9 @@ if(BuildMPRend2)
 	add_subdirectory("${MPDir}/rd-rend2")
 endif(BuildMPRend2)
 
+if(BuildMPRdVulkan)
+	add_subdirectory("${MPDir}/rd-vulkan")
+endif()
 
 #    Common things between Engine and Dedicated Server
 if(BuildMPEngine OR BuildMPDed)
@@ -438,6 +441,8 @@ if(BuildMPEngine OR BuildMPDed)
 		"${MPDir}/server/sv_game.cpp"
 		"${MPDir}/server/sv_init.cpp"
 		"${MPDir}/server/sv_main.cpp"
+		"${MPDir}/server/sv_runtime_profile.cpp"
+		"${MPDir}/server/sv_runtime_profile.h"
 		"${MPDir}/server/sv_net_chan.cpp"
 		"${MPDir}/server/sv_snapshot.cpp"
 		"${MPDir}/server/sv_world.cpp"
@@ -470,6 +475,9 @@ if(BuildMPEngine)
 	set(MPEngineIncludeDirectories ${MPEngineAndDedIncludeDirectories})
 	set(MPEngineFiles ${MPEngineAndDedFiles})
 	set(MPEngineDefines ${MPSharedDefines})
+	if(BuildMPRdVulkan OR DEFINED EXTERNAL_RD_VULKAN_MODULE)
+		list(APPEND MPEngineDefines EJK_DEFAULT_VULKAN)
+	endif()
 
 	list(APPEND MPEngineIncludeDirectories ${CMAKE_CURRENT_BINARY_DIR}/versionfile) # Make sure the generated jofversion.h is found by all subsequent includes
 
@@ -477,10 +485,8 @@ if(BuildMPEngine)
 	#    Dependencies
 
 	if (NOT WIN32)
-		# OpenGL
-		find_package(OpenGL REQUIRED)
-		set(MPEngineIncludeDirectories ${MPEngineIncludeDirectories} ${OPENGL_INCLUDE_DIR})
-		set(MPEngineLibraries ${MPEngineLibraries} ${OPENGL_LIBRARIES})
+		# Renderer modules own their graphics API dependencies. The client uses
+		# SDL callbacks, so a Vulkan-only client does not require/link OpenGL.
 		
 		# Discord Rich Presence
 		if(BuildDiscordRichPresence)
@@ -771,10 +777,8 @@ if(BuildMPEngine)
 		endif()
 	endif(MakeApplicationBundles)
 
-	# Sunny's prebuilt Vulkan renderer (rd-vulkan) and, on macOS, the MoltenVK
-	# that backs it.  Neither is built from source here -- this repo carries only
-	# the Vulkan headers the engine itself needs -- so CI fetches them and hands
-	# us the paths.  See .github/workflows/build.yml.
+	# An external renderer remains available for builds that explicitly disable
+	# the source target. MoltenVK supplies the Vulkan runtime on macOS.
 	#
 	# Declared after the engine install above so these land in a bundle that
 	# already exists rather than relying on install-order merge behaviour.
@@ -791,7 +795,7 @@ if(BuildMPEngine)
 		set(MoltenVKDestination "${JKAInstallDir}")
 	endif()
 
-	if(DEFINED EXTERNAL_RD_VULKAN_MODULE)
+	if(DEFINED EXTERNAL_RD_VULKAN_MODULE AND NOT BuildMPRdVulkan)
 		if(NOT EXISTS "${EXTERNAL_RD_VULKAN_MODULE}")
 			message(FATAL_ERROR
 				"EXTERNAL_RD_VULKAN_MODULE does not exist: ${EXTERNAL_RD_VULKAN_MODULE}")
@@ -822,7 +826,14 @@ if(BuildMPEngine)
 
 	set_target_properties(${MPEngine} PROPERTIES INCLUDE_DIRECTORIES "${MPEngineIncludeDirectories}")
 	set_target_properties(${MPEngine} PROPERTIES PROJECT_LABEL "MP Client")
-	target_link_libraries(${MPEngine} PRIVATE ${MPEngineLibraries} ${MPCGame} ${MPUI} ${MPVanillaRenderer})
+	target_link_libraries(${MPEngine} PRIVATE ${MPEngineLibraries})
+	# Game/UI modules and renderers are loaded at runtime. Build enabled modules
+	# with the client without adding link dependencies on disabled modules.
+	foreach(ClientModule ${MPCGame} ${MPUI} ${MPVanillaRenderer} ${MPRend2} ${MPVulkanRenderer})
+		if(TARGET ${ClientModule})
+			add_dependencies(${MPEngine} ${ClientModule})
+		endif()
+	endforeach()
 
 	# Ensure asset pk3s are built with the client and copied next to the exe
 	add_dependencies(${MPEngine} Assets)
@@ -996,3 +1007,11 @@ install(FILES
 		${CMAKE_CURRENT_BINARY_DIR}/jofclient-assets.pk3
 	DESTINATION "${JKAInstallDir}/EternalJK"
 	COMPONENT ${JKAMPCoreComponent})
+
+if(UseInternalJPEG AND UseTurboJPEG)
+	install(FILES
+		${CMAKE_SOURCE_DIR}/lib/jpeg-turbo/LICENSE.md
+		${CMAKE_SOURCE_DIR}/lib/jpeg-turbo/README.ijg
+		DESTINATION "${JKAInstallDir}/licenses/libjpeg-turbo"
+		COMPONENT ${JKAMPCoreComponent})
+endif()

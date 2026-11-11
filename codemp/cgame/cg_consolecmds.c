@@ -26,6 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // executed by a key binding
 
 #include "cg_local.h"
+#include "cg_runtime_profile.h"
 #include "game/bg_saga.h"
 #include "ui/ui_shared.h"
 
@@ -2060,7 +2061,7 @@ static void CG_Cosmetics_Wear_f(const char *category)
 		Com_Printf("^5Available %s:\n", category);
 		for (i = 0; i < total; i++) {
 			Com_Printf("%2d %s %s%s\n", i, (worn == &items[i]) ? "^2[X]^7" : "[ ]", items[i].name,
-				items[i].handle ? "" : " ^3(Get from JoF Launcher or Cloud)^7");
+				CG_CosmeticModel(&items[i]) ? "" : " ^3(Get from JoF Launcher or Cloud)^7");
 		}
 		Com_Printf("Wear one with ^3cosmetics %s <num>^7, take it off with the same command.\n", category);
 		return;
@@ -2082,7 +2083,7 @@ static void CG_Cosmetics_Wear_f(const char *category)
 		}
 		item = &items[i];
 	}
-	if ( !item->handle ) {
+	if ( !CG_CosmeticModel(item) ) {
 		Com_Printf( "Cosmetic '%s' is not installed. Get %s from JoF Launcher or Cloud.\\n",
 			item->name, !Q_stricmp(category, "hats") ? "hats" : "capes" );
 		return;
@@ -2906,6 +2907,8 @@ static void CG_ForceDestruction_f(void)
 }
 
 static consoleCommand_t	commands[] = {
+	{ "cg_runtimeProfileReset", CG_RuntimeProfileReset },
+	{ "cg_runtimeProfileReport", CG_RuntimeProfileReport },
 	{ "force_destruction", CG_ForceDestruction_f },
 	{ "+scores",					CG_ScoresDown_f },
 	{ "-scores",					CG_ScoresUp_f },

@@ -28,6 +28,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "client.h"
 #include "snd_mp3.h"					// only included directly by a few snd_xxxx.cpp files plus this one
+#include "snd_load_profile.h"
 #include "mp3code/mp3struct.h"	// keep this rather awful file secret from the rest of the program
 
 // expects data already loaded, filename arg is for error printing only
@@ -36,6 +37,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 //
 qboolean MP3_IsValid( const char *psLocalFilename, void *pvData, int iDataLen, qboolean bStereoDesired /* = qfalse */)
 {
+	SoundLoadProfile::Scope profile(SoundLoadProfile::InspectMP3);
 	char *psError = C_MP3_IsValid(pvData, iDataLen, bStereoDesired);
 
 	if (psError)
@@ -56,6 +58,7 @@ int MP3_GetUnpackedSize( const char *psLocalFilename, void *pvData, int iDataLen
 						, qboolean bStereoDesired /* = qfalse */
 						)
 {
+	SoundLoadProfile::Scope profile(SoundLoadProfile::InspectMP3);
 	int	iUnpackedSize = 0;
 
 	// always do this now that we have fast-unpack code for measuring output size... (much safer than relying on tags that may have been edited, or if MP3 has been re-saved with same tag)
@@ -82,6 +85,7 @@ int MP3_GetUnpackedSize( const char *psLocalFilename, void *pvData, int iDataLen
 //
 int MP3_UnpackRawPCM( const char *psLocalFilename, void *pvData, int iDataLen, byte *pbUnpackBuffer, qboolean bStereoDesired /* = qfalse */)
 {
+	SoundLoadProfile::Scope profile(SoundLoadProfile::DecodeMP3);
 	int iUnpackedSize;
 	char *psError = C_MP3_UnpackRawPCM( pvData, iDataLen, &iUnpackedSize, pbUnpackBuffer, bStereoDesired);
 
@@ -258,6 +262,7 @@ qboolean MP3Stream_InitFromFile( sfx_t* sfx, byte *pbSrcData, int iSrcDatalen, c
 									int iMP3UnPackedSize, qboolean bStereoDesired /* = qfalse */
 								)
 {
+	SoundLoadProfile::Scope profile(SoundLoadProfile::StreamMP3);
 	// first, make a decision based on size here as to whether or not it's worth it because of MP3 buffer space
 	//	making small files much bigger (and therefore best left as WAV)...
 	//

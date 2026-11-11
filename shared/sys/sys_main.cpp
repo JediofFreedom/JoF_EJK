@@ -23,6 +23,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <cstdlib>
 #include <cstdarg>
 #include <cstdio>
+#include <vector>
 #include <sys/stat.h>
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -213,14 +214,24 @@ static void Sys_ErrorDialog( const char *error )
 	time_t rawtime;
 	char timeStr[32] = {}; // should really only reach ~19 chars
 	char crashLogPath[MAX_OSPATH];
+	// Portable installs can intentionally have no default home directory.
+	const char *crashLogDirectory = Cvar_VariableString( "fs_homepath" );
+	if ( !crashLogDirectory || !*crashLogDirectory )
+		crashLogDirectory = Sys_DefaultHomePath();
+	if ( !crashLogDirectory || !*crashLogDirectory )
+		crashLogDirectory = Sys_DefaultInstallPath();
+	if ( !crashLogDirectory || !*crashLogDirectory )
+		crashLogDirectory = Sys_Cwd();
+	if ( !crashLogDirectory || !*crashLogDirectory )
+		crashLogDirectory = ".";
 
 	time( &rawtime );
 	strftime( timeStr, sizeof( timeStr ), "%Y-%m-%d_%H-%M-%S", localtime( &rawtime ) ); // or gmtime
 	Com_sprintf( crashLogPath, sizeof( crashLogPath ),
 					"%s%ccrashlog-%s.txt",
-					Sys_DefaultHomePath(), PATH_SEP, timeStr );
+					crashLogDirectory, PATH_SEP, timeStr );
 
-	Sys_Mkdir( Sys_DefaultHomePath() );
+	Sys_Mkdir( crashLogDirectory );
 
 	FILE *fp = fopen( crashLogPath, "w" );
 	if ( fp )
@@ -746,7 +757,7 @@ static void IN_FrameLoop(void) {
 int main ( int argc, char* argv[] )
 {
 	int		i;
-	char	commandLine[ MAX_STRING_CHARS ] = { 0 };
+	std::vector<char> commandLine;
 
 	Sys_InstallCrashHandler();
 
@@ -778,17 +789,20 @@ int main ( int argc, char* argv[] )
 	{
 		const bool containsSpaces = (strchr(argv[i], ' ') != NULL);
 		if (containsSpaces)
-			Q_strcat( commandLine, sizeof( commandLine ), "\"" );
+			commandLine.push_back('"');
 
-		Q_strcat( commandLine, sizeof( commandLine ), argv[ i ] );
+		commandLine.insert(commandLine.end(), argv[i], argv[i] + strlen(argv[i]));
 
 		if (containsSpaces)
-			Q_strcat( commandLine, sizeof( commandLine ), "\"" );
+			commandLine.push_back('"');
 
-		Q_strcat( commandLine, sizeof( commandLine ), " " );
+		commandLine.push_back(' ');
 	}
 
-	Com_Init (commandLine);
+	commandLine.push_back('\0');
+	// Com_ParseCommandLine stores pointers into this mutable buffer. Keep its
+	// storage unchanged for the rest of main, including the no-argument case.
+	Com_Init (commandLine.data());
 
 	// Re-install: overlays/drivers loaded during Com_Init (Discord, Steam,
 	// GPU drivers) can replace the unhandled exception filter with their own.

@@ -30,13 +30,19 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
  *
  *****************************************************************************/
 
+#include <algorithm>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <new>
+#include <string>
 #include <thread>
 #include <vector>
 
 #include "qcommon/qcommon.h"
+#include "filesystem_archive_identity.h"
+#include "filesystem_loose_probe.h"
+#include "filesystem_pak_index.h"
 
 static std::mutex fs_listMutex;
 
@@ -208,7 +214,9 @@ typedef struct fileInPack_s {
 	struct	fileInPack_s*	next;		// next file in the hash
 } fileInPack_t;
 
+static MountedArchiveIdentities fsArchiveIdentities;
 typedef struct pack_s {
+	uint64_t sourceIdentity;
 	char			pakPathname[MAX_OSPATH];	// c:\jediacademy\gamedata\base
 	char			pakFilename[MAX_OSPATH];	// c:\jediacademy\gamedata\base\assets0.pk3
 	char			pakBasename[MAX_OSPATH];	// assets0
@@ -221,6 +229,11 @@ typedef struct pack_s {
 	int				hashSize;					// hash table size (power of 2)
 	fileInPack_t*	*hashTable;					// hash table
 	fileInPack_t*	buildBuffer;				// buffer with the filenames etc.
+	int				*nameIndex;				// file indices sorted by case-insensitive name
+	int				*checksumHeaders;		// feed followed by ordered nonempty-entry CRCs
+	int				numChecksumHeaders;
+	MountedArchiveIdentities::Stamp metadataStamp;
+	qboolean		metadataStampValid;
 } pack_t;
 
 typedef struct directory_s {
@@ -235,6 +248,64 @@ typedef struct searchpath_s {
 	pack_t		*pack;		// only one of pack / dir will be non NULL
 	directory_t	*dir;
 } searchpath_t;
+
+// This cache exists only inside a checksum-feed-only FS_Restart. Archive
+// handles and searchpath nodes always follow the ordinary shutdown/startup.
+class FSRestartMetadataCache {
+public:
+	static FSRestartMetadataCache *active;
+	static bool recordCatalogs;
+	explicit FSRestartMetadataCache(bool enabled) : previous(active), collecting(enabled) {
+		active = enabled ? this : NULL;
+	}
+	FSRestartMetadataCache(const FSRestartMetadataCache &) = delete;
+	FSRestartMetadataCache &operator=(const FSRestartMetadataCache &) = delete;
+	~FSRestartMetadataCache() {
+		active = previous;
+		for (pack_t *pack : packs) release(pack);
+	}
+	void prepare(searchpath_t *paths) {
+		size_t count = 0;
+		for (searchpath_t *path = paths; path; path = path->next) if (path->pack) ++count;
+		try { packs.reserve(count); }
+		catch (const std::bad_alloc &) { collecting = false; }
+	}
+	void finishCollecting() { collecting = false; }
+	bool retain(pack_t *pack) {
+		if (!collecting || !pack->metadataStampValid || !pack->checksumHeaders) return false;
+		// prepare() reserved one slot for every mounted pack before any free.
+		packs.push_back(pack);
+		return true;
+	}
+	pack_t *take(const char *path, const MountedArchiveIdentities::Stamp &before, unsigned long count) {
+		for (pack_t *&pack : packs) {
+			if (!pack || strcmp(pack->pakFilename, path) || pack->metadataStamp != before ||
+				(unsigned long)pack->numfiles != count) continue;
+			MountedArchiveIdentities::Stamp after;
+			if (!MountedArchiveIdentities::snapshot(path, 0, after) || after != before) return NULL;
+			pack_t *result = pack;
+			pack = NULL;
+			++reusedPaks;
+			reusedMembers += result->numfiles;
+			return result;
+		}
+		return NULL;
+	}
+	static void release(pack_t *pack) {
+		if (!pack) return;
+		if (pack->handle) unzClose(pack->handle);
+		Z_Free(pack->checksumHeaders);
+		Z_Free(pack->buildBuffer);
+		Z_Free(pack);
+	}
+	size_t reusedPaks = 0, reusedMembers = 0;
+private:
+	FSRestartMetadataCache *previous;
+	bool collecting;
+	std::vector<pack_t *> packs;
+};
+FSRestartMetadataCache *FSRestartMetadataCache::active = NULL;
+bool FSRestartMetadataCache::recordCatalogs = false;
 
 static char			fs_gamedir[MAX_OSPATH];	// this will be a single file name with no separators
 static cvar_t		*fs_debug;
@@ -265,6 +336,12 @@ static char			fs_cmdlineGame[MAX_QPATH];	// +set fs_game from the command line, 
 #endif
 static char			fs_gameModuleDir[MAX_QPATH];	// game folder the server game module was last loaded from
 static searchpath_t	*fs_searchpaths;
+static PakProviderIndex<searchpath_t> fs_pakLookupIndex;
+static cvar_t *fs_lookupIndex;
+static cvar_t *fs_restartCache;
+static cvar_t *fs_zipCatalogFast;
+static cvar_t *fs_metadataProbe;
+static std::string fs_restartConfiguration;
 static int			fs_readCount;			// total bytes read
 static int			fs_loadCount;			// total files read
 static int			fs_packFiles = 0;		// total number of files in packs
@@ -543,8 +620,8 @@ Qpath may have either forward or backwards slashes
 */
 char *FS_BuildOSPath( const char *qpath ) {
 	char	temp[MAX_OSPATH];
-	static char ospath[4][MAX_OSPATH];
-	static int toggle;
+	static thread_local char ospath[4][MAX_OSPATH];
+	static thread_local int toggle;
 
 	int nextToggle = (toggle + 1)&3;	// allows four returns without clash (increased from 2 during fs_copyfiles 2 enhancement)
 	toggle = nextToggle;
@@ -562,8 +639,10 @@ char *FS_BuildOSPath( const char *qpath ) {
 
 char *FS_BuildOSPath( const char *base, const char *game, const char *qpath ) {
 	char	temp[MAX_OSPATH];
-	static char ospath[4][MAX_OSPATH];
-	static int toggle;
+	// Background UI scans must not overwrite paths still used by file reads
+	// on the loading/render thread. Retain the four-result ring per thread.
+	static thread_local char ospath[4][MAX_OSPATH];
+	static thread_local int toggle;
 
 	int nextToggle = (toggle + 1)&3;	// allows four returns without clash (increased from 2 during fs_copyfiles 2 enhancement)
 	toggle = nextToggle;
@@ -586,6 +665,19 @@ FS_CreatePath
 Creates any directories needed to store the given filename
 ============
 */
+qboolean FS_GetWritePath(const char *qpath, char *destination, size_t size) {
+	if (!destination || !size) return qfalse;
+	destination[0] = 0;
+	FS_AssertInitialised();
+	if (!qpath || !qpath[0] || qpath[0] == '/' || qpath[0] == '\\' ||
+		strstr(qpath, "..") || strchr(qpath, ':')) return qfalse;
+	if (strlen(fs_homepath->string) + strlen(fs_gamedir) + strlen(qpath) + 3 > MAX_OSPATH) return qfalse;
+	const char *path = FS_BuildOSPath(fs_homepath->string, fs_gamedir, qpath);
+	if (strlen(path) >= size) return qfalse;
+	memcpy(destination, path, strlen(path) + 1);
+	return qtrue;
+}
+
 qboolean FS_CreatePath (char *OSPath) {
 	char	*ofs;
 	char	path[MAX_OSPATH];
@@ -1435,7 +1527,7 @@ separate file or a ZIP file.
 */
 extern qboolean		com_fullyInitialized;
 
-long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean uniqueFILE ) {
+static long FS_FOpenFileReadInternal( const char *filename, fileHandle_t *file, qboolean uniqueFILE, fsReadFileIdentity_t *identity, qboolean markReferenced, qboolean pathsLocked = qfalse ) {
 	searchpath_t	*search;
 	char			*netpath;
 	pack_t			*pak;
@@ -1446,14 +1538,17 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 	//void			*temp;
 	int				l;
 	bool			isUserConfig = false;
+	long			filenameHash;
 
 	hash = 0;
 
 	FS_AssertInitialised();
 
-	if ( file == NULL ) {
-		Com_Error( ERR_FATAL, "FS_FOpenFileRead: NULL 'file' parameter passed\n" );
-	}
+	// A null output requests metadata only, through the same search/pure rules.
+	// UI catalogues can check thousands of files without opening ZIP streams.
+	const bool queryOnly = file == NULL;
+	fileHandle_t queryHandle = 0;
+	if (queryOnly) file = &queryHandle;
 
 	if ( !filename ) {
 		Com_Error( ERR_FATAL, "FS_FOpenFileRead: NULL 'filename' parameter passed\n" );
@@ -1480,13 +1575,16 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 	}
 
 	isUserConfig = !Q_stricmp( filename, Q3CONFIG_AUTO ) || !Q_stricmp( filename, Q3CONFIG_CFG );
+	filenameHash = FS_HashFileName(filename, MAX_FILEHASH_SIZE * 2);
 
 	//
 	// search through the path, one element at a time
 	//
 
-	*file = FS_HandleForFile();
-	fsh[*file].handleFiles.unique = uniqueFILE;
+	if (!queryOnly) {
+		*file = FS_HandleForFile();
+		fsh[*file].handleFiles.unique = uniqueFILE;
+	}
 
 	// this new bool is in for an optimisation, if you (eg) opened a BSP file under fs_copyfiles==2,
 	//	then it triggered a copy operation to update your local HD version, then this will re-open the
@@ -1499,10 +1597,21 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 	{
 		bFasterToReOpenUsingNewLocalFile = qfalse;
 
-		for ( search = fs_searchpaths ; search ; search = search->next ) {
+		// Serialize publication only. Keep normal file I/O and fatal-error
+		// shutdown outside this lock; each cursor retains its index snapshot.
+		std::unique_lock<std::mutex> indexLock(fs_listMutex, std::defer_lock);
+		if (!pathsLocked) indexLock.lock();
+		const size_t previousIndexBuilds = fs_pakLookupIndex.buildCount();
+		auto readPaths = fs_pakLookupIndex.lookup(fs_searchpaths, filename, fs_lookupIndex && fs_lookupIndex->integer);
+		if (indexLock.owns_lock()) indexLock.unlock();
+		if (fs_pakLookupIndex.buildCount() != previousIndexBuilds && Cvar_VariableIntegerValue("cl_loadTimings"))
+			Com_Printf("LOADPROFILE filesystem provider index: %u members, %.2f MiB, %.2f ms\n",
+				(unsigned)fs_pakLookupIndex.memberCount(), fs_pakLookupIndex.memoryBytes() / (1024.0 * 1024.0),
+				fs_pakLookupIndex.buildMilliseconds());
+		for (; (search = readPaths.next()) != NULL;) {
 			//
 			if ( search->pack ) {
-				hash = FS_HashFileName(filename, search->pack->hashSize);
+				hash = filenameHash & (search->pack->hashSize - 1);
 			}
 			// is the element a pak file?
 			if ( search->pack && search->pack->hashTable[hash] ) {
@@ -1523,6 +1632,16 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 					// case and separator insensitive comparisons
 					if ( !FS_FilenameCompare( pakFile->name, filename ) ) {
 						// found it!
+						if (queryOnly) {
+							if (identity) {
+								identity->generation = pak->sourceIdentity;
+								identity->container = uint64_t(uint32_t(pak->checksum));
+								identity->position = uint64_t(pakFile->pos);
+								identity->size = uint64_t(pakFile->len);
+								identity->provider = pak->sourceIdentity ? 1 : 2;
+							}
+							if (!markReferenced) return pakFile->len;
+						}
 
 						// mark the pak as having been referenced and mark specifics on cgame and ui
 						// shaders, txt, arena files  by themselves do not count as a reference as
@@ -1569,9 +1688,10 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 							}
 						}
 
+						if (queryOnly) return pakFile->len;
 						if ( uniqueFILE ) {
 							// open a new file on the pakfile
-							fsh[*file].handleFiles.file.z = unzOpen (pak->pakFilename);
+							fsh[*file].handleFiles.file.z = unzReOpen64(pak->pakFilename, pak->handle);
 							if (fsh[*file].handleFiles.file.z == NULL) {
 								Com_Error (ERR_FATAL, "Couldn't open %s", pak->pakFilename);
 							}
@@ -1645,6 +1765,15 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 				dir = search->dir;
 
 				netpath = FS_BuildOSPath( dir->path, dir->gamedir, filename );
+				if (queryOnly) {
+					if (fs_metadataProbe && fs_metadataProbe->integer && FS_LooseFileDefinitelyMissing(netpath)) continue;
+					FILE *probe = fopen(netpath, "rb");
+					if (!probe) continue;
+					const long length = FS_fplength(probe);
+					fclose(probe);
+					if (identity && length >= 0) { identity->provider = 2; identity->size = uint64_t(length); }
+					return length;
+				}
 				fsh[*file].handleFiles.file.o = fopen (netpath, "rb");
 				if ( !fsh[*file].handleFiles.file.o ) {
 					continue;
@@ -1758,6 +1887,20 @@ long FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean unique
 #endif
 	*file = 0;
 	return -1;
+}
+
+long FS_FOpenFileRead(const char *filename, fileHandle_t *file, qboolean uniqueFILE) {
+	return FS_FOpenFileReadInternal(filename, file, uniqueFILE, NULL, qfalse);
+}
+
+qboolean FS_GetReadFileIdentity(const char *qpath, fsReadFileIdentity_t *identity, qboolean markReferenced) {
+	if (!identity || !qpath) return qfalse;
+	*identity = {};
+	const char *name = qpath;
+	for (const char *ch = qpath; *ch; ++ch) if (*ch == '/' || *ch == '\\') name = ch + 1;
+	if (!Q_stricmp(name, "identity.key")) return qfalse;
+	std::lock_guard<std::mutex> lock(fs_listMutex);
+	return FS_FOpenFileReadInternal(qpath, NULL, qfalse, identity, markReferenced, qtrue) >= 0 ? qtrue : qfalse;
 }
 
 // This is a bit of a hack but it is used for other OS'/arch to still be acceptable with pure servers.
@@ -2035,11 +2178,12 @@ int	FS_FileIsInPAK(const char *filename, int *pChecksum ) {
 	//
 	// search through the path, one element at a time
 	//
+	const long filenameHash = FS_HashFileName(filename, MAX_FILEHASH_SIZE * 2);
 
 	for ( search = fs_searchpaths ; search ; search = search->next ) {
 		//
 		if (search->pack) {
-			hash = FS_HashFileName(filename, search->pack->hashSize);
+			hash = filenameHash & (search->pack->hashSize - 1);
 		}
 		// is the element a pak file?
 		if ( search->pack && search->pack->hashTable[hash] ) {
@@ -2372,25 +2516,76 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 	int				fs_numHeaderLongs;
 	int				*fs_headerLongs;
 	char			*namePtr;
+	struct zipEntry_t {
+		std::string name;
+		unsigned long pos, len, crc;
+	};
+	std::vector<zipEntry_t> entries;
+	const bool fastCatalog = fs_zipCatalogFast && fs_zipCatalogFast->integer;
+	MountedArchiveIdentities::Stamp before;
+	const bool stamped = FSRestartMetadataCache::recordCatalogs &&
+		MountedArchiveIdentities::snapshot(zipfile, 0, before);
 
 	fs_numHeaderLongs = 0;
 
 	uf = unzOpen(zipfile);
+	if ( !uf ) {
+		return NULL;
+	}
 	err = unzGetGlobalInfo (uf,&gi);
 
-	if (err != UNZ_OK)
+	if (err != UNZ_OK) {
+		unzClose(uf);
 		return NULL;
+	}
+	if (stamped && FSRestartMetadataCache::active) {
+		pack = FSRestartMetadataCache::active->take(zipfile, before, gi.number_entry);
+		if (pack) {
+			pack->handle = uf;
+			pack->referenced = 0;
+			pack->pakPathname[0] = pack->pakGamename[0] = '\0';
+			Q_strncpyz(pack->pakBasename, basename, sizeof(pack->pakBasename));
+			if (strlen(pack->pakBasename) > 4 &&
+				!Q_stricmp(pack->pakBasename + strlen(pack->pakBasename) - 4, ".pk3"))
+				pack->pakBasename[strlen(pack->pakBasename) - 4] = '\0';
+			pack->checksumHeaders[0] = LittleLong(fs_checksumFeed);
+			pack->pure_checksum = LittleLong(Com_BlockChecksum(pack->checksumHeaders,
+				pack->numChecksumHeaders * sizeof(*pack->checksumHeaders)));
+			return pack;
+		}
+	}
+	// Both zone allocations and the public pack count use signed sizes.
+	if (gi.number_entry > (INT_MAX - sizeof(pack_t) -
+		2 * MAX_FILEHASH_SIZE * sizeof(fileInPack_t *)) / (sizeof(fileInPack_t) + sizeof(int))) {
+		unzClose(uf);
+		return NULL;
+	}
 
 	len = 0;
-	unzGoToFirstFile(uf);
+	entries.reserve(gi.number_entry);
+	err = fastCatalog ? unzGoToFirstFileInfo(uf, &file_info, filename_inzip, sizeof(filename_inzip)) : unzGoToFirstFile(uf);
 	for (i = 0; i < gi.number_entry; i++)
 	{
-		err = unzGetCurrentFileInfo(uf, &file_info, filename_inzip, sizeof(filename_inzip), NULL, 0, NULL, 0);
 		if (err != UNZ_OK) {
-			break;
+			unzClose(uf);
+			return NULL;
 		}
-		len += strlen(filename_inzip) + 1;
-		unzGoToNextFile(uf);
+		if (!fastCatalog)
+			err = unzGetCurrentFileInfo(uf, &file_info, filename_inzip, sizeof(filename_inzip), NULL, 0, NULL, 0);
+		if (err != UNZ_OK || file_info.size_filename >= sizeof(filename_inzip)) {
+			unzClose(uf);
+			return NULL;
+		}
+		const size_t nameBytes = strlen(filename_inzip) + 1;
+		if (nameBytes > INT_MAX - gi.number_entry * sizeof(fileInPack_t) - len) {
+			unzClose(uf);
+			return NULL;
+		}
+		// Keep metadata from this walk; rebuilding the index must not reread
+		// the entire central directory just to recover offsets and CRCs.
+		entries.push_back({filename_inzip, unzGetOffset(uf), file_info.uncompressed_size, file_info.crc});
+		len += nameBytes;
+		err = fastCatalog ? unzGoToNextFileInfo(uf, &file_info, filename_inzip, sizeof(filename_inzip)) : unzGoToNextFile(uf);
 	}
 
 	buildBuffer = (struct fileInPack_s *)Z_Malloc( (gi.number_entry * sizeof( fileInPack_t )) + len, TAG_FILESYS, qtrue );
@@ -2406,9 +2601,10 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 		}
 	}
 
-	pack = (pack_t *)Z_Malloc( sizeof( pack_t ) + i * sizeof(fileInPack_t *), TAG_FILESYS, qtrue );
+	pack = (pack_t *)Z_Malloc( sizeof( pack_t ) + i * sizeof(fileInPack_t *) + gi.number_entry * sizeof(int), TAG_FILESYS, qtrue );
 	pack->hashSize = i;
 	pack->hashTable = (fileInPack_t **) (((char *) pack) + sizeof( pack_t ));
+	pack->nameIndex = (int *)(pack->hashTable + pack->hashSize);
 	for(int j = 0; j < pack->hashSize; j++) {
 		pack->hashTable[j] = NULL;
 	}
@@ -2423,38 +2619,45 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 
 	pack->handle = uf;
 	pack->numfiles = gi.number_entry;
-	unzGoToFirstFile(uf);
 
 	for (i = 0; i < gi.number_entry; i++)
 	{
-		err = unzGetCurrentFileInfo(uf, &file_info, filename_inzip, sizeof(filename_inzip), NULL, 0, NULL, 0);
-		if (err != UNZ_OK) {
-			break;
+		const zipEntry_t &entry = entries[i];
+		if (entry.len > 0) {
+			fs_headerLongs[fs_numHeaderLongs++] = LittleLong(entry.crc);
 		}
-		if (file_info.uncompressed_size > 0) {
-			fs_headerLongs[fs_numHeaderLongs++] = LittleLong(file_info.crc);
-		}
-		// Q_strlwr( filename_inzip ); // Redundant? Hash is case insensitive, and we do a case insensitive compare when looking up files? + Files read from pk3s are always lowercase from this?
-		hash = FS_HashFileName(filename_inzip, pack->hashSize);
+		hash = FS_HashFileName(entry.name.c_str(), pack->hashSize);
 		buildBuffer[i].name = namePtr;
-		strcpy( buildBuffer[i].name, filename_inzip );
-		namePtr += strlen(filename_inzip) + 1;
+		memcpy( namePtr, entry.name.c_str(), entry.name.size() + 1 );
+		namePtr += entry.name.size() + 1;
 		// store the file position in the zip
-		buildBuffer[i].pos = unzGetOffset(uf);
-		buildBuffer[i].len = file_info.uncompressed_size;
+		buildBuffer[i].pos = entry.pos;
+		buildBuffer[i].len = entry.len;
 		buildBuffer[i].next = pack->hashTable[hash];
 		pack->hashTable[hash] = &buildBuffer[i];
-		unzGoToNextFile(uf);
+		pack->nameIndex[i] = i;
 	}
+	std::sort(pack->nameIndex, pack->nameIndex + pack->numfiles,
+		[buildBuffer](int a, int b) { return Q_stricmp(buildBuffer[a].name, buildBuffer[b].name) < 0; });
 
 	pack->checksum = Com_BlockChecksum( &fs_headerLongs[ 1 ], sizeof(*fs_headerLongs) * ( fs_numHeaderLongs - 1 ) );
 	pack->pure_checksum = Com_BlockChecksum( fs_headerLongs, sizeof(*fs_headerLongs) * fs_numHeaderLongs );
 	pack->checksum = LittleLong( pack->checksum );
 	pack->pure_checksum = LittleLong( pack->pure_checksum );
 
-	Z_Free(fs_headerLongs);
-
 	pack->buildBuffer = buildBuffer;
+	MountedArchiveIdentities::Stamp after;
+	if (stamped && MountedArchiveIdentities::snapshot(zipfile, 0, after) && before == after) {
+		pack->checksumHeaders = fs_headerLongs;
+		pack->numChecksumHeaders = fs_numHeaderLongs;
+		pack->metadataStamp = after;
+		pack->metadataStampValid = qtrue;
+		after[7] = uint32_t(pack->checksum);
+		pack->sourceIdentity = fsArchiveIdentities.identify(zipfile, after);
+	} else {
+		Z_Free(fs_headerLongs);
+		pack->sourceIdentity = fsArchiveIdentities.identify(zipfile, uint32_t(pack->checksum));
+	}
 	return pack;
 }
 
@@ -2468,9 +2671,10 @@ Frees a pak structure and releases all associated resources
 
 void FS_FreePak(pack_t *thepak)
 {
-	unzClose(thepak->handle);
-	Z_Free(thepak->buildBuffer);
-	Z_Free(thepak);
+	if (thepak->handle) unzClose(thepak->handle);
+	thepak->handle = NULL;
+	if (FSRestartMetadataCache::active && FSRestartMetadataCache::active->retain(thepak)) return;
+	FSRestartMetadataCache::release(thepak);
 }
 
 /*
@@ -2512,6 +2716,51 @@ DIRECTORY SCANNING FUNCTIONS
 
 #define	MAX_FOUND_FILES	0x1000
 
+// Per-list indices retain search-path order and the first spelling of each
+// name, without comparing every candidate with every file already found.
+struct fileListHash_t {
+	int heads[MAX_FOUND_FILES];
+	int next[MAX_FOUND_FILES];
+};
+
+static unsigned int FS_FileListHash( const char *name ) {
+	unsigned int hash = 2166136261u;
+	while ( *name ) {
+		unsigned char c = (unsigned char)*name++;
+		if ( c >= 'A' && c <= 'Z' ) {
+			c += 'a' - 'A';
+		}
+		hash = (hash ^ c) * 16777619u;
+	}
+	return hash & (MAX_FOUND_FILES - 1);
+}
+
+// A model/skin query should inspect that name range, not every entry in every
+// installed PK3. Restore ZIP order before listing so first-match priority and
+// truncation stay identical to the full scan. The immutable index lives with
+// its package; pure-server and search-path changes need no cache invalidation.
+static qboolean FS_FileListRange( const pack_t *pak, const char *path, int pathLength, std::vector<int> &matches ) {
+	matches.clear();
+	const int *begin = pak->nameIndex;
+	const int *end = pak->nameIndex + pak->numfiles;
+	const int *first = std::lower_bound(begin, end, path,
+		[pak, pathLength](int index, const char *prefix) {
+			return Q_stricmpn(pak->buildBuffer[index].name, prefix, pathLength) < 0;
+		});
+	const int *last = std::upper_bound(first, end, path,
+		[pak, pathLength](const char *prefix, int index) {
+			return Q_stricmpn(prefix, pak->buildBuffer[index].name, pathLength) < 0;
+		});
+	// Broad listings are cheaper in the original order than sorting most of
+	// a package back into that order. Keep the index for selective queries.
+	if (last - first > pak->numfiles / 2) {
+		return qfalse;
+	}
+	matches.assign(first, last);
+	std::sort(matches.begin(), matches.end());
+	return qtrue;
+}
+
 static int FS_ReturnPath( const char *zname, char *zpath, int *depth ) {
 	int len, at, newdep;
 
@@ -2540,18 +2789,21 @@ static int FS_ReturnPath( const char *zname, char *zpath, int *depth ) {
 FS_AddFileToList
 ==================
 */
-static int FS_AddFileToList( char *name, char *list[MAX_FOUND_FILES], int nfiles ) {
+static int FS_AddFileToList( char *name, char *list[MAX_FOUND_FILES], int nfiles, fileListHash_t &seen ) {
 	int		i;
 
 	if ( nfiles == MAX_FOUND_FILES - 1 ) {
 		return nfiles;
 	}
-	for ( i = 0 ; i < nfiles ; i++ ) {
+	const unsigned int hash = FS_FileListHash( name );
+	for ( i = seen.heads[hash]; i != -1; i = seen.next[i] ) {
 		if ( !Q_stricmp( name, list[i] ) ) {
 			return nfiles;		// allready in list
 		}
 	}
 	list[nfiles] = CopyString( name );
+	seen.next[nfiles] = seen.heads[hash];
+	seen.heads[hash] = nfiles;
 	nfiles++;
 
 	return nfiles;
@@ -2569,6 +2821,8 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 	int				nfiles;
 	char			**listCopy;
 	char			*list[MAX_FOUND_FILES];
+	fileListHash_t	seen;
+	std::vector<int> pakMatches;
 	searchpath_t	*search;
 	int				i;
 	int				pathLength;
@@ -2593,11 +2847,12 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 	std::lock_guard<std::mutex> lock(fs_listMutex);
 
 	pathLength = strlen( path );
-	if ( path[pathLength-1] == '\\' || path[pathLength-1] == '/' ) {
+	if ( pathLength && (path[pathLength-1] == '\\' || path[pathLength-1] == '/') ) {
 		pathLength--;
 	}
 	extensionLength = strlen( extension );
 	nfiles = 0;
+	memset( seen.heads, -1, sizeof(seen.heads) );
 	FS_ReturnPath(path, zpath, &pathDepth);
 
 	//
@@ -2616,25 +2871,26 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 			// look through all the pak file elements
 			pak = search->pack;
 			buildBuffer = pak->buildBuffer;
-			for (i = 0; i < pak->numfiles; i++) {
+			const bool indexed = !filter && pathLength > 0 && FS_FileListRange(pak, path, pathLength, pakMatches);
+			const int candidateCount = indexed ? (int)pakMatches.size() : pak->numfiles;
+			for (i = 0; i < candidateCount; i++) {
 				char	*name;
 				int		zpathLen, depth;
 
 				// check for directory match
-				name = buildBuffer[i].name;
+				name = buildBuffer[indexed ? pakMatches[i] : i].name;
 				//
 				if (filter) {
 					// case insensitive
 					if (!Com_FilterPath( filter, name, qfalse ))
 						continue;
 					// unique the match
-					nfiles = FS_AddFileToList( name, list, nfiles );
+					nfiles = FS_AddFileToList( name, list, nfiles, seen );
 				}
 				else {
 
-					zpathLen = FS_ReturnPath(name, zpath, &depth);
-
-					if ( (depth-pathDepth)>2 || pathLength > zpathLen || Q_stricmpn( name, path, pathLength ) ) {
+					// Reject unrelated assets before walking and copying their paths.
+					if ( Q_stricmpn( name, path, pathLength ) ) {
 						continue;
 					}
 
@@ -2647,13 +2903,17 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 					if ( Q_stricmp( name + length - extensionLength, extension ) ) {
 						continue;
 					}
+					zpathLen = FS_ReturnPath(name, zpath, &depth);
+					if ( (depth-pathDepth)>2 || pathLength > zpathLen ) {
+						continue;
+					}
 					// unique the match
 
 					temp = pathLength;
 					if (pathLength) {
 						temp++;		// include the '/'
 					}
-					nfiles = FS_AddFileToList( name + temp, list, nfiles );
+					nfiles = FS_AddFileToList( name + temp, list, nfiles, seen );
 				}
 			}
 		} else if (search->dir) { // scan for files in the filesystem
@@ -2676,7 +2936,7 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 				for ( i = 0 ; i < numSysFiles ; i++ ) {
 					// unique the match
 					name = sysFiles[i];
-					nfiles = FS_AddFileToList( name, list, nfiles );
+					nfiles = FS_AddFileToList( name, list, nfiles, seen );
 				}
 				Sys_FreeFileList( sysFiles );
 			}
@@ -3273,6 +3533,7 @@ then loads the zip headers
 */
 #define	MAX_PAKFILES	1024
 static void FS_AddGameDirectory( const char *path, const char *dir ) {
+	std::lock_guard<std::mutex> lock(fs_listMutex);
 	searchpath_t	*sp;
 	int				i;
 	searchpath_t	*search;
@@ -3291,6 +3552,7 @@ static void FS_AddGameDirectory( const char *path, const char *dir ) {
 		}
 	}
 
+	fs_pakLookupIndex.invalidate();
 	Q_strncpyz( fs_gamedir, dir, sizeof( fs_gamedir ) );
 
 	// find all pak files in this directory
@@ -3525,6 +3787,8 @@ void FS_Shutdown( qboolean closemfp ) {
 	int	i;
 
 	std::lock_guard<std::mutex> lock(fs_listMutex);
+	fs_pakLookupIndex.reset(); // Drop member pointers before any archive is freed.
+	if (FSRestartMetadataCache::active) FSRestartMetadataCache::active->prepare(fs_searchpaths);
 
 #if defined(_WIN32)
 	// Delete temporary files
@@ -3615,6 +3879,8 @@ NOTE TTimo: the reordering that happens here is not reflected in the cvars (\cva
 */
 static void FS_ReorderPurePaks()
 {
+	std::lock_guard<std::mutex> lock(fs_listMutex);
+	fs_pakLookupIndex.invalidate();
 	searchpath_t *s;
 	int i;
 	searchpath_t **p_insert_index, // for linked list reordering
@@ -3707,6 +3973,21 @@ qboolean FS_CmdlineGameModule( void ) {
 
 	@param gameName Name of the default folder (i.e. always BASEGAME = "base" in OpenJK)
 */
+static std::string FS_RestartConfiguration()
+{
+	const char *names[] = {"fs_basepath", "fs_homepath", "fs_cdpath", "fs_basegame",
+		"fs_globalcfg", "fs_dirbeforepak", "fs_portable", "fs_apppath"};
+	std::string configuration;
+	for (const char *name : names) {
+		configuration.append(Cvar_VariableString(name));
+		configuration.push_back('\0');
+	}
+	if (!Cvar_VariableIntegerValue("fs_globalcfg")) configuration.append(Cvar_VariableString("fs_game"));
+	configuration.push_back('\0');
+	configuration.append(FS_CmdlineGame());
+	return configuration;
+}
+
 void FS_Startup( const char *gameName ) {
 	const char *homePath;
 
@@ -3746,6 +4027,15 @@ void FS_Startup( const char *gameName ) {
 #endif
 
 	fs_dirbeforepak = Cvar_Get("fs_dirbeforepak", "0", CVAR_INIT|CVAR_PROTECTED, "Prioritize directories before paks if not pure" );
+	fs_lookupIndex = Cvar_Get("fs_lookupIndex", "1", CVAR_ARCHIVE, "Index mounted archive providers for file lookups (0 uses the linear resolver)");
+	Cvar_CheckRange(fs_lookupIndex, 0, 1, qtrue);
+	fs_restartCache = Cvar_Get("fs_restartCache", "1", CVAR_ARCHIVE, "Reuse unchanged archive catalogues during checksum-feed-only filesystem restarts");
+	fs_zipCatalogFast = Cvar_Get("fs_zipCatalogFast", "1", CVAR_ARCHIVE, "Read archive catalogue names and metadata in one pass (0 uses legacy navigation/GetInfo)");
+	fs_metadataProbe = Cvar_Get("fs_metadataProbe", "1", CVAR_ARCHIVE, "Use live native missing-file probes for Windows loose-file metadata lookups");
+	Cvar_CheckRange(fs_metadataProbe, 0, 1, qtrue);
+	Cvar_CheckRange(fs_zipCatalogFast, 0, 1, qtrue);
+	Cvar_CheckRange(fs_restartCache, 0, 1, qtrue);
+	FSRestartMetadataCache::recordCatalogs = fs_restartCache->integer != 0;
 
 #ifndef TOURNAMENT_CLIENT
 	fs_loadpakdlls = Cvar_Get("fs_loadpakdlls", "1", CVAR_NORESTART|CVAR_PROTECTED, "Toggle loading DLLs from pk3 files");
@@ -3837,6 +4127,7 @@ void FS_Startup( const char *gameName ) {
 		FS_Path_f();
 
 	fs_gamedirvar->modified = qfalse; // We just loaded, it's not modified
+	fs_restartConfiguration = FS_RestartConfiguration();
 
 	Com_Printf( "----------------------\n" );
 
@@ -4219,6 +4510,7 @@ is resetting due to a game change
 */
 static void FS_Restart_f(void);
 void FS_InitFilesystem( void ) {
+	Cvar_Get("fs_metadataQueries", "1", CVAR_ROM);
 	// allow command line parms to override our defaults
 	// we have to specially handle this, because normal command
 	// line variable sets don't happen until after the filesystem
@@ -4270,19 +4562,27 @@ void FS_InitFilesystem( void ) {
 FS_Restart
 ================
 */
-void FS_Restart( int checksumFeed ) {
+static void FS_Restart( int checksumFeed, qboolean reuseMetadata ) {
+	{
+		FSRestartMetadataCache cache(reuseMetadata != qfalse);
 
-	// free anything we currently have loaded
-	FS_Shutdown(qfalse);
+		// free anything we currently have loaded; only validated metadata can
+		// survive this scope. Handles, nodes and provider snapshots do not.
+		FS_Shutdown(qfalse);
+		cache.finishCollecting();
 
-	// set the checksum feed
-	fs_checksumFeed = checksumFeed;
+		// set the checksum feed
+		fs_checksumFeed = checksumFeed;
 
-	// clear pak references
-	FS_ClearPakReferences(0);
+		// clear pak references
+		FS_ClearPakReferences(0);
 
-	// try to start up normally
-	FS_Startup( BASEGAME );
+		// Rescan directories, remount in normal order and apply pure ordering.
+		FS_Startup( BASEGAME );
+		if (reuseMetadata && Cvar_VariableIntegerValue("cl_loadTimings"))
+			Com_Printf("LOADPROFILE filesystem restart cache: %u archives, %u members reused\n",
+				(unsigned)cache.reusedPaks, (unsigned)cache.reusedMembers);
+	} // Discard unused metadata before cfg checks or full fallback restarts.
 
 	// if we can't find default.cfg, assume that the paths are
 	// busted and error out now, rather than getting an unreadable
@@ -4315,6 +4615,10 @@ void FS_Restart( int checksumFeed ) {
 
 }
 
+void FS_Restart( int checksumFeed ) {
+	FS_Restart(checksumFeed, qfalse);
+}
+
 /*
 =================
 FS_ConditionalRestart
@@ -4323,7 +4627,10 @@ restart if necessary
 */
 qboolean FS_ConditionalRestart( int checksumFeed ) {
 	if( fs_gamedirvar->modified || checksumFeed != fs_checksumFeed ) {
-		FS_Restart( checksumFeed );
+		const qboolean reuseMetadata = fs_restartCache && fs_restartCache->integer &&
+			!fs_gamedirvar->modified && checksumFeed != fs_checksumFeed &&
+			fs_restartConfiguration == FS_RestartConfiguration() ? qtrue : qfalse;
+		FS_Restart( checksumFeed, reuseMetadata );
 		return qtrue;
 	}
 #if 0
@@ -4382,9 +4689,10 @@ int		FS_FOpenFileByMode( const char *qpath, fileHandle_t *f, fsMode_t mode ) {
 	}
 	if ( name && !Q_stricmp( name, "identity.key" ) ) {
 		Com_Printf( S_COLOR_YELLOW "FS_FOpenFileByMode: refused to open %s, a private key\n", qpath );
-		*f = 0;
+		if (f) *f = 0;
 		return -1;
 	}
+	if (!f && mode != FS_READ) return -1;
 
 	switch( mode ) {
 	case FS_READ:

@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // cg_view.c -- setup all the parameters (position, angle, etc)
 // for a 3D rendering
 #include "cg_local.h"
+#include "cg_runtime_profile.h"
 #include "game/bg_saga.h"
 
 #define MASK_CAMERACLIP (MASK_SOLID|CONTENTS_PLAYERCLIP)
@@ -150,8 +151,11 @@ void CG_TestModelPrevSkin_f (void) {
 static void CG_AddTestModel (void) {
 	int		i;
 
-	// re-register the model, because the level may have changed
-	cg.testModelEntity.hModel = trap->R_RegisterModel( cg.testModelName );
+	// BSP registration creates a distinct instance. Keep the one created by
+	// testmodel; CG_Init clears it on level/renderer restart. Ordinary models
+	// retain their existing per-frame registration behavior.
+	if (cg.testModelName[0] != '#')
+		cg.testModelEntity.hModel = trap->R_RegisterModel( cg.testModelName );
 	if (! cg.testModelEntity.hModel ) {
 		trap->Print ("Can't register model\n");
 		return;
@@ -2907,6 +2911,17 @@ static int cg_siegeClassIndex = -2;
 void	CG_AddAllStrafeTrails( void );
 #endif
 
+static void CG_EndRuntimeProfileFrame(cgProfileMark_t mark,int complete) {
+	int players = 0,entities = 0,i;
+	if (!mark.active) return;
+	if (complete && cg.snap) {
+		entities = cg.snap->numEntities;
+		for (i = 0; i < entities; ++i)
+			if (cg.snap->entities[i].eType == ET_PLAYER) ++players;
+	}
+	CG_RuntimeProfileFrameEnd(mark,complete,players,entities);
+}
+
 void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demoPlayback ) {
 	int		inwater;
 	int		fpSel;
@@ -2915,11 +2930,15 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	float mPitchOverride = 0.0f;
 	float mYawOverride = 0.0f;
 	static centity_t *veh = NULL;
+	cgProfileMark_t profileFrame,profileStage;
 #ifdef VEH_CONTROL_SCHEME_4
 	float mSensitivityOverride = 0.0f;
 	qboolean bUseFighterPitch = qfalse;
 	qboolean	isFighter = qfalse;
 #endif
+	profileFrame = CG_RuntimeProfileFrameBegin(cg_runtimeProfile.integer,
+		!cg.infoScreenText[0] && cg.snap && !(cg.snap->snapFlags & SNAPFLAG_NOT_ACTIVE));
+	profileStage = CG_ProfileBegin();
 
 	if (cgQueueLoad)
 	{ //do this before you start messing around with adding ghoul2 refents and crap
@@ -2958,16 +2977,21 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 
 	// update cvars
+	CG_ProfileEnd(CGP_SETUP,profileStage);
+	profileStage = CG_ProfileBegin();
 	CG_UpdateCvars();
 	CG_RadialMenuSync();
+	CG_ProfileEnd(CGP_CVARS,profileStage);
 
 	// if we are only updating the screen as a loading
 	// pacifier, don't even try to read snapshots
 	if ( cg.infoScreenText[0] != 0 ) {
 		CG_DrawInformation();
+		CG_EndRuntimeProfileFrame(profileFrame,0);
 		return;
 	}
 
+	profileStage = CG_ProfileBegin();
 	trap->FX_AdjustTime( cg.time );
 
 	CG_RunLightStyles();
@@ -2985,6 +3009,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		CG_UpdatePickupHandshake();
 
 	trap->ROFF_UpdateEntities();
+	CG_ProfileEnd(CGP_SNAPSHOTS,profileStage);
 
 	// if we haven't received any snapshots yet, all
 	// we can draw is the information screen
@@ -3014,9 +3039,11 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		}
 #endif
 		CG_DrawInformation();
+		CG_EndRuntimeProfileFrame(profileFrame,0);
 		return;
 	}
 
+	profileStage = CG_ProfileBegin();
 	//japro restrictions in racemode
 	if (cgs.serverMod == SVMOD_JAPRO) {
 		if (cg.snap && cg.snap->ps.stats[STAT_RACEMODE] && !(cg.predictedPlayerState.pm_flags & PMF_FOLLOW) && (cg.predictedPlayerState.persistant[PERS_TEAM] != TEAM_SPECTATOR)) {
@@ -3113,7 +3140,11 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	cg.clientFrame++;
 
 	// update cg.predictedPlayerState
+	CG_ProfileEnd(CGP_SETUP,profileStage);
+	profileStage = CG_ProfileBegin();
 	CG_PredictPlayerState();
+	CG_ProfileEnd(CGP_PREDICTION,profileStage);
+	profileStage = CG_ProfileBegin();
 
 	// decide on third person view
 	if (cgs.serverMod == SVMOD_JAPRO && cg.predictedPlayerState.pm_flags & PMF_FOLLOW && cg_specCameraMode.integer) {
@@ -3197,12 +3228,15 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 		trap->R_SetRangedFog(0.0f);
 	}
 
+	CG_ProfileEnd(CGP_VIEW,profileStage);
+	profileStage = CG_ProfileBegin();
 	cstr = CG_ConfigString(CS_SKYBOXORG);
 
 	if (cstr && cstr[0])
 	{ //we have a skyportal
 		CG_DrawSkyBoxPortal(cstr);
 	}
+	CG_ProfileEnd(CGP_SKYPORTAL,profileStage);
 
 	CG_CalcScreenEffects();
 
@@ -3213,7 +3247,10 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// build the render lists
 	if ( !cg.hyperspace ) {
+		profileStage = CG_ProfileBegin();
 		CG_AddPacketEntities(qfalse);			// adter calcViewValues, so predicted player state is correct
+		CG_ProfileEnd(CGP_ENTITIES,profileStage);
+		profileStage = CG_ProfileBegin();
 		CG_AddMarks();
 		CG_AddLocalEntities();
 #if _NEWTRAILS
@@ -3221,17 +3258,23 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 			CG_AddAllStrafeTrails();
 		}
 #endif
+		CG_ProfileEnd(CGP_LOCAL_EFFECTS,profileStage);
 	}
 
+	profileStage = CG_ProfileBegin();
 	CG_AddViewWeapon( &cg.predictedPlayerState );
+	CG_ProfileEnd(CGP_WEAPON,profileStage);
 
+	profileStage = CG_ProfileBegin();
 	if (!cg.hyperspace)
 	{
 		if (cg_noFX.integer != 5)
 			trap->FX_AddScheduledEffects(qfalse);
 	}
+	CG_ProfileEnd(CGP_SCHEDULED_FX,profileStage);
 
 	// add buffered sounds
+	profileStage = CG_ProfileBegin();
 	CG_PlayBufferedSounds();
 
 	// finish up the rest of the refdef
@@ -3269,6 +3312,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 
 	// update audio positions
 	trap->S_Respatialize( cg.snap->ps.clientNum, cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
+	CG_ProfileEnd(CGP_AUDIO,profileStage);
 
 	// make sure the lagometerSample and frame timing isn't done twice when in stereo
 	if ( stereoView != STEREO_RIGHT ) {
@@ -3297,10 +3341,15 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	}
 
 	// actually issue the rendering calls
+	profileStage = CG_ProfileBegin();
 	CG_DrawActive( stereoView );
+	CG_ProfileEnd(CGP_DRAW_ACTIVE,profileStage);
 
+	profileStage = CG_ProfileBegin();
 	CG_DrawAutoMap();
+	CG_ProfileEnd(CGP_AUTOMAP,profileStage);
 
+	profileStage = CG_ProfileBegin();
 	CG_DoAsync();
 
 	if (cgs.serverMod == SVMOD_JAPRO)
@@ -3309,5 +3358,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	if ( cg_stats.integer ) {
 		trap->Print( "cg.clientFrame:%i\n", cg.clientFrame );
 	}
+	CG_ProfileEnd(CGP_TAIL,profileStage);
+	CG_EndRuntimeProfileFrame(profileFrame,1);
 }
 

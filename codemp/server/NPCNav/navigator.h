@@ -78,6 +78,7 @@ CNode
 -------------------------
 */
 
+class NavFileReader;
 class CNode
 {
 	typedef	struct edge_s
@@ -121,7 +122,7 @@ public:
 	void RemoveFlag( int oldFlag )		{	m_flags &= ~oldFlag; }
 
 	int	Save( int numNodes, fileHandle_t file );
-	int Load( int numNodes, fileHandle_t file );
+	int Load( int numNodes, NavFileReader &reader );
 
 protected:
 
@@ -237,11 +238,6 @@ protected:
 #else
 	int		CollectNearestNodes( vec3_t origin, int radius, int maxCollect, int *nodeChain );
 #endif	//__NEWCOLLECT
-
-	char	GetChar( fileHandle_t file );
-	int		GetInt( fileHandle_t file );
-	float	GetFloat( fileHandle_t file );
-	long	GetLong( fileHandle_t file );
 
 	void	SetEdgeCost( int ID1, int ID2, int cost );
 	int		GetEdgeCost( CNode *first, CNode *second );

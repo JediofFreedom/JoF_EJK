@@ -632,6 +632,15 @@ fileHandle_t FS_SV_FOpenFileAppend( const char *filename );
 int		FS_SV_FOpenFileRead( const char *filename, fileHandle_t *fp );
 void	FS_SV_Rename( const char *from, const char *to, qboolean safe );
 long		FS_FOpenFileRead( const char *qpath, fileHandle_t *file, qboolean uniqueFILE );
+// Package identities persist across unchanged remounts of immutable archives.
+// Loose files must still be checked by content; missing paths have provider 0.
+struct fsReadFileIdentity_t {
+	uint64_t generation, container, position, size;
+	uint32_t provider, reserved; // 1: mounted package, 2: loose file
+};
+qboolean FS_GetReadFileIdentity(const char *qpath, fsReadFileIdentity_t *identity, qboolean markReferenced = qfalse);
+// Main-thread native-cache helper using the filesystem's actual write directory.
+qboolean FS_GetWritePath(const char *qpath, char *destination, size_t size);
 // if uniqueFILE is true, then a new FILE will be fopened even if the file
 // is found in an already open pak file.  If uniqueFILE is false, you must call
 // FS_FCloseFile instead of fclose, otherwise the pak FILE would be improperly closed

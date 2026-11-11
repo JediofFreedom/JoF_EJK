@@ -26,6 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "ghoul2/ghoul2_shared.h"
 #include "sv_gameapi.h"
+#include "sv_runtime_profile.h"
 
 serverStatic_t	svs;				// persistant server info
 server_t		sv;					// local server
@@ -1219,6 +1220,7 @@ void SV_Frame( int msec ) {
 	if ( SV_CheckPaused() ) {
 		return;
 	}
+	SVRuntimeProfileScope frameProfile(SVRuntimeStage::Frame);
 
 	// if it isn't time for the next frame, do nothing
 	if ( sv_fps->integer < 1 ) {
@@ -1308,7 +1310,10 @@ void SV_Frame( int msec ) {
 	SV_CheckTimeouts();
 
 	// send messages back to the clients
-	SV_SendClientMessages();
+	{
+		SVRuntimeProfileScope messagesProfile(SVRuntimeStage::ClientMessages);
+		SV_SendClientMessages();
+	}
 
 	SV_CheckCvars();
 
