@@ -25,6 +25,8 @@ foreach(signature "qboolean ValidateBoard(" "qboolean Board(" "qboolean Eject("
                   "static void Ghost(" "static void UnGhost(")
  extract("${VEHICLE_SOURCE}" "${signature}")
 endforeach()
+extract("${VEHICLE_SOURCE}" "void G_EjectDroidUnit(")
+extract("${VEHICLE_SOURCE}" "qboolean EjectAll(")
 file(STRINGS "${VEHICLE_SOURCE}" pilot REGEX "^void SetPilot\\(")
 file(STRINGS "${VEHICLE_SOURCE}" inhabited REGEX "^qboolean Inhabited\\(")
 string(REPLACE "\\;" ";" pilot "${pilot}")
@@ -67,7 +69,7 @@ endif()
 string(SUBSTRING "${tail}" 0 ${end} block)
 file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/seat_functions.h" "static void RunPassengerMoves(bgEntity_t *veh) { int i=0;\n${block}\n}\n")
 add_executable(vehicle_lifecycle "${ROOT}/tests/vehicle-lifecycle/check.cpp")
-target_compile_definitions(vehicle_lifecycle PRIVATE VEHICLE_SEAT_CONSUMERS)
+target_compile_definitions(vehicle_lifecycle PRIVATE VEHICLE_SEAT_CONSUMERS VEHICLE_EJECT_ALL)
 target_include_directories(vehicle_lifecycle PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 if(MSVC)
  target_compile_options(vehicle_lifecycle PRIVATE /EHsc)
@@ -75,6 +77,12 @@ endif()
 enable_testing()
 foreach(case map-trigger map-trigger-no-activator valid-board disconnected no-client freed
              solid-dead empty-after-pilot multiple blocked-eject failed-exit pilot)
+ add_test(NAME vehicle_${case} COMMAND vehicle_lifecycle ${case})
+endforeach()
+foreach(case all-empty all-pilot-only all-no-pilot all-dense all-sparse all-full all-full-old-pilot all-old-pilot
+ all-alias all-alias-only all-alias-refused all-alias-damage all-alias-refused-damage all-race-pilot all-race-damage all-race-passenger
+ all-solid-live all-solid-dead all-reject-callback all-inert-callback all-mutate-next
+ all-callback-free all-damage-free all-damage-detach-free all-damage-reuse all-droid all-droid-live)
  add_test(NAME vehicle_${case} COMMAND vehicle_lifecycle ${case})
 endforeach()
 foreach(case attach-full move-full attach-dense move-dense attach-sparse-1 move-sparse-1

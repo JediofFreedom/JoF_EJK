@@ -20,7 +20,8 @@ enum {qfalse,qtrue,MAX_CLIENTS=64,MAX_GENTITIES=128,CON_CONNECTED=2,MV_SWOOP=9,
  VEH_MOUNT_THROW_LEFT=-4,VEH_MOUNT_THROW_RIGHT=-5,VEH_BUCKING=1,
  SVF_NOCLIENT=2,EF_NODRAW=4,CHAN_AUTO=0,FL_INACTIVE=8,CS_SHADERSTATE=1,
  PM_DEAD=1,CLASS_VEHICLE=1,BSET_USE=0,CLASS_GONK=2,SCF_NO_RESPONSE=1,
- ORIGIN,NEGATIVE_Y,SETANIM_BOTH,BOTH_STAND2,SETANIM_FLAG_OVERRIDE=1,SETANIM_FLAG_HOLD=2};
+ ORIGIN,NEGATIVE_Y,SETANIM_BOTH,BOTH_STAND2,SETANIM_FLAG_OVERRIDE=1,SETANIM_FLAG_HOLD=2,
+ CHAN_VOICE=1,MOD_SUICIDE=1,FL_UNDYING=16};
 struct usercmd_t { int buttons,forwardmove,rightmove,upmove; };
 struct playerState_t { int m_iVehicleNum,generic1,loopSound,weapon,eFlags,pm_type,groundEntityNum,speed;
  vec3_t origin,viewangles; int legsTimer,torsoTimer; };
@@ -29,14 +30,14 @@ struct Client { playerState_t ps; struct {int raceMode,movementStyle,sessionTeam
 struct NPCInfo { int scriptFlags; };
 struct Vehicle_t;
 struct Entity { Client *client; NPCInfo *NPC; Vehicle_t *m_pVehicle;
- struct {int number,m_iVehicleNum,owner,loopSound,eFlags;} s;
+ struct {int number,m_iVehicleNum,owner,loopSound,eFlags;vec3_t origin;} s;
  struct {int ownerNum,contents,svFlags; vec3_t currentOrigin,currentAngles;} r;
  int health,inuse,spawnflags,fly_sound_debounce_time,flags;
  char *targetname,*targetShaderName,*targetShaderNewName,*dialogue,*behaviorSet[1];
  Entity *enemy; void (*use)(Entity *,Entity *,Entity *);
  playerState_t *playerState; void *ghoul2; vec3_t modelScale; int waypoint; };
 typedef Entity gentity_t; typedef Entity bgEntity_t; typedef Entity sharedEntity_t;
-struct vehicleInfo_t { int type,maxPassengers,numHands,hideRider,soundLoop,soundOn;
+struct vehicleInfo_t { int type,maxPassengers,numHands,hideRider,soundLoop,soundOn,killRiderOnDeath;
  qboolean (*ValidateBoard)(Vehicle_t *,bgEntity_t *);
  qboolean (*Board)(Vehicle_t *,bgEntity_t *);
  qboolean (*Eject)(Vehicle_t *,bgEntity_t *,qboolean);
@@ -66,7 +67,11 @@ static void BG_SetLegsAnimTimer(playerState_t *ps,int value) { ps->legsTimer=val
 static void BG_SetTorsoAnimTimer(playerState_t *ps,int value) { ps->torsoTimer=value; }
 static void G_Sound(Entity *,int,int) {}
 static int G_SoundIndex(const char *) { return 1; }
+#ifdef VEHICLE_EJECT_ALL
+void G_EjectDroidUnit(Vehicle_t *,qboolean);
+#else
 static void G_EjectDroidUnit(Vehicle_t *,qboolean) { CHECK(false); }
+#endif
 static bool allowExit=true;
 static int traceCalls,ejectCalls,boardCalls,saves,restores,responses;
 static qboolean VEH_TryEject(Vehicle_t *,Entity *,Entity *,int,float *out) { ++traceCalls; VectorSet(out,10,20,30); return allowExit; }
@@ -97,16 +102,51 @@ static struct Trap {
   for(int i=0;i<3;++i) matrix->origin[i]=origin[i]+float(37*(i+1));
  }
 } imports,*trap=&imports;
+#ifdef VEHICLE_EJECT_ALL
+static int attempted[MAX_GENTITIES],forced[MAX_GENTITIES],killed[MAX_GENTITIES],muted[MAX_GENTITIES];
+static int ejectOrder[VEH_MAX_PASSENGERS+2],orderCount,callbackMode,damageMutation;
+static bool nestedEjectDone;
+static void G_MuteSound(int entity,int channel) { CHECK(channel==CHAN_VOICE);++muted[entity]; }
+static void G_Damage(Entity *,Entity *,Entity *,const float *,const float *,int,int,int);
+#endif
 #include "vehicle_functions.h"
 #ifdef VEHICLE_SEAT_CONSUMERS
 #include "seat_functions.h"
 #endif
-static qboolean countedEject(Vehicle_t *veh,bgEntity_t *ent,qboolean force) { ++ejectCalls; return Eject(veh,ent,force); }
+static qboolean countedEject(Vehicle_t *veh,bgEntity_t *ent,qboolean force) {
+ ++ejectCalls;
+#ifdef VEHICLE_EJECT_ALL
+ const int entity=int(ent-g_entities);CHECK(entity>=0 && entity<MAX_GENTITIES);
+ ++attempted[entity];if(force) ++forced[entity];
+ CHECK(orderCount<VEH_MAX_PASSENGERS+2);ejectOrder[orderCount++]=entity;
+ if(callbackMode==1) return qfalse;
+ if(callbackMode==2) return qtrue;
+ if(callbackMode==3 && entity==0 && !nestedEjectDone) {
+  nestedEjectDone=true;CHECK(countedEject(veh,&g_entities[10],qtrue));
+ }
+ if(callbackMode==4) {const qboolean result=Eject(veh,ent,force);*ent={};return result;}
+#endif
+ return Eject(veh,ent,force);
+}
 static qboolean countedBoard(Vehicle_t *veh,bgEntity_t *ent) { ++boardCalls; return Board(veh,ent); }
 static qboolean ejectAll(Vehicle_t *) { CHECK(false); return qfalse; }
 static Vehicle_t vehicle;
 static vehicleInfo_t info;
 static Entity *parent,*trigger;
+#ifdef VEHICLE_EJECT_ALL
+static void G_Damage(Entity *entity,Entity *,Entity *,const float *,const float *,int damage,int,int mod) {
+ CHECK(damage==10000 && mod==MOD_SUICIDE && entity->inuse);
+ const int index=int(entity-g_entities);CHECK(index>=0 && index<MAX_GENTITIES);++killed[index];
+ if(index==0 && damageMutation) {
+  if(damageMutation!=1) CHECK(Eject(&vehicle,&g_entities[10],qtrue));
+  g_entities[10]={};
+  if(damageMutation==3) {
+   g_entities[10].s.number=10;g_entities[10].client=&clients[10];g_entities[10].inuse=true;
+   clients[10].ps.m_iVehicleNum=0;
+  }
+ }
+}
+#endif
 static void reset() {
  std::memset(g_entities,0,sizeof(g_entities)); std::memset(clients,0,sizeof(clients));
  std::memset(g_logicalents,0,sizeof(g_logicalents)); vehicle={};info={};npc={};
@@ -120,6 +160,11 @@ static void reset() {
  vehicle.m_pParentEntity=parent;vehicle.m_pVehicleInfo=&info;vehicle.m_EjectDir=VEH_EJECT_LEFT;
  parent->playerState=&parent->client->ps;parent->ghoul2=&vehicle;parent->waypoint=777;
  std::memset(linked,0,sizeof(linked));std::memset(updated,0,sizeof(updated));boltCalls=0;ejectDuringMove=false;
+#ifdef VEHICLE_EJECT_ALL
+ std::memset(attempted,0,sizeof(attempted));std::memset(forced,0,sizeof(forced));
+ std::memset(killed,0,sizeof(killed));std::memset(muted,0,sizeof(muted));
+ orderCount=callbackMode=damageMutation=0;nestedEjectDone=false;
+#endif
  info.type=VH_FIGHTER;info.maxPassengers=4;info.hideRider=true;
  info.ValidateBoard=ValidateBoard;info.Board=countedBoard;info.Eject=countedEject;info.EjectAll=ejectAll;
  info.SetPilot=SetPilot;info.Ghost=Ghost;info.UnGhost=UnGhost;
@@ -273,6 +318,68 @@ static void clampCapacity() {
  }
 }
 #endif
+#ifdef VEHICLE_EJECT_ALL
+static void exitEveryone(const std::string &test) {
+ seatSetup();info.EjectAll=EjectAll;
+ if(test=="all-empty" || test=="all-no-pilot" || test=="all-race-passenger") {
+  vehicle.m_pPilot=NULL;parent->client->ps.m_iVehicleNum=0;clients[0].ps.m_iVehicleNum=0;
+ }
+ if(test=="all-dense" || test=="all-no-pilot") for(int i=0;i<3;++i) passenger(i,i+1);
+ else if(test=="all-full" || test=="all-full-old-pilot" || test=="all-reject-callback" || test=="all-inert-callback") for(int i=0;i<VEH_MAX_PASSENGERS;++i) passenger(i,i+1);
+ else if(test=="all-sparse" || test=="all-mutate-next" || test.find("all-damage-")==0) {passenger(1,2);passenger(9,10);}
+ else if(test=="all-race-passenger") passenger(9,10);
+ else if(test!="all-empty" && test!="all-pilot-only" && test!="all-alias-only" && test!="all-droid" && test!="all-droid-live") passenger(0,1);
+ if(test=="all-old-pilot" || test=="all-full-old-pilot") {vehicle.m_pOldPilot=&g_entities[11];clients[11].ps.m_iVehicleNum=64;}
+ if(test.find("all-alias")==0) vehicle.m_pOldPilot=vehicle.m_pPilot;
+ const bool refusedPilot=test=="all-race-pilot" || test=="all-race-damage" || test=="all-alias-refused" || test=="all-alias-refused-damage";
+ if(refusedPilot) {clients[0].sess.raceMode=1;clients[0].sess.movementStyle=MV_SWOOP;}
+ if(test=="all-race-passenger") {clients[10].sess.raceMode=1;clients[10].sess.movementStyle=MV_SWOOP;}
+ if(test=="all-solid-live" || test=="all-solid-dead") allowExit=false;
+ if(test=="all-solid-dead") {g_entities[0].health=0;g_entities[1].health=0;}
+ if(test=="all-reject-callback") callbackMode=1;
+ if(test=="all-inert-callback") callbackMode=2;
+ if(test=="all-mutate-next") callbackMode=3;
+ if(test=="all-callback-free") callbackMode=4;
+ if(test=="all-alias-damage" || test=="all-alias-refused-damage" || test=="all-race-damage" || test.find("all-damage-")==0 || test=="all-callback-free" || test=="all-droid") info.killRiderOnDeath=1;
+ if(test=="all-damage-free") damageMutation=1;
+ if(test=="all-damage-detach-free") damageMutation=2;
+ if(test=="all-damage-reuse") damageMutation=3;
+ if(test=="all-droid" || test=="all-droid-live") {vehicle.m_pDroidUnit=&g_entities[12];g_entities[12].flags=FL_UNDYING;}
+ Entity *slots[VEH_MAX_PASSENGERS];std::memcpy(slots,vehicle.m_ppPassengers,sizeof(slots));
+ const int originalPassengers=vehicle.m_iNumPassengers;
+ int expectedOrder[VEH_MAX_PASSENGERS+2],expectedCount=0;
+ if(vehicle.m_pPilot) expectedOrder[expectedCount++]=0;
+ if(test=="all-old-pilot" || test=="all-full-old-pilot") expectedOrder[expectedCount++]=11;
+ for(int i=0;i<VEH_MAX_PASSENGERS;++i) if(slots[i] && !(damageMutation>=2 && slots[i]==&g_entities[10])) expectedOrder[expectedCount++]=int(slots[i]-g_entities);
+ if(test=="all-mutate-next") {CHECK(expectedCount==3);expectedOrder[1]=10;expectedOrder[2]=2;}
+ const bool rejected=refusedPilot || test=="all-race-passenger" ||
+  test=="all-solid-live" || test=="all-reject-callback" || test=="all-inert-callback";
+ const qboolean result=EjectAll(&vehicle);
+ CHECK(bool(result)==!rejected);
+ CHECK(orderCount==expectedCount && !std::memcmp(ejectOrder,expectedOrder,expectedCount*sizeof(int)));
+ if(rejected) {
+  if(refusedPilot) {consistent(0);CHECK(vehicle.m_pPilot==&g_entities[0]);}
+  else {consistent(originalPassengers);CHECK(!std::memcmp(slots,vehicle.m_ppPassengers,sizeof(slots)));}
+  if(test.find("all-alias-refused")==0) CHECK(vehicle.m_pOldPilot==&g_entities[0]);
+ } else {consistent(0);CHECK(!vehicle.m_pPilot && !vehicle.m_pOldPilot && !vehicle.m_pDroidUnit);}
+ for(int i=0;i<MAX_GENTITIES;++i) {
+  CHECK(attempted[i]<=1 && forced[i]==attempted[i] && killed[i]<=1 && muted[i]==killed[i]);
+ }
+ if(test=="all-alias-damage" || test=="all-race-damage" || test=="all-alias-refused-damage") {CHECK(killed[0]==1 && killed[1]==1);}
+ if(test.find("all-damage-")==0) {
+  CHECK(killed[0]==1 && killed[2]==1 && !killed[10]);
+  if(damageMutation<3) CHECK(!g_entities[10].inuse);
+  else CHECK(g_entities[10].inuse && clients[10].ps.m_iVehicleNum==0 && !attempted[10]);
+ }
+ if(test=="all-droid") CHECK(killed[0]==1 && killed[12]==1 && !(g_entities[12].flags&FL_UNDYING));
+ if(test=="all-droid-live") CHECK(!killed[0] && !killed[12] && !(g_entities[12].flags&FL_UNDYING));
+ if(test=="all-callback-free") CHECK(!g_entities[0].inuse && !g_entities[1].inuse && !killed[0] && !killed[1]);
+ if(!rejected && test!="all-empty" && test!="all-droid" && test!="all-droid-live") {
+  for(int i=0;i<VEH_MAX_PASSENGERS;++i) if(slots[i] && !(damageMutation && slots[i]==&g_entities[10])) CHECK(attempted[int(slots[i]-g_entities)]==1);
+ }
+ state(test.c_str());
+}
+#endif
 int main(int argc,char **argv) {
  CHECK(argc==2);std::string test=argv[1];
  if(test=="map-trigger") mapUse(true);
@@ -287,6 +394,9 @@ int main(int argc,char **argv) {
  else if(test=="move-eject-all") allPassengerExits();
  else if(test=="pilot-sparse-last") sparsePilot();
  else if(test=="clamp-capacity") clampCapacity();
+#endif
+#ifdef VEHICLE_EJECT_ALL
+ else if(test.find("all-")==0) exitEveryone(test);
 #endif
  else cleanup(test);
  std::printf("%s passed\n",argv[1]);

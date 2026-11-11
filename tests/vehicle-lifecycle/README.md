@@ -57,6 +57,39 @@ dense/full and empty state summaries match the pre-consumer-fix binaries exactly
 on both architectures. The corresponding attachment checks validate every
 passenger's coordinates and the unchanged production `*driver` bolt selection.
 
+The `EjectAll` follow-up expands the suite to 58 checks and extracts the actual
+`EjectAll` and `G_EjectDroidUnit` bodies as well. A pilot eject can promote an
+original passenger into the pilot role; iterating only the remaining passenger
+slots then leaves that promoted rider aboard. The cleanup now snapshots the
+original pilot, old pilot and configured seats in that order, deduplicates the
+fixed list of at most twelve actors and attempts each still-associated actor
+once. A callback that already detached a queued actor is respected. Successful
+pilot ejection also clears an old-pilot reference only when it aliases that
+exact ejected actor, preventing a second eject/damage of the same rider.
+
+`Eject` remains the sole owner of slot/count changes. Race-policy and blocked
+living-rider exits remain refused, with occupied slots and counts intact;
+`EjectAll` reports false while occupants remain. The existing callers ignore
+that result. Forced dead-rider exits, damage requested by `killRiderOnDeath`
+(including when exit policy refuses an attempt) and droid cleanup retain their
+existing behavior. Damage skips an entity already freed by a callback.
+
+The 27 additional checks cover empty/no-pilot/pilot-only vehicles, dense and
+sparse seats, all ten seats plus a distinct old pilot, promotion chains, aliased
+pilot references, refused exits with/without death damage, callbacks that reject
+or do not remove a rider, nested ejection, and callbacks that free or detach a
+later queued rider. Detached actors reused for unrelated entities are skipped
+before dereference. Call order, one attempt/damage per original actor, forced
+exit arguments and coherent slots/counts are checked. These are stable entity
+arena tests; they do not claim a general entity-generation lifetime guarantee.
+
+All 58 cases pass under ASan on x64 and x86. The post-sparse-fix `a0e287c`
+baseline passes all 31 earlier checks and five new valid cleanup cases, but
+fails 22 new cleanup checks. Existing valid state summaries, including the
+already-correct empty, pilot-only, no-pilot and droid cleanup cases, match the
+saved pre-cleanup-fix output. This is a lifecycle correctness fix; no measured
+FPS benefit is claimed.
+
 Set `VEHICLE_SOURCE` and `PMOVE_SOURCE` to saved pre-fix `g_vehicles.c` and
 `bg_pmove.c` files to reproduce old consumer failures. The default suite needs
 no historical checkout or game assets. It

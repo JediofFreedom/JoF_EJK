@@ -709,6 +709,10 @@ getItOutOfMe:
 		int j = 0;
 
 		pVeh->m_pPilot = NULL;
+		if ( (gentity_t *)pVeh->m_pOldPilot == ent )
+		{
+			pVeh->m_pOldPilot = NULL;
+		}
 		parent->r.ownerNum = ENTITYNUM_NONE;
 		parent->s.owner = parent->r.ownerNum; //for prediction
 
@@ -898,67 +902,79 @@ getItOutOfMe:
 // Eject all the inhabitants of this vehicle.
 qboolean EjectAll( Vehicle_t *pVeh )
 {
-	// TODO: Setup a default escape for ever vehicle type.
+	bgEntity_t *riders[VEH_MAX_PASSENGERS + 2];
+	int numRiders = 0;
+	int maxPassengers = pVeh->m_pVehicleInfo->maxPassengers;
+	int i, j;
+
+	if ( maxPassengers < 0 )
+	{
+		maxPassengers = 0;
+	}
+	else if ( maxPassengers > VEH_MAX_PASSENGERS )
+	{
+		maxPassengers = VEH_MAX_PASSENGERS;
+	}
+
+	// Eject can promote passengers or invoke callbacks that change the slots.
+	// Remember each original rider once, in the existing pilot/old-pilot/seat order.
+	if ( pVeh->m_pPilot )
+	{
+		riders[numRiders++] = pVeh->m_pPilot;
+	}
+	if ( pVeh->m_pOldPilot && pVeh->m_pOldPilot != pVeh->m_pPilot )
+	{
+		riders[numRiders++] = pVeh->m_pOldPilot;
+	}
+	for ( i = 0; i < maxPassengers; i++ )
+	{
+		bgEntity_t *rider = pVeh->m_ppPassengers[i];
+		if ( !rider )
+		{
+			continue;
+		}
+		for ( j = 0; j < numRiders; j++ )
+		{
+			if ( riders[j] == rider )
+			{
+				break;
+			}
+		}
+		if ( j == numRiders )
+		{
+			riders[numRiders++] = rider;
+		}
+	}
 
 	pVeh->m_EjectDir = VEH_EJECT_TOP;
 	// Make sure no other boarding calls exist. We MUST exit.
 	pVeh->m_iBoarding = 0;
 	pVeh->m_bWasBoarding = qfalse;
 
-	// Throw them off.
-	if ( pVeh->m_pPilot )
+	for ( i = 0; i < numRiders; i++ )
 	{
-#ifdef _GAME
-		gentity_t *pilot = (gentity_t*)pVeh->m_pPilot;
-#endif
-		pVeh->m_pVehicleInfo->Eject( pVeh, pVeh->m_pPilot, qtrue );
-#ifdef _GAME
-		if ( pVeh->m_pVehicleInfo->killRiderOnDeath && pilot )
-		{//Kill them, too
-			//FIXME: proper origin, MOD and attacker (for credit/death message)?  Get from vehicle?
-			G_MuteSound(pilot->s.number, CHAN_VOICE);
-			G_Damage( pilot, NULL, NULL, NULL, pilot->s.origin, 10000, 0, MOD_SUICIDE );
-		}
-#endif
-	}
-	if ( pVeh->m_pOldPilot )
-	{
-#ifdef _GAME
-		gentity_t *pilot = (gentity_t*)pVeh->m_pOldPilot;
-#endif
-		pVeh->m_pVehicleInfo->Eject( pVeh, pVeh->m_pOldPilot, qtrue );
-#ifdef _GAME
-		if ( pVeh->m_pVehicleInfo->killRiderOnDeath && pilot )
-		{//Kill them, too
-			//FIXME: proper origin, MOD and attacker (for credit/death message)?  Get from vehicle?
-			G_MuteSound(pilot->s.number, CHAN_VOICE);
-			G_Damage( pilot, NULL, NULL, NULL, pilot->s.origin, 10000, 0, MOD_SUICIDE );
-		}
-#endif
-	}
-	if ( pVeh->m_iNumPassengers )
-	{
-		int i;
-
-		for ( i = 0; i < pVeh->m_pVehicleInfo->maxPassengers; i++ )
+		bgEntity_t *rider = riders[i];
+		qboolean associated = ( rider == pVeh->m_pPilot || rider == pVeh->m_pOldPilot );
+		for ( j = 0; !associated && j < maxPassengers; j++ )
 		{
-			if ( pVeh->m_ppPassengers[i] )
-			{
+			associated = ( rider == pVeh->m_ppPassengers[j] );
+		}
+		if ( !associated )
+		{
+			// A previous callback already detached this rider; do not access it.
+			continue;
+		}
+		pVeh->m_pVehicleInfo->Eject( pVeh, rider, qtrue );
 #ifdef _GAME
-				gentity_t *rider = (gentity_t*)pVeh->m_ppPassengers[i];
-#endif
-				pVeh->m_pVehicleInfo->Eject( pVeh, pVeh->m_ppPassengers[i], qtrue );
-#ifdef _GAME
-				if ( pVeh->m_pVehicleInfo->killRiderOnDeath && rider )
-				{//Kill them, too
-					//FIXME: proper origin, MOD and attacker (for credit/death message)?  Get from vehicle?
-					G_MuteSound(rider->s.number, CHAN_VOICE);
-					G_Damage( rider, NULL, NULL, NULL, rider->s.origin, 10000, 0, MOD_SUICIDE );//FIXME: proper MOD?  Get from vehicle?
-				}
-#endif
+		{
+			gentity_t *ent = (gentity_t *)rider;
+			if ( pVeh->m_pVehicleInfo->killRiderOnDeath && ent->inuse )
+			{//Kill them, too, unless a callback has already freed the entity.
+				G_MuteSound(ent->s.number, CHAN_VOICE);
+				G_Damage( ent, NULL, NULL, NULL, ent->s.origin, 10000, 0, MOD_SUICIDE );
 			}
 		}
-		pVeh->m_iNumPassengers = 0;
+#endif
 	}
 
 	if ( pVeh->m_pDroidUnit )
@@ -966,6 +982,18 @@ qboolean EjectAll( Vehicle_t *pVeh )
 		G_EjectDroidUnit( pVeh, pVeh->m_pVehicleInfo->killRiderOnDeath );
 	}
 
+	// Eject owns slot/count changes, including exits refused by the normal policy.
+	if ( pVeh->m_pPilot || pVeh->m_pOldPilot || pVeh->m_iNumPassengers || pVeh->m_pDroidUnit )
+	{
+		return qfalse;
+	}
+	for ( i = 0; i < maxPassengers; i++ )
+	{
+		if ( pVeh->m_ppPassengers[i] )
+		{
+			return qfalse;
+		}
+	}
 	return qtrue;
 }
 
