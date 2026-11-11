@@ -85,6 +85,7 @@ struct vkLoadStats_t {
 	unsigned bufferUploads;
 	uint64_t bufferUploadBytes;
 	uint64_t imageSourceUs, imageSyncReadDecodeUs, imagePrepareUs, imageGpuCreateUs;
+	uint64_t imageSourceMetadataUs, imageEncodedReadProbeUs;
 	uint64_t imageUploadRecordUs, imageTransferFlushUs, imageCacheEnqueueUs;
 	uint64_t workerDecodeUs, workerCacheUs, inlineDecodeUs, inlineCacheUs;
 	uint64_t workerPrepareUs;

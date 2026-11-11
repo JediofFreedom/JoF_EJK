@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include "vk_runtime_profile.h"
 #include "../../shared/qcommon/bit_mask.h"
 
 inline void Q_CastShort2Float( float *f, const short *s )
@@ -1428,6 +1429,7 @@ cluster
 ===============
 */
 static void R_MarkLeaves ( void ) {
+	RuntimeProfileScope profile(RuntimeStage::Visibility, 2);
 	const byte	*vis;
 	mnode_t	*leaf, *parent;
 	int		i;
@@ -1505,6 +1507,7 @@ R_AddWorldSurfaces
 =============
 */
 void R_AddWorldSurfaces ( void ) {
+	RuntimeProfileScope profile(RuntimeStage::World);
 #ifdef USE_PMLIGHT
 	dlight_t* dl;
 	int i;

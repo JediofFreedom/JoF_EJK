@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include "vk_runtime_profile.h"
 
 #include "ghoul2/G2.h"
 #include "ghoul2/g2_local.h"
@@ -422,6 +423,7 @@ to handle mirrors,
 void RE_RenderWorldEffects( void );
 void RE_RenderAutoMap( void );
 void RE_RenderScene( const refdef_t *fd ) {
+	RuntimeProfileScope profile(RuntimeStage::Scene);
 	renderCommand_t	lastRenderCommand;
 	viewParms_t		parms;
 	int				startTime;

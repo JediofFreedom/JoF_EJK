@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "client/client.h"	//FIXME!! EVIL - just include the definitions needed
 #include "tr_local.h"
+#include "vk_runtime_profile.h"
 #include "qcommon/matcomp.h"
 #include "qcommon/qcommon.h"
 #include "ghoul2/G2.h"
@@ -2050,6 +2051,7 @@ void G2_SetUpBolts( mdxaHeader_t *header, CGhoul2Info &ghoul2, mdxaBone_v &boneP
 
 void G2_TransformGhoulBones(boneInfo_v &rootBoneList,mdxaBone_t &rootMatrix, CGhoul2Info &ghoul2, int time,bool smooth=true)
 {
+	RuntimeProfileScope profile(RuntimeStage::BoneTransform, 2);
 #ifdef G2_PERFORMANCE_ANALYSIS
 	G2PerformanceTimer_G2_TransformGhoulBones.Start();
 	G2PerformanceCounter_G2_TransformGhoulBones++;
@@ -3173,6 +3175,7 @@ void G2_ProcessSurfaceBolt2(CBoneCache &boneCache, const mdxmSurface_t *surface,
 
 void G2_GetBoltMatrixLow(CGhoul2Info &ghoul2,int boltNum,const vec3_t scale,mdxaBone_t &retMatrix)
 {
+	RuntimeProfileScope profile(RuntimeStage::Bolt, 2);
 	if (!ghoul2.mBoneCache)
 	{
 		retMatrix=identityMatrix;
@@ -3308,6 +3311,7 @@ R_AddGHOULSurfaces
 ==============
 */
 void R_AddGhoulSurfaces( trRefEntity_t *ent ) {
+	RuntimeProfileScope profile(RuntimeStage::GhoulFrontend);
 #ifdef G2_PERFORMANCE_ANALYSIS
 	G2PerformanceTimer_R_AddGHOULSurfaces.Start();
 #endif
@@ -3490,6 +3494,7 @@ G2_ConstructGhoulSkeleton - builds a complete skeleton for all ghoul models in a
 */
 void G2_ConstructGhoulSkeleton( CGhoul2Info_v &ghoul2,const int frameNum,bool checkForNewOrigin,const vec3_t scale)
 {
+	RuntimeProfileScope profile(RuntimeStage::Skeleton);
 #ifdef G2_PERFORMANCE_ANALYSIS
 	G2PerformanceTimer_G2_ConstructGhoulSkeleton.Start();
 #endif

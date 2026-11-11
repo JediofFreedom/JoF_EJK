@@ -16,7 +16,7 @@
     },
     {
       "area": "image decoders and preparation",
-      "status": "implemented; integration checks in progress",
+      "status": "checkpoint verified; source-prefix follow-up measured, default pending more samples",
       "findings": [
         "Bounded PNG/TGA reads and RGBA8 output; 16-bit PNG conversion and TGA orientations/packets tested",
         "JPEG failure recovery and bounded encoder output",
@@ -26,7 +26,7 @@
     },
     {
       "area": "Vulkan resources",
-      "status": "implemented; performance checks in progress",
+      "status": "checkpoint verified; runtime profiling and Ghoul2 follow-ups in integration",
       "findings": [
         "Automatic residency scales with device memory and exact driver extension query",
         "Budget reductions reclaim fragmented idle pages",
@@ -68,12 +68,12 @@
     {
       "area": "server and game simulation",
       "status": "focused fixes and fixtures",
-      "notes": "Navigation bounds/cleanup and bulk rank/edge reads; all 25 installed nav files round-trip unchanged. Pause recipients, BSP origin and shader parse failures fixed. Icarus helper failure propagation being tested."
+      "notes": "Bounded/batched navigation loading with 25 installed nav files unchanged; Icarus reader failure propagation verified. ROFF playback/client-note/ownership regressions pass x64 ASan and x86. Remaining game-state candidates stay unresolved."
     },
     {
       "area": "platform, build and tests",
       "status": "implemented; final integration in progress",
-      "notes": "MSVC flags preserve language settings and do not accumulate across reconfigure. Every standalone suite now discovered by local runner and three-platform CI. Last checkpoint: 24/24 suites passed before final added fixtures."
+      "notes": "MSVC language flags preserve settings without accumulation. Checkpoint 8cc641a passed 30/30 Windows suites and 28/28 applicable Linux/macOS suites (two explicit Windows-only skips). Added runtime/ROFF/Ghoul2 suites await final integration CI."
     }
   ],
   "measurements": {
@@ -231,6 +231,49 @@
         ]
       },
       "limit": "Combinedbehaviorincludesdifferentdefaultcachebudget;localone-playercomparison,noprovenSJK/FPSlead."
+    },
+    "release_lto": {
+      "source": "614e46e5312a3fa802ae8868f4ddedb45c065562",
+      "method": "Three alternating pairs of clean MSVC x64 Release builds; identical 599 compiler contexts after removing /GL, byte-identical assets/dependencies, same 5005-frame seven-bot mp/ffa3 demo, seeded pipeline cache, fresh profiles, quiet machine. LTO links alone use /LTCG.",
+      "control_fps": [
+        734.6,
+        744.6,
+        755.0
+      ],
+      "lto_fps": [
+        775.8,
+        778.0,
+        779.8
+      ],
+      "median_control_fps": 744.6,
+      "median_lto_fps": 778.0,
+      "demo_sha256": "09da81e8abfa479760233b85dc4ad2157488bd25f119fd71bda9936575865e4d",
+      "limit": "About 4.5% in this replay. Does not establish live server simulation/input prediction gains or an SJK lead."
+    },
+    "source_prefix_initial": {
+      "method": "Three alternating same-binary pairs; prefix0/1, cache2048MiB, diskoff, quiet machine. Initial run has a cold outlier; first-map effect is uncertain.",
+      "off_median_map_ms": [
+        2095,
+        957,
+        681
+      ],
+      "on_median_map_ms": [
+        2184,
+        844,
+        630
+      ],
+      "off_metadata_median_ms": [
+        191.963,
+        169.461,
+        179.331
+      ],
+      "on_metadata_median_ms": [
+        92.344,
+        90.24,
+        106.029
+      ],
+      "default": 0,
+      "decision": "Keep experimental until additional primed pairs."
     }
   },
   "verification_state": "Checkpoint validated: Windows x86/x64,30 standalone suites, real normal/custom player menus and Vulkan core/sync validation. Broader runtime/audit work remains.",
@@ -246,9 +289,19 @@
     "qualification": "Diagnostics require individual source review/fixtures. Initial scan preceded later changes; modified units receive targeted follow-up analysis.",
     "compatibility": "Two bot contexts needed the recorded Clang MSVC-header narrowing switch; Rend2 shader type declaration was fixed.",
     "triage": {
-      "confirmed_fixed": 41,
+      "confirmed_fixed": 44,
       "provisional_contract": 59,
-      "unresolved_candidates": 185
+      "unresolved_candidates": 182
+    },
+    "post_checkpoint": {
+      "contexts": 560,
+      "translation_units": 430,
+      "statuses": {
+        "analyzed": 560
+      },
+      "diagnostic_contexts": 105,
+      "warning_appearances": 269,
+      "report": "post-checkpoint-analysis.json"
     }
   }
 }

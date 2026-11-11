@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // tr_init.c -- functions that are not called every frame
 
 #include "tr_local.h"
+#include "vk_runtime_profile.h"
 
 #include <algorithm>
 #include "../rd-common/tr_common.h"
@@ -744,6 +745,8 @@ typedef struct consoleCommand_s {
 } consoleCommand_t;
 
 static consoleCommand_t	commands[] = {
+	{ "r_runtimeProfileReset", R_ResetRuntimeProfile },
+	{ "r_runtimeProfileReport", R_ReportRuntimeProfile },
 	{ "imagelist",			R_ImageList_f },
 	{ "shaderlist",			R_ShaderList_f },
 	{ "skinlist",			R_SkinList_f },
@@ -1093,6 +1096,7 @@ void R_Init( void ) {
 	R_ImageLoader_Init();
 	R_NoiseInit();
 	R_Register();
+	R_InitRuntimeProfile();
 
 	max_polys = Q_min( r_maxpolys->integer, DEFAULT_MAX_POLYS );
 	max_polyverts = Q_min( r_maxpolyverts->integer, DEFAULT_MAX_POLYVERTS );
@@ -1147,6 +1151,7 @@ RE_Shutdown
 */
 void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 	vk_debug("RE_Shutdown( %i, %i )\n", destroyWindow, restarting);
+	R_ShutdownRuntimeProfile();
 
 	for (size_t i = 0; i < numCommands; i++)
 		ri.Cmd_RemoveCommand(commands[i].cmd);
@@ -1205,6 +1210,8 @@ void RE_EndRegistration( void ) {
 			vkLoadStats.imageSourceUs / 1000.0, vkLoadStats.imageSyncReadDecodeUs / 1000.0,
 			vkLoadStats.imagePrepareUs / 1000.0, vkLoadStats.imageGpuCreateUs / 1000.0,
 			vkLoadStats.imageUploadRecordUs / 1000.0, vkLoadStats.imageTransferFlushUs / 1000.0, vkLoadStats.imageCacheEnqueueUs / 1000.0);
+		ri.Printf(PRINT_ALL, "LOADPROFILE texture source detail: metadata/signature %.3f ms, encoded file read/probe %.3f ms\n",
+			vkLoadStats.imageSourceMetadataUs / 1000.0, vkLoadStats.imageEncodedReadProbeUs / 1000.0);
 		ri.Printf(PRINT_ALL, "LOADPROFILE texture decoder effort: worker decode sum %.3f ms, worker cache/hash/read sum %.3f ms (overlaps main; not end-to-end); inline decode %.3f ms, inline cache/hash/read %.3f ms\n",
 			vkLoadStats.workerDecodeUs / 1000.0, vkLoadStats.workerCacheUs / 1000.0,
 			vkLoadStats.inlineDecodeUs / 1000.0, vkLoadStats.inlineCacheUs / 1000.0);

@@ -96,9 +96,13 @@ void R_ImageLoader_Init()
 	R_ImageLoader_Add ("tga", LoadTGA);
 }
 
-qboolean R_ImageSourceSignature(const char *shortname, std::vector<byte> &signature, size_t limit) {
+qboolean R_ImageSourceSignature(const char *shortname, std::vector<byte> &signature, size_t limit,
+                               const char *resolvedName) {
 	signature.clear();
 	if (numImageLoaders != 3 || !ri.FS_GetReadFileIdentity) return qfalse;
+	for (int slot = 0; slot < numImageLoaders; ++slot)
+		if (imageLoaders[slot].loader != LoadJPG && imageLoaders[slot].loader != LoadPNG && imageLoaders[slot].loader != LoadTGA)
+			return qfalse;
 	const ImageLoaderMap *preferred = FindImageLoader(COM_GetExtension(shortname));
 	char base[MAX_QPATH];
 	COM_StripExtension(shortname, base, sizeof(base));
@@ -106,12 +110,12 @@ qboolean R_ImageSourceSignature(const char *shortname, std::vector<byte> &signat
 	for (int slot = -1; slot < numImageLoaders; ++slot) {
 		const auto *loader = slot < 0 ? preferred : &imageLoaders[slot];
 		if (!loader || (slot >= 0 && loader == preferred)) continue;
-		if (loader->loader != LoadJPG && loader->loader != LoadPNG && loader->loader != LoadTGA) return qfalse;
 		char candidate[MAX_QPATH];
 		if (slot < 0) Q_strncpyz(candidate, shortname, sizeof(candidate));
 		else Com_sprintf(candidate, sizeof(candidate), "%s.%s", base, loader->extension);
 		fsReadFileIdentity_t identity = {};
-		if (ri.FS_GetReadFileIdentity(candidate, &identity, qfalse)) {
+		const bool present = ri.FS_GetReadFileIdentity(candidate, &identity, qfalse) != qfalse;
+		if (present) {
 			// Package members are immutable for the life of this mount. Loose
 			// overrides are deliberately decoded normally, including concurrent edits.
 			if (identity.provider != 1) { signature.clear(); return qfalse; }
@@ -125,7 +129,14 @@ qboolean R_ImageSourceSignature(const char *shortname, std::vector<byte> &signat
 		signature.insert(signature.end(), candidate, candidate + nameBytes);
 		const auto *bytes = reinterpret_cast<const byte *>(&identity);
 		signature.insert(signature.end(), bytes, bytes + sizeof(identity));
+		if (resolvedName && !Q_stricmp(candidate, resolvedName)) {
+			// The target must still exist. Earlier candidates, including corrupt
+			// preferred files, remain in the signature and invalidate on change.
+			if (!present) signature.clear();
+			return present ? qtrue : qfalse;
+		}
 	}
+	if (resolvedName) { signature.clear(); return qfalse; }
 	return found ? qtrue : qfalse;
 }
 

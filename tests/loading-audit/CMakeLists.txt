@@ -35,6 +35,7 @@ math(EXPR pipeline_length "${pipeline_end}-${pipeline_start}+${pipeline_suffix}"
 string(SUBSTRING "${pipeline_source}" ${pipeline_start} ${pipeline_length} pipeline_type)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/pipeline_types.h" "${pipeline_type}\n")
 extract(codemp/rd-common/tr_image_load.cpp "qboolean R_ImageSourceSignature(" image_source)
+extract(codemp/rd-common/tr_image_load.cpp "void R_LoadImage(" image_source)
 extract(codemp/rd-common/tr_image_load.cpp "bool R_ReadEncodedImage(" encoded_reader)
 extract(codemp/rd-common/tr_image_tga.cpp "bool R_DecodeTGA(" tga)
 foreach(signature "static TexturePreparationContext R_CaptureTextureContext(" "static std::string R_ResidentTextureKey(" "static qboolean RawImage_HasAlpha(" "static int R_CalcUploadSize(")

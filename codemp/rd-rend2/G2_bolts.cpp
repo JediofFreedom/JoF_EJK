@@ -279,8 +279,10 @@ void G2_RemoveRedundantBolts(boltInfo_v &bltlist, surfaceInfo_v &slist, int *act
 				// is this bolt looking at a generated surface?
 				if (bltlist[i].surfaceType)
 				{
-					// yes, so look for it in the surface list
-					if (!G2_FindOverrideSurface(bltlist[i].surfaceNumber, slist))
+					// Generated bolts store a surface-list slot, not a model
+					// surface number. Deleted slots can also survive as holes.
+					const size_t slot = static_cast<size_t>(bltlist[i].surfaceNumber);
+					if (slot >= slist.size() || slist[slot].surface == -1)
 					{
 						// no - we want to remove this bolt, regardless of how many people are using it
 						bltlist[i].boltUsed = 1;
@@ -288,6 +290,7 @@ void G2_RemoveRedundantBolts(boltInfo_v &bltlist, surfaceInfo_v &slist, int *act
 					}
 				}
 				// no, it's an original, so look for it in the active surfaces list
+				else
 				{
 					if (!activeSurfaces[bltlist[i].surfaceNumber])
 					{

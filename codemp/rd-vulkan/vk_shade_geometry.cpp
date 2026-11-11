@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include "vk_runtime_profile.h"
 
 static VkBuffer shade_bufs[10];
 static int bind_base;
@@ -2357,6 +2358,7 @@ void RB_SurfaceSpritesVBO( srfSprites_t *surf )
 static ss_input ssInput;
 void RB_StageIteratorGeneric( void )
 {
+	RuntimeProfileScope profile(RuntimeStage::ShaderIterator, 2);
 	const shaderStage_t		*pStage;
 	Vk_Pipeline_Def			def;
 	uint32_t				stage = 0;

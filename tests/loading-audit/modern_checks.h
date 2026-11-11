@@ -114,9 +114,16 @@ static void check() {
 
 namespace sourceTest {
 typedef void (*ImageLoaderFn)(const char *, byte **, int *, int *);
-static void LoadJPG(const char *, byte **, int *, int *) {}
-static void LoadPNG(const char *, byte **, int *, int *) {}
-static void LoadTGA(const char *, byte **, int *, int *) {}
+static std::map<std::string, bool> decodable;
+static std::vector<std::string> loadAttempts, queries;
+static byte pixel[4] = {};
+static void load(const char *name, byte **pic, int *width, int *height) {
+    loadAttempts.emplace_back(name);
+    if (decodable[name]) { *pic = pixel; *width = *height = 4; }
+}
+static void LoadJPG(const char *name, byte **pic, int *width, int *height) { load(name, pic, width, height); }
+static void LoadPNG(const char *name, byte **pic, int *width, int *height) { load(name, pic, width, height); }
+static void LoadTGA(const char *name, byte **pic, int *width, int *height) { load(name, pic, width, height); }
 struct ImageLoaderMap { const char *extension; ImageLoaderFn loader; } imageLoaders[] = {{"jpg", LoadJPG}, {"png", LoadPNG}, {"tga", LoadTGA}};
 static int numImageLoaders = 3;
 static const ImageLoaderMap *FindImageLoader(const char *extension) {
@@ -125,11 +132,17 @@ static const ImageLoaderMap *FindImageLoader(const char *extension) {
 }
 static std::map<std::string, fsReadFileIdentity_t> files;
 static qboolean identify(const char *name, fsReadFileIdentity_t *identity, qboolean referenced) {
+	CHECK(!referenced); queries.emplace_back(name);
 	auto found = files.find(name);
 	if (found == files.end()) { *identity = {}; return qfalse; }
 	*identity = found->second; return qtrue;
 }
 static struct { qboolean (*FS_GetReadFileIdentity)(const char *, fsReadFileIdentity_t *, qboolean); } ri = {identify};
+static const char *va(const char *format, ...) {
+    static char result[MAX_QPATH]; va_list args; va_start(args, format);
+    std::vsnprintf(result, sizeof(result), format, args); va_end(args); return result;
+}
+qboolean R_ImageSourceSignature(const char *, std::vector<byte> &, size_t, const char * = nullptr);
 #include "image_source.h"
 static void check() {
 	std::vector<byte> first, second;
@@ -144,6 +157,99 @@ static void check() {
 	files.clear(); CHECK(!R_ImageSourceSignature("image.jpg", second, 1024));
 	files["image.tga"] = {1, 2, 3, 4, 1, 0}; CHECK(!R_ImageSourceSignature("image", second, 2));
 	CHECK(second.empty());
+
+	files = {{"image.jpg", {1, 2, 3, 4, 1, 0}}, {"image.png", {1, 2, 4, 7, 1, 0}}, {"image.tga", {1, 2, 5, 9, 2, 0}}};
+	queries.clear();
+	CHECK(R_ImageSourceSignature("image.jpg", first, 1024, "image.jpg"));
+	CHECK(queries == std::vector<std::string>{"image.jpg"});
+	// A changed or loose lower-priority alternative cannot replace a known
+	// successful immutable winner, and must not require another FS probe.
+	++files["image.png"].generation;
+	CHECK(R_ImageSourceSignature("image.jpg", second, 1024, "image.jpg") && first == second);
+	CHECK(!R_ImageSourceSignature("image.jpg", second, 1024)); // Full mode still sees loose TGA.
+	files.erase("image.tga"); files.erase("image.jpg");
+	queries.clear();
+	CHECK(R_ImageSourceSignature("image.jpg", first, 1024, "image.png"));
+	CHECK(queries == (std::vector<std::string>{"image.jpg", "image.png"}));
+	files["image.jpg"] = {1, 2, 3, 4, 1, 0};
+	CHECK(R_ImageSourceSignature("image.jpg", second, 1024, "image.png") && first != second);
+	files["image.jpg"].provider = 2;
+	CHECK(!R_ImageSourceSignature("image.jpg", second, 1024, "image.png") && second.empty());
+	files.erase("image.jpg"); files.erase("image.png");
+	CHECK(!R_ImageSourceSignature("image.jpg", second, 1024, "image.png") && second.empty());
+	CHECK(!R_ImageSourceSignature("image.jpg", second, 1024, "unrelated.png") && second.empty());
+	files["image.png"] = {1, 2, 4, 7, 1, 0};
+	CHECK(!R_ImageSourceSignature("image.jpg", second, 2, "image.png") && second.empty());
+
+	// Exercise the production loader's corrupt-preferred fallback, then sign
+	// the actual winner. A corrupt preferred package is still a dependency.
+	files["image.jpg"] = {1, 2, 3, 4, 1, 0};
+	decodable = {{"image.jpg", false}, {"image.png", true}, {"image.tga", true}};
+	loadAttempts.clear(); byte *pic = nullptr; int width, height; char resolved[MAX_QPATH];
+	R_LoadImage("image.jpg", &pic, &width, &height, resolved);
+	CHECK(pic && !std::strcmp(resolved, "image.png") && width == 4 && height == 4);
+	CHECK(loadAttempts == (std::vector<std::string>{"image.jpg", "image.png"}));
+	CHECK(R_ImageSourceSignature("image.jpg", first, 1024, resolved));
+	++files["image.jpg"].generation; decodable["image.jpg"] = true;
+	CHECK(R_ImageSourceSignature("image.jpg", second, 1024, resolved) && first != second);
+	R_LoadImage("image.jpg", &pic, &width, &height, resolved);
+	CHECK(pic && !std::strcmp(resolved, "image.jpg"));
+	// A requested PNG tries PNG first, even when a JPEG also exists.
+	queries.clear();
+	CHECK(R_ImageSourceSignature("image.png", first, 1024, "image.png"));
+	CHECK(queries == std::vector<std::string>{"image.png"});
+	queries.clear();
+	CHECK(R_ImageSourceSignature("image.tga", first, 1024, "image.png"));
+	CHECK(queries == (std::vector<std::string>{"image.tga", "image.jpg", "image.png"}));
+}
+
+static void checkFilesystem(const char *root) {
+    using namespace filesystemTest;
+    // The actual production resolver supplies every identity; no simplified
+    // provider/pure model is used for these invalidation/reference fixtures.
+    sourceTest::ri.FS_GetReadFileIdentity = filesystemTest::FS_GetReadFileIdentity;
+    for (int indexed : {0, 1}) {
+        lookupSetting.integer = indexed; fs_pakLookupIndex.reset();
+        Entry jpeg = {"candidate.jpg", 9, 1, nullptr}, png = {"candidate.png", 7, 2, nullptr};
+        Entry *jh[] = {&jpeg}, *ph[] = {&png};
+        Pack high = {1, jh, 0, {}, nullptr, false, 42, 123};
+        Pack low = {1, ph, 0, {}, nullptr, true, 43, 456};
+        Directory directory = {}; Q_strncpyz(directory.path, root, sizeof(directory.path));
+        Search tail = {nullptr, &low, nullptr}, middle = {&tail, &high, nullptr}, head = {&middle, nullptr, &directory};
+        fs_searchpaths = &head; fs_numServerPaks = 1;
+        std::vector<byte> before, after;
+        CHECK(R_ImageSourceSignature("candidate", before, 1024, "candidate.png"));
+        CHECK(!high.referenced && !low.referenced && !handleAllocations);
+        high.pure = true; // A formerly rejected higher-priority file appears.
+        CHECK(R_ImageSourceSignature("candidate", after, 1024, "candidate.png") && before != after);
+        before = after; ++high.sourceIdentity;
+        CHECK(R_ImageSourceSignature("candidate", after, 1024, "candidate.png") && before != after);
+        before = after; ++low.sourceIdentity;
+        CHECK(R_ImageSourceSignature("candidate", after, 1024, "candidate.png") && before != after);
+        before = after;
+        Pack overridePack = {1, ph, 0, {}, nullptr, true, 99, 789};
+        Search overrideHead = {&head, &overridePack, nullptr};
+        fs_searchpaths = &overrideHead; // Newly mounted same-extension override.
+        CHECK(R_ImageSourceSignature("candidate", after, 1024, "candidate.png") && before != after);
+        fs_searchpaths = &head;
+        fsReadFileIdentity_t selected = {};
+        CHECK(filesystemTest::FS_GetReadFileIdentity("candidate.png", &selected, qtrue));
+        CHECK(low.referenced == FS_GENERAL_REF && !high.referenced && !handleAllocations);
+        fs_numServerPaks = 0;
+        const std::string loosePath = std::string(root) + "/candidate.tga";
+        FILE *file = std::fopen(loosePath.c_str(), "wb"); CHECK(file);
+        std::fputs("lower override", file); std::fclose(file);
+        CHECK(R_ImageSourceSignature("candidate", before, 1024, "candidate.jpg"));
+        CHECK(!R_ImageSourceSignature("candidate", after, 1024) && after.empty());
+        CHECK(!std::remove(loosePath.c_str()));
+        const std::string higherPath = std::string(root) + "/candidate.jpg";
+        file = std::fopen(higherPath.c_str(), "wb"); CHECK(file);
+        std::fputs("higher override", file); std::fclose(file);
+        CHECK(!R_ImageSourceSignature("candidate", after, 1024, "candidate.jpg") && after.empty());
+        CHECK(!std::remove(higherPath.c_str()));
+        fs_searchpaths = nullptr; fs_pakLookupIndex.reset();
+    }
+    sourceTest::ri.FS_GetReadFileIdentity = identify;
 }
 
 }
@@ -393,6 +499,13 @@ static void check() {
     CHECK(identities.identify("other.pk3", stamp) != original);
     cache.setLimit(180);
     const std::vector<byte> bytes(10, 1);
+    cache.store("a", bytes, std::make_shared<Resource>(), 50);
+    cache.store("b", bytes, std::make_shared<Resource>(), 50);
+    cache.store("c", bytes, std::make_shared<Resource>(), 50);
+    CHECK(cache.peek("a") && !cache.peek("missing") && cache.hits == 0 && cache.misses == 0);
+    cache.store("d", bytes, std::make_shared<Resource>(), 50);
+    CHECK(!cache.peek("a")); // An unvalidated peek never promotes an entry.
+    cache.clear();
     cache.store("a", bytes, std::make_shared<Resource>(), 50);
     cache.store("b", bytes, std::make_shared<Resource>(), 50);
     cache.store("c", bytes, std::make_shared<Resource>(), 50);

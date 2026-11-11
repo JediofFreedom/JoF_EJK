@@ -83,8 +83,12 @@ struct ResidentTexture {
 };
 static ResidentResourceCache<ResidentTexture> residentTextures;
 static std::unordered_map<image_t *, std::shared_ptr<ResidentTexture>> activeResidentTextures;
+static cvar_t *textureSignaturePrefix;
 
 static void R_InitResidentTextures() {
+	textureSignaturePrefix = ri.Cvar_Get("r_textureSignaturePrefix", "0", CVAR_ARCHIVE_ND,
+		"Validate texture sources only through the previously decoded winner (experimental)");
+	ri.Cvar_CheckRange(textureSignaturePrefix, 0, 1, qtrue);
 	cvar_t *budget = ri.Cvar_Get("r_textureCacheMegs", "-1", CVAR_ARCHIVE_ND,
 		"GPU textures retained between maps: -1 chooses a device-scaled budget, 0 disables, positive values set MiB");
 	ri.Cvar_CheckRange(budget, -1, 2048, qtrue);
@@ -1993,8 +1997,8 @@ static bool R_CanDeferTexture(const char *name, imgFlags_t flags) {
 }
 
 static image_t *R_QueueFileImage(const char *name, imgFlags_t flags,
-                               const std::vector<byte> &source, const std::string &cacheKey,
-                               const TexturePreparationContext &context) {
+                               std::vector<byte> &source, const std::string &cacheKey,
+                               const TexturePreparationContext &context, bool prefixSignature) {
     // Defer only frontend registration. Runtime and backend-discovered images,
     // procedural lightmaps, dynamic textures and transfer sources stay immediate.
     if (!R_CanDeferTexture(name, flags)) return NULL;
@@ -2005,8 +2009,17 @@ static image_t *R_QueueFileImage(const char *name, imgFlags_t flags,
     EncodedImage encoded;
     const uint64_t sourceStarted = ImageTimeUs();
     const bool foundEncoded = R_ReadEncodedImage(name, encoded);
-    vkLoadStats.imageSourceUs += ImageTimeUs() - sourceStarted;
+    const uint64_t readProbeUs = ImageTimeUs() - sourceStarted;
+    vkLoadStats.imageSourceUs += readProbeUs;
+    vkLoadStats.imageEncodedReadProbeUs += readProbeUs;
     if (!foundEncoded) return NULL;
+    if (prefixSignature && !cacheKey.empty()) {
+        const uint64_t metadataStarted = ImageTimeUs();
+        R_ImageSourceSignature(name, source, std::min<size_t>(residentTextures.limit(), 64 * 1024 * 1024), encoded.resolvedName);
+        const uint64_t metadataUs = ImageTimeUs() - metadataStarted;
+        vkLoadStats.imageSourceUs += metadataUs;
+        vkLoadStats.imageSourceMetadataUs += metadataUs;
+    }
     // A disk hit contains a full RGBA8 mip chain (also for 16-bit GPU formats).
     // Bound that worst case rather than only the decoded base level.
     const size_t pixels = size_t(encoded.width) * encoded.height;
@@ -2132,16 +2145,27 @@ image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
         const TexturePreparationContext context = R_CaptureTextureContext();
 		std::vector<byte> source;
 		std::string cacheKey;
-		const bool cacheable = residentTextures.limit() && name[0] != '*' &&
-			!(flags & (IMGFLAG_LIGHTMAP | IMGFLAG_COLORSHIFT)) && Q_stricmpn(name, "maps/", 5) &&
-			R_ImageSourceSignature(name, source, std::min<size_t>(residentTextures.limit(), 64 * 1024 * 1024));
-		if (cacheable) {
+		const bool prefixSignature = textureSignaturePrefix && textureSignaturePrefix->integer != 0;
+		const bool eligible = residentTextures.limit() && name[0] != '*' &&
+			!(flags & (IMGFLAG_LIGHTMAP | IMGFLAG_COLORSHIFT)) && Q_stricmpn(name, "maps/", 5);
+		if (eligible && (prefixSignature ||
+			R_ImageSourceSignature(name, source, std::min<size_t>(residentTextures.limit(), 64 * 1024 * 1024)))) {
 			cacheKey = R_ResidentTextureKey(name, flags, context);
+			// Keep full and prefix signatures separate if the A/B setting changes
+			// between registrations. This does not affect prepared pixel contents.
+			cacheKey.push_back(prefixSignature ? '\1' : '\0');
+			if (prefixSignature) {
+				const auto previous = residentTextures.peek(cacheKey);
+				if (previous)
+					R_ImageSourceSignature(name, source, std::min<size_t>(residentTextures.limit(), 64 * 1024 * 1024), previous->sourceName.c_str());
+			}
 			auto resource = residentTextures.find(cacheKey, source);
 			if (resource) {
 				fsReadFileIdentity_t identity;
 				ri.FS_GetReadFileIdentity(resource->sourceName.c_str(), &identity, qtrue);
-                vkLoadStats.imageSourceUs += ImageTimeUs() - sourceStarted;
+                const uint64_t metadataUs = ImageTimeUs() - sourceStarted;
+                vkLoadStats.imageSourceUs += metadataUs;
+                vkLoadStats.imageSourceMetadataUs += metadataUs;
                 const uint64_t reuseStarted = ImageTimeUs();
                 image = R_AllocImage(name, resource->width, resource->height, flags);
 				image->uploadWidth = resource->uploadWidth; image->uploadHeight = resource->uploadHeight;
@@ -2155,8 +2179,10 @@ image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
 				return image;
 			}
 		}
-        vkLoadStats.imageSourceUs += ImageTimeUs() - sourceStarted;
-        image = R_QueueFileImage(name, flags, source, cacheKey, context);
+        const uint64_t metadataUs = ImageTimeUs() - sourceStarted;
+        vkLoadStats.imageSourceUs += metadataUs;
+        vkLoadStats.imageSourceMetadataUs += metadataUs;
+        image = R_QueueFileImage(name, flags, source, cacheKey, context, prefixSignature);
         if (image) {
             if (!textureWorkerCount) R_FlushTextureJobs();
             vkLoadStats.imageDecodeMs += ri.Milliseconds() - decodeStarted;
@@ -2171,6 +2197,13 @@ image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
         if (pic == NULL) {
             return NULL;
         }
+		if (prefixSignature && !cacheKey.empty()) {
+			const uint64_t metadataStarted = ImageTimeUs();
+			R_ImageSourceSignature(name, source, std::min<size_t>(residentTextures.limit(), 64 * 1024 * 1024), resolvedName);
+			const uint64_t metadataUs = ImageTimeUs() - metadataStarted;
+			vkLoadStats.imageSourceUs += metadataUs;
+			vkLoadStats.imageSourceMetadataUs += metadataUs;
+		}
 
 		// refuse to find any files not power of 2 dims...
 		//

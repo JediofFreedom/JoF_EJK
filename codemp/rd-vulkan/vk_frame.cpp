@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include "vk_runtime_profile.h"
 
 void vk_create_sync_primitives( void )
 {
@@ -361,6 +362,7 @@ void vk_begin_frame( void )
 
 	if ( vk.frame_count++ ) // might happen during stereo rendering
 		return;
+	vkRuntimeProfile.frame();
 	R_FlushTextureJobs();
 	vk_flush_image_uploads();
 
@@ -372,7 +374,8 @@ void vk_begin_frame( void )
 
 	if ( vk.cmd->waitForFence ) {
 		vk.cmd->waitForFence = qfalse;
-		res = qvkWaitForFences( vk.device, 1, &vk.cmd->rendering_finished_fence, VK_FALSE, 1e10 );
+		{ RuntimeProfileScope profile(RuntimeStage::GpuWait);
+		res = qvkWaitForFences( vk.device, 1, &vk.cmd->rendering_finished_fence, VK_FALSE, 1e10 ); }
 		if ( res != VK_SUCCESS ) {
 			if ( res == VK_ERROR_DEVICE_LOST ) {
 				// silently discard previous command buffer
@@ -388,7 +391,8 @@ void vk_begin_frame( void )
 	if ( !ri.VK_IsMinimized() && !vk.cmd->swapchain_image_acquired ) {
 		qboolean retry = qfalse;
 _retry:
-        res = qvkAcquireNextImageKHR( vk.device, vk.swapchain, 5 * 1000000000ULL, vk.cmd->image_acquired, VK_NULL_HANDLE, &vk.cmd->swapchain_image_index );
+        { RuntimeProfileScope profile(RuntimeStage::Acquire);
+        res = qvkAcquireNextImageKHR( vk.device, vk.swapchain, 5 * 1000000000ULL, vk.cmd->image_acquired, VK_NULL_HANDLE, &vk.cmd->swapchain_image_index ); }
 		// when running via RDP: "Application has already acquired the maximum number of images (0x2)"
 		// probably caused by "device lost" errors
 		if ( res < 0 ) {
@@ -526,12 +530,14 @@ static void vk_resize_geometry_buffer( void )
 
 void vk_wait_idle( void )
 {
+	RuntimeProfileScope profile(RuntimeStage::GpuWait);
 	vk_flush_image_uploads();
     VK_CHECK(qvkDeviceWaitIdle(vk.device));
 }
 
 void vk_queue_wait_idle( void )
 {
+	RuntimeProfileScope profile(RuntimeStage::GpuWait);
 	vk_flush_image_uploads();
 	VK_CHECK( qvkQueueWaitIdle( vk.queue ) );
 }
@@ -757,7 +763,7 @@ void vk_present_frame( void )
 
     vk.cmd->swapchain_image_acquired = qfalse;
 
-	res = qvkQueuePresentKHR( vk.queue, &present_info );
+	{ RuntimeProfileScope profile(RuntimeStage::Present); res = qvkQueuePresentKHR( vk.queue, &present_info ); }
 	switch ( res ) {
 		case VK_SUCCESS:
 			break;
@@ -815,7 +821,7 @@ void vk_read_pixels( byte *buffer, uint32_t width, uint32_t height )
     uint32_t i, n;
     qboolean invalidate_ptr;
 
-    VK_CHECK(qvkWaitForFences(vk.device, 1, &vk.cmd->rendering_finished_fence, VK_FALSE, 1e12));
+    { RuntimeProfileScope profile(RuntimeStage::GpuWait); VK_CHECK(qvkWaitForFences(vk.device, 1, &vk.cmd->rendering_finished_fence, VK_FALSE, 1e12)); }
 
     if (vk.fboActive) {
         if (vk.capture.image) {

@@ -404,6 +404,10 @@ endif()
 
 
 
+# Check Release LTO before targets are created, including bundled static libs.
+include(ReleaseLTO)
+configure_release_lto()
+
 # Files shared across all projects
 set(SharedCommonFiles
 	"${SharedDir}/qcommon/q_color.h"

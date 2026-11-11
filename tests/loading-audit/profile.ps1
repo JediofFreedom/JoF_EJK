@@ -9,6 +9,7 @@ param(
     [int]$HostImageCopy = -1,
     [int]$TextureWorkers = -1,
     [int]$TextureDiskCacheMegs = 0,
+    [ValidateSet(-1,0,1)][int]$TextureSignaturePrefix = -1,
     [string]$SeedVulkanCacheDirectory = '',
     [ValidateSet(0,1)][int]$WorkerPrepare = 1,
     [ValidateSet(0,1)][int]$FilesystemIndex = 1,
@@ -44,6 +45,7 @@ foreach ($run in 1..$Runs) {
     if ($HostImageCopy -ge 0) { $arguments = "+set r_hostImageCopy $HostImageCopy $arguments" }
     $arguments = "+set r_textureWorkers $TextureWorkers $arguments"
     $arguments = "+set r_textureDiskCacheMegs $TextureDiskCacheMegs $arguments"
+    if ($TextureSignaturePrefix -ge 0) { $arguments = "+set r_textureSignaturePrefix $TextureSignaturePrefix $arguments" }
     $arguments = "+set r_textureWorkerPrepare $WorkerPrepare +set fs_lookupIndex $FilesystemIndex +set ui_lazyPlayerSpecies $LazyPlayerSpecies $arguments"
     $timer = [Diagnostics.Stopwatch]::StartNew()
     $process = Start-Process "$BinaryDirectory/eternaljk.x86_64.exe" -WorkingDirectory $runHome -ArgumentList $arguments -WindowStyle Hidden -PassThru
@@ -56,7 +58,7 @@ foreach ($run in 1..$Runs) {
     $frames = @([regex]::Matches($log, 'LOADPROFILE map-handoff-to-first-frame: (\d+) ms') |
         ForEach-Object { [int]$_.Groups[1].Value })
     if ($frames.Count -ne 3) { throw "Expected three active-frame timings: $runHome" }
-    $result = [pscustomobject]@{Run=$run; Renderer=$Renderer; TextureCacheMegs=$TextureCacheMegs; HostImageCopy=$HostImageCopy; TextureWorkers=$TextureWorkers; TextureDiskCacheMegs=$TextureDiskCacheMegs; WorkerPrepare=$WorkerPrepare; FilesystemIndex=$FilesystemIndex; LazyPlayerSpecies=$LazyPlayerSpecies; ProcessSeconds=$timer.Elapsed.TotalSeconds; MapMilliseconds=$frames; Log="$mod/qconsole.log"}
+    $result = [pscustomobject]@{Run=$run; Renderer=$Renderer; TextureCacheMegs=$TextureCacheMegs; HostImageCopy=$HostImageCopy; TextureWorkers=$TextureWorkers; TextureDiskCacheMegs=$TextureDiskCacheMegs; TextureSignaturePrefix=$TextureSignaturePrefix; WorkerPrepare=$WorkerPrepare; FilesystemIndex=$FilesystemIndex; LazyPlayerSpecies=$LazyPlayerSpecies; ProcessSeconds=$timer.Elapsed.TotalSeconds; MapMilliseconds=$frames; Log="$mod/qconsole.log"}
     $results += $result
     $result | ConvertTo-Json -Compress
 }

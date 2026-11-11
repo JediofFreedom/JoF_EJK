@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include "vk_runtime_profile.h"
 #include "tr_WorldEffects.h"
 
 backEndData_t	*backEndData;
@@ -1255,6 +1256,7 @@ RB_ExecuteRenderCommands
 */
 extern const void *R_DrawWireframeAutomap( const void *data ); //tr_world.cpp
 void RB_ExecuteRenderCommands( const void *data ) {
+	RuntimeProfileScope profile(RuntimeStage::Backend);
 	int		t1, t2;
 
 	t1 = ri.Milliseconds()*ri.Cvar_VariableValue( "timescale" );

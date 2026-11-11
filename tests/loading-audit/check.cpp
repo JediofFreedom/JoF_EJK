@@ -432,6 +432,7 @@ int main(int argc, char **argv) {
     modelTest::check(); cosmeticTest::check(); jpegTest::check(); uploadTest::check();
     filesystemTest::check(argv[1]);
     modernTest::check();
+    sourceTest::checkFilesystem(argv[1]);
     deviceFeatureTest::check(); pipelineIndexTest::check(); synchronization2Test::check();
     assetTest::check(argv[1]);
     textureCommitTest::check();

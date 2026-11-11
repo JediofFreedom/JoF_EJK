@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include "vk_runtime_profile.h"
 
 /*
 =====================
@@ -359,6 +360,7 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 		return;
 	}
 
+	R_UpdateRuntimeProfile();
 	glState.finishCalled = qfalse;
 
 	ResetGhoul2RenderableSurfaceHeap();

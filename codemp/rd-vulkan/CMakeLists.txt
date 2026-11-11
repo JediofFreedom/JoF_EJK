@@ -80,6 +80,8 @@ set(MPVulkanRendererFiles
 	"${MPDir}/rd-vulkan/vk_flares.cpp"
 	"${MPDir}/rd-vulkan/vk_frame.cpp"
 	"${MPDir}/rd-vulkan/vk_image.cpp"
+	"${MPDir}/rd-vulkan/vk_runtime_profile.cpp"
+	"${MPDir}/rd-vulkan/vk_runtime_profile.h"
 	"${MPDir}/rd-vulkan/vk_prepared_cache.cpp"
 	"${MPDir}/rd-vulkan/vk_prepared_cache.h"
 	"${MPDir}/rd-vulkan/vk_image_process.cpp"

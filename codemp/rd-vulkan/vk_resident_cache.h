@@ -16,6 +16,12 @@ public:
 	size_t bytes() const { return used; }
 	size_t limit() const { return budget; }
 	size_t size() const { return index.size(); }
+	// Metadata only: the caller must validate its source with find() before
+	// reuse. Looking at a previous winner must not count a hit or promote it.
+	Pointer peek(const std::string &key) const {
+		auto found = index.find(key);
+		return found == index.end() ? Pointer{} : found->second->resource;
+	}
 	void setLimit(size_t value) {
 		budget = value;
 		while (used > budget) evict();
