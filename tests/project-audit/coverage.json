@@ -804,7 +804,7 @@
       "conclusion": "Excluded from loading-speed/parity claims; no result establishes EJK equal to or faster than SJK."
     }
   },
-  "verification_state": "Latest source 750ff04 narrowly fixes descriptor-less bulk sampler refresh, with current-filter completion/reuse tests. Coverage is 130 Vulkan plus five engine cases. Final ordinary Windows x64/x86 builds passed at 750ff04 with explicit BUILD_EXIT=0 for both architectures. The final local Windows runner passed all 68 discovered suites without skips. CI run 43087229764 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 68/68 suites without skips; macOS/Ubuntu each passed 66/66 applicable suites with two explicit Windows-only skips, including expanded asset integrity. Fresh 750ff04 GPU tests did not start: the launch guard found an existing user-owned TestClient and left it untouched. The complete 12-profile final-runtime validation is waiting for that client to close. The passed older-engine debug candidate remains separate evidence; no final 750 matrix pass is claimed. 750ff04 is staged only: 54 payload and 54 matching source SHA256 checks passed (108 checks), with eight protected configuration hashes unchanged at staging. Nothing was installed; TestClient remains on validated 0fcdbdd and older stages were never installed. Earlier failed checkpoints/source snapshots remain intact. Current single-context vk_image.cpp analysis completed with zero diagnostics; prior scopes remain historical, without a whole-project warning-free claim; 285 triage remains 46/63/176 and blocked/restricted work remains untouched.",
+  "verification_state": "Latest source 750ff04 narrowly fixes descriptor-less bulk sampler refresh, with current-filter completion/reuse tests. Coverage is 130 Vulkan plus five engine cases. Final ordinary Windows x64/x86 builds passed at 750ff04 with explicit BUILD_EXIT=0 for both architectures. The final local Windows runner passed all 68 discovered suites without skips. CI run 43087229764 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 68/68 suites without skips; macOS/Ubuntu each passed 66/66 applicable suites with two explicit Windows-only skips, including expanded asset integrity. The healthy E: run passed all 12 profiles on the same 750ff04 runtime: 41 map requests and 123 PNG captures, every exit normal with no forced termination, configurations/runtime preserved, clean core/synchronization validation and zero resident textures/pages at shutdown. The original disk-starved G: attempt is preserved but invalid for renderer-stability conclusions. 750ff04 is installed at E:/Games/testClient/GameData: all 54 installed-file hashes, 54 overwritten-file backups, both PK3 DLL triplets and eight unchanged configuration hashes were verified. Play EJK Dev.cmd selects 64-bit native Vulkan; Play EJK Dev - OpenGL.cmd provides the fallback. No game was launched after copying; installed hashes match the tested build. Earlier failed checkpoints/source snapshots remain intact. Current single-context vk_image.cpp analysis completed with zero diagnostics; prior scopes remain historical, without a whole-project warning-free claim; 285 triage remains 46/63/176 and blocked/restricted work remains untouched.",
   "analysis": {
     "initial_contexts": 560,
     "excluded_vendor_contexts": [
@@ -2019,27 +2019,111 @@
           "pointer_sanitizer": "Conditional probe; enabled instrumentation is not exposed by successful job-summary logs."
         },
         "gpu": {
-          "status": "awaiting-existing-user-client-closure",
+          "status": "passed",
           "planned_profiles": 12,
-          "started_final_profiles": 0,
-          "summary": "Fresh 750ff04 GPU tests did not start: the launch guard found an existing user-owned TestClient and left it untouched. The complete 12-profile final-runtime validation is waiting for that client to close. The passed older-engine debug candidate remains separate evidence; no final 750 matrix pass is claimed.",
-          "guard": {
-            "existing_user_client_running": true,
-            "process_untouched": true,
-            "new_games_launched": false
+          "passed_profiles": 12,
+          "map_requests": 41,
+          "captures": 123,
+          "summary": "The healthy E: run passed all 12 profiles on the same 750ff04 runtime: 41 map requests and 123 PNG captures, every exit normal with no forced termination, configurations/runtime preserved, clean core/synchronization validation and zero resident textures/pages at shutdown. The original disk-starved G: attempt is preserved but invalid for renderer-stability conclusions.",
+          "aggregate": "E:/Codex-EJK-audit/runtime/gpu-750ff04-summary.json",
+          "aggregate_sha256": "bbddc2345e0565a7508a7e39a9e14ebb4e325f2e0422ead15d3edbb5c5e53dc5",
+          "basic_artifact": "E:\\Codex-EJK-audit\\runtime\\gpu-basic-750ff04-2\\results.json",
+          "feature_artifact": "E:\\Codex-EJK-audit\\runtime\\gpu-features-750ff04-2\\results.json",
+          "runtime": [
+            {
+              "Path": "eternaljk.x86_64.exe",
+              "Exists": true,
+              "SHA256": "1251B7B744D80E8B2B8923AEFDA63F8363CE8210B21759CBF2E695E3B845479D"
+            },
+            {
+              "Path": "rd-vulkan_x86_64.dll",
+              "Exists": true,
+              "SHA256": "A702163B0B2D7D87357FE5EB93AC391F51FF507C99F1BF61E7940AFCA71320BA"
+            },
+            {
+              "Path": "cgamex86_64.dll",
+              "Exists": true,
+              "SHA256": "7B1FF66936BAC3B0562C9D2A3A052A8BE31F0FE7408108539ADA8A2D1008C40B"
+            },
+            {
+              "Path": "uix86_64.dll",
+              "Exists": true,
+              "SHA256": "79A0B0828CE9C3ECBA81A6382140E5DBE3C0AFE3CCAD00648711BAABB7DB22A7"
+            },
+            {
+              "Path": "jampgamex86_64.dll",
+              "Exists": true,
+              "SHA256": "38941F24CD14687B74F746A7B4594D1F4C75CF003DBEE3F73C44178839CA2864"
+            }
+          ],
+          "runtime_hashes_match_both_manifests": true,
+          "source_documentation_heads": {
+            "a8bca668fe631acf0a4eb6239c159e19a1ed603e": {
+              "OnlyAuditDocumentationDiffers": true,
+              "ChangedPaths": [
+                "tests/loading-audit/README.md",
+                "tests/project-audit/coverage.json",
+                "tests/vulkan-audit/README.md",
+                "tests/vulkan-audit/coverage.json",
+                "tests/vulkan-audit/followup-481800e.json",
+                "tests/vulkan-audit/followup-750ff04.json",
+                "tests/vulkan-audit/followup-7bd3470.json",
+                "tests/vulkan-audit/followup-81b10be.json"
+              ]
+            }
           },
-          "requirements": "Both fullscreen profiles must also prove minimize/restore of their owned visible render window while fullscreen, using class/title/HWND/PID evidence."
+          "capacity": {
+            "Policy": {
+              "EvidenceStartBytes": 2147483648,
+              "EvidenceLiveMinimumBytes": 536870912,
+              "WorkspaceStartBytes": 536870912,
+              "WorkspaceLiveMinimumBytes": 134217728,
+              "WorkspaceVolume": "G:\\",
+              "EvidenceVolume": "E:\\",
+              "Qualification": "Correctness/evidence capacity guard only; not a performance measurement."
+            },
+            "MinimumRecordedEvidenceFreeBytes": 115549335552,
+            "MinimumRecordedWorkspaceFreeBytes": 890540032,
+            "FinalRecordedVolumes": {
+              "UTC": "2026-11-11T21:58:23.3993804Z",
+              "EvidenceVolume": "E:\\",
+              "EvidenceFreeBytes": 115549335552,
+              "WorkspaceVolume": "G:\\",
+              "WorkspaceFreeBytes": 890540032
+            },
+            "LiveGuardPassedAllCases": true,
+            "Qualification": "Minima cover saved before/last-live/after snapshots; every running 100ms poll enforced live floors."
+          },
+          "window_proof_qualification": "Basic checks prove owned HWND/PID only and do not instrument window class. All six feature cases prove actual visible SDL render-window identity; both fullscreen profiles additionally prove minimize/restore while fullscreen.",
+          "feature_render_window_proof_cases": [
+            "weather",
+            "bot-shadows",
+            "ssaa-hdr",
+            "fullscreen",
+            "fullscreen-direct",
+            "debug-mips"
+          ],
+          "fullscreen_phase_proof_cases": [
+            "fullscreen",
+            "fullscreen-direct"
+          ],
+          "visual_review": "Limited spot-checks: fbo-hdr-msaa/world-1, ssaa-hdr/world-1, fullscreen/fullscreen-active, debug-normals-map1 and mips-map1-GL_LINEAR_MIPMAP_LINEAR showed the expected world/HUD/glow/aspect, normal lines and colored mips. Not all 123 images were visually inspected; this is not a universal feature-quality guarantee.",
+          "limits": "Controlled correctness/lifecycle tests on one GPU/driver; no FPS claim or universal crash-free/device-loss/OOM/material/hardware certification. Earlier disk-full AV remains historical confounded evidence; healthy E: retest passes on identical runtime. Root performs screenshot visual review."
         },
         "deployment": {
-          "status": "staged-uninstalled",
-          "summary": "750ff04 is staged only: 54 payload and 54 matching source SHA256 checks passed (108 checks), with eight protected configuration hashes unchanged at staging. Nothing was installed; TestClient remains on validated 0fcdbdd and older stages were never installed.",
-          "stage": "testclient-deploy-vulkan-750ff04/manifest.json",
-          "verification": "testclient-deploy-vulkan-750ff04/stage-verification.json",
-          "payload_files_verified": 54,
-          "matching_source_files_verified": 54,
-          "combined_sha256_checks": 108,
-          "protected_configurations_unchanged_at_staging": 8,
-          "installed": false
+          "status": "installed-and-independently-verified",
+          "installed": true,
+          "code": "750ff044a1d9f90a623a73d5e674dae43a38e21e",
+          "target": "E:/Games/testClient/GameData",
+          "summary": "750ff04 is installed at E:/Games/testClient/GameData: all 54 installed-file hashes, 54 overwritten-file backups, both PK3 DLL triplets and eight unchanged configuration hashes were verified. Play EJK Dev.cmd selects 64-bit native Vulkan; Play EJK Dev - OpenGL.cmd provides the fallback. No game was launched after copying; installed hashes match the tested build.",
+          "installed_file_hashes_verified": 54,
+          "overwritten_backups_verified": 54,
+          "protected_configurations_unchanged": 8,
+          "code_packages_verified": 2,
+          "backup": "testclient-deploy-vulkan-750ff04/backup-20261111-215912",
+          "receipt": "testclient-deploy-vulkan-750ff04/deployment-receipt.json",
+          "verification": "testclient-deploy-vulkan-750ff04/post-deploy-verification.json",
+          "no_game_launched_after_copy": true
         }
       },
       "history": "Failed 7bd debug/mips and older-engine candidate remain separate; earlier deployment unchanged until final receipt."

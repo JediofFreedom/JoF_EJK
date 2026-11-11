@@ -256,12 +256,23 @@ actual final-runtime validation remain separate.
 - Final ordinary Windows x64/x86 builds passed at 750ff04 with explicit BUILD_EXIT=0 for both architectures.
 - The final local Windows runner passed all 68 discovered suites without skips.
 - CI run 43087229764 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 68/68 suites without skips; macOS/Ubuntu each passed 66/66 applicable suites with two explicit Windows-only skips, including expanded asset integrity.
-- Fresh 750ff04 GPU tests did not start: the launch guard found an existing user-owned TestClient and left it untouched. The complete 12-profile final-runtime validation is waiting for that client to close. The passed older-engine debug candidate remains separate evidence; no final 750 matrix pass is claimed.
-- 750ff04 is staged only: 54 payload and 54 matching source SHA256 checks passed (108 checks), with eight protected configuration hashes unchanged at staging. Nothing was installed; TestClient remains on validated 0fcdbdd and older stages were never installed.
+- The healthy E: run passed all 12 profiles on the same 750ff04 runtime: 41 map requests and 123 PNG captures, every exit normal with no forced termination, configurations/runtime preserved, clean core/synchronization validation and zero resident textures/pages at shutdown. The original disk-starved G: attempt is preserved but invalid for renderer-stability conclusions.
+- 750ff04 is installed at E:/Games/testClient/GameData: all 54 installed-file hashes, 54 overwritten-file backups, both PK3 DLL triplets and eight unchanged configuration hashes were verified. Play EJK Dev.cmd selects 64-bit native Vulkan; Play EJK Dev - OpenGL.cmd provides the fallback. No game was launched after copying; installed hashes match the tested build.
 
-The final private feature harness additionally requires actual owned render-window
-minimize/restore while fullscreen in both FBO/direct profiles, with class/title/
-HWND/PID evidence. This changes runtime test handling, not blocked SDL source.
+The original G: attempt retained five basic passes before an access violation
+under disk exhaustion, FS_Write 0 and a zero-byte per-case result. It is an
+I/O-starved invalid attempt, not renderer-stability evidence. Original artifacts
+remain preserved separately from the healthy E: rerun. NTFS compression retained
+107 obsolete build directories and verified 16,167 files with zero SHA256
+mismatches; one generated PDB was archived with a checksum receipt. No folders
+were deleted. Output now uses E: with capacity guards. Recovery, final GPU and
+deployment receipts are recorded in the ledger.
+
+Basic window checks prove owned HWND/PID only, without instrumenting window
+class. All six feature cases prove an actual visible SDL render window; both
+fullscreen cases also prove minimize/restore while fullscreen. Root visually
+spot-checked selected world/HUD/glow/aspect, debug-normal and colored-mip images,
+not all 123 images. This runtime handling changes no blocked SDL source.
 The 113-file manifest and prior snapshots stay separate. Current Clang22
 analysis completed the single changed vk_image.cpp context with zero diagnostics;
 this is not a new whole-target analysis. Historical targeted diagnostics,
