@@ -598,9 +598,82 @@
       "implemented_source": "68858c4",
       "fixture": "5000 ordinary touches with zero pumps, unchanged timestamps/levels/LRU eviction and byte-identical journal recording/replay plus queued event behavior; x64/x86 Asan and x86 Release.",
       "limit": "Instrumented cost diagnosis and fixture work counts. Actual-game speed comparison is not yet complete. Null/nonzero journal states retain the legacy clock."
+    },
+    "sound_cache_clock_replay": {
+      "method": "Clean6d9c5f4/68858c44 x64 Release/LTO engines with identical68858c44 version metadata;112 engine+465 associated+129 JPEG/SIMD normalized contexts/links/imports/exports match, only snd_dma.cpp source differs.13 byte-identical common runtime files; only engine EXE differs. Five alternating pairs after two warmup pairs, fresh profiles, same5005-frame idle24-bot recording and pipeline seeds, software audio, profiling off, no concurrent build/analyzer/other game.",
+      "control_fps": [
+        651.9,
+        651.2,
+        653.7,
+        650.3,
+        652.5
+      ],
+      "updated_fps": [
+        699.2,
+        702.9,
+        701.8,
+        698.7,
+        699.2
+      ],
+      "median_control_fps": 651.9,
+      "median_updated_fps": 699.2,
+      "demo_sha256": "5161FDE48C2BE772E9E44808C73B821F77C974631B0F5261BAFEE6A454879389",
+      "post_diagnostic": {
+        "touch_calls": 21144,
+        "touch_total_ms": 1.054,
+        "old_touch_total_ms": 452.053,
+        "footstep_sound_total_ms": 19.979,
+        "old_footstep_sound_total_ms": 504.07
+      },
+      "limit": "About7.3% median FPS in this idle software-audio replay, all5pairs faster. Audio settings/samples/cache semantics unchanged. Fixed-frame demo compression affects wall-clock rate-limit/channel counts; not a general live combat/prediction/server/OpenAL or SJK claim. Other looping/registration/loading touch counts are not included in the ordinary-playback profile. Separate experiments must not be compounded.",
+      "artifacts": [
+        "project-sound-clock-runtime-benchmark/results.json",
+        "sound-clock-client-manifest.json",
+        "crowd-idle-sound-clock-fixed-profile-1"
+      ]
+    },
+    "active_server_24_bots": {
+      "source": "4ba0d0c",
+      "sample_seconds": 20.013942699999998,
+      "active_bots": 24,
+      "inuse_actors": 25,
+      "combat_kills": 15,
+      "stages": [
+        {
+          "Stage": "sv-frame",
+          "Calls": 800,
+          "TotalMilliseconds": 1497.0975,
+          "MeanMicroseconds": 1871.372,
+          "MaxMicroseconds": 3166
+        },
+        {
+          "Stage": "bot-ai-call",
+          "Calls": 800,
+          "TotalMilliseconds": 626.5551,
+          "MeanMicroseconds": 783.194,
+          "MaxMicroseconds": 1490.1
+        },
+        {
+          "Stage": "game-tick",
+          "Calls": 801,
+          "TotalMilliseconds": 741.7667,
+          "MeanMicroseconds": 926.051,
+          "MaxMicroseconds": 1908.5
+        },
+        {
+          "Stage": "client-messages",
+          "Calls": 800,
+          "TotalMilliseconds": 127.676,
+          "MeanMicroseconds": 159.595,
+          "MaxMicroseconds": 411.1
+        }
+      ],
+      "method": "Loopback-only dedicated server, active stock24bots, one fresh spectator, sv_fps40, legacy AI0, no movement/AI freezes or cadence changes.10s warmup then20s diagnostic. Bounded owned-PID cleanup and actual OS endpoint check, stock data only.",
+      "limit": "Updated-build diagnostic, no before/after server baseline. Stages overlap and have separate denominators/catch-up counts; one observer does not represent24human snapshot/network cost.",
+      "artifact": "server-active24-profile-2/results.json"
     }
   },
-  "verification_state": "Playable417b060 passed clean full Windows x64/x86 builds,51/51 standalone suites, native Vulkan core/sync and packaged-module checks with user settings preserved. Later sound-clock/EjectAll/AI/parser work and fresh CI remain in progress; the project-wide audit is ongoing.",
+  "verification_state": "Playable committed4ba0d0c passed normal full x64/x86 builds, green Windows/Linux/macOS applicable-suite CI (55discovered), full Linux native client, native Vulkan GPU/package checks and normal active24bot diagnostic. Same launcher/user configuration preserved. The project-wide task remains incomplete because remaining regression subtasks were blocked automatically and their work is quarantined; no unverified fixes are shipped.",
   "analysis": {
     "initial_contexts": 560,
     "excluded_vendor_contexts": [
@@ -678,9 +751,9 @@
       "artifact_note": "The local results.json is a rolling runner output and has since been replaced by newer results. Historical 42-suite evidence is also in the immutable linked 383785a CI run."
     },
     "current_integration": {
-      "head_observed": "68858c44c2481dd9889be04c396cc9a5b38d8155",
+      "head_observed": "4ba0d0c5722c57c9ece7155bb4d4a82dc90a5a86",
       "zlib_ng_commit": "e495b4cc715a53ddb0df2ab70085037c455bba27",
-      "discovered_suites": 53,
+      "discovered_suites": 55,
       "new_since_42_suite_checkpoint": [
         "cgame-runtime-profile",
         "cgame-spine-gates",
@@ -694,7 +767,7 @@
         "sound-start-profile",
         "sound-cache-clock"
       ],
-      "status": "Clean417 checkpoint passed full x64/x86 builds and51 suites, targeted analysis, Vulkan validation and packaged runtime. Later journal-aware cache clock and EjectAll have focused regressions; clean controlled engine comparison and broader follow-up checks are in progress.",
+      "status": "Committed performance tree verified with both normal full Windows builds, green55-suite Windows/53-applicable Linux+macOS CI, full Linux client, native Vulkan/package smoke and active24bot diagnostic. Remaining automatic-review-blocked regression work is quarantined/unverified; broad audit incomplete.",
       "windows_suites_passed": 46,
       "windows_results": "G:/code/JoF_EJK-performance-run/post-ng-46-regression-logs/results.json",
       "ci_run": 42964907517,
@@ -754,6 +827,52 @@
         "checkpoint-packaged-417b060"
       ],
       "limit": "Does not attest to later clock, EjectAll, AI or parser follow-ups."
+    },
+    "cross_platform_28": {
+      "source": "28adafe",
+      "ci_run": 42976859193,
+      "conclusion": "success",
+      "scope": "Windows/Linux/macOS native Vulkan and all applicable then54 standalone suites; full Linux native client without OpenGL.",
+      "corrected_previous_failure": "417b060 Ubuntu vehicle-lifecycle fixture lacked<cstdint>/std::uintptr_t; fixed explicitly in28adafe, not skipped/masked. Windows/macOS/full Linux client had already passed417."
+    },
+    "blocked_followups": {
+      "reason": "Automated content review rejected bot-parser and loop-sound regression tasks and a delegated clean-validation task as possible cybersecurity work. These tasks were not retried under different wording/agents.",
+      "parser": "Exact unverified two-file patch preserved outside repo; owned WIP source restored to committed HEAD. Original botlib triage remains unchanged.",
+      "loop": "No cg_ents.c production change; unfinished untracked fixture moved outside repository discovery after absolute-path verification.",
+      "artifacts": [
+        "blocked-botlib-followup-status.txt",
+        "blocked-botlib-followup.patch",
+        "blocked-loop-and-validation-status.txt",
+        "blocked-cgame-looping-sounds"
+      ],
+      "qualification": "The full project-wide audit remains unfinished. No parser/loop follow-up fixes or final regression outcomes are claimed.",
+      "earlier_icarus": "Sixteen additional command-consumer cases remain unresolved after an earlier automatic-review block. Only separately verified Get/GetVector/Move paths are recorded as fixed."
+    },
+    "committed_4ba": {
+      "source": "4ba0d0c5722c57c9ece7155bb4d4a82dc90a5a86",
+      "source_clean": true,
+      "builds": [
+        "Windows x64 Release/LTO/zlib-ng all production targets",
+        "Windows x86 Release/LTO/zlib-ng all production targets"
+      ],
+      "ci_run": 42978948224,
+      "ci_conclusion": "success",
+      "discovered_suites": 55,
+      "windows_passed": 55,
+      "linux_passed": 53,
+      "macos_passed": 53,
+      "explicit_nonwindows_skips": 2,
+      "full_native_linux_client": "passed without OpenGL",
+      "gpu": "Native Vulkan core/sync world/models/basic+custom species/cosmetic menus/vid_restart/map change/zero resident resources passed.",
+      "packaged": "Fresh packaged-module profile reached active frame and normal exit; loose and bundled files match.",
+      "playtest": "G:/code/JoF_EJK-performance-playtest",
+      "config_preserved": true,
+      "artifacts": [
+        "committed-performance-x64-build.log",
+        "committed-performance-x86-build.log",
+        "committed-4ba-visible-world-smoke",
+        "checkpoint-packaged-4ba0d0c"
+      ]
     }
   },
   "additional_verified_fixes": {

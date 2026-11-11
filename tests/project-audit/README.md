@@ -217,3 +217,59 @@ retained 36 warning appearances for review. See the `followup_417` section of
 [the integration report](integration-analysis.json) for exact sampled hashes and
 contexts. Later sound-clock, EjectAll, AI and parser changes require their own
 checks; these results do not mark the project-wide audit complete.
+
+The sound-clock comparison used clean `6d9c5f4` and `68858c44` engine builds
+with identical pinned version metadata, compiler/link settings, imports and
+exports. The only production source difference was `SND_TouchSFX`; only the
+engine executable differed between runtime folders, with 13 identical common
+files. Five alternating, profiling-off idle-crowd pairs followed two warmup
+pairs, using the same 5,005 frames, fresh profiles and seeded pipeline cache.
+No compiler, analyzer or other game ran during timing.
+
+| Sound-cache clock FPS | Round 1 | Round 2 | Round 3 | Round 4 | Round 5 | Median |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Original event clock | 651.9 | 651.2 | 653.7 | 650.3 | 652.5 | 651.9 |
+| Direct clock when journals are off | 699.2 | 702.9 | 701.8 | 698.7 | 699.2 | 699.2 |
+
+That is about 7.3% higher median FPS in this software-audio idle replay; every
+pair improved. Audio settings, samples and cache semantics were preserved.
+Fixed-frame timedemos advance game time faster than wall time, so this does not
+establish a general live-combat, input-prediction, server or OpenAL result.
+Post-change diagnostic cache touches fell from 452.053 to 1.054 ms, while the
+footstep sound group fell from 504.070 to 19.979 ms. Registration, entity loops,
+ambient loops and successful loads also touch the cache outside the ordinary
+playback-only diagnostic; their extra call counts are not measured here.
+Result rows and immutable module hashes are retained in
+`project-sound-clock-runtime-benchmark/results.json` and
+`sound-clock-client-manifest.json`. This is separate from the LTO, clipping,
+index and loading experiments; percentages must not be added together.
+
+`server.ps1` runs a separate normal local workload with a loopback-only dedicated
+server, 24 active bots and one fresh spectator. It checks process-owned network
+bindings, stock bot population at both boundaries, combat evidence, profile
+reports, screenshots and normal exit. It leaves AI/movement enabled and does
+not change their cadence. A failed first capture was retained separately; the
+successful `server-active24-profile-2` run adds a frame wait before final quit.
+
+At `4ba0d0c`, the 20.014-second sample verified all 24 bots and 25 in-use actors
+at both boundaries, with 15 bot-vs-bot kills. Mean elapsed values were
+1.871372 ms per eligible server call, 0.783194 per bot-AI call, 0.926051 per game
+tick and 0.159595 per client-message call. The first, AI and message counts were
+800; game tick count was 801 because of catch-up. Nested totals overlap. These
+are diagnostics of the updated build, without a before/after server baseline;
+one observer also does not represent 24 human clients' network cost.
+
+The committed `4ba0d0c` tree passed ordinary full x64/x86 builds, native Vulkan
+world/menu/restart/resource checks and packaged-module execution. CI run
+42978948224 passed all 55 committed Windows suites and all 53 applicable
+Linux/macOS suites with two explicit Windows-only skips, plus the complete
+Linux native-Vulkan client build. The earlier Ubuntu fixture failure at
+`417b060` was an omitted standard integer header, fixed explicitly in `28adafe`.
+
+The full audit remains unfinished. Automated content review blocked the
+remaining bot-parser and loop-sound regression tasks and a delegated validation
+task. The unfinished bot-parser diff and loop fixture are preserved outside the
+repository, with owned source restored and untracked test work excluded from
+committed test discovery. They are absent from the playable build and are not
+reported as fixed. Earlier extra Icarus consumer cases also remain unverified;
+only the separately tested Get/GetVector/Move paths are recorded as fixed.
