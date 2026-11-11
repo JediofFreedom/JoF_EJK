@@ -554,7 +554,7 @@ void vk_queue_wait_idle( void )
 {
 	RuntimeProfileScope profile(RuntimeStage::GpuWait);
 	vk_flush_image_uploads();
-	VK_CHECK( qvkQueueWaitIdle( vk.queue ) );
+	vk_frame_check_result(qvkQueueWaitIdle(vk.queue), "vkQueueWaitIdle");
 }
 
 void vk_release_resources( void ) {

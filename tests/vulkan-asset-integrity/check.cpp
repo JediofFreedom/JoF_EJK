@@ -12,11 +12,7 @@
 #include "vk_load_profile.h"
 #define STB_DXT_IMPLEMENTATION
 #include "utils/stb_dxt.h"
-#undef MAX
-#undef MIN
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#x); std::exit(1); } } while(0)
-#define MAX(a,b) ((a) > (b) ? (a) : (b))
-#define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define Com_Memset std::memset
 #define Com_Memcpy std::memcpy
 using byte = unsigned char;
@@ -118,12 +114,24 @@ static void samplerRefresh(){
     vk_texture_mode("same",qfalse);
     CHECK(samplersDestroyed==1 && refreshed.size()==3);
 }
+static void invalidInput(){
+    byte pixels[16]={};TexturePreparationContext context={};context.maxTextureSize=2048;
+    for(const auto dimensions : {std::pair<int,int>{0,4},{4,0},{-1,4},{65537,1}}){
+        image_t image={dimensions.first,dimensions.second,0,0};
+        Image_Upload_Data upload={pixels,123,456,789,987};
+        CHECK(!vk_generate_image_upload_data(&image,pixels,&upload,&context,nullptr));
+        CHECK(!upload.buffer && !upload.buffer_size && !upload.mip_levels && !upload.base_level_width && !upload.base_level_height);
+    }
+    image_t image={2,2,0,0};context.maxTextureSize=0;Image_Upload_Data upload={};
+    CHECK(!vk_generate_image_upload_data(&image,pixels,&upload,&context,nullptr));
+}
 int main(int argc,char **argv){
     CHECK(argc==2);
     if(!std::strcmp(argv[1],"thin-limit"))thinLimit();
     else if(!std::strcmp(argv[1],"hq-tail"))hqTail();
     else if(!std::strcmp(argv[1],"ordinary"))ordinary();
     else if(!std::strcmp(argv[1],"sampler-refresh"))samplerRefresh();
+    else if(!std::strcmp(argv[1],"invalid-input"))invalidInput();
     else CHECK(false);
     std::puts("Vulkan asset integrity checks passed.");
 }

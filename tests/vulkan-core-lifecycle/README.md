@@ -8,6 +8,14 @@ unacquired-image accesses/semaphore waits, pending-buffer resets, or skipped
 command-size/state corruption. Tests readback before submission, released direct
 images, bounds and transfer-to-host visibility, and sparse/stencil sample support.
 
-Use `CORE_SOURCE_DIR` for a saved pre-fix source snapshot (a legacy void
-`vk_begin_frame` snapshot needs the documented compatibility return adapter).
+Use `CORE_SOURCE_DIR` for a saved pre-fix source snapshot (the fixture automatically adapts the legacy void
+`vk_begin_frame` return convention without changing its algorithm).
 Driver validation and real window transitions remain separate integration checks.
+
+The fixture uses the actual logging-only VK_CHECK helper, actual log2pad
+(round-up and round-down behavior), actual backend DrawBuffer and command dispatch,
+and actual gamma-table/readback functions. Explicit error branches, rather than
+a stronger mock checker, must stop failed command-buffer/fence operations.
+
+The raw-FBO capture case checks gamma once; the SSAA target and non-FBO bytes
+remain unchanged at this layer. MSAA requests include non-power-of-two3/5 values.

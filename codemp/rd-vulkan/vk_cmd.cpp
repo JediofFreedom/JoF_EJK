@@ -78,20 +78,31 @@ VkCommandBuffer vk_begin_command_buffer( void )
 {
     VkCommandBufferBeginInfo begin_info;
     VkCommandBufferAllocateInfo alloc_info;
-    VkCommandBuffer command_buffer;
+    VkCommandBuffer command_buffer = VK_NULL_HANDLE;
+    VkResult result;
 
     alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     alloc_info.pNext = NULL;
     alloc_info.commandPool = vk.command_pool;
     alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     alloc_info.commandBufferCount = 1;
-    VK_CHECK(qvkAllocateCommandBuffers(vk.device, &alloc_info, &command_buffer));
+    result = qvkAllocateCommandBuffers(vk.device, &alloc_info, &command_buffer);
+    if (result != VK_SUCCESS) {
+        ri.Error(ERR_FATAL, "vkAllocateCommandBuffers returned %s", vk_result_string(result));
+        return VK_NULL_HANDLE;
+    }
 
     begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     begin_info.pNext = NULL;
     begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     begin_info.pInheritanceInfo = NULL;
-    VK_CHECK(qvkBeginCommandBuffer(command_buffer, &begin_info));
+    result = qvkBeginCommandBuffer(command_buffer, &begin_info);
+    if (result != VK_SUCCESS) {
+        // No queue has seen this buffer; it can be reclaimed immediately.
+        qvkFreeCommandBuffers(vk.device, vk.command_pool, 1, &command_buffer);
+        ri.Error(ERR_FATAL, "vkBeginCommandBuffer returned %s", vk_result_string(result));
+        return VK_NULL_HANDLE;
+    }
 
     return command_buffer;
 }
@@ -109,7 +120,12 @@ void vk_end_command_buffer( VkCommandBuffer command_buffer, const char *location
 
     cmdbuf[0] = command_buffer;
 
-    VK_CHECK(qvkEndCommandBuffer(command_buffer));
+    res = qvkEndCommandBuffer(command_buffer);
+    if (res != VK_SUCCESS) {
+        qvkFreeCommandBuffers(vk.device, vk.command_pool, 1, cmdbuf);
+        ri.Error(ERR_FATAL, "vkEndCommandBuffer at %s returned %s", location, vk_result_string(res));
+        return;
+    }
 
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = NULL;
@@ -132,10 +148,25 @@ void vk_end_command_buffer( VkCommandBuffer command_buffer, const char *location
     submit_info.signalSemaphoreCount = 0;
     submit_info.pSignalSemaphores = NULL;
 
-    VK_CHECK( vk_queue_submit( vk.queue, 1, &submit_info, VK_NULL_HANDLE ) );
+    res = vk_queue_submit(vk.queue, 1, &submit_info, VK_NULL_HANDLE);
+    if (res != VK_SUCCESS) {
+        // Vulkan guarantees unchanged submission state for OOM failures.
+        // Device loss has no such guarantee; keep that buffer owned by its
+        // command pool until device teardown instead of freeing pending work.
+        if (res == VK_ERROR_OUT_OF_HOST_MEMORY || res == VK_ERROR_OUT_OF_DEVICE_MEMORY)
+            qvkFreeCommandBuffers(vk.device, vk.command_pool, 1, cmdbuf);
+        ri.Error(ERR_FATAL, "vkQueueSubmit at %s returned %s", location, vk_result_string(res));
+        return;
+    }
 
 	const int waitStarted = ri.Milliseconds();
-	VK_CHECK( qvkQueueWaitIdle( vk.queue ) );
+	res = qvkQueueWaitIdle(vk.queue);
+	if (res != VK_SUCCESS) {
+		// Completion was not proved. The pool retains this possibly pending
+		// buffer; never release or reuse it on an unsuccessful wait.
+		ri.Error(ERR_FATAL, "vkQueueWaitIdle at %s returned %s", location, vk_result_string(res));
+		return;
+	}
 	vkLoadStats.uploadWaitMs += ri.Milliseconds() - waitStarted;
 	++vkLoadStats.uploadSubmissions;
 

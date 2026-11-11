@@ -2,6 +2,7 @@
 #include "vk_sync2.h"
 #include "vk_sample_counts.h"
 #include <algorithm>
+#include <climits>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -12,6 +13,7 @@
 #include <vector>
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr,"FAIL line %d: %s\n",__LINE__,#x); std::exit(1); } ++checks; } while(0)
 static int checks;
+static unsigned char s_gammatable[256];
 typedef unsigned char byte;
 typedef int qboolean;
 const qboolean qfalse=0,qtrue=1;
@@ -25,7 +27,7 @@ const qboolean qfalse=0,qtrue=1;
 #define PADP(p,a) ((void *)((reinterpret_cast<uintptr_t>(p)+(a)-1)&~(uintptr_t((a)-1))))
 #define Com_Memset std::memset
 #define Com_Memcpy std::memcpy
-#define MAX(a,b) std::max(a,int(b))
+#define MAX(a,b) ((a)>(b)?(a):(b))
 #define MIN(a,b) ((a)<(b)?(a):(b))
 #define PRINT_ALL 0
 static int minimized, nativeBegin, transitions, passes, ends, submits, presents, resets, waits, restarts;
@@ -77,7 +79,8 @@ static struct { bool screenMapDone; int screenshotMask; struct {int msec;} pc; b
 static struct {uint32_t windowWidth,windowHeight; int captureWidth,captureHeight;} gls;
 static struct {int stencilBits,maxActiveTextures;} glConfig;
 static int vkSamples,vkMaxSamples;
-static int log2pad(int value,int) { int result=1; while(result<=value/2) result*=2; return result; }
+#define QINLINE inline
+#include "log2pad.h"
 static struct Interface {
  bool VK_IsMinimized(){return minimized!=0;}
  void Printf(int,const char*,...){}
@@ -176,6 +179,7 @@ static void vk_clear_color_attachments(const vec4_t){++drawCalls;}
 static const void *RB_SwapBuffers(const void *p){vk_end_frame();vk_present_frame();return (const swapBuffersCommand_t*)p+1;}
 #include "backend.h"
 static void reset(bool fbo=true){
+ for(int i=0;i<256;++i)s_gammatable[i]=byte(i);
  vk={};vk.cmd=&vk.tess[0];vk.fboActive=fbo;vk.cmd->command_buffer=(VkCommandBuffer)9;
  vk.color_format=VK_FORMAT_R8G8B8A8_UNORM;vk.depth_format=VK_FORMAT_D24_UNORM_S8_UINT;
  vk.cmd->image_acquired=(VkSemaphore)11;vk.cmd->rendering_finished_fence=(VkFence)12;
@@ -226,9 +230,9 @@ static void sampleCases(){
  props.limits.framebufferDepthSampleCounts=VK_SAMPLE_COUNT_1_BIT|VK_SAMPLE_COUNT_2_BIT|VK_SAMPLE_COUNT_4_BIT;
  props.limits.framebufferStencilSampleCounts=VK_SAMPLE_COUNT_1_BIT;
  props.limits.sampledImageColorSampleCounts=props.limits.sampledImageDepthSampleCounts=127;
- for(int stencil:{0,8})for(int request:{0,2,4,8,64}){
+ for(int stencil:{0,8})for(int request:{0,2,3,4,5,8,64}){
   sampleCvar.integer=request;glConfig.stencilBits=stencil;vk.msaaActive=request!=0;
-  ActualSampleSelection();int expected=request>=4&&!stencil?4:1;
+  ActualSampleSelection();int expected=request>2&&!stencil?4:1;
   CHECK(vkSamples==expected&&vk.msaaActive==(expected>1));CHECK(vkMaxSamples==(stencil?1:4));CHECK(vk.screenMapSamples==(stencil?1:4));
  }
  glConfig.stencilBits=0;sampleCvar.integer=8;props.limits.framebufferColorSampleCounts=props.limits.framebufferDepthSampleCounts=127;
@@ -253,6 +257,10 @@ static void captureCases(){
  CHECK(captureSourceStage==VK_PIPELINE_STAGE_TRANSFER_BIT&&captureDestinationStage==VK_PIPELINE_STAGE_HOST_BIT);
  CHECK(lastHostBarrier.srcAccessMask==VK_ACCESS_TRANSFER_WRITE_BIT&&lastHostBarrier.dstAccessMask==VK_ACCESS_HOST_READ_BIT&&lastHostBarrier.newLayout==VK_IMAGE_LAYOUT_GENERAL);
  const byte expected[]={8,9,10,12,13,14,0,1,2,4,5,6};CHECK(std::memcmp(out,expected,12)==0);
+ for(int i=0;i<256;++i)s_gammatable[i]=byte(255-i);
+ vk_read_pixels(out,2,2);for(int i=0;i<12;++i)CHECK(out[i]==byte(255-expected[i]));
+ vk.capture.image=(VkImage)45;vk_read_pixels(out,2,2);CHECK(std::memcmp(out,expected,12)==0);
+ vk.fboActive=0;vk.capture.image=VK_NULL_HANDLE;vk.cmd->swapchain_image_acquired=1;vk_read_pixels(out,2,2);CHECK(std::memcmp(out,expected,12)==0);
 }
 int main(int argc,char **argv){
  std::string part=argc>1?argv[1]:"all";
