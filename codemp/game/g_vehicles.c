@@ -717,7 +717,7 @@ getItOutOfMe:
 		memset( &parent->client->pers.cmd, 0, sizeof( usercmd_t ) );
 		memset( &pVeh->m_ucmd, 0, sizeof( usercmd_t ) );
 
-		while (j < pVeh->m_iNumPassengers)
+		while (j < pVeh->m_pVehicleInfo->maxPassengers && j < VEH_MAX_PASSENGERS)
 		{
 			if (pVeh->m_ppPassengers[j])
 			{
@@ -1851,7 +1851,8 @@ static void AttachRiders( Vehicle_t *pVeh )
 	}
 
 	//attach passengers
-	while (i < pVeh->m_iNumPassengers)
+	// Occupancy is a count, not the highest occupied seat after an eject.
+	while (i < pVeh->m_pVehicleInfo->maxPassengers && i < VEH_MAX_PASSENGERS)
 	{
 		if (pVeh->m_ppPassengers[i])
 		{

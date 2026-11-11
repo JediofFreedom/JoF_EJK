@@ -2,6 +2,9 @@ This is a source/caller review of initial findings 108-122, with two separately
 reproduced vehicle defects. It does not change the project triage JSON. The
 fixture executes `Board`/`Eject` and the passenger-cleanup block, not the entire
 vehicle update/animation/movement system.
+The sparse-seat follow-up additionally executes full attachment functions and
+the Pmove passenger loop; it still does not execute the full UpdateRider or
+subclass animation lifecycle and does not reclassify these findings.
 
 The caller evidence is:
 

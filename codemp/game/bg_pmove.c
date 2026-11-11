@@ -13701,7 +13701,8 @@ void PmoveSingle (pmove_t *pmove) {
 
 			veh->m_pVehicle->m_pVehicleInfo->UpdateRider(veh->m_pVehicle, self, &veh->m_pVehicle->m_ucmd);
 			//update the passengers
-			while (i < veh->m_pVehicle->m_iNumPassengers)
+			// Seats can have holes, and UpdateRider can eject a passenger.
+			while (i < veh->m_pVehicle->m_pVehicleInfo->maxPassengers && i < VEH_MAX_PASSENGERS)
 			{
 				if (veh->m_pVehicle->m_ppPassengers[i])
 				{

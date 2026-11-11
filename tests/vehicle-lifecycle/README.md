@@ -19,7 +19,7 @@ pilot left an empty vehicle. It also reduced the count when the existing
 swoop-race policy rejected eject and left the slot occupied. The caller now
 leaves both slot and count to `Eject`; failed ejects retain both coherently.
 
-Twelve production-path checks cover map activation with/without an activator,
+The initial twelve production-path checks cover map activation with/without an activator,
 valid pilot/passenger boarding, disconnected/non-client/freed/dead riders,
 multiple passengers, repeated cleanup, blocked race exits, solid-blocked exits,
 pilot promotion and empty occupancy after the pilot leaves. Both x64 and x86
@@ -27,8 +27,39 @@ AddressSanitizer runs pass. The saved pre-fix source fails nine cases, including
 two actual target-chain NULL reads. Valid boarding and pilot-promotion state
 summaries match before/fixed binaries.
 
-Set `VEHICLE_SOURCE` to a saved pre-fix `g_vehicles.c` to reproduce the old
-failures. The default suite needs no historical checkout or game assets. It
+The sparse-seat follow-up expands the suite to 31 checks. It extracts the full
+actual `AttachRiders` / `AttachRidersGeneric` functions and the verbatim server
+passenger loop from `Pmove`. That loop's callback records the original rider,
+seat and command pointer, or invokes the actual `Eject` to exercise count changes
+during iteration. The full movement/animation callback is not substituted into
+this harness. The actual `BG_VehicleClampData` and `VEH_MAX_PASSENGERS` define are
+also extracted: default and named vehicle parsing already clamp capacity to
+0..10, and the new scans additionally enforce the fixed array limit.
+
+An occupied-seat count is not a valid array prefix after an eject. Manually
+initialized slot-1/count-1 and last-slot/count-1 arrays reproduce the old bug
+independently of the previous count fix. Tests also cover dense/full/empty
+arrays, a lower configured capacity with a poisoned out-of-range slot, actual
+eject/pilot-promotion transitions and movement callbacks that eject all
+passengers. Attach/update leave seat pointers, `generic1`, bolt selection and
+existing valid coordinates/state intact; only pilot promotion deliberately
+changes the selected passenger's role. Existing dense promotion rearrangement
+behavior is unchanged.
+
+All 31 cases pass under ASan on x64 and x86. The post-counter-fix `1e8a5a5`
+consumer baseline passes the initial twelve checks but fails twelve new sparse,
+promotion and count-changing movement checks. The before/fixed source selectors
+allow these separate baselines to remain distinct; no general FPS gain is
+claimed.
+
+Saved CTest output also verifies that the eight valid boarding, pilot-promotion,
+dense/full and empty state summaries match the pre-consumer-fix binaries exactly
+on both architectures. The corresponding attachment checks validate every
+passenger's coordinates and the unchanged production `*driver` bolt selection.
+
+Set `VEHICLE_SOURCE` and `PMOVE_SOURCE` to saved pre-fix `g_vehicles.c` and
+`bg_pmove.c` files to reproduce old consumer failures. The default suite needs
+no historical checkout or game assets. It
 does not execute the full `UpdateRider`/movement/animation lifecycle and does not
 automatically resolve the other initial vehicle analyzer findings; see
 [REVIEW.md](REVIEW.md) for the per-finding evidence and limits.
