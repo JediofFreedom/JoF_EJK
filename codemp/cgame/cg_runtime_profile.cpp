@@ -20,7 +20,9 @@ void report() {
         "fine player attachments/view/trails","fine player animation/sounds","fine player sprites/force FX",
         "fine player saber","fine player submission/style","fine player holsters/cosmetics",
         "fine player weapon/powerup/effects tail","fine player spec-HUD trace",
-        "fine shadow world trace","fine shadow impact mark","fine water point contents"};
+        "fine shadow world trace","fine shadow impact mark","fine water point contents",
+        "fine animation trigger sounds inclusive","fine animation playback",
+        "fine animation bone frame queries","fine animation event scans/dispatch"};
     static_assert(sizeof(names)/sizeof(names[0]) == CGP_COUNT,"Cgame stage names must match counters");
     print("CGPROFILE cgame: %llu completed frames, %llu early returns, %.3f ms sampled interval; owning-thread elapsed, nested totals overlap; instrumentation changes timing\n",
         static_cast<unsigned long long>(counters.frames()),static_cast<unsigned long long>(counters.early()),counters.interval()/1000000.0);

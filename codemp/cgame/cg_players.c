@@ -3609,19 +3609,24 @@ void CG_TriggerAnimSounds( centity_t *cent )
 	int		curFrame = 0;
 	float	currentFrame = 0;
 	int		sFileIndex;
+	cgProfileMark_t profile;
 
 	assert(cent->localAnimIndex >= 0);
 
 	sFileIndex = cent->eventAnimIndex;
 
+	profile = CG_ProfileFineBegin();
 	if (trap->G2API_GetBoneFrame(cent->ghoul2, "model_root", cg.time, &currentFrame, cgs.gameModels, 0))
 	{
 		// the above may have failed, not sure what to do about it, current frame will be zero in that case
 		curFrame = floor( currentFrame );
 	}
+	CG_ProfileEnd(CGP_ANIM_BONE_FRAMES,profile);
 	if ( curFrame != cent->pe.legs.frame )
 	{
+		profile = CG_ProfileFineBegin();
 		CG_PlayerAnimEvents( cent->localAnimIndex, sFileIndex, qfalse, cent->pe.legs.frame, curFrame, cent->currentState.number );
+		CG_ProfileEnd(CGP_ANIM_EVENTS,profile);
 	}
 	cent->pe.legs.oldFrame = cent->pe.legs.frame;
 	cent->pe.legs.frame = curFrame;
@@ -3633,13 +3638,17 @@ void CG_TriggerAnimSounds( centity_t *cent )
 		return;
 	}
 
+	profile = CG_ProfileFineBegin();
 	if (trap->G2API_GetBoneFrame(cent->ghoul2, "lower_lumbar", cg.time, &currentFrame, cgs.gameModels, 0))
 	{
 		curFrame = floor( currentFrame );
 	}
+	CG_ProfileEnd(CGP_ANIM_BONE_FRAMES,profile);
 	if ( curFrame != cent->pe.torso.frame )
 	{
+		profile = CG_ProfileFineBegin();
 		CG_PlayerAnimEvents( cent->localAnimIndex, sFileIndex, qtrue, cent->pe.torso.frame, curFrame, cent->currentState.number );
+		CG_ProfileEnd(CGP_ANIM_EVENTS,profile);
 	}
 	cent->pe.torso.oldFrame = cent->pe.torso.frame;
 	cent->pe.torso.frame = curFrame;
@@ -13240,11 +13249,17 @@ skipTrail:
 
 	//trigger animation-based sounds, done before next lerp frame.
 	CG_ProfileScopeNext(profile,CGP_PLAYER_ANIMATION);
-	CG_TriggerAnimSounds(cent);
+	{
+		cgProfileMark_t animationProfile = CG_ProfileFineBegin();
+		CG_TriggerAnimSounds(cent);
+		CG_ProfileEnd(CGP_ANIM_TRIGGER,animationProfile);
 
-	// get the animation state (after rotation, to allow feet shuffle)
-	CG_PlayerAnimation( cent, &legs.oldframe, &legs.frame, &legs.backlerp,
-		 &torso.oldframe, &torso.frame, &torso.backlerp );
+		// get the animation state (after rotation, to allow feet shuffle)
+		animationProfile = CG_ProfileFineBegin();
+		CG_PlayerAnimation( cent, &legs.oldframe, &legs.frame, &legs.backlerp,
+			 &torso.oldframe, &torso.frame, &torso.backlerp );
+		CG_ProfileEnd(CGP_ANIM_PLAYBACK,animationProfile);
+	}
 
 	// add the talk baloon or disconnect icon
 	CG_ProfileScopeNext(profile,CGP_PLAYER_FORCE_FX);
