@@ -291,7 +291,7 @@ qboolean Board( Vehicle_t *pVeh, bgEntity_t *pEnt )
 	// If it's not a valid entity, OR if the vehicle is blowing up (it's dead), OR it's not
 	// empty, OR we're already being boarded, OR the person trying to get on us is already
 	// in a vehicle (that was a fun bug :-), leave!
-	if ( !ent || parent->health <= 0 /*|| !( parent->client->ps.eFlags & EF_EMPTY_VEHICLE )*/ || (pVeh->m_iBoarding > 0) ||
+	if ( !ent || !ent->client || parent->health <= 0 /*|| !( parent->client->ps.eFlags & EF_EMPTY_VEHICLE )*/ || (pVeh->m_iBoarding > 0) ||
 		 ( ent->client->ps.m_iVehicleNum ) )
 		return qfalse;
 
@@ -1436,8 +1436,8 @@ static qboolean Update( Vehicle_t *pVeh, const usercmd_t *pUmcd )
 			if ( psngr &&
 				(!psngr->inuse || !psngr->client || psngr->health <= 0 || psngr->client->pers.connected != CON_CONNECTED) )
 			{
+				// Eject owns the slot and count. A rejected eject retains both.
 				pVeh->m_pVehicleInfo->Eject( pVeh, pVeh->m_ppPassengers[i], qtrue );
-				pVeh->m_iNumPassengers--;
 			}
 		}
 	}
