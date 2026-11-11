@@ -279,3 +279,21 @@ this is not a new whole-target analysis. Historical targeted diagnostics,
 sanitizer capability limits and remaining model/driver/error-state gaps
 are retained; no whole-project warning-free, complete recovery or new loading/FPS
 claim is made. Earlier blocked/unverified/restricted work remains untouched.
+
+### Combined quality and portable logs at `9f78781`
+
+The full SSAA/MSAA/bloom/dynamic-glow configuration needs 27 attachments; the
+old 26-slot budget omitted refraction. The pool and memory tracker now use one
+inclusive capacity, with accurate attempted-count diagnostics and pre-write
+guards. Portable crash logging also selects a valid effective home/install/cwd
+fallback and retains native writes after filesystem shutdown.
+
+Actual attachment fixtures pass 6/6 on x64/x86 Release and x64 ASan; original
+750 source fails the two combined-preset cases while four controls pass. All
+35 core cases pass on x64 Release. Crash-log fixtures pass 6/6 on x64/x86;
+before-fix source fails five cases with one passing control.
+
+Both pinned Windows x64/x86 engine and Vulkan builds passed with explicit BUILD_EXIT=0. CI run 43111493897 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 69/69 suites without skips; macOS/Ubuntu each passed 67/67 applicable suites plus two explicit Windows-only skips.
+The installed 9f engine/Vulkan plus unchanged 750 game/support combination passed three local maps and nine valid 2560x1440 PNG captures, with actual 8x MSAA, SSAA rendering at 5120x2880, HDR, bloom, dynamic glow and all 41 requested settings verified. Exit, core/synchronization validation, resources and configuration/runtime guards were clean. Root visually spot-checked maps 1 and 2 only. Seven 9f runtime files and seven backups were verified; 46 other manifest files and eight fresh user-config guards stayed unchanged. Two authorized quality files restore MSAA 8/SSAA 1 while preserving all other 29 quality settings and the main config. Deployment preceded successful full-map validation; the later run verified the same installed combination.
+See [the concise checkpoint ledger](followup-9f78781.json). The 750 results remain
+historical; no new performance or universal stability claim is made.
