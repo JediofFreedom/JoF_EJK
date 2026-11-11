@@ -1800,7 +1800,7 @@ static qboolean ParseStage(shaderStage_t *stage, const char **text)
 		{
 			char buffer[1024] = "";
 			char param[128];
-			strcpy(param, token);
+			Q_strncpyz(param, token, sizeof(param));
 
 			while (1)
 			{

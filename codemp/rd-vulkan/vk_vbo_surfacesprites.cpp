@@ -655,8 +655,8 @@ static spriteStage_t* vk_build_surface_sprite_stage( const int index, msurface_t
 
 	// create shader for this stage
 	uint32_t hash = 0;
-	for ( i = 0; bundle->image[i]; ++i )
-		hash = UpdateHash( bundle->image[i++]->imgName, hash ); // ~sunny, i++ twice?
+	for ( i = 0; i < ARRAY_LEN(bundle->image) && bundle->image[i]; ++i )
+		hash = UpdateHash( bundle->image[i]->imgName, hash );
 
 	sprite_stage->shader = R_CreateShaderFromTextureBundle( va("*ss_%d_%08x\n", index, hash), bundle, stage->stateBits );
 	sprite_stage->shader->cullType = shader->cullType;

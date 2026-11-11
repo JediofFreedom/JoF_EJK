@@ -489,7 +489,7 @@ void CTRLandScape::SetShaders(const int height, const qhandle_t shader)
 {
 	int		i;
 
-	for(i = height; shader && (i < HEIGHT_RESOLUTION); i++)
+	for(i = Q_max(0, height); shader && (i < HEIGHT_RESOLUTION); i++)
 	{
 		if(!mHeightDetails[i].GetShader())
 		{

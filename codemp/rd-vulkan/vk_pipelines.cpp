@@ -598,6 +598,18 @@ static void vk_push_vertex_input_binding_attribute( const Vk_Pipeline_Def *def )
                     break;
             }
 
+            // Environment mapping replaces the sampled ST0 coordinates, but
+            // model deformation still needs the original mesh coordinates.
+            if (def->shader_type != TYPE_FOG_ONLY) {
+                bool hasTexCoords = false;
+                for (uint32_t i = 0; i < num_binds; ++i)
+                    if (bindings[i].binding == 2) { hasTexCoords = true; break; }
+                if (!hasTexCoords) {
+                    vk_push_bind(2, sizeof(vec2_t));
+                    vk_push_attr(2, 2, VK_FORMAT_R32G32_SFLOAT);
+                }
+            }
+
             if ( def->vbo_ghoul2 )
             {
                 vk_push_bind( 8, sizeof( vec4_t ) );		// bone indexes

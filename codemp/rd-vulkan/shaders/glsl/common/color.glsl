@@ -53,10 +53,10 @@
 		switch ( u_global.bundle[index].rgbGen )
 		{
 			case CGEN_EXACT_VERTEX:
-				color = u_global.bundle[index].vertColor; // vec4(1.0)
+				color += u_global.bundle[index].vertColor; // white model vertices; preserve explicit alpha
 				break;
 			case CGEN_VERTEX:
-				color = u_global.bundle[index].vertColor; // tr.identityLight
+				color += u_global.bundle[index].vertColor; // tr.identityLight, with separately prepared alpha
 				break;
 			case CGEN_ONE_MINUS_VERTEX:
 				color += u_global.bundle[index].vertColor;
@@ -102,7 +102,7 @@
 			}
 			case AGEN_PORTAL:
 			{
-				vec3 viewer = normalize( u_entity.localViewOrigin.xyz - position );
+				vec3 viewer = u_entity.localViewOrigin.xyz - position;
 				color.a = clamp( length( viewer ) / u_global.portalRange, 0.0, 1.0 );
 				break;
 			}

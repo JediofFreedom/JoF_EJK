@@ -133,6 +133,9 @@ void RE_AddPolyToScene( qhandle_t hShader, int numVerts, const polyVert_t *verts
 	if ( !tr.registered ) {
 		return;
 	}
+	if ( !verts || numVerts < 3 || numPolys <= 0 ) {
+		return;
+	}
 
 	if ( !hShader ) {
 		ri.Printf( PRINT_ALL, S_COLOR_YELLOW  "WARNING: RE_AddPolyToScene: NULL poly shader\n");
@@ -140,7 +143,7 @@ void RE_AddPolyToScene( qhandle_t hShader, int numVerts, const polyVert_t *verts
 	}
 
 	for ( j = 0; j < numPolys; j++ ) {
-		if ( r_numpolyverts + numVerts >= max_polyverts || r_numpolys >= max_polys ) {
+		if ( numVerts > max_polyverts - r_numpolyverts || r_numpolys >= max_polys ) {
       /*
       NOTE TTimo this was initially a PRINT_WARNING
       but it happens a lot with high fighting scenes and particles
@@ -157,7 +160,7 @@ void RE_AddPolyToScene( qhandle_t hShader, int numVerts, const polyVert_t *verts
 		poly->numVerts = numVerts;
 		poly->verts = &backEndData->polyVerts[r_numpolyverts];
 
-		memcpy( poly->verts, &verts[numVerts*j], numVerts * sizeof( *verts ) );
+		memcpy( poly->verts, &verts[size_t(numVerts) * j], size_t(numVerts) * sizeof( *verts ) );
 
 		// done.
 		r_numpolys++;
@@ -205,7 +208,7 @@ RE_AddRefEntityToScene
 =====================
 */
 void RE_AddRefEntityToScene( const refEntity_t *ent ) {
-	if ( !tr.registered ) {
+	if ( !tr.registered || !ent ) {
 		return;
 	}
 
@@ -251,7 +254,7 @@ void RE_AddRefEntityToScene( const refEntity_t *ent ) {
 	{
 		CGhoul2Info_v	&ghoul2 = *((CGhoul2Info_v *)ent->ghoul2);
 
-		if (!ghoul2[0].mModel)
+		if (ghoul2.size() && !ghoul2[0].mModel)
 		{
 			ri.Printf( PRINT_ALL, "Your ghoul2 instance has no model!\n");
 		}
@@ -373,9 +376,9 @@ void RE_AddLinearLightToScene( const vec3_t start, const vec3_t end, float inten
 	if (r_dlightSaturation->value != 1.0)
 	{
 		float luminance = LUMA(r, g, b);
-		r = LERP(luminance, r, r_mapGreyScale->value);
-		g = LERP(luminance, g, r_mapGreyScale->value);
-		b = LERP(luminance, b, r_mapGreyScale->value);
+		r = LERP(luminance, r, r_dlightSaturation->value);
+		g = LERP(luminance, g, r_dlightSaturation->value);
+		b = LERP(luminance, b, r_dlightSaturation->value);
 	}
 
 	dl = &backEndData->dlights[r_numdlights++];
@@ -596,20 +599,21 @@ void RE_RenderScene( const refdef_t *fd ) {
 	R_RenderView(&parms);
 	if (tr.needScreenMap)
 	{
-		if (lastRenderCommand == RC_DRAW_BUFFER) {
+		if (lastRenderCommand == RC_DRAW_BUFFER && tr.numDrawSurfCmds > 0) {
 			// duplicate all views, including portals
 			drawSurfsCommand_t *cmd, *src = NULL;
 			int i;
 
-			for (i = 0; i < tr.numDrawSurfCmds; i++)
+			// Reserve every copied view before changing render-pass flags. A full
+			// command buffer must leave the original main-scene views intact.
+			cmd = (drawSurfsCommand_t*)R_GetCommandBuffer(sizeof(*cmd) * tr.numDrawSurfCmds);
+			if (cmd)
 			{
-				cmd = (drawSurfsCommand_t*)R_GetCommandBuffer(sizeof(*cmd));
-				src = tr.drawSurfCmd + i;
-				*cmd = *src;
-			}
-
-			if (src)
-			{
+				for (i = 0; i < tr.numDrawSurfCmds; i++)
+				{
+					src = tr.drawSurfCmd + i;
+					cmd[i] = *src;
+				}
 				// first drawsurface
 				tr.drawSurfCmd[0].refdef.needScreenMap = qtrue;
 				// last drawsurface

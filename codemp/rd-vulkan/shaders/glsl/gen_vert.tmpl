@@ -57,7 +57,7 @@ layout(set = VK_DESC_UNIFORM, binding = VK_DESC_UNIFORM_MAIN_BINDING) uniform UB
 
 layout(location = 0) in vec3 in_position;
 
-#ifndef USE_ENV
+#if !defined(USE_ENV) || defined(USE_VBO_MODEL)
 layout(location = 2) in vec2 in_tex_coord0;
 #endif
 
@@ -132,7 +132,7 @@ void main() {
 	vec3 normal = normalize(in_normal);
 
 	if ( u_global.deform.type != 0 ){ // !DEFORM_NONE
-		position	= DeformPosition( position, normal, frag_tex_coord0 );
+		position	= DeformPosition( position, normal, in_tex_coord0 );
 		normal		= DeformNormal( position, normal );
 	}
 #elif defined(USE_VBO_GHOUL2)
@@ -146,7 +146,7 @@ void main() {
 	vec3 normal = normalize(skin_matrix * vec4(in_normal, 0.0));
 
 	if ( u_global.deform.type != 0 ){ // !DEFORM_NONE
-		position	= DeformPosition( position, normal, frag_tex_coord0 );
+		position	= DeformPosition( position, normal, in_tex_coord0 );
 		normal		= DeformNormal( position, normal );
 	}
 #else

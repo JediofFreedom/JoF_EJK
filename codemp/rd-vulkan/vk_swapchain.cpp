@@ -105,6 +105,7 @@ void vk_create_swapchain( VkPhysicalDevice physical_device, VkDevice device,
 	if ( image_extent.height < gls.windowHeight) image_extent.height = gls.windowHeight;
 
     vk.clearAttachment = qtrue;
+    vk.swapchainTransferDst = (surface_caps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT) ? qtrue : qfalse;
 
     if ( !vk.fboActive ) {
         // VK_IMAGE_USAGE_TRANSFER_DST_BIT is required by image clear operations.
@@ -193,15 +194,21 @@ void vk_create_swapchain( VkPhysicalDevice physical_device, VkDevice device,
     desc.imageArrayLayers = 1;
     desc.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    if ( !vk.fboActive )
-        desc.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    // The splash blits directly into a presentable image even with FBOs on.
+    if (vk.swapchainTransferDst)
+        desc.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    if (!vk.fboActive)
+        desc.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
     desc.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     desc.queueFamilyIndexCount = 0;
     desc.pQueueFamilyIndices = NULL;
     desc.preTransform = surface_caps.currentTransform;
-    //desc.compositeAlpha = get_composite_alpha( surface_caps.supportedCompositeAlpha );
-    desc.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    // Opaque is preferred, but is not required on every window-system surface.
+    const VkCompositeAlphaFlagsKHR supportedAlpha = surface_caps.supportedCompositeAlpha;
+    if (!supportedAlpha)
+        ri.Error(ERR_FATAL, "Vulkan: surface advertises no composite-alpha mode");
+    desc.compositeAlpha = static_cast<VkCompositeAlphaFlagBitsKHR>(supportedAlpha & (~supportedAlpha + 1));
     desc.presentMode = present_mode;
     desc.clipped = VK_TRUE;
     desc.oldSwapchain = VK_NULL_HANDLE;

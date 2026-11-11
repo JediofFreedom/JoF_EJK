@@ -1120,12 +1120,17 @@ RB_DrawBuffer
 
 =============
 */
+// Retained across command-list flushes until the next frame begins.
+static qboolean rb_skipUnacquiredFrame = qfalse;
+
 const void	*RB_DrawBuffer( const void *data ) {
 	const drawBufferCommand_t	*cmd;
 
 	cmd = (const drawBufferCommand_t *)data;
 
-	vk_begin_frame();
+	rb_skipUnacquiredFrame = vk_begin_frame() ? qfalse : qtrue;
+	if ( rb_skipUnacquiredFrame )
+		return (const void *)(cmd + 1);
 
 	vk_set_depthrange(DEPTH_RANGE_NORMAL);
 
@@ -1269,34 +1274,44 @@ void RB_ExecuteRenderCommands( const void *data ) {
 			data = RB_SetColor( data );
 			break;
 		case RC_STRETCH_PIC:
-			data = RB_StretchPic( data );
+			data = rb_skipUnacquiredFrame ? (const void *)((const stretchPicCommand_t *)data + 1) : RB_StretchPic( data );
 			break;
 		case RC_ROTATE_PIC:
-			data = RB_RotatePic( data );
+			data = rb_skipUnacquiredFrame ? (const void *)((const rotatePicCommand_t *)data + 1) : RB_RotatePic( data );
 			break;
 		case RC_ROTATE_PIC2:
-			data = RB_RotatePic2( data );
+			data = rb_skipUnacquiredFrame ? (const void *)((const rotatePicCommand_t *)data + 1) : RB_RotatePic2( data );
 			break;
 		case RC_DRAW_SURFS:
-			data = RB_DrawSurfs( data );
+			data = rb_skipUnacquiredFrame ? (const void *)((const drawSurfsCommand_t *)data + 1) : RB_DrawSurfs( data );
 			break;
 		case RC_DRAW_BUFFER:
 			data = RB_DrawBuffer( data );
 			break;
 		case RC_SWAP_BUFFERS:
-			data = RB_SwapBuffers( data );
+			if ( rb_skipUnacquiredFrame ) {
+				ResetGhoul2RenderableSurfaceHeap();
+				tr.needScreenMap = 0;
+				tr.ss.groups_count = 0;
+				backEnd.projection2D = qfalse;
+				backEnd.doneSurfaces = qfalse;
+				backEnd.doneBloom = qfalse;
+				data = (const void *)((const swapBuffersCommand_t *)data + 1);
+			} else {
+				data = RB_SwapBuffers( data );
+			}
 			break;
 		case RC_VIDEOFRAME:
-			data = RB_TakeVideoFrameCmd( data );
+			data = rb_skipUnacquiredFrame ? (const void *)((const videoFrameCommand_t *)data + 1) : RB_TakeVideoFrameCmd( data );
 			break;
 		case RC_WORLD_EFFECTS:
-			data = RB_WorldEffects( data );
+			data = rb_skipUnacquiredFrame ? (const void *)((const drawBufferCommand_t *)data + 1) : RB_WorldEffects( data );
 			break;
 		case RC_AUTO_MAP:
-			data = R_DrawWireframeAutomap(data);
+			data = rb_skipUnacquiredFrame ? (const void *)((const drawBufferCommand_t *)data + 1) : R_DrawWireframeAutomap( data );
 			break;
 		case RC_CLEARCOLOR:
-			data = RB_ClearColor(data);
+			data = rb_skipUnacquiredFrame ? (const void *)((const clearColorCommand_t *)data + 1) : RB_ClearColor( data );
 			break;
 		case RC_END_OF_LIST:
 		default:

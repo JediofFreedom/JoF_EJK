@@ -49,6 +49,7 @@ PFN_vkGetPhysicalDeviceFeatures					qvkGetPhysicalDeviceFeatures;
 PFN_vkGetPhysicalDeviceFeatures2 qvkGetPhysicalDeviceFeatures2;
 PFN_vkGetPhysicalDeviceProperties2 qvkGetPhysicalDeviceProperties2;
 PFN_vkGetPhysicalDeviceImageFormatProperties2 qvkGetPhysicalDeviceImageFormatProperties2;
+PFN_vkGetPhysicalDeviceImageFormatProperties qvkGetPhysicalDeviceImageFormatProperties;
 PFN_vkCopyMemoryToImage qvkCopyMemoryToImage;
 PFN_vkTransitionImageLayout qvkTransitionImageLayout;
 PFN_vkCmdPipelineBarrier2 qvkCmdPipelineBarrier2;
@@ -349,10 +350,6 @@ static void vk_create_instance( void )
     result = qvkCreateInstance(&desc, NULL, &vk.instance);
 #endif
 
-	// hotfix: reintroduce duplicate instance creation.
-	// mysterious x64-linux configuration causing a crash after vid_restart.
-	result = qvkCreateInstance(&desc, NULL, &vk.instance);
-
     switch (result) {
         case VK_SUCCESS:
             vk_debug("--- Vulkan create instance success! ---\n\n"); break;
@@ -366,6 +363,10 @@ static void vk_create_instance( void )
 
     free((void*)extension_names);
     free(extension_properties);
+    // Keep the one successfully created instance. An unconditional second
+    // create overwrote its handle and leaked the first loader/driver instance.
+    if (result != VK_SUCCESS)
+        ri.Error(ERR_FATAL, "vkCreateInstance returned %s", vk_result_string(result));
 }
 
 static VkFormat get_hdr_format( VkFormat base_format )
@@ -859,6 +860,7 @@ __initStart:
 	qvkGetPhysicalDeviceFeatures2 = (PFN_vkGetPhysicalDeviceFeatures2)qvkGetInstanceProcAddr(vk.instance, "vkGetPhysicalDeviceFeatures2");
 	qvkGetPhysicalDeviceProperties2 = (PFN_vkGetPhysicalDeviceProperties2)qvkGetInstanceProcAddr(vk.instance, "vkGetPhysicalDeviceProperties2");
 	qvkGetPhysicalDeviceImageFormatProperties2 = (PFN_vkGetPhysicalDeviceImageFormatProperties2)qvkGetInstanceProcAddr(vk.instance, "vkGetPhysicalDeviceImageFormatProperties2");
+	INIT_INSTANCE_FUNCTION(vkGetPhysicalDeviceImageFormatProperties)
 	INIT_INSTANCE_FUNCTION(vkGetPhysicalDeviceFormatProperties)
 	INIT_INSTANCE_FUNCTION(vkGetPhysicalDeviceMemoryProperties)
 	INIT_INSTANCE_FUNCTION(vkGetPhysicalDeviceProperties)
@@ -1095,6 +1097,7 @@ void vk_deinit_library( void )
 	qvkGetPhysicalDeviceFeatures2 = NULL;
 	qvkGetPhysicalDeviceProperties2 = NULL;
 	qvkGetPhysicalDeviceImageFormatProperties2 = NULL;
+	qvkGetPhysicalDeviceImageFormatProperties = NULL;
 	qvkCopyMemoryToImage = NULL;
 	qvkTransitionImageLayout = NULL;
 	qvkCmdPipelineBarrier2 = NULL;

@@ -366,9 +366,9 @@ void vk_texture_mode( const char *string, const qboolean init ) {
 	vk_update_attachment_descriptors();
 	for ( i = 0; i < tr.images.count; i++ ) {
 		img = tr.images.items[i];
-		if ( img->flags & IMGFLAG_MIPMAP ) {
-			vk_update_descriptor_set( img, qtrue );
-		}
+		// Destroying the sampler cache invalidates non-mip descriptors too,
+		// even though their fixed linear filtering does not change.
+		vk_update_descriptor_set( img, (img->flags & IMGFLAG_MIPMAP) ? qtrue : qfalse );
 	}
 }
 
@@ -785,8 +785,8 @@ bool vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 
 	if (!(image->flags & IMGFLAG_LIGHTMAP)) {
 		while (scaled_width > (context ? context->maxTextureSize : glConfig.maxTextureSize) || scaled_height > (context ? context->maxTextureSize : glConfig.maxTextureSize)) {
-			scaled_width >>= 1;
-			scaled_height >>= 1;
+			scaled_width = MAX(1, scaled_width >> 1);
+			scaled_height = MAX(1, scaled_height >> 1);
 		}
 	}
 
@@ -1543,8 +1543,18 @@ static void vk_assign_image_descriptor(image_t *image, int mip_levels) {
 void vk_create_image( image_t *image, int width, int height, int mip_levels ) {
 	ImagePhaseTimer profile(vkLoadStats.imageGpuCreateUs);
 	VkFormat format = (VkFormat)image->internalFormat;
+	// A resized cinematic can still be sampled by an earlier submitted frame.
+	// Flush pending transfers and finish those users before replacing either
+	// ordinary or resident image resources; fresh creation needs no wait.
+	if (image->handle || image->view) {
+		vk_flush_image_uploads();
+		const VkResult idle = qvkDeviceWaitIdle(vk.device);
+		if (idle != VK_SUCCESS) {
+			ri.Error(ERR_DROP, "vkDeviceWaitIdle before image replacement failed: %s", vk_result_string(idle));
+			return;
+		}
+	}
 	if (image->residentMemory) {
-		vk_wait_idle();
 		R_InvalidateResidentTexture(image);
 		activeResidentTextures.erase(image);
 		image->handle = VK_NULL_HANDLE;

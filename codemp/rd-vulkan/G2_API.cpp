@@ -807,6 +807,12 @@ int G2API_InitGhoul2Model(CGhoul2Info_v **ghoul2Ptr, const char *fileName, int m
 		assert(0);
 		return -1;
 	}
+	// Reject before allocating or copying: model registration checks the path
+	// length only after this fixed-size Ghoul2 filename has already been filled.
+	if (strlen(fileName) >= sizeof(((CGhoul2Info *)0)->mFileName))
+	{
+		return -1;
+	}
 
 	if (!(*ghoul2Ptr))
 	{

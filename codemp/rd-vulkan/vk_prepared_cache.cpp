@@ -38,8 +38,9 @@ static Key readKey(const unsigned char *p) { return {read64(p), read64(p + 8)}; 
 Key ContentKey(const void *source, size_t length, const void *settings, size_t settingsLength) {
     // Domain/version and length delimit the key inputs. Bump this version when
     // mip generation, greyscale, compression or color processing changes.
-    // v2 also invalidates results produced by the old 32-bit resample fractions.
-    const unsigned char domain[] = {'E','J','K','-','T','X','C',2};
+    // v3 also invalidates stale one-dimensional HQ mip tails and zero-axis
+    // device-limit downscaling results (v2 fixed 32-bit resample fractions).
+    const unsigned char domain[] = {'E','J','K','-','T','X','C',3};
     unsigned char lengths[16]; write64(lengths, length); write64(lengths + 8, settingsLength);
     XXH3_state_t state;
     XXH3_128bits_reset(&state);

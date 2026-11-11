@@ -317,9 +317,15 @@ bool R_MipMap2( unsigned * const out, unsigned * const in, int inWidth, int inHe
     int			outWidth, outHeight;
     unsigned    *temp;
 
-    outWidth = inWidth >> 1;
-    outHeight = inHeight >> 1;
-    if (!outWidth || !outHeight) return true; // Preserve the existing one-dimensional HQ no-op.
+    if (inWidth == 1 && inHeight == 1) {
+        if (out != in) Com_Memcpy(out, in, 4);
+        return true;
+    }
+    // The shorter axis reaches one before the longer axis for rectangular
+    // textures. Continue the same wrapped HQ filter through the remaining
+    // mip levels; the singleton axis simply contributes repeated samples.
+    outWidth = MAX(1, inWidth >> 1);
+    outHeight = MAX(1, inHeight >> 1);
 
     if (out == in) {
         temp = scratch ? reinterpret_cast<unsigned *>(scratch->allocate(TexturePreparationBuffers::MipTemporary, size_t(outWidth) * outHeight * 4)) :

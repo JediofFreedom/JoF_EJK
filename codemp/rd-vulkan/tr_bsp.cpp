@@ -1349,7 +1349,7 @@ static int R_StitchPatches( int grid1num, int grid2num, world_t &worldData ) {
 					if (m) row = grid2->height-1;
 					else row = 0;
 					grid2 = R_GridInsertColumn( grid2, l+1, row,
-										grid1->verts[k - 1 + offset1].xyz, grid1->widthLodError[k+1]);
+										grid1->verts[k - 1 + offset1].xyz, grid1->widthLodError[k-1]);
 					grid2->lodStitched = qfalse;
 					worldData.surfaces[grid2num].data = (surfaceType_t *) grid2;
 					return qtrue;
@@ -1395,7 +1395,7 @@ static int R_StitchPatches( int grid1num, int grid2num, world_t &worldData ) {
 					if (m) column = grid2->width-1;
 					else column = 0;
 					grid2 = R_GridInsertRow( grid2, l+1, column,
-										grid1->verts[k - 1 + offset1].xyz, grid1->widthLodError[k+1]);
+										grid1->verts[k - 1 + offset1].xyz, grid1->widthLodError[k-1]);
 					if (!grid2)
 						break;
 					grid2->lodStitched = qfalse;
@@ -1452,7 +1452,7 @@ static int R_StitchPatches( int grid1num, int grid2num, world_t &worldData ) {
 					if (m) row = grid2->height-1;
 					else row = 0;
 					grid2 = R_GridInsertColumn( grid2, l+1, row,
-										grid1->verts[grid1->width * (k - 1) + offset1].xyz, grid1->heightLodError[k+1]);
+										grid1->verts[grid1->width * (k - 1) + offset1].xyz, grid1->heightLodError[k-1]);
 					grid2->lodStitched = qfalse;
 					worldData.surfaces[grid2num].data = (surfaceType_t *) grid2;
 					return qtrue;
@@ -1498,7 +1498,7 @@ static int R_StitchPatches( int grid1num, int grid2num, world_t &worldData ) {
 					if (m) column = grid2->width-1;
 					else column = 0;
 					grid2 = R_GridInsertRow( grid2, l+1, column,
-										grid1->verts[grid1->width * (k - 1) + offset1].xyz, grid1->heightLodError[k+1]);
+										grid1->verts[grid1->width * (k - 1) + offset1].xyz, grid1->heightLodError[k-1]);
 					grid2->lodStitched = qfalse;
 					worldData.surfaces[grid2num].data = (surfaceType_t *) grid2;
 					return qtrue;
@@ -1612,7 +1612,7 @@ static void R_MovePatchSurfacesToHunk( world_t &worldData ) {
 		memcpy( hunkgrid->widthLodError, grid->widthLodError, grid->width * 4 );
 
 		hunkgrid->heightLodError = (float *)Hunk_Alloc( grid->height * 4, h_low );
-		memcpy( grid->heightLodError, grid->heightLodError, grid->height * 4 );
+		memcpy( hunkgrid->heightLodError, grid->heightLodError, grid->height * 4 );
 
 		R_FreeSurfaceGridMesh( grid );
 

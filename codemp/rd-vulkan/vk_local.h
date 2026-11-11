@@ -290,7 +290,7 @@ typedef enum {
 	TYPE_BLEND3_DST_COLOR_SRC_ALPHA,
 	TYPE_BLEND3_DST_COLOR_SRC_ALPHA_ENV,
 
-	TYPE_GENERIC_END = TYPE_BLEND3_MIX_ONE_MINUS_ALPHA_ENV
+	TYPE_GENERIC_END = TYPE_BLEND3_DST_COLOR_SRC_ALPHA_ENV
 
 } Vk_Shader_Type;
 
@@ -321,6 +321,7 @@ extern PFN_vkGetPhysicalDeviceFeatures					qvkGetPhysicalDeviceFeatures;
 extern PFN_vkGetPhysicalDeviceFeatures2 qvkGetPhysicalDeviceFeatures2;
 extern PFN_vkGetPhysicalDeviceProperties2 qvkGetPhysicalDeviceProperties2;
 extern PFN_vkGetPhysicalDeviceImageFormatProperties2 qvkGetPhysicalDeviceImageFormatProperties2;
+extern PFN_vkGetPhysicalDeviceImageFormatProperties qvkGetPhysicalDeviceImageFormatProperties;
 extern PFN_vkCopyMemoryToImage qvkCopyMemoryToImage;
 extern PFN_vkTransitionImageLayout qvkTransitionImageLayout;
 extern PFN_vkCmdPipelineBarrier2 qvkCmdPipelineBarrier2;
@@ -956,6 +957,7 @@ typedef struct {
 	qboolean debugMarkers;
 	qboolean wideLines;
 	qboolean clearAttachment;		// requires VK_IMAGE_USAGE_TRANSFER_DST_BIT
+	qboolean swapchainTransferDst;	// optional splash transfer destination
 	qboolean fboActive;
 	qboolean blitEnabled;
 
@@ -1078,7 +1080,7 @@ void		vk_create_swapchain( VkPhysicalDevice physical_device, VkDevice device,
 	VkSurfaceKHR surface, VkSurfaceFormatKHR surface_format, VkSwapchainKHR *swapchain);
 
 // frame
-void		vk_begin_frame( void );
+qboolean	vk_begin_frame( void );
 void		vk_end_frame( void );
 void		vk_present_frame( void );
 void		vk_create_framebuffers( void );

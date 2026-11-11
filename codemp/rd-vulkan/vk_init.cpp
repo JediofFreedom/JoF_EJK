@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <stdio.h>
 #include "tr_local.h"
 #include <algorithm>
+#include "vk_sample_counts.h"
 #include "../rd-common/tr_common.h"
 #include "tr_WorldEffects.h"
 #include "qcommon/MiniHeap.h"
@@ -176,6 +177,9 @@ static void vk_render_splash( void )
 	image_t						*splashImage;
 	VkImageBlit					imageBlit;
 	float						ratio;
+
+	if (!vk.swapchainTransferDst || ri.VK_IsMinimized())
+		return;
 
 	ratio = ( (float)( SCREEN_WIDTH * glConfig.vidHeight ) / (float)( SCREEN_HEIGHT * glConfig.vidWidth ) );
 
@@ -396,6 +400,31 @@ static void vk_initTextureCompression( void )
 	}
 }
 
+static VkSampleCountFlags vk_framebuffer_sample_counts(const VkPhysicalDeviceProperties &properties)
+{
+	VkSampleCountFlags supported = VK_FramebufferSampleCounts(properties.limits, glConfig.stencilBits > 0);
+	const auto intersectFormat = [&](VkFormat format, VkImageUsageFlags usage) {
+		VkImageFormatProperties image = {};
+		const VkResult result = qvkGetPhysicalDeviceImageFormatProperties(vk.physical_device,
+			format, VK_IMAGE_TYPE_2D, VK_IMAGE_TILING_OPTIMAL, usage, 0, &image);
+		if (result == VK_ERROR_FORMAT_NOT_SUPPORTED) {
+			supported = 0;
+		} else {
+			if (result != VK_SUCCESS)
+				ri.Error(ERR_FATAL, "vkGetPhysicalDeviceImageFormatProperties returned %s", vk_result_string(result));
+			supported &= image.sampleCounts;
+		}
+	};
+	// Main/screenmap multisample attachments use transient color/depth.
+	intersectFormat(vk.color_format, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT);
+	intersectFormat(vk.depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT);
+	if (vk.fboActive && (r_bloom->integer || r_DynamicGlow->integer))
+		intersectFormat(vk.depth_format, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
+	if (vk.fboActive && glConfig.maxActiveTextures >= 4 && r_DynamicGlow->integer)
+		intersectFormat(vk.color_format, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT);
+	return supported;
+}
+
 void vk_initialize( void )
 {
 	VkPhysicalDeviceProperties props;
@@ -526,17 +555,13 @@ void vk_initialize( void )
 		vk.msaaActive = qtrue;
 
 	// MSAA
-	vkMaxSamples = MIN( props.limits.sampledImageColorSampleCounts, props.limits.sampledImageDepthSampleCounts);
-
-	if ( vk.msaaActive ) {
-		VkSampleCountFlags mask = vkMaxSamples;
-		vkSamples = MAX( log2pad( r_ext_multisample->integer, 1 ), VK_SAMPLE_COUNT_2_BIT );
-		while ( vkSamples > mask )
-			vkSamples >>= 1;
-	}
-	else {
-		vkSamples = VK_SAMPLE_COUNT_1_BIT;
-	}
+	// Color, depth and (when present) stencil attachments must all support
+	// the same count. Sampled-image limits are a different Vulkan capability.
+	const VkSampleCountFlags framebufferSamples = vk_framebuffer_sample_counts(props);
+	vkMaxSamples = VK_SelectSampleCount(framebufferSamples, VK_SAMPLE_COUNT_64_BIT);
+	vkSamples = vk.msaaActive ? VK_SelectSampleCount(framebufferSamples,
+		MAX(log2pad(r_ext_multisample->integer, 1), VK_SAMPLE_COUNT_2_BIT)) : VK_SAMPLE_COUNT_1_BIT;
+	vk.msaaActive = vkSamples > VK_SAMPLE_COUNT_1_BIT ? qtrue : qfalse;
 
 	ri.Printf( PRINT_ALL, "MSAA max: %dx, using %dx\n", vkMaxSamples, vkSamples );
 
@@ -559,7 +584,7 @@ void vk_initialize( void )
 		vk.refractionActive = qtrue;
 
 	// Screenmap
-	vk.screenMapSamples = MIN(vkMaxSamples, VK_SAMPLE_COUNT_4_BIT);
+	vk.screenMapSamples = VK_SelectSampleCount(framebufferSamples, VK_SAMPLE_COUNT_4_BIT);
 	vk.screenMapWidth = (float)glConfig.vidWidth / 16.0;
 	vk.screenMapHeight = (float)glConfig.vidHeight / 16.0;
 
