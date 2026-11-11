@@ -21,14 +21,14 @@
       "message"
     ],
     "unique_findings_by_disposition": {
-      "unresolved-needs-fixture": 185,
+      "unresolved-needs-fixture": 182,
       "likely-contract-or-assert-false-positive": 59,
-      "confirmed-fixed": 41
+      "confirmed-fixed": 44
     },
     "contexts_by_overall_disposition": {
-      "unresolved-needs-fixture": 70,
+      "unresolved-needs-fixture": 68,
       "likely-contract-or-assert-false-positive": 31,
-      "confirmed-fixed": 14
+      "confirmed-fixed": 16
     }
   },
   "contexts": [
@@ -270,7 +270,7 @@
     {
       "context": "7101094e653a3205",
       "translation_unit": "codemp/qcommon/RoffSystem.cpp",
-      "disposition": "unresolved-needs-fixture",
+      "disposition": "confirmed-fixed",
       "findings": [
         54
       ],
@@ -752,7 +752,7 @@
     {
       "context": "a23d7fa13319ecc7",
       "translation_unit": "codemp/cgame/cg_ents.c",
-      "disposition": "unresolved-needs-fixture",
+      "disposition": "confirmed-fixed",
       "findings": [
         181,
         182
@@ -2439,13 +2439,17 @@
       "contexts": [
         "7101094e653a3205"
       ],
-      "disposition": "unresolved-needs-fixture",
-      "rationale": "SetLerp requires an initialized trajectory, but the dedicated ApplyROFF client branch compiles out initialization. Verify whether every dedicated caller excludes client ROFF entries before classifying this as a contract-only path.",
+      "disposition": "confirmed-fixed",
+      "rationale": "Dedicated-client playback is unsupported by current GVM wrappers (which pass isClient=false), but the public ROFF API could previously proceed with null trajectories in that state. ApplyROFF and ClearLerp now return false before SetLerp. Actual Play/UpdateEntities and ClearLerp fixtures reproduce separate null writes against baseline 8cc641a under x64 AddressSanitizer and pass after the fix; ordinary dedicated server playback still passes. This verifies the guarded source path without claiming it was reachable from current GVM inputs.",
       "evidence": [
-        "codemp/qcommon/RoffSystem.cpp:ApplyROFF mIsClient/#ifndef DEDICATED branch"
+        "codemp/qcommon/RoffSystem.cpp:ApplyROFF dedicated mIsClient rejection",
+        "codemp/qcommon/RoffSystem.cpp:ClearLerp dedicated mIsClient rejection",
+        "codemp/server/sv_gameapi.cpp:SV_ROFF_Play passes qfalse",
+        "tests/roff-playback:roff_dedicated_client_apply and roff_dedicated_client_clear",
+        "tests/roff-playback:roff_dedicated_server"
       ],
       "group": "roff-dedicated-client-path",
-      "confidence": "needs-fixture",
+      "confidence": "confirmed",
       "reported_statement": "tr->trType = type;"
     },
     {
@@ -5004,13 +5008,17 @@
       "contexts": [
         "a23d7fa13319ecc7"
       ],
-      "disposition": "unresolved-needs-fixture",
-      "rationale": "Additional model/effect argument parsing walks a fixed local string looking for separators and gathers three components. Truncated/missing components need bounded parser fixtures.",
+      "disposition": "confirmed-fixed",
+      "rationale": "The offset reader incremented past its local string terminator when fewer than three components were supplied. It now stays at NUL and falls back to zero offset and entity orientation. All type/path/additional/component copies are bounded. An actual callback fixture poisons the unused local string tail to expose the original past-NUL read under AddressSanitizer; separate real buffer-overflow fixtures also fail against baseline 8cc641a. Valid effects/sounds/loop notes and boundary-length inputs pass before and after the fix.",
       "evidence": [
-        "codemp/cgame/cg_ents.c:additional argument parsing"
+        "codemp/cgame/cg_ents.c:CG_ROFF_NotetrackCallback",
+        "tests/roff-client-notes:roff_client_truncated_offsets",
+        "tests/roff-client-notes:roff_client_truncated_angles",
+        "tests/roff-client-notes:roff_client_oversize_offset and roff_client_oversize_angle",
+        "tests/roff-client-notes:roff_client_valid and roff_client_boundaries"
       ],
       "group": "entity-effect-argument-parser",
-      "confidence": "needs-fixture",
+      "confidence": "regression-tested",
       "reported_statement": "while (addlArg[i] && addlArg[i] != '+' && addlArg[i] != ' ')"
     },
     {
@@ -5023,13 +5031,17 @@
       "contexts": [
         "a23d7fa13319ecc7"
       ],
-      "disposition": "unresolved-needs-fixture",
-      "rationale": "Additional model/effect argument parsing walks a fixed local string looking for separators and gathers three components. Truncated/missing components need bounded parser fixtures.",
+      "disposition": "confirmed-fixed",
+      "rationale": "The angle reader incremented past NUL after an incomplete component vector. It now stops at the terminator and copies parsed angles only after all three components are present; incomplete vectors use entity orientation. Component copies are bounded. An actual callback fixture poisons the unused local string tail and reproduces the old past-NUL read, while a separate oversized angle fixture reproduces the real stack overflow against baseline 8cc641a. Both pass after the fix, with valid effect/sound/loop semantics unchanged.",
       "evidence": [
-        "codemp/cgame/cg_ents.c:additional argument parsing"
+        "codemp/cgame/cg_ents.c:CG_ROFF_NotetrackCallback",
+        "tests/roff-client-notes:roff_client_truncated_offsets",
+        "tests/roff-client-notes:roff_client_truncated_angles",
+        "tests/roff-client-notes:roff_client_oversize_offset and roff_client_oversize_angle",
+        "tests/roff-client-notes:roff_client_valid and roff_client_boundaries"
       ],
       "group": "entity-effect-argument-parser",
-      "confidence": "needs-fixture",
+      "confidence": "regression-tested",
       "reported_statement": "while (addlArg[i] && addlArg[i] != '-')"
     },
     {

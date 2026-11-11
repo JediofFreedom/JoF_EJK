@@ -28,3 +28,26 @@ Sixteen other Icarus command-consumer findings retain unresolved status because
 this step did not execute those commands or confirm their post-fix diagnostics.
 Sharing the corrected readers alone does not give every Icarus finding fixed
 status.
+
+The initial ROFF playback update marks finding 54 as fixed: dedicated-client ApplyROFF
+and ClearLerp now reject unsupported playback before dereferencing null
+trajectories. Separate production-method fixtures reproduce both null writes
+against baseline 8cc641a. The same suite also reproduces client buffer lifetime,
+translated-client angle initialization and overlong note-copy defects discovered
+during this review; those new defects are not added to the initial 285-warning
+count. Those eight tests pass with x64 AddressSanitizer and on x86 Release.
+
+The ownership follow-up adds actual InitROFF2-to-destructor and Play-to-Restart
+fixtures. They reproduce a new[]/scalar-delete mismatch and retained playback
+records against the baseline. The expanded playback suite passes 10/10 on x64
+with AddressSanitizer and on x86 Release; neither extra defect changes the
+initial diagnostic count.
+
+Client callback findings 181 and 182 are now fixed, citing
+`tests/roff-client-notes`. The actual callback previously read beyond a local
+string terminator after incomplete offset or angle components. Sanitizer
+fixtures poison the unused local string tail to expose those reads; five other
+fixtures reproduce real buffer overflows without that instrumentation. All nine
+checks pass on x64 with AddressSanitizer and on x86 Release. Valid effects,
+sounds, loop notes, signed offsets and space-separated offsets also pass against
+the baseline. Other findings remain at their existing dispositions.
