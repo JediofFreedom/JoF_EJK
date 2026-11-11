@@ -88,6 +88,13 @@ This is now an EJK-maintained derivative with its own synchronization,
 transfer batching and pipeline lookup paths. Upstream remains credited;
 importing a current backend does not establish that it is fully optimized.
 
+Release jobs compile this source with the matching EJK engine. There is no
+automatic Sunny source synchronization or Sunny binary download in the build
+or updater; upstream changes are imported manually for review and validation.
+The upstream links and copyright notices record this renderer's origins.
+The separate `rend2-sync` workflow targets SomaZ/OpenJK's OpenGL Rend2 renderer
+and does not update Vulkan.
+
 Core Vulkan 1.3 synchronization2 is queried and enabled only when the instance,
 physical device and feature bit support it. Image/buffer barriers use
 vkCmdPipelineBarrier2 and queue submissions use vkQueueSubmit2. Devices without
