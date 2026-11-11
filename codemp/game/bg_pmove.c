@@ -11303,7 +11303,13 @@ static void BG_G2ClientSpineAngles( void *ghoul2, int motionBolt, vec3_t cent_le
 	//*tYawAngle = viewAngles[YAW];
 
 #if 1
-	if ( !BG_FlippingAnim( cent->legsAnim ) &&
+	// Equal upper/lower animations need no motion-bolt correction. Reject the
+	// cheap scalar cases before classifying four animations for special moves.
+	if ( !(cent->eFlags & EF_DEAD) &&
+		(cent->legsAnim) != (cent->torsoAnim) &&
+		(ciLegs) != (ciTorso) &&
+		!cent->m_iVehicleNum &&
+		!BG_FlippingAnim( cent->legsAnim ) &&
 		!BG_SpinningSaberAnim( cent->legsAnim ) &&
 		!BG_SpinningSaberAnim( cent->torsoAnim ) &&
 		!BG_InSpecialJump( cent->legsAnim ) &&
@@ -11329,12 +11335,7 @@ static void BG_G2ClientSpineAngles( void *ghoul2, int motionBolt, vec3_t cent_le
 		!BG_InDeathAnim(ciLegs) &&
 		!BG_InDeathAnim(ciTorso) &&
 		!BG_SaberInSpecialAttack(ciTorso) &&
-		!BG_SaberInSpecialAttack(ciLegs) &&
-
-		!(cent->eFlags & EF_DEAD) &&
-		(cent->legsAnim) != (cent->torsoAnim) &&
-		(ciLegs) != (ciTorso) &&
-		!cent->m_iVehicleNum)
+		!BG_SaberInSpecialAttack(ciLegs))
 	{
 		doCorr = qtrue;
 	}
