@@ -90,7 +90,7 @@ qboolean vk_bloom( void )
 		uint32_t offsets[VK_DESC_UNIFORM_COUNT], offset_count;
 
 		// restore clobbered descriptor sets
-		for ( i = 0; i < VK_NUM_BLUR_PASSES; i++ ) {
+		for ( i = 0; i < VK_DESC_COUNT; i++ ) {
 			if ( vk.cmd->descriptor_set.current[i] != VK_NULL_HANDLE ) {
 				if ( /*i == VK_DESC_STORAGE ||*/ i == VK_DESC_UNIFORM ) {
 					offset_count = 0;
