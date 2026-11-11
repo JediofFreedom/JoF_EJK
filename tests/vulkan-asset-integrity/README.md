@@ -34,3 +34,20 @@ vertex/refraction variants, including fixed-color/identity, environment and fog
 variants. Unrelated shader arrays and binding symbols remain unchanged. Each
 regenerated module passed `spirv-val --target-env vulkan1.0`; compiler arguments
 and hashes are recorded in the private audit evidence.
+
+Four descriptor-lifecycle cases compile actual `R_AllocImage`,
+`vk_texture_mode`, `vk_assign_image_descriptor` and `vk_update_descriptor_set`.
+They reproduce the pool's registered-but-unready image state, retain valid
+mip/non-mip sampler refresh controls, and verify that later job completion and
+resident-image reuse select the current filter. Vulkan descriptor validation,
+sampler creation, engine allocation/pool services and imports are stubs; the
+resident cache lookup itself and every worker branch are not reproduced.
+
+The `7bd3470` image source fails all three pending-image scenarios with a null
+destination descriptor; the valid-only control passes. All 16 suite cases pass
+on x64/x86 Release and x64 ASan after the narrow bulk-refresh guard. The ordinary
+descriptor update helper still rejects no failures silently; descriptor-less
+pool entries receive their descriptors during actual creation/reuse instead.
+`DESCRIPTOR_SOURCE_ROOT` can select a saved image source for those four cases
+without changing unrelated suite sources. Private before evidence is
+`G:/code/JoF_EJK-performance-run/vulkan-followup-descriptor-before.log`.

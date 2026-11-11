@@ -367,6 +367,13 @@ void vk_texture_mode( const char *string, const qboolean init ) {
 	vk_update_attachment_descriptors();
 	for ( i = 0; i < tr.images.count; i++ ) {
 		img = tr.images.items[i];
+		// Queued file images enter the pool before their GPU creation/commit.
+		// They own no sampler yet. Their eventual descriptor assignment uses
+		// the current global filter settings, including resident-cache reuse.
+		if (img->descriptor_set == VK_NULL_HANDLE) {
+			ri.Printf(PRINT_DEVELOPER, "Vulkan: defer sampler refresh for pending image %s (no descriptor)\n", img->imgName);
+			continue;
+		}
 		// Destroying the sampler cache invalidates non-mip descriptors too,
 		// even though their fixed linear filtering does not change.
 		vk_update_descriptor_set( img, (img->flags & IMGFLAG_MIPMAP) ? qtrue : qfalse );

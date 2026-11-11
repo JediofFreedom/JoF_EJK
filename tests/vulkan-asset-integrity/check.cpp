@@ -21,7 +21,7 @@ enum {qfalse, qtrue, ERR_DROP};
 enum {IMGFLAG_MIPMAP=1, IMGFLAG_PICMIP=2, IMGFLAG_NOSCALE=4, IMGFLAG_LIGHTMAP=8,
       IMGFLAG_NO_COMPRESSION=16, IMGFLAG_COLORSHIFT=32, IMGFLAG_NOLIGHTSCALE=64};
 const int IMAGE_UPLOAD_SCRATCH_MIN=64, IMAGE_RESAMPLE_SCRATCH_MIN=32;
-struct image_t {int width,height,flags,internalFormat;};
+struct image_t {int width,height,flags,internalFormat; VkDescriptorSet descriptor_set; const char *imgName;};
 struct Image_Upload_Data {byte *buffer; int buffer_size,mip_levels,base_level_width,base_level_height;};
 struct Cvar {int integer; bool modified;};
 static Cvar setting={0}, simple={1}, *r_roundImagesDown=&setting, *r_nomip=&setting,
@@ -41,7 +41,7 @@ static struct {
     static void Error(int,const char *,...){throw std::runtime_error("renderer error");}
     static void Printf(int,const char *,...){}
 } ri;
-enum {PRINT_ALL};
+enum {PRINT_ALL,PRINT_DEVELOPER};
 struct textureMode_t {int minimize,maximize;};
 static textureMode_t newMode={1,2};
 static textureMode_t *GetTextureMode(const char *){return &newMode;}
@@ -102,6 +102,7 @@ static void ordinary(){
 }
 static void samplerRefresh(){
     image_t images[3]={{4,4,IMGFLAG_MIPMAP,0},{4,4,0,0},{4,4,IMGFLAG_NOSCALE,0}};
+    for(auto &image:images) image.descriptor_set=(VkDescriptorSet)(uintptr_t(1));
     image_t *items[]={images,images+1,images+2};
     tr.images.count=3;tr.images.items=items;
     vk_texture_mode("changed",qfalse);
