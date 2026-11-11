@@ -107,7 +107,9 @@ static void R_CalcShadowEdges(void) {
 
 	tess.numVertexes *= 2;
 
-	colors = &tess.svars.colors[0][0]; // we need at least 2x SHADER_MAX_VERTEXES there
+	colors = &tess.svars.colors[0][0];
+	static_assert(sizeof(tess.svars.colors[0]) / sizeof(color4ub_t) >= 2 * SHADER_MAX_VERTEXES,
+		"Shadow colors must contain both original and extruded vertices");
 
 	for (i = 0; i < tess.numVertexes; i++) {
 		Vector4Set(colors[i], 50, 50, 50, 255);

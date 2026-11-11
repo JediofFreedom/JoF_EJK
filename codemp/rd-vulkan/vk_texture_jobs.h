@@ -6,6 +6,7 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <utility>
 
 // Main thread bounds memory and commits results in registration order. Workers
 // only execute memory-only transforms; shutdown joins before their inputs die.
@@ -16,6 +17,12 @@ class TextureWorkers {
     std::vector<std::thread> threads;
     bool stopping = false;
 public:
+    template<class Work, class Failure, class Complete>
+    static void run(Work &&work, Failure &&failure, Complete &&complete) {
+        try { work(); }
+        catch (...) { failure(); }
+        complete();
+    }
     ~TextureWorkers() { shutdown(); }
     bool start(unsigned count) {
         if (!threads.empty()) return true;
@@ -36,9 +43,16 @@ public:
         } catch (...) { shutdown(); return false; }
         return !threads.empty();
     }
-    void submit(std::function<void()> job) {
-        { std::lock_guard<std::mutex> lock(mutex); jobs.push_back(std::move(job)); }
+    template<class Job> bool submit(Job &&job) {
+        // Construct std::function inside the guard too: its allocation can fail
+        // before a by-value parameter would ever enter this function.
+        try {
+            std::lock_guard<std::mutex> lock(mutex);
+            if (stopping || threads.empty()) return false;
+            jobs.emplace_back(std::forward<Job>(job));
+        } catch (...) { return false; }
         wake.notify_one();
+        return true;
     }
     void shutdown() {
         { std::lock_guard<std::mutex> lock(mutex); stopping = true; jobs.clear(); }

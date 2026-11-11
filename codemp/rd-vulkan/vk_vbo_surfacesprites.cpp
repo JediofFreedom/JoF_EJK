@@ -172,7 +172,7 @@ static void vk_create_surface_sprites_ssbo_descriptor( vk_storage_buffer_t *buff
 	alloc.descriptorPool = vk.descriptor_pool;
 	alloc.descriptorSetCount = 1;
 	alloc.pSetLayouts = &vk.set_layout_storage;
-	VK_CHECK( qvkAllocateDescriptorSets( vk.device, &alloc, &buffer->descriptor ) );
+	VK_REQUIRE_SUCCESS( qvkAllocateDescriptorSets( vk.device, &alloc, &buffer->descriptor ) );
 
 	info.buffer = buffer->buffer;
 	info.offset = 0;

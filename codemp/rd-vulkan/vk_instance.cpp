@@ -247,13 +247,23 @@ static void vk_create_instance( void )
     count = 0;
     extension_count = 0;
 
-    VK_CHECK(qvkEnumerateInstanceExtensionProperties(NULL, &count, NULL));
-    assert(count > 0);
+    VK_REQUIRE_SUCCESS(qvkEnumerateInstanceExtensionProperties(NULL, &count, NULL));
+    if (!count || count > SIZE_MAX / sizeof(VkExtensionProperties))
+        ri.Error(ERR_FATAL, "Vulkan: invalid instance extension count %u", count);
 
     extension_properties = (VkExtensionProperties*)malloc(sizeof(VkExtensionProperties) * count);
     extension_names = (const char**)malloc(sizeof(char*) * (count));
-
-    VK_CHECK(qvkEnumerateInstanceExtensionProperties(NULL, &count, extension_properties));
+    if (!extension_properties || !extension_names) {
+        free(extension_properties);
+        free(extension_names);
+        ri.Error(ERR_FATAL, "Vulkan: cannot allocate instance extension lists");
+    }
+    const VkResult extensionsResult = qvkEnumerateInstanceExtensionProperties(NULL, &count, extension_properties);
+    if (extensionsResult != VK_SUCCESS) {
+        free(extension_properties);
+        free(extension_names);
+        VK_REQUIRE_SUCCESS(extensionsResult);
+    }
 
 	// fill vk.instance_extensions_string
 	str = vk.instance_extensions_string; *str = '\0';
@@ -472,7 +482,7 @@ qboolean vk_select_surface_format( VkPhysicalDevice physical_device, VkSurfaceKH
     VkResult result;
 
     result = qvkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &format_count, NULL);
-    if (result < 0) {
+    if (result != VK_SUCCESS) {
         ri.Printf(PRINT_ERROR, "vkGetPhysicalDeviceSurfaceFormatsKHR returned error %i\n", result);
         return qfalse;
     }
@@ -482,9 +492,16 @@ qboolean vk_select_surface_format( VkPhysicalDevice physical_device, VkSurfaceKH
         return qfalse;
     }
 
+    if (format_count > SIZE_MAX / sizeof(VkSurfaceFormatKHR))
+        return qfalse;
     candidates = (VkSurfaceFormatKHR*)malloc(format_count * sizeof(VkSurfaceFormatKHR));
-
-    VK_CHECK(qvkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &format_count, candidates));
+    if (!candidates)
+        return qfalse;
+    result = qvkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &format_count, candidates);
+    if (result != VK_SUCCESS || !format_count) {
+        free(candidates);
+        return qfalse;
+    }
 
 	get_present_format(24, &base_bgr, &base_rgb);
 
@@ -614,14 +631,22 @@ static qboolean vk_create_device( VkPhysicalDevice physical_device, int device_i
 		uint32_t i;
 
 		qvkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, NULL);
+		if (!queue_family_count || queue_family_count > SIZE_MAX / sizeof(VkQueueFamilyProperties))
+			return qfalse;
 		queue_families = (VkQueueFamilyProperties*)malloc(queue_family_count * sizeof(VkQueueFamilyProperties));
+		if (!queue_families)
+			return qfalse;
 		qvkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, queue_families);
 
 		// select queue family with presentation and graphics support
 		vk.queue_family_index = ~0U;
 		for (i = 0; i < queue_family_count; i++) {
-			VkBool32 presentation_supported;
-			VK_CHECK(qvkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, vk.surface, &presentation_supported));
+			VkBool32 presentation_supported = VK_FALSE;
+			const VkResult supportResult = qvkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, vk.surface, &presentation_supported);
+			if (supportResult != VK_SUCCESS) {
+				free(queue_families);
+				return qfalse;
+			}
 
 			if (presentation_supported && (queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) {
 				vk.queue_family_index = i;
@@ -658,9 +683,17 @@ static qboolean vk_create_device( VkPhysicalDevice physical_device, int device_i
 		qboolean toolingInfo = qfalse;
 		uint32_t i, len, count = 0;
 
-		VK_CHECK(qvkEnumerateDeviceExtensionProperties(physical_device, NULL, &count, NULL));
+		result = qvkEnumerateDeviceExtensionProperties(physical_device, NULL, &count, NULL);
+		if (result != VK_SUCCESS || !count || count > SIZE_MAX / sizeof(VkExtensionProperties))
+			return qfalse;
 		extension_properties = (VkExtensionProperties*)malloc(count * sizeof(VkExtensionProperties));
-		VK_CHECK(qvkEnumerateDeviceExtensionProperties(physical_device, NULL, &count, extension_properties));
+		if (!extension_properties)
+			return qfalse;
+		result = qvkEnumerateDeviceExtensionProperties(physical_device, NULL, &count, extension_properties);
+		if (result != VK_SUCCESS || !count) {
+			free(extension_properties);
+			return qfalse;
+		}
 
 		// fill glConfig.extensions_string
 		str = vk.device_extensions_string; *str = '\0';
@@ -896,6 +929,7 @@ __initStart:
 	}
 
 	res = qvkEnumeratePhysicalDevices(vk.instance, &device_count, NULL);
+	VK_REQUIRE_SUCCESS(res);
 	if (device_count == 0) {
 #ifdef _WIN32
 		if (!deviceCountRetried) {
@@ -932,8 +966,16 @@ __initStart:
 		return;
 	}
 
+	if (device_count > SIZE_MAX / sizeof(VkPhysicalDevice))
+		ri.Error(ERR_FATAL, "Vulkan: invalid physical device count %u", device_count);
 	physical_devices = (VkPhysicalDevice*)malloc(device_count * sizeof(VkPhysicalDevice));
-	VK_CHECK(qvkEnumeratePhysicalDevices(vk.instance, &device_count, physical_devices));
+	if (!physical_devices)
+		ri.Error(ERR_FATAL, "Vulkan: cannot allocate physical device list");
+	res = qvkEnumeratePhysicalDevices(vk.instance, &device_count, physical_devices);
+	if (res != VK_SUCCESS || !device_count) {
+		free(physical_devices);
+		ri.Error(ERR_FATAL, "Vulkan: physical device enumeration incomplete: %s", vk_result_string(res));
+	}
 
 	// initial physical device index
 	device_index = r_device->integer;

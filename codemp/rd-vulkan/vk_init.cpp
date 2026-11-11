@@ -218,7 +218,7 @@ static void vk_render_splash( void )
 	begin_info.pNext = NULL;
 	begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	begin_info.pInheritanceInfo = NULL;
-	VK_CHECK( qvkBeginCommandBuffer( vk.cmd->command_buffer, &begin_info ) );
+	VK_REQUIRE_SUCCESS( qvkBeginCommandBuffer( vk.cmd->command_buffer, &begin_info ) );
 
 	vk_record_image_layout_transition( vk.cmd->command_buffer, splashImage->handle, VK_IMAGE_ASPECT_COLOR_BIT,
 		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -257,7 +257,7 @@ static void vk_render_splash( void )
 		0, 0 );
 
 	// we can end the command buffer now
-	VK_CHECK( qvkEndCommandBuffer( vk.cmd->command_buffer ) );
+	VK_REQUIRE_SUCCESS( qvkEndCommandBuffer( vk.cmd->command_buffer ) );
 
 	wait_dst_stage_mask = VK_PIPELINE_STAGE_TRANSFER_BIT;
 
@@ -270,7 +270,7 @@ static void vk_render_splash( void )
 	submit_info.pWaitDstStageMask = &wait_dst_stage_mask;
 	submit_info.signalSemaphoreCount = 1;
 	submit_info.pSignalSemaphores = &vk.swapchain_rendering_finished[ vk.cmd->swapchain_image_index ];
-	VK_CHECK( vk_queue_submit( vk.queue, 1, &submit_info, vk.cmd->rendering_finished_fence ) );
+	VK_REQUIRE_SUCCESS( vk_queue_submit( vk.queue, 1, &submit_info, vk.cmd->rendering_finished_fence ) );
 	vk.cmd->waitForFence = qtrue;
 
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -637,6 +637,15 @@ void vk_initialize( void )
 void vk_shutdown( void )
 {
     ri.Printf( PRINT_ALL, "vk_shutdown()\n" );
+
+    if (vk.readback_image != VK_NULL_HANDLE || vk.readback_memory != VK_NULL_HANDLE) {
+        // A failed submit/wait can leave capture commands pending. Keep their
+        // image and memory until the device finishes or reports device loss.
+        const VkResult idle = qvkDeviceWaitIdle(vk.device);
+        if (idle != VK_SUCCESS && idle != VK_ERROR_DEVICE_LOST)
+            VK_REQUIRE_SUCCESS(idle);
+        vk_release_readback();
+    }
 
 	if ( qvkQueuePresentKHR == NULL ) {// not fully initialized
 		goto __cleanup;

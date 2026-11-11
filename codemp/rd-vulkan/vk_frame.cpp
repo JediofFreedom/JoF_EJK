@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "tr_local.h"
 #include "vk_runtime_profile.h"
 #include "vk_sync2.h"
+#include "vk_memory_requirements.h"
 #include <climits>
 
 void vk_create_sync_primitives( void )
@@ -37,7 +38,7 @@ void vk_create_sync_primitives( void )
     desc.flags = 0;
 
 #ifdef USE_UPLOAD_QUEUE
-	VK_CHECK( qvkCreateSemaphore( vk.device, &desc, NULL, &vk.image_uploaded2 ) );
+	VK_REQUIRE_SUCCESS( qvkCreateSemaphore( vk.device, &desc, NULL, &vk.image_uploaded2 ) );
 #endif
 
 	// all commands submitted
@@ -48,16 +49,16 @@ void vk_create_sync_primitives( void )
         desc.flags = 0;
 
         // swapchain image acquired
-        VK_CHECK( qvkCreateSemaphore( vk.device, &desc, NULL, &vk.tess[i].image_acquired ) );
+        VK_REQUIRE_SUCCESS( qvkCreateSemaphore( vk.device, &desc, NULL, &vk.tess[i].image_acquired ) );
 #ifdef USE_UPLOAD_QUEUE
 		// second semaphore to synchronize additional tasks (e.g. image upload)
-		VK_CHECK( qvkCreateSemaphore( vk.device, &desc, NULL, &vk.tess[i].rendering_finished2 ) );
+		VK_REQUIRE_SUCCESS( qvkCreateSemaphore( vk.device, &desc, NULL, &vk.tess[i].rendering_finished2 ) );
 #endif
         fence_desc.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fence_desc.pNext = NULL;
 		//fence_desc.flags = VK_FENCE_CREATE_SIGNALED_BIT; // so it can be used to start rendering
 		fence_desc.flags = 0; // non-signalled state
-        VK_CHECK( qvkCreateFence( vk.device, &fence_desc, NULL, &vk.tess[i].rendering_finished_fence ) );
+        VK_REQUIRE_SUCCESS( qvkCreateFence( vk.device, &fence_desc, NULL, &vk.tess[i].rendering_finished_fence ) );
 
         vk_debug("Created sync primitives \n");
 		//vk.tess[i].waitForFence = qtrue;
@@ -75,7 +76,7 @@ void vk_create_sync_primitives( void )
 	fence_desc.flags = 0;
 
 #ifdef USE_UPLOAD_QUEUE
-	VK_CHECK( qvkCreateFence( vk.device, &fence_desc, NULL, &vk.aux_fence ) );
+	VK_REQUIRE_SUCCESS( qvkCreateFence( vk.device, &fence_desc, NULL, &vk.aux_fence ) );
 	VK_SET_OBJECT_NAME( vk.aux_fence, "aux fence", VK_DEBUG_REPORT_OBJECT_TYPE_FENCE_EXT );
 
 	vk.rendering_finished = VK_NULL_HANDLE;
@@ -142,7 +143,7 @@ void vk_create_framebuffers()
                 attachments[2] = vk.msaa_image_view;
             }
 
-            VK_CHECK(qvkCreateFramebuffer(vk.device, &desc, NULL, &vk.framebuffers.main[i]));
+            VK_REQUIRE_SUCCESS(qvkCreateFramebuffer(vk.device, &desc, NULL, &vk.framebuffers.main[i]));
             VK_SET_OBJECT_NAME(vk.framebuffers.main[i], va("framebuffer - main"), VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT);
         }
         else {
@@ -157,7 +158,7 @@ void vk_create_framebuffers()
                     attachments[2] = vk.msaa_image_view;
                 }
 
-                VK_CHECK(qvkCreateFramebuffer(vk.device, &desc, NULL, &vk.framebuffers.main[i]));
+                VK_REQUIRE_SUCCESS(qvkCreateFramebuffer(vk.device, &desc, NULL, &vk.framebuffers.main[i]));
                 VK_SET_OBJECT_NAME(vk.framebuffers.main[i], "framebuffer - main", VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT);
             }
             else {
@@ -170,7 +171,7 @@ void vk_create_framebuffers()
             desc.width = gls.windowWidth;
             desc.height = gls.windowHeight;
             attachments[0] = vk.swapchain_image_views[i];
-            VK_CHECK(qvkCreateFramebuffer(vk.device, &desc, NULL, &vk.framebuffers.gamma[i]));
+            VK_REQUIRE_SUCCESS(qvkCreateFramebuffer(vk.device, &desc, NULL, &vk.framebuffers.gamma[i]));
             VK_SET_OBJECT_NAME(vk.framebuffers.gamma[i], "framebuffer - gamma-correction", VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT);
         }
     }
@@ -195,7 +196,7 @@ void vk_create_framebuffers()
             attachments[2] = vk.screenMap.color_image_view_msaa;
         }
 
-        VK_CHECK(qvkCreateFramebuffer(vk.device, &desc, NULL, &vk.framebuffers.screenmap));
+        VK_REQUIRE_SUCCESS(qvkCreateFramebuffer(vk.device, &desc, NULL, &vk.framebuffers.screenmap));
         VK_SET_OBJECT_NAME(vk.framebuffers.screenmap, "framebuffer - screenmap", VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT);
 
         if ( vk.capture.image != VK_NULL_HANDLE )
@@ -208,7 +209,7 @@ void vk_create_framebuffers()
             desc.width = gls.captureWidth;
             desc.height = gls.captureHeight;
 
-            VK_CHECK(qvkCreateFramebuffer(vk.device, &desc, NULL, &vk.framebuffers.capture));
+            VK_REQUIRE_SUCCESS(qvkCreateFramebuffer(vk.device, &desc, NULL, &vk.framebuffers.capture));
             VK_SET_OBJECT_NAME(vk.framebuffers.capture, "framebuffer - capture", VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT);
         }
 
@@ -230,7 +231,7 @@ void vk_create_framebuffers()
                 attachments[2] = vk.dglow_msaa_image_view;
             }
 
-            VK_CHECK( qvkCreateFramebuffer( vk.device, &desc, NULL, &vk.framebuffers.dglow.extract ) );
+            VK_REQUIRE_SUCCESS( qvkCreateFramebuffer( vk.device, &desc, NULL, &vk.framebuffers.dglow.extract ) );
             VK_SET_OBJECT_NAME( vk.framebuffers.dglow.extract, "framebuffer - dglow extract", VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT );
 
             for ( i = 0; i < ARRAY_LEN( vk.framebuffers.dglow.blur ); i += 2 )
@@ -244,10 +245,10 @@ void vk_create_framebuffers()
                 desc.attachmentCount = 1;
 
                 attachments[0] = vk.dglow_image_view[i + 0 + 1];
-                VK_CHECK( qvkCreateFramebuffer( vk.device, &desc, NULL, &vk.framebuffers.dglow.blur[i + 0] ) );
+                VK_REQUIRE_SUCCESS( qvkCreateFramebuffer( vk.device, &desc, NULL, &vk.framebuffers.dglow.blur[i + 0] ) );
 
                 attachments[0] = vk.dglow_image_view[i + 1 + 1];
-                VK_CHECK( qvkCreateFramebuffer( vk.device, &desc, NULL, &vk.framebuffers.dglow.blur[i + 1] ) );
+                VK_REQUIRE_SUCCESS( qvkCreateFramebuffer( vk.device, &desc, NULL, &vk.framebuffers.dglow.blur[i + 1] ) );
 
                 VK_SET_OBJECT_NAME( vk.framebuffers.dglow.blur[i + 0], va( "framebuffer - dglow blur %i", i + 0 ), VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT );
                 VK_SET_OBJECT_NAME( vk.framebuffers.dglow.blur[i + 1], va( "framebuffer - dglow blur %i", i + 1 ), VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT );
@@ -267,7 +268,7 @@ void vk_create_framebuffers()
             desc.attachmentCount = 1;
             attachments[0] = vk.bloom_image_view[0];
 
-            VK_CHECK( qvkCreateFramebuffer( vk.device, &desc, NULL, &vk.framebuffers.bloom.extract ) );
+            VK_REQUIRE_SUCCESS( qvkCreateFramebuffer( vk.device, &desc, NULL, &vk.framebuffers.bloom.extract ) );
 
             VK_SET_OBJECT_NAME( vk.framebuffers.bloom.extract, "framebuffer - bloom extraction", VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT );
 
@@ -282,10 +283,10 @@ void vk_create_framebuffers()
                 desc.attachmentCount = 1;
 
                 attachments[0] = vk.bloom_image_view[i + 0 + 1];
-                VK_CHECK( qvkCreateFramebuffer( vk.device, &desc, NULL, &vk.framebuffers.bloom.blur[i + 0] ) );
+                VK_REQUIRE_SUCCESS( qvkCreateFramebuffer( vk.device, &desc, NULL, &vk.framebuffers.bloom.blur[i + 0] ) );
 
                 attachments[0] = vk.bloom_image_view[i + 1 + 1];
-                VK_CHECK( qvkCreateFramebuffer( vk.device, &desc, NULL, &vk.framebuffers.bloom.blur[i + 1] ) );
+                VK_REQUIRE_SUCCESS( qvkCreateFramebuffer( vk.device, &desc, NULL, &vk.framebuffers.bloom.blur[i + 1] ) );
 
                 VK_SET_OBJECT_NAME( vk.framebuffers.bloom.blur[i + 0], va( "framebuffer - bloom blur %i", i + 0 ), VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT );
                 VK_SET_OBJECT_NAME( vk.framebuffers.bloom.blur[i + 1], va( "framebuffer - bloom blur %i", i + 1 ), VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT );
@@ -502,6 +503,10 @@ void vk_release_indirect_buffers( void )
     for (i = 0; i < NUM_COMMAND_BUFFERS; i++) {
         VK_DESTROY_BUFFER(vk.device, vk.tess[i].indirect_buffer);
         vk.tess[i].indirect_buffer = VK_NULL_HANDLE;
+        if (vk.tess[i].indirect_buffer_memory != VK_NULL_HANDLE) {
+            VK_FREE_MEMORY(vk.device, vk.tess[i].indirect_buffer_memory);
+            vk.tess[i].indirect_buffer_memory = VK_NULL_HANDLE;
+        }
     }
 
     VK_FREE_MEMORY(vk.device, vk.indirect_buffer_memory);
@@ -515,6 +520,10 @@ void vk_release_geometry_buffers( void )
     for (i = 0; i < NUM_COMMAND_BUFFERS; i++) {
         VK_DESTROY_BUFFER(vk.device, vk.tess[i].vertex_buffer);
         vk.tess[i].vertex_buffer = VK_NULL_HANDLE;
+        if (vk.tess[i].vertex_buffer_memory != VK_NULL_HANDLE) {
+            VK_FREE_MEMORY(vk.device, vk.tess[i].vertex_buffer_memory);
+            vk.tess[i].vertex_buffer_memory = VK_NULL_HANDLE;
+        }
     }
 
     VK_FREE_MEMORY(vk.device, vk.geometry_buffer_memory);
@@ -548,7 +557,7 @@ void vk_wait_idle( void )
 {
 	RuntimeProfileScope profile(RuntimeStage::GpuWait);
 	vk_flush_image_uploads();
-    VK_CHECK(qvkDeviceWaitIdle(vk.device));
+    VK_REQUIRE_SUCCESS(qvkDeviceWaitIdle(vk.device));
 }
 
 void vk_queue_wait_idle( void )
@@ -595,7 +604,7 @@ void vk_release_resources( void ) {
     }
     vk.pipelines_count = vk.pipelines_world_base;
 
-    VK_CHECK(qvkResetDescriptorPool(vk.device, vk.descriptor_pool, 0));
+    VK_REQUIRE_SUCCESS(qvkResetDescriptorPool(vk.device, vk.descriptor_pool, 0));
 
     if (vk_world.num_image_chunks > 1) {
         // if we allocated more than 2 image chunks - use doubled default size
@@ -819,10 +828,29 @@ static qboolean is_bgr( VkFormat format ) {
     }
 }
 
+// Call only after capture work has completed, or after device loss at teardown.
+// Persistent ownership also covers a failed one-shot submit/queue wait: those
+// potentially pending images must not be freed by stack cleanup.
+void vk_release_readback( void )
+{
+    if (vk.readback_mapped) {
+        qvkUnmapMemory(vk.device, vk.readback_memory);
+        vk.readback_mapped = qfalse;
+    }
+    if (vk.readback_image != VK_NULL_HANDLE) {
+        qvkDestroyImage(vk.device, vk.readback_image, NULL);
+        vk.readback_image = VK_NULL_HANDLE;
+    }
+    if (vk.readback_memory != VK_NULL_HANDLE) {
+        VK_FREE_MEMORY(vk.device, vk.readback_memory);
+        vk.readback_memory = VK_NULL_HANDLE;
+    }
+}
+
 void vk_read_pixels( byte *buffer, uint32_t width, uint32_t height )
 {
     VkCommandBuffer command_buffer;
-    VkDeviceMemory memory;
+    VkDeviceMemory &memory = vk.readback_memory;
     VkMemoryRequirements memory_requirements;
     VkMemoryPropertyFlags memory_reqs;
     VkMemoryPropertyFlags memory_flags;
@@ -832,7 +860,7 @@ void vk_read_pixels( byte *buffer, uint32_t width, uint32_t height )
     VkImageCreateInfo desc;
     VkImage srcImage;
     VkImageLayout srcImageLayout;
-    VkImage dstImage;
+    VkImage &dstImage = vk.readback_image;
     byte *buffer_ptr;
     byte *data;
     uint32_t pixel_width;
@@ -841,6 +869,8 @@ void vk_read_pixels( byte *buffer, uint32_t width, uint32_t height )
 
     if (!buffer || width == 0 || height == 0)
         return;
+    if (dstImage != VK_NULL_HANDLE || memory != VK_NULL_HANDLE)
+        ri.Error(ERR_FATAL, "Vulkan: unfinished framebuffer capture still owns GPU resources");
     if (width > uint32_t(gls.captureWidth) || height > uint32_t(gls.captureHeight) ||
         size_t(width) > SIZE_MAX / 3 / height)
         ri.Error(ERR_DROP, "Vulkan: invalid framebuffer capture dimensions %u x %u", width, height);
@@ -890,12 +920,17 @@ void vk_read_pixels( byte *buffer, uint32_t width, uint32_t height )
     desc.pQueueFamilyIndices = NULL;
     desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-    VK_CHECK(qvkCreateImage(vk.device, &desc, NULL, &dstImage));
+    VkImage createdImage = VK_NULL_HANDLE;
+    VK_REQUIRE_SUCCESS(qvkCreateImage(vk.device, &desc, NULL, &createdImage));
+    dstImage = createdImage;
 
-    qvkGetImageMemoryRequirements(vk.device, dstImage, &memory_requirements);
+    const bool dedicated = vk_image_memory_requirements(dstImage, &memory_requirements);
+    VkMemoryDedicatedAllocateInfoKHR dedicatedInfo = {};
+    dedicatedInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
+    dedicatedInfo.image = dstImage;
 
     alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    alloc_info.pNext = NULL;
+    alloc_info.pNext = dedicated ? &dedicatedInfo : NULL;
     alloc_info.allocationSize = memory_requirements.size;
 
     // host_cached bit is desirable for fast reads
@@ -923,8 +958,18 @@ void vk_read_pixels( byte *buffer, uint32_t width, uint32_t height )
         invalidate_ptr = qtrue;
     }
 
-    VK_ALLOCATE_MEMORY_CHECK(vk.device, &alloc_info, &memory, "read pixels");
-    VK_CHECK( qvkBindImageMemory( vk.device, dstImage, memory, 0 ) );
+    VkDeviceMemory allocatedMemory = VK_NULL_HANDLE;
+    const VkResult allocationResult = VK_ALLOCATE_MEMORY(vk.device, &alloc_info, &allocatedMemory, "read pixels");
+    if (allocationResult != VK_SUCCESS) {
+        vk_release_readback();
+        VK_REQUIRE_SUCCESS(allocationResult);
+    }
+    memory = allocatedMemory;
+    const VkResult bindingResult = qvkBindImageMemory(vk.device, dstImage, memory, 0);
+    if (bindingResult != VK_SUCCESS) {
+        vk_release_readback();
+        VK_REQUIRE_SUCCESS(bindingResult);
+    }
 
     command_buffer = vk_begin_command_buffer();
 
@@ -999,6 +1044,17 @@ void vk_read_pixels( byte *buffer, uint32_t width, uint32_t height )
         hostRead, qvkCmdPipelineBarrier, vk.synchronization2 ? qvkCmdPipelineBarrier2 : nullptr);
     vk_end_command_buffer( command_buffer, __func__ );
 
+    // restore previous layout
+    if ( srcImageLayout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL ) {
+        command_buffer = vk_begin_command_buffer();
+
+        vk_record_image_layout_transition( command_buffer, srcImage, VK_IMAGE_ASPECT_COLOR_BIT,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            srcImageLayout, 0, 0 );
+
+        vk_end_command_buffer( command_buffer, "restore layout" );
+    }
+
     // Copy data from destination image to memory buffer.
     subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     subresource.mipLevel = 0;
@@ -1006,7 +1062,12 @@ void vk_read_pixels( byte *buffer, uint32_t width, uint32_t height )
 
     qvkGetImageSubresourceLayout(vk.device, dstImage, &subresource, &layout);
 
-    VK_CHECK(qvkMapMemory(vk.device, memory, 0, VK_WHOLE_SIZE, 0, (void**)&data));
+    const VkResult mappingResult = qvkMapMemory(vk.device, memory, 0, VK_WHOLE_SIZE, 0, (void**)&data);
+    if (mappingResult != VK_SUCCESS) {
+        vk_release_readback();
+        VK_REQUIRE_SUCCESS(mappingResult);
+    }
+    vk.readback_mapped = qtrue;
 
     if (invalidate_ptr)
     {
@@ -1016,7 +1077,11 @@ void vk_read_pixels( byte *buffer, uint32_t width, uint32_t height )
         range.memory = memory;
         range.size = VK_WHOLE_SIZE;
         range.offset = 0;
-        qvkInvalidateMappedMemoryRanges(vk.device, 1, &range);
+        const VkResult invalidationResult = qvkInvalidateMappedMemoryRanges(vk.device, 1, &range);
+        if (invalidationResult != VK_SUCCESS) {
+            vk_release_readback();
+            VK_REQUIRE_SUCCESS(invalidationResult);
+        }
     }
 
     data += layout.offset;
@@ -1083,17 +1148,6 @@ void vk_read_pixels( byte *buffer, uint32_t width, uint32_t height )
         }
     }
 
-    qvkDestroyImage( vk.device, dstImage, VK_NULL_HANDLE );
-    VK_FREE_MEMORY( vk.device, memory );
+    vk_release_readback();
 
-    // restore previous layout
-    if ( srcImageLayout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL ) {
-        command_buffer = vk_begin_command_buffer();
-
-        vk_record_image_layout_transition( command_buffer, srcImage, VK_IMAGE_ASPECT_COLOR_BIT,
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            srcImageLayout, 0, 0 );
-
-        vk_end_command_buffer( command_buffer, "restore layout" );
-    }
 }

@@ -614,10 +614,12 @@ typedef struct vk_tess_s {
 	qboolean			waitForFence;
 
 	VkBuffer			vertex_buffer;
+	VkDeviceMemory		vertex_buffer_memory; // non-null only for a separate allocation
 	byte				*vertex_buffer_ptr; // pointer to mapped vertex buffer
 	VkDeviceSize		vertex_buffer_offset; // moved to uint32_t in q3e:63d6d7402d78254bebe28035006fe600f645c8de
 
 	VkBuffer			indirect_buffer;
+	VkDeviceMemory		indirect_buffer_memory; // non-null only for a separate allocation
 	byte				*indirect_buffer_ptr; // pointer to mapped indirect buffer
 	VkDeviceSize		indirect_buffer_offset;
 
@@ -687,7 +689,7 @@ typedef struct {
 	VkImageView		swapchain_image_views[MAX_SWAPCHAIN_IMAGES];
 	VkSemaphore		swapchain_rendering_finished[MAX_SWAPCHAIN_IMAGES];
 
-	VkDeviceMemory	image_memory[MAX_ATTACHMENTS_IN_POOL];
+	VkDeviceMemory	image_memory[MAX_ATTACHMENTS_IN_POOL + 1];
 	uint32_t		image_memory_count;
 
 	VkCommandPool	command_pool;
@@ -766,6 +768,9 @@ typedef struct {
 		VkImage		image;
 		VkImageView image_view;
 	} capture;
+	VkImage readback_image;
+	VkDeviceMemory readback_memory;
+	qboolean readback_mapped;
 
 
 	// framebuffers
@@ -1093,6 +1098,7 @@ void		vk_wait_idle( void );
 void		vk_queue_wait_idle( void );
 void		vk_release_resources( void );
 void		vk_read_pixels( byte *buffer, uint32_t width, uint32_t height );
+void		vk_release_readback( void );
 
 // vbo
 void		vk_release_world_vbo( void );
@@ -1258,9 +1264,9 @@ void		R_DebugGraphics( void );
 
 	#define	VK_FREE_MEMORY( device, memory )								vk_free_tracked_memory( device, memory )
 #else
-	#define VK_CREATE_BUFFER(device, info, outBuffer, name)				VK_CHECK( qvkCreateBuffer( device, info, NULL, outBuffer ) )
+	#define VK_CREATE_BUFFER(device, info, outBuffer, name)				VK_REQUIRE_SUCCESS( qvkCreateBuffer( device, info, NULL, outBuffer ) )
 	#define VK_DESTROY_BUFFER(device, buffer)							qvkDestroyBuffer( device, buffer, NULL )
 	#define VK_ALLOCATE_MEMORY(device, info, outMemory, name)			qvkAllocateMemory( device, info, NULL, outMemory )
-	#define VK_ALLOCATE_MEMORY_CHECK(device, info, outMemory, name)		VK_CHECK( qvkAllocateMemory( device, info, NULL, outMemory ) )
+	#define VK_ALLOCATE_MEMORY_CHECK(device, info, outMemory, name)		VK_REQUIRE_SUCCESS( qvkAllocateMemory( device, info, NULL, outMemory ) )
 	#define VK_FREE_MEMORY(device, memory)								qvkFreeMemory( device, memory, NULL )
 #endif // USE_VK_OBJECT_TRACKER

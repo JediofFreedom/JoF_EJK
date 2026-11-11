@@ -47,7 +47,8 @@ void vk_restart_swapchain( const char *funcname )
     vk_destroy_swapchain();
     vk_destroy_sync_primitives();
 
-    vk_select_surface_format( vk.physical_device, vk.surface );
+    if (!vk_select_surface_format( vk.physical_device, vk.surface ))
+        ri.Error(ERR_FATAL, "Vulkan: cannot select surface format during swapchain recreation");
     vk_setup_surface_formats( vk.physical_device );
 
     vk_create_sync_primitives();
@@ -89,7 +90,7 @@ void vk_create_swapchain( VkPhysicalDevice physical_device, VkDevice device,
     qboolean                    fifo_relaxed_supported = qfalse;
 
 
-    VK_CHECK( qvkGetPhysicalDeviceSurfaceCapabilitiesKHR( physical_device, surface, &surface_caps ) );
+    VK_REQUIRE_SUCCESS( qvkGetPhysicalDeviceSurfaceCapabilitiesKHR( physical_device, surface, &surface_caps ) );
 
     image_extent = surface_caps.currentExtent;
     if ( image_extent.width == 0xffffffff && image_extent.height == 0xffffffff ) {
@@ -97,12 +98,14 @@ void vk_create_swapchain( VkPhysicalDevice physical_device, VkDevice device,
         image_extent.height = MIN( surface_caps.maxImageExtent.height, MAX( surface_caps.minImageExtent.height, (uint32_t)glConfig.vidHeight ) );
     }
 
-    // Minimization can set the window size to 0 when a swapchain restart is triggered, which results in a GPU crash later.
-	// Window resizing below the gls window size also results in the same issue, though of course that's not normally possible.
-	// With this clamping, new frames still aren't displayed while the window is too small, but that shouldn't matter while
-	// minimized. If windowed mode resizing is ever implemented later then something more dynamic needs to be setup anyway.
-	if ( image_extent.width < gls.windowWidth) image_extent.width = gls.windowWidth;
-	if ( image_extent.height < gls.windowHeight) image_extent.height = gls.windowHeight;
+    // A fixed currentExtent is mandatory, not a lower bound. Never manufacture
+    // an unsupported swapchain size to hide a minimized or changed surface.
+    // The caller defers minimized acquisition/recreation until restore; general
+    // resizing additionally needs matching renderer attachments and pipelines.
+    if (!image_extent.width || !image_extent.height ||
+        image_extent.width != gls.windowWidth || image_extent.height != gls.windowHeight)
+        ri.Error(ERR_FATAL, "Vulkan: surface extent %u x %u does not match renderer %u x %u; restart video after restoring the window",
+            image_extent.width, image_extent.height, gls.windowWidth, gls.windowHeight);
 
     vk.clearAttachment = qtrue;
     vk.swapchainTransferDst = (surface_caps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT) ? qtrue : qfalse;
@@ -121,11 +124,16 @@ void vk_create_swapchain( VkPhysicalDevice physical_device, VkDevice device,
     }
 
     // determine present mode and swapchain image count
-    VK_CHECK( qvkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, NULL ) );
+    VK_REQUIRE_SUCCESS( qvkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, NULL ) );
 
     present_modes = (VkPresentModeKHR*)malloc( present_mode_count * sizeof( VkPresentModeKHR ) );
-    //present_modes = (VkPresentModeKHR*)ri.Z_Malloc(present_mode_count * sizeof(VkPresentModeKHR));
-    VK_CHECK( qvkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, present_modes ) );
+    if (!present_mode_count || !present_modes)
+        ri.Error(ERR_FATAL, "Vulkan: cannot allocate surface presentation modes");
+    const VkResult modeResult = qvkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, present_modes );
+    if (modeResult != VK_SUCCESS) {
+        free(present_modes);
+        VK_REQUIRE_SUCCESS(modeResult);
+    }
 
     ri.Printf( PRINT_ALL, "----- Presentation modes -----\n" );
 
@@ -177,8 +185,10 @@ void vk_create_swapchain( VkPhysicalDevice physical_device, VkDevice device,
     if ( surface_caps.maxImageCount == 0 && present_mode == VK_PRESENT_MODE_FIFO_KHR ) {
 		image_count = MAX( MIN_SWAPCHAIN_IMAGES_FIFO_0, surface_caps.minImageCount );
 	} else if ( surface_caps.maxImageCount > 0 ) {
-        image_count = MIN( MIN( image_count, surface_caps.maxImageCount ), MAX_SWAPCHAIN_IMAGES );
+        image_count = MIN( image_count, surface_caps.maxImageCount );
     }
+    if (image_count > MAX_SWAPCHAIN_IMAGES)
+        ri.Error(ERR_FATAL, "Vulkan: surface requires %u swapchain images, renderer supports %u", image_count, MAX_SWAPCHAIN_IMAGES);
 
     ri.Printf( PRINT_ALL, "selected presentation mode: %s, image count: %i\n", vk_pmode_to_str( present_mode ), image_count );
 
@@ -213,11 +223,16 @@ void vk_create_swapchain( VkPhysicalDevice physical_device, VkDevice device,
     desc.clipped = VK_TRUE;
     desc.oldSwapchain = VK_NULL_HANDLE;
 
-    VK_CHECK( qvkCreateSwapchainKHR( device, &desc, NULL, swapchain ) );
+    VK_REQUIRE_SUCCESS( qvkCreateSwapchainKHR( device, &desc, NULL, swapchain ) );
 
-    VK_CHECK( qvkGetSwapchainImagesKHR( vk.device, vk.swapchain, &vk.swapchain_image_count, NULL ) );
-    vk.swapchain_image_count = MIN(vk.swapchain_image_count, MAX_SWAPCHAIN_IMAGES );
-    VK_CHECK( qvkGetSwapchainImagesKHR( vk.device, vk.swapchain, &vk.swapchain_image_count, vk.swapchain_images ) );
+    uint32_t actualImageCount = 0;
+    VK_REQUIRE_SUCCESS( qvkGetSwapchainImagesKHR( vk.device, vk.swapchain, &actualImageCount, NULL ) );
+    // The driver can allocate more than minImageCount. Truncating this list
+    // does not constrain acquire indices and can index uninitialized handles.
+    if (!actualImageCount || actualImageCount > MAX_SWAPCHAIN_IMAGES)
+        ri.Error(ERR_FATAL, "Vulkan: actual swapchain image count %u exceeds renderer capacity %u", actualImageCount, MAX_SWAPCHAIN_IMAGES);
+    vk.swapchain_image_count = actualImageCount;
+    VK_REQUIRE_SUCCESS( qvkGetSwapchainImagesKHR( vk.device, vk.swapchain, &vk.swapchain_image_count, vk.swapchain_images ) );
 
     for ( i = 0; i < vk.swapchain_image_count; i++ ) {
 
@@ -237,7 +252,7 @@ void vk_create_swapchain( VkPhysicalDevice physical_device, VkDevice device,
         view.subresourceRange.baseArrayLayer = 0;
         view.subresourceRange.layerCount = 1;
 
-        VK_CHECK( qvkCreateImageView( vk.device, &view, NULL, &vk.swapchain_image_views[i] ) );
+        VK_REQUIRE_SUCCESS( qvkCreateImageView( vk.device, &view, NULL, &vk.swapchain_image_views[i] ) );
 
         VK_SET_OBJECT_NAME( vk.swapchain_images[i], va( "swapchain image %i", i ), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT );
         VK_SET_OBJECT_NAME( vk.swapchain_image_views[i], va( "swapchain image %i", i ), VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_VIEW_EXT );
@@ -248,7 +263,7 @@ void vk_create_swapchain( VkPhysicalDevice physical_device, VkDevice device,
 		s.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 		s.pNext = NULL;
 		s.flags = 0;
-		VK_CHECK( qvkCreateSemaphore( vk.device, &s, NULL, &vk.swapchain_rendering_finished[i] ) );
+		VK_REQUIRE_SUCCESS( qvkCreateSemaphore( vk.device, &s, NULL, &vk.swapchain_rendering_finished[i] ) );
 		VK_SET_OBJECT_NAME( vk.swapchain_rendering_finished[i], va( "swapchain_rendering_finished semaphore %i", i ), VK_DEBUG_REPORT_OBJECT_TYPE_SEMAPHORE_EXT );
 	}
 #if 0

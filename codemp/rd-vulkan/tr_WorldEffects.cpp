@@ -1413,14 +1413,14 @@ void RB_RenderWorldEffects(void)
 		tess.numVertexes = 0;
 		tess.numIndexes = 0;
 
-		Com_Memcpy(vk_world.modelview_transform, tmp, 64);
-		vk_update_mvp(NULL);
-
 		if (false)
 		{
 			ri.Printf( PRINT_ALL, "Weather: %d Particles Rendered\n", mParticlesRendered);
 		}
 	}
+	// The first-frame outside-cache path also replaced the current transform.
+	Com_Memcpy(vk_world.modelview_transform, tmp, 64);
+	vk_update_mvp(NULL);
 }
 
 

@@ -77,7 +77,7 @@ static inline void vk_create_render_pass( vkRenderPass_t *rp )
     desc.dependencyCount    = rp->def.dependencyCount;
     desc.pDependencies      = rp->def.dependencies;
 
-    VK_CHECK( qvkCreateRenderPass(vk.device, &desc, NULL, &rp->handle) );
+    VK_REQUIRE_SUCCESS( qvkCreateRenderPass(vk.device, &desc, NULL, &rp->handle) );
     VK_SET_OBJECT_NAME( rp->handle, va("render pass - %s", rp->name), VK_DEBUG_REPORT_OBJECT_TYPE_RENDER_PASS_EXT );
 }
 

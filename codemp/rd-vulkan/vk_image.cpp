@@ -36,6 +36,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <atomic>
 #include "vk_load_profile.h"
 #include "vk_allocation_ranges.h"
+#include "vk_memory_requirements.h"
 vkLoadStats_t vkLoadStats = {};
 
 #define STB_DXT_IMPLEMENTATION
@@ -512,7 +513,7 @@ VkSampler vk_find_sampler( const Vk_Sampler_Def *def ) {
 	desc.maxLod = (maxLod == vk.maxLod) ? VK_LOD_CLAMP_NONE : maxLod;
 	desc.borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
 	desc.unnormalizedCoordinates = VK_FALSE;
-	VK_CHECK(qvkCreateSampler(vk.device, &desc, NULL, &sampler));
+	VK_REQUIRE_SUCCESS(qvkCreateSampler(vk.device, &desc, NULL, &sampler));
 	VK_SET_OBJECT_NAME(sampler, va("image sampler %i", vk.samplers.count), VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_EXT);
 
 	vk.samplers.def[vk.samplers.count] = *def;
@@ -1033,8 +1034,8 @@ static qboolean vk_wait_staging_buffer( void )
 		if ( res != VK_SUCCESS ) {
 			ri.Error( ERR_FATAL, "vkWaitForFences() failed with %s at %s", vk_result_string( res ), __func__ );
 		}
-		qvkResetFences( vk.device, 1, &vk.aux_fence );
-		VK_CHECK( qvkResetCommandBuffer( vk.staging_command_buffer, 0 ) );
+		VK_REQUIRE_SUCCESS(qvkResetFences( vk.device, 1, &vk.aux_fence ));
+		VK_REQUIRE_SUCCESS( qvkResetCommandBuffer( vk.staging_command_buffer, 0 ) );
 		vk.staging_buffer.offset = 0; // FIXME: is this correct?
 		vk.aux_fence_wait = qfalse;
 		return qtrue;
@@ -1059,7 +1060,7 @@ void vk_flush_staging_buffer( qboolean final )
 
 	vk.staging_buffer.offset = 0;
 
-	VK_CHECK( qvkEndCommandBuffer( vk.staging_command_buffer ) );
+	VK_REQUIRE_SUCCESS( qvkEndCommandBuffer( vk.staging_command_buffer ) );
 
 	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submit_info.pNext = NULL;
@@ -1088,19 +1089,19 @@ void vk_flush_staging_buffer( qboolean final )
 		submit_info.signalSemaphoreCount = 1;
 		submit_info.pSignalSemaphores = &vk.image_uploaded2;
 		vk.image_uploaded = vk.image_uploaded2;
-		VK_CHECK( vk_queue_submit( vk.queue, 1, &submit_info, vk.aux_fence ) );
+		VK_REQUIRE_SUCCESS( vk_queue_submit( vk.queue, 1, &submit_info, vk.aux_fence ) );
 		vk.aux_fence_wait = qtrue;
 	} else {
 		// if submission before another upload then do explicit wait
 		submit_info.signalSemaphoreCount = 0;
 		submit_info.pSignalSemaphores = NULL;
-		VK_CHECK( vk_queue_submit( vk.queue, 1, &submit_info, vk.aux_fence ) );
+		VK_REQUIRE_SUCCESS( vk_queue_submit( vk.queue, 1, &submit_info, vk.aux_fence ) );
 		res = qvkWaitForFences( vk.device, 1, &vk.aux_fence, VK_TRUE, 5 * 1000000000ULL );
 		if ( res != VK_SUCCESS ) {
 			ri.Error( ERR_FATAL, "vkWaitForFences() failed with %s at %s", vk_result_string( res ), __func__ );
 		}
-		qvkResetFences( vk.device, 1, &vk.aux_fence );
-		VK_CHECK( qvkResetCommandBuffer( vk.staging_command_buffer, 0 ) );
+		VK_REQUIRE_SUCCESS(qvkResetFences( vk.device, 1, &vk.aux_fence ));
+		VK_REQUIRE_SUCCESS( qvkResetCommandBuffer( vk.staging_command_buffer, 0 ) );
 	}
 }
 #endif // USE_UPLOAD_QUEUE
@@ -1108,9 +1109,6 @@ void vk_flush_staging_buffer( qboolean final )
 void vk_alloc_staging_buffer( VkDeviceSize size )
 {
 	VkBufferCreateInfo buffer_desc;
-	VkMemoryRequirements memory_requirements;
-	VkMemoryAllocateInfo alloc_info;
-	uint32_t memory_type;
 	void *data;
 
 	vk_clean_staging_buffer();
@@ -1128,19 +1126,12 @@ void vk_alloc_staging_buffer( VkDeviceSize size )
 	buffer_desc.pQueueFamilyIndices = NULL;
 	VK_CREATE_BUFFER(vk.device, &buffer_desc, &vk.staging_buffer.handle, "main staging buffer" );
 
-	qvkGetBufferMemoryRequirements( vk.device, vk.staging_buffer.handle, &memory_requirements );
+	vk_allocate_buffer_memory(vk.staging_buffer.handle,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		&vk.staging_buffer.memory, "main staging memory");
+	VK_REQUIRE_SUCCESS(qvkBindBufferMemory(vk.device, vk.staging_buffer.handle, vk.staging_buffer.memory, 0));
 
-	memory_type = vk_find_memory_type(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	alloc_info.pNext = NULL;
-	alloc_info.allocationSize = memory_requirements.size;
-	alloc_info.memoryTypeIndex = memory_type;
-
-    VK_ALLOCATE_MEMORY_CHECK(vk.device, &alloc_info, &vk.staging_buffer.memory, "main staging memory");
-	VK_CHECK(qvkBindBufferMemory(vk.device, vk.staging_buffer.handle, vk.staging_buffer.memory, 0));
-
-	VK_CHECK(qvkMapMemory(vk.device, vk.staging_buffer.memory, 0, VK_WHOLE_SIZE, 0, &data));
+	VK_REQUIRE_SUCCESS(qvkMapMemory(vk.device, vk.staging_buffer.memory, 0, VK_WHOLE_SIZE, 0, &data));
 	vk.staging_buffer.ptr = (byte*)data;
 #ifdef USE_UPLOAD_QUEUE
 	vk.staging_buffer.offset = 0;
@@ -1332,7 +1323,7 @@ void vk_upload_image_data( image_t *image, int x, int y, int width,
 		begin_info.pNext = NULL;
 		begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 		begin_info.pInheritanceInfo = NULL;
-		VK_CHECK( qvkBeginCommandBuffer( vk.staging_command_buffer, &begin_info ) );
+		VK_REQUIRE_SUCCESS( qvkBeginCommandBuffer( vk.staging_command_buffer, &begin_info ) );
 	}
 
 	//ri.Printf( PRINT_WARNING, "batch @%6i + %i %s \n", (int)vk.staging_buffer.offset, (int)buffer_size, image->imgName );
@@ -1382,8 +1373,8 @@ static void allocate_and_bind_image_memory( image_t *image ) {
 	ImageChunk_t		*chunk;
 	int i;
 
-	qvkGetImageMemoryRequirements(vk.device, image->handle, &memory_requirements);
-	if (image->residentSourceBytes && memory_requirements.size <= residentTextures.limit() &&
+	const bool dedicated = vk_image_memory_requirements(image->handle, &memory_requirements);
+	if (!dedicated && image->residentSourceBytes && memory_requirements.size <= residentTextures.limit() &&
 		image->residentSourceBytes <= residentTextures.limit() - size_t(memory_requirements.size)) {
 		std::shared_ptr<ResidentImagePage> page;
 		size_t offset = 0;
@@ -1420,7 +1411,7 @@ static void allocate_and_bind_image_memory( image_t *image ) {
 			activeResidentTextures.emplace(image, resource);
 			resource->image = image->handle;
 			image->residentMemory = page->memory;
-			VK_CHECK(qvkBindImageMemory(vk.device, image->handle, image->residentMemory, offset));
+			VK_REQUIRE_SUCCESS(qvkBindImageMemory(vk.device, image->handle, image->residentMemory, offset));
 			return;
 		}
 	}
@@ -1435,7 +1426,7 @@ static void allocate_and_bind_image_memory( image_t *image ) {
 
 	// Try to find an existing chunk of sufficient capacity.
 	alignment = memory_requirements.alignment;
-	for (i = 0; i < vk_world.num_image_chunks; i++) {
+	for (i = 0; !dedicated && i < vk_world.num_image_chunks; i++) {
 		// ensure that memory region has proper alignment
 		VkDeviceSize offset = PAD(vk_world.image_chunks[i].used, alignment);
 
@@ -1460,7 +1451,9 @@ static void allocate_and_bind_image_memory( image_t *image ) {
 		}
 
 		// default size is sufficient or create larger chunk
-		if ( memory_requirements.size <= vk.image_chunk_size )
+		if (dedicated)
+			size = memory_requirements.size;
+		else if ( memory_requirements.size <= vk.image_chunk_size )
 			size = vk.image_chunk_size;
 		else {
 			size = (vk.image_chunk_size * 2);
@@ -1470,7 +1463,10 @@ static void allocate_and_bind_image_memory( image_t *image ) {
 		}
 
 		alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-		alloc_info.pNext = NULL;
+		VkMemoryDedicatedAllocateInfoKHR dedicated_info = {};
+		dedicated_info.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
+		dedicated_info.image = image->handle;
+		alloc_info.pNext = dedicated ? &dedicated_info : NULL;
 		alloc_info.allocationSize = size;
 		alloc_info.memoryTypeIndex = vk_find_memory_type(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
@@ -1493,7 +1489,7 @@ static void allocate_and_bind_image_memory( image_t *image ) {
 		vk_world.num_image_chunks++;
 	}
 
-	VK_CHECK(qvkBindImageMemory(vk.device, image->handle, chunk->memory, chunk->used - memory_requirements.size));
+	VK_REQUIRE_SUCCESS(qvkBindImageMemory(vk.device, image->handle, chunk->memory, chunk->used - memory_requirements.size));
 }
 
 void vk_update_descriptor_set( image_t *image, qboolean mipmap ) {
@@ -1542,7 +1538,7 @@ static void vk_assign_image_descriptor(image_t *image, int mip_levels) {
 		descriptor.descriptorPool = vk.descriptor_pool;
 		descriptor.descriptorSetCount = 1;
 		descriptor.pSetLayouts = &vk.set_layout_sampler;
-		VK_CHECK(qvkAllocateDescriptorSets(vk.device, &descriptor, &image->descriptor_set));
+		VK_REQUIRE_SUCCESS(qvkAllocateDescriptorSets(vk.device, &descriptor, &image->descriptor_set));
 	}
 	vk_update_descriptor_set(image, mip_levels > 1 ? qtrue : qfalse);
 }
@@ -1604,7 +1600,7 @@ void vk_create_image( image_t *image, int width, int height, int mip_levels ) {
 		image->hostTransfer = vk.hostImageCopy && VK_CanHostCopyImage(vk.physical_device, desc,
 			qvkGetPhysicalDeviceImageFormatProperties2) ? qtrue : qfalse;
 		if (image->hostTransfer) desc.usage |= VK_IMAGE_USAGE_HOST_TRANSFER_BIT;
-		VK_CHECK( qvkCreateImage( vk.device, &desc, NULL, &image->handle ) );
+		VK_REQUIRE_SUCCESS( qvkCreateImage( vk.device, &desc, NULL, &image->handle ) );
 
 		allocate_and_bind_image_memory( image );
 	}
@@ -1627,7 +1623,7 @@ void vk_create_image( image_t *image, int width, int height, int mip_levels ) {
 		desc.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
 		desc.subresourceRange.baseArrayLayer = 0;
 		desc.subresourceRange.layerCount = 1;
-		VK_CHECK( qvkCreateImageView( vk.device, &desc, NULL, &image->view ) );
+		VK_REQUIRE_SUCCESS( qvkCreateImageView( vk.device, &desc, NULL, &image->view ) );
 	}
 	const auto resident = activeResidentTextures.find(image);
 	if (resident != activeResidentTextures.end()) resident->second->view = image->view;
@@ -2081,6 +2077,7 @@ static image_t *R_QueueFileImage(const char *name, imgFlags_t flags,
     const bool onWorker = textureWorkerCount != 0;
     const auto decode = [job, onWorker]() {
         const auto started = std::chrono::steady_clock::now();
+        TextureWorkers::run([&]() {
         textureDecodeLimit = size_t(job->encoded.width) * job->encoded.height * 4;
         const ImageAllocator allocator = {R_AllocateDecodedTexture, std::free};
         bool prepared = false;
@@ -2116,12 +2113,23 @@ static image_t *R_QueueFileImage(const char *name, imgFlags_t flags,
             textureWorkerPrepareUs.fetch_add(ImageTimeUs() - preparationStarted, std::memory_order_relaxed);
         }
 
+        }, [&]() {
+            // Worker exceptions must still publish completion. Otherwise a
+            // failed vector/cache allocation terminates the process or leaves
+            // registration waiting forever. Retry the ordinary loader on main.
+            job->prepared.bytes.clear();
+            std::free(job->decoded.pixels);
+            job->decoded = {};
+            job->diskCache = false;
+            job->greyscaleApplied = false;
+            Q_strncpyz(job->error, "Texture worker allocation/preparation failed", sizeof(job->error));
+        }, [&]() {
         job->decodeMs = int(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count());
         { std::lock_guard<std::mutex> lock(job->mutex); job->done = true; }
         job->complete.notify_one();
+        });
     };
-    if (textureWorkerCount) textureWorkers.submit(decode);
-    else decode();
+    if (!textureWorkerCount || !textureWorkers.submit(decode)) decode();
     return job->image;
 }
 

@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include <vector>
 #include "shaders/spirv/shader_data.c"
 
 // Vulkan has to be specified in a bytecode format which is called SPIR-V
@@ -32,10 +33,24 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // render targets.
 static VkShaderModule SHADER_MODULE( const uint8_t *bytes, const int count ) {
     VkShaderModuleCreateInfo desc;
-    VkShaderModule module;
+    VkShaderModule module = VK_NULL_HANDLE;
 
-    if (count % 4 != 0) {
-        ri.Error(ERR_FATAL, "Vulkan: SPIR-V binary buffer size is not a multiple of 4");
+    if (!bytes || count <= 0 || count % 4 != 0) {
+        ri.Error(ERR_FATAL, "Vulkan: invalid SPIR-V binary buffer");
+        return VK_NULL_HANDLE;
+    }
+
+    // Embedded uint8_t arrays have no guaranteed uint32_t alignment. Most
+    // compilers align these naturally; only copy when that fast path is unsafe.
+    std::vector<uint32_t> aligned;
+    if (reinterpret_cast<uintptr_t>(bytes) % alignof(uint32_t)) {
+        try { aligned.resize(count / sizeof(uint32_t)); }
+        catch (...) {
+            ri.Error(ERR_FATAL, "Vulkan: could not align SPIR-V binary buffer");
+            return VK_NULL_HANDLE;
+        }
+        Com_Memcpy(aligned.data(), bytes, count);
+        bytes = reinterpret_cast<const uint8_t *>(aligned.data());
     }
 
     desc.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -44,7 +59,12 @@ static VkShaderModule SHADER_MODULE( const uint8_t *bytes, const int count ) {
     desc.codeSize = count;
     desc.pCode = (const uint32_t*)bytes;
 
-    VK_CHECK(qvkCreateShaderModule(vk.device, &desc, NULL, &module));
+    const VkResult result = qvkCreateShaderModule(vk.device, &desc, NULL, &module);
+    VK_CHECK(result);
+    if (result != VK_SUCCESS) {
+        ri.Error(ERR_FATAL, "Vulkan: could not create SPIR-V shader module (%i)", result);
+        return VK_NULL_HANDLE;
+    }
 
     return module;
 }

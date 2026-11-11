@@ -106,7 +106,7 @@ static void vk_create_layout_binding( int binding, VkDescriptorType type,
     desc.flags = 0;
     desc.bindingCount = count;
     desc.pBindings = bind;
-    VK_CHECK(qvkCreateDescriptorSetLayout(vk.device, &desc, NULL, layout));
+    VK_REQUIRE_SUCCESS(qvkCreateDescriptorSetLayout(vk.device, &desc, NULL, layout));
 }
 
 void vk_create_descriptor_layout( void )
@@ -143,7 +143,7 @@ void vk_create_descriptor_layout( void )
         desc.maxSets = maxSets;
         desc.poolSizeCount = ARRAY_LEN(pool_size);
         desc.pPoolSizes = pool_size;
-        VK_CHECK(qvkCreateDescriptorPool(vk.device, &desc, NULL, &vk.descriptor_pool));
+        VK_REQUIRE_SUCCESS(qvkCreateDescriptorPool(vk.device, &desc, NULL, &vk.descriptor_pool));
     }
 
     // Descriptor set layout
@@ -179,13 +179,13 @@ void vk_create_pipeline_layout( void )
     desc.pSetLayouts = set_layouts;
     desc.pushConstantRangeCount = 1;
     desc.pPushConstantRanges = &push_range;
-    VK_CHECK(qvkCreatePipelineLayout(vk.device, &desc, NULL, &vk.pipeline_layout));
+    VK_REQUIRE_SUCCESS(qvkCreatePipelineLayout(vk.device, &desc, NULL, &vk.pipeline_layout));
     VK_SET_OBJECT_NAME(vk.pipeline_layout, "pipeline layout - main", VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
 
 #ifdef USE_VBO_SS
     // surface sprites ssbo
     set_layouts[1] = vk.set_layout_storage;
-    VK_CHECK(qvkCreatePipelineLayout(vk.device, &desc, NULL, &vk.pipeline_layout_surface_sprite));
+    VK_REQUIRE_SUCCESS(qvkCreatePipelineLayout(vk.device, &desc, NULL, &vk.pipeline_layout_surface_sprite));
     VK_SET_OBJECT_NAME(vk.pipeline_layout_surface_sprite, "pipeline layout - surface sprites", VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
 #endif
 
@@ -200,7 +200,7 @@ void vk_create_pipeline_layout( void )
     desc.pushConstantRangeCount = 1;
     desc.pPushConstantRanges = &push_range;
 
-    VK_CHECK( qvkCreatePipelineLayout( vk.device, &desc, NULL, &vk.pipeline_layout_storage ) );
+    VK_REQUIRE_SUCCESS( qvkCreatePipelineLayout( vk.device, &desc, NULL, &vk.pipeline_layout_storage ) );
 
     // post-processing pipeline
     set_layouts[0] = vk.set_layout_sampler; // sampler
@@ -215,11 +215,11 @@ void vk_create_pipeline_layout( void )
     desc.pSetLayouts = set_layouts;
     desc.pushConstantRangeCount = 0;
     desc.pPushConstantRanges = NULL;
-    VK_CHECK(qvkCreatePipelineLayout(vk.device, &desc, NULL, &vk.pipeline_layout_post_process));
+    VK_REQUIRE_SUCCESS(qvkCreatePipelineLayout(vk.device, &desc, NULL, &vk.pipeline_layout_post_process));
 
     desc.setLayoutCount = VK_NUM_BLUR_PASSES;
 
-    VK_CHECK(qvkCreatePipelineLayout(vk.device, &desc, NULL, &vk.pipeline_layout_blend));
+    VK_REQUIRE_SUCCESS(qvkCreatePipelineLayout(vk.device, &desc, NULL, &vk.pipeline_layout_blend));
 
     VK_SET_OBJECT_NAME(vk.pipeline_layout_post_process, "pipeline layout - post-processing", VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
     VK_SET_OBJECT_NAME(vk.pipeline_layout_blend, "pipeline layout - blend", VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_LAYOUT_EXT);
@@ -1427,7 +1427,7 @@ VkPipeline vk_create_pipeline( const Vk_Pipeline_Def *def, renderPass_t renderPa
     create_info.basePipelineHandle = VK_NULL_HANDLE;
     create_info.basePipelineIndex = -1;
 
-    VK_CHECK( qvkCreateGraphicsPipelines( vk.device, vk.pipelineCache, 1, &create_info, NULL, &pipeline ) );
+    VK_REQUIRE_SUCCESS( qvkCreateGraphicsPipelines( vk.device, vk.pipelineCache, 1, &create_info, NULL, &pipeline ) );
     VK_SET_OBJECT_NAME( pipeline, va( "pipeline def#%i, pass#%i", def_index, renderPassIndex ), VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT );
     vk.pipeline_create_count++;
 
@@ -1715,7 +1715,7 @@ static void vk_create_post_process_pipeline( int program_index, uint32_t width, 
     create_info.basePipelineHandle = VK_NULL_HANDLE;
     create_info.basePipelineIndex = -1;
 
-    VK_CHECK( qvkCreateGraphicsPipelines( vk.device, vk.pipelineCache, 1, &create_info, NULL, pipeline ) );
+    VK_REQUIRE_SUCCESS( qvkCreateGraphicsPipelines( vk.device, vk.pipelineCache, 1, &create_info, NULL, pipeline ) );
     VK_SET_OBJECT_NAME( *pipeline, pipeline_name, VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT );
 }
 
@@ -1907,7 +1907,7 @@ static void vk_create_blur_pipeline( char *name, int program_index, uint32_t ind
     create_info.basePipelineHandle = VK_NULL_HANDLE;
     create_info.basePipelineIndex = -1;
 
-    VK_CHECK( qvkCreateGraphicsPipelines( vk.device, vk.pipelineCache, 1, &create_info, NULL, pipeline ) );
+    VK_REQUIRE_SUCCESS( qvkCreateGraphicsPipelines( vk.device, vk.pipelineCache, 1, &create_info, NULL, pipeline ) );
     VK_SET_OBJECT_NAME( *pipeline, va( "%s %s blur pipeline %i", name, horizontal_pass ? "horizontal" : "vertical", index / 2 + 1 ), VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT );
 }
 

@@ -118,13 +118,13 @@ static void vk_alloc_attachment_memory( void )
     }
 
     // allocate and bind memory
-    VK_ALLOCATE_MEMORY_CHECK(vk.device, &alloc_info, &memory, "attachment memory");
+    VK_REQUIRE_SUCCESS(VK_ALLOCATE_MEMORY(vk.device, &alloc_info, &memory, "attachment memory"));
 
     vk.image_memory[vk.image_memory_count++] = memory;
 
     for (i = 0; i < num_attachments; i++) {
 
-        VK_CHECK(qvkBindImageMemory(vk.device, attachments[i].descriptor, memory, attachments[i].memory_offset));
+        VK_REQUIRE_SUCCESS(qvkBindImageMemory(vk.device, attachments[i].descriptor, memory, attachments[i].memory_offset));
 
         // create color image view
         view_desc.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -143,7 +143,7 @@ static void vk_alloc_attachment_memory( void )
         view_desc.subresourceRange.baseArrayLayer = 0;
         view_desc.subresourceRange.layerCount = 1;
 
-        VK_CHECK(qvkCreateImageView(vk.device, &view_desc, NULL, attachments[i].image_view));
+        VK_REQUIRE_SUCCESS(qvkCreateImageView(vk.device, &view_desc, NULL, attachments[i].image_view));
     }
 
     // perform layout transition
@@ -161,7 +161,7 @@ static void vk_alloc_attachment_memory( void )
     num_attachments = 0;
 }
 
-static void vk_get_image_memory_requirements( VkImage image, VkMemoryRequirements *memory_requirements )
+static qboolean vk_get_image_memory_requirements( VkImage image, VkMemoryRequirements *memory_requirements )
 {
     if (vk.dedicatedAllocation) {
         VkMemoryRequirements2KHR memory_requirements2;
@@ -182,10 +182,12 @@ static void vk_get_image_memory_requirements( VkImage image, VkMemoryRequirement
         qvkGetImageMemoryRequirements2KHR(vk.device, &image_requirements2, &memory_requirements2);
 
         *memory_requirements = memory_requirements2.memoryRequirements;
+        return mem_req2.requiresDedicatedAllocation ? qtrue : qfalse;
     }
     else {
         qvkGetImageMemoryRequirements(vk.device, image, memory_requirements);
     }
+    return qfalse;
 }
 
 static void vk_add_attachment_desc( VkImage desc, VkImageView *image_view, VkImageUsageFlags usage, VkMemoryRequirements *reqs,
@@ -235,11 +237,16 @@ static void create_color_attachment( uint32_t width, uint32_t height, VkSampleCo
     desc.queueFamilyIndexCount = 0;
     desc.pQueueFamilyIndices = NULL;
     desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    VK_CHECK(qvkCreateImage(vk.device, &desc, NULL, image));
+    VK_REQUIRE_SUCCESS(qvkCreateImage(vk.device, &desc, NULL, image));
 
-    vk_get_image_memory_requirements(*image, &memory_requirements);
+    const qboolean dedicated = vk_get_image_memory_requirements(*image, &memory_requirements);
+    // Required dedicated images must never share the pool's memory allocation.
+    if (dedicated)
+        vk_alloc_attachment_memory();
 
     vk_add_attachment_desc( *image, image_view, usage, &memory_requirements, format, VK_IMAGE_ASPECT_COLOR_BIT, image_layout );
+    if (dedicated)
+        vk_alloc_attachment_memory();
 }
 
 static void create_depth_attachment( uint32_t width, uint32_t height, VkSampleCountFlagBits samples,
@@ -276,11 +283,15 @@ static void create_depth_attachment( uint32_t width, uint32_t height, VkSampleCo
     if ( glConfig.stencilBits > 0 )
         image_aspect_flags |= VK_IMAGE_ASPECT_STENCIL_BIT;
 
-    VK_CHECK(qvkCreateImage(vk.device, &desc, NULL, image));
+    VK_REQUIRE_SUCCESS(qvkCreateImage(vk.device, &desc, NULL, image));
 
-    vk_get_image_memory_requirements(*image, &memory_requirements);
+    const qboolean dedicated = vk_get_image_memory_requirements(*image, &memory_requirements);
+    if (dedicated)
+        vk_alloc_attachment_memory();
 
     vk_add_attachment_desc( *image, image_view, desc.usage, &memory_requirements, vk.depth_format, image_aspect_flags, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL );
+    if (dedicated)
+        vk_alloc_attachment_memory();
 }
 
 void vk_create_attachments( void )

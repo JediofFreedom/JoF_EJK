@@ -1006,7 +1006,7 @@ void RB_CalcFogTexCoords( float *st ) {
 		}
 
 		st[0] = Q_isnan (s) ? 0.0f : s;
-		st[1] = Q_isnan (s) ? 0.0f : t;
+		st[1] = Q_isnan (t) ? 0.0f : t;
 		st += 2;
 	}
 }

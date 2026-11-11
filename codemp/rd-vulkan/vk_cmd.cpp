@@ -36,7 +36,7 @@ void vk_create_command_pool( void )
     desc.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     desc.queueFamilyIndex = vk.queue_family_index;
 
-    VK_CHECK( qvkCreateCommandPool( vk.device, &desc, NULL, &vk.command_pool ) );
+    VK_REQUIRE_SUCCESS( qvkCreateCommandPool( vk.device, &desc, NULL, &vk.command_pool ) );
     VK_SET_OBJECT_NAME( vk.command_pool, "command pool", VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_POOL_EXT );
 
     vk_debug("Create command pool: vk.command_pool \n");
@@ -54,7 +54,7 @@ void vk_create_command_buffer( void )
         alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         alloc_info.commandBufferCount = 1;
 
-        VK_CHECK( qvkAllocateCommandBuffers( vk.device, &alloc_info, &vk.tess[i].command_buffer ) );
+        VK_REQUIRE_SUCCESS( qvkAllocateCommandBuffers( vk.device, &alloc_info, &vk.tess[i].command_buffer ) );
 
         vk_debug( va("Create command buffer: vk.cmd->command_buffer[%d] \n", i ) );
     }
@@ -69,7 +69,7 @@ void vk_create_command_buffer( void )
 		alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 		alloc_info.commandBufferCount = 1;
 
-		VK_CHECK( qvkAllocateCommandBuffers( vk.device, &alloc_info, &vk.staging_command_buffer ) );
+		VK_REQUIRE_SUCCESS( qvkAllocateCommandBuffers( vk.device, &alloc_info, &vk.staging_command_buffer ) );
 	}
 #endif
 }

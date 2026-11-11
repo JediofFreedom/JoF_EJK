@@ -37,14 +37,23 @@ void vk_create_pipeline_cache(void) {
                 ri.Printf(PRINT_ALL, "Vulkan: ignoring incompatible or incomplete pipeline cache\n");
         }
     }
+    vk.pipelineCache = VK_NULL_HANDLE;
     VkResult result = qvkCreatePipelineCache(vk.device, &ci, NULL, &vk.pipelineCache);
     if (result != VK_SUCCESS && ci.initialDataSize) {
         ri.Printf(PRINT_ALL, "Vulkan: cached pipeline creation failed (%d), retrying empty\n", result);
         ci.initialDataSize = 0;
         ci.pInitialData = NULL;
+        vk.pipelineCache = VK_NULL_HANDLE;
         result = qvkCreatePipelineCache(vk.device, &ci, NULL, &vk.pipelineCache);
     }
     VK_CHECK(result);
+    if (result != VK_SUCCESS) {
+        // Cache creation is optional; failed Vulkan outputs are undefined.
+        // Null explicitly so later graphics-pipeline calls run uncached.
+        vk.pipelineCache = VK_NULL_HANDLE;
+        ri.Printf(PRINT_ALL, "Vulkan: pipeline cache unavailable; continuing uncached\n");
+        return;
+    }
     ri.Printf(PRINT_ALL, "Vulkan: pipeline cache initialized with %u bytes\n", (unsigned)ci.initialDataSize);
 }
 

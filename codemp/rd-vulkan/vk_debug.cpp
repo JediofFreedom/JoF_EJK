@@ -586,7 +586,7 @@ void vk_dump_tracked_objects( void )
 // buffer
 void vk_create_tracked_buffer( VkDevice device, const VkBufferCreateInfo* createInfo, VkBuffer* outBuffer, const char* debugName, const char* file, int line, const char* function )
 {
-    VK_CHECK( qvkCreateBuffer( device, createInfo, NULL, outBuffer ) );
+    VK_REQUIRE_SUCCESS( qvkCreateBuffer( device, createInfo, NULL, outBuffer ) );
 
 	VulkanObjectTracker::Get().Register( (uint64_t)(*outBuffer), VK_OBJECT_TYPE_BUFFER, debugName, file, line, function );
 }
@@ -614,7 +614,7 @@ VkResult vk_allocate_tracked_memory( VkDevice device, const VkMemoryAllocateInfo
 
 void vk_allocate_tracked_memory_checked( VkDevice device, const VkMemoryAllocateInfo* allocInfo, VkDeviceMemory* outMemory, const char* debugName, const char* file, int line, const char* function )
 {
-    VK_CHECK( qvkAllocateMemory( device, allocInfo, NULL, outMemory ) );
+    VK_REQUIRE_SUCCESS( qvkAllocateMemory( device, allocInfo, NULL, outMemory ) );
 
     VulkanObjectTracker::Get().Register( (uint64_t)(*outMemory), VK_OBJECT_TYPE_DEVICE_MEMORY, debugName, file, line, function );
 }

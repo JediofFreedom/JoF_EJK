@@ -2099,7 +2099,8 @@ typedef byte color4ub_t[4];
 
 typedef struct stageVars
 {
-	color4ub_t	colors[NUM_TEXTURE_BUNDLES][SHADER_MAX_VERTEXES];
+	// Stencil shadow volumes upload original and extruded vertex colors together.
+	color4ub_t	colors[NUM_TEXTURE_BUNDLES][SHADER_MAX_VERTEXES * 2];
 	vec2_t		texcoords[NUM_TEXTURE_BUNDLES][SHADER_MAX_VERTEXES];
     vec2_t      *texcoordPtr[NUM_TEXTURE_BUNDLES];
 } stageVars_t;
