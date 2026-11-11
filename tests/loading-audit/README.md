@@ -608,3 +608,46 @@ General Vulkan allocation/teardown recovery and every renderer state remain
 unproven. A separate SDL/window bridge follow-up was blocked by automatic
 approval review and remains unimplemented; it was not retried. See
 [the audit inventory, evidence and remaining risks](../vulkan-audit/README.md).
+
+
+
+### Resource and material follow-up at `81b10be`
+
+Dedicated-memory, shader alignment, worker completion, selected Vulkan failure
+handling and material-state fixes are recorded in [the versioned follow-up
+ledger](../vulkan-audit/followup-81b10be.json). Focused coverage is 106 cases in
+ten suites; earlier `0fcdbdd` measurements and validation remain historical.
+Full ordinary Windows x64/x86 builds passed for the frozen 81b10be source; root verified explicit native-command exit 0 for both architectures. The complete local Windows runner passed all 66 discovered suites without skips. Compatible Clang 22.1.3 analysis completed 55/55 direct contexts with 13 diagnostic contexts retained and no parse errors.
+CI run 43075400446 passed Windows (66/66), Ubuntu (64/64 applicable with two explicit Windows-only skips) and the full native Linux client. macOS failed only material_fog-invalid-t in vulkan-material-runtime (63/64 applicable suites passed); the exact assertion and production-versus-fixture cause are under investigation. The six ordinary 81b10be GPU profiles passed (23 map loads, 50 captures), as did weather and the corrected bot-shadow acceptance run (six maps, 33 captures). SSAA/HDR failed real driver validation for refraction blit destination width and dynamic-glow clear rectangles; owned polling aborted the process, with configuration/runtime preserved. Fullscreen/debug cases are unrun, corrections are in progress, and 81b10be will not be deployed.
+TestClient still contains the validated 0fcdbdd build; 81b10be has not been installed. No new loading/FPS improvement is claimed;
+global failure recovery and every renderer state remain unproven.
+
+### SSAA and portability follow-up at `481800e`
+
+The new [versioned follow-up ledger](../vulkan-audit/followup-481800e.json)
+records SSAA shared-depth/target sizing, Vulkan offset portability and a portable
+fog fixture with unchanged production assertions. Focused coverage is 121 cases
+in eleven suites; failed `81b10be` evidence remains separately preserved.
+Final ordinary Windows x64/x86 builds passed at 481800e; root verified explicit BUILD_EXIT=0 for both architectures. The full final local Windows runner passed all 67 discovered suites without skips. CI run 43078570667 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 67/67 suites without skips; macOS/Ubuntu each passed 65/65 applicable suites plus two explicit Windows-only skips. The Mac material suite passed after the portable fixture correction.
+On the actual 481800e runtime, all six basic profiles plus weather, bot/shadows and SSAA/HDR passed (32 accepted map requests, 92 captures). Fullscreen crashed with access violation 0xC0000005 during the first video restart, without a preceding validation error or forced termination; configuration/runtime hashes remained unchanged. Debug/mips remains unrun, so the complete 11-profile matrix has not passed. TestClient remains on validated 0fcdbdd; neither 81b10be nor 481800e is installed.
+No new loading/FPS gain or exhaustive renderer-safety claim is made.
+
+### Presentation and fatal-cleanup follow-up at `7bd3470`
+
+[The separate 7bd3470 ledger](../vulkan-audit/followup-7bd3470.json) records
+Vulkan presentation extent adoption and server-before-client fatal cleanup.
+Coverage is 126 Vulkan cases plus five engine cases; old failures and the
+renderer-only candidate/offline reassessment remain explicitly versioned.
+Final ordinary Windows x64/x86 builds passed at 7bd3470 with explicit BUILD_EXIT=0 for both architectures. The final local Windows runner passed all 68 discovered suites without skips. CI run 43082756809 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 68/68 suites without skips; macOS/Ubuntu each passed 66/66 applicable suites with two explicit Windows-only skips. Material and fatal-shutdown suites passed on Mac.
+On identical 7bd3470 runtime binaries, 11 of 12 GPU profiles passed: six basic plus weather, bot/shadows, SSAA/HDR and both FBO/direct fullscreen cases (38 accepted map requests, 108 captures). The final debug/mip profile failed Khronos required-handle validation because vkUpdateDescriptorSets received dstSet VK_NULL_HANDLE; owned polling forced an abort and preserved configuration/runtime hashes. No complete matrix pass or deployment is claimed. TestClient remains on validated 0fcdbdd. The 81/481 stages were never installed, and 7bd3470 is not deployed.
+No new loading/FPS or universal recovery/hardware-safety claim is made.
+
+### Descriptor lifecycle follow-up at `750ff04`
+
+[The versioned 750ff04 ledger](../vulkan-audit/followup-750ff04.json) records
+the narrow descriptor-less image refresh guard, current-filter completion tests
+and separately qualified debug candidate. There are 130 Vulkan plus five engine
+cases; failed 7bd evidence and all earlier manifests remain intact.
+Final ordinary Windows x64/x86 builds passed at 750ff04 with explicit BUILD_EXIT=0 for both architectures. The final local Windows runner passed all 68 discovered suites without skips. CI run 43087229764 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 68/68 suites without skips; macOS/Ubuntu each passed 66/66 applicable suites with two explicit Windows-only skips, including expanded asset integrity.
+Fresh 750ff04 GPU tests did not start: the launch guard found an existing user-owned TestClient and left it untouched. The complete 12-profile final-runtime validation is waiting for that client to close. The passed older-engine debug candidate remains separate evidence; no final 750 matrix pass is claimed. 750ff04 is staged only: 54 payload and 54 matching source SHA256 checks passed (108 checks), with eight protected configuration hashes unchanged at staging. Nothing was installed; TestClient remains on validated 0fcdbdd and older stages were never installed.
+No new loading/FPS or universal renderer/hardware-safety claim is made.

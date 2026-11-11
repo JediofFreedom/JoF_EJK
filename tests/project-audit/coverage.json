@@ -804,7 +804,7 @@
       "conclusion": "Excluded from loading-speed/parity claims; no result establishes EJK equal to or faster than SJK."
     }
   },
-  "verification_state": "Native Vulkan audit through 0fcdbdd covers all 55 direct compiled sources, with 55 focused cases across eight new suites and 103 regenerated/validated shader modules. Predecessor 003609f local runner passed 64/64; latest static analysis completed 55/55 with nine diagnostic contexts and no parse failures. Full ordinary Windows x64/x86 builds passed at 0fcdbdd. CI run 43065663481 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 64/64 suites without skips; macOS/Ubuntu each passed 62/62 applicable suites plus two explicit Windows-only skips (sjk-chat and updater). Actual final 0fcdbdd direct and FBO/HDR/MSAA cases passed all strict lifecycle checks (six map loads, 12 captures, video restarts, owned minimize/restore, exit 0, zero retained resources and no validation messages). Five additional configurations passed on the immutable scissor candidate; they are separate versioned evidence, not six cases on identical final binaries. Initial 4dd25b0 real-MAX GPU failure and fixture gap remain recorded; corrected 0f92d64 direct GPU case passed. No new loading/FPS claim. Historical 285 findings remain 46 fixed / 63 provisional / 176 unresolved; broader error/resource/model safety and blocked SDL/window bridge/earlier quarantined work remain unfinished.",
+  "verification_state": "Latest source 750ff04 narrowly fixes descriptor-less bulk sampler refresh, with current-filter completion/reuse tests. Coverage is 130 Vulkan plus five engine cases. Final ordinary Windows x64/x86 builds passed at 750ff04 with explicit BUILD_EXIT=0 for both architectures. The final local Windows runner passed all 68 discovered suites without skips. CI run 43087229764 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 68/68 suites without skips; macOS/Ubuntu each passed 66/66 applicable suites with two explicit Windows-only skips, including expanded asset integrity. Fresh 750ff04 GPU tests did not start: the launch guard found an existing user-owned TestClient and left it untouched. The complete 12-profile final-runtime validation is waiting for that client to close. The passed older-engine debug candidate remains separate evidence; no final 750 matrix pass is claimed. 750ff04 is staged only: 54 payload and 54 matching source SHA256 checks passed (108 checks), with eight protected configuration hashes unchanged at staging. Nothing was installed; TestClient remains on validated 0fcdbdd and older stages were never installed. Earlier failed checkpoints/source snapshots remain intact. Current single-context vk_image.cpp analysis completed with zero diagnostics; prior scopes remain historical, without a whole-project warning-free claim; 285 triage remains 46/63/176 and blocked/restricted work remains untouched.",
   "analysis": {
     "initial_contexts": 560,
     "excluded_vendor_contexts": [
@@ -1412,6 +1412,637 @@
       "historical_285_triage": "unchanged: 46 fixed / 63 provisional / 176 unresolved",
       "performance_claim": "No new loading/FPS measurement for correctness audit.",
       "blocked_window_bridge": "Automatic approval review rejected separate step; unimplemented, not retried."
+    },
+    "vulkan_followup_81b": {
+      "code_checkpoint": "81b10be3490a2f08884110717583aaa6e0873e28",
+      "ledger": "tests/vulkan-audit/followup-81b10be.json",
+      "focused_cases": 106,
+      "suites": 10,
+      "builds": {
+        "status": "passed",
+        "summary": "Full ordinary Windows x64/x86 builds passed for the frozen 81b10be source; root verified explicit native-command exit 0 for both architectures.",
+        "artifacts": [
+          "vulkan-followup-full-x64-check.log",
+          "vulkan-followup-full-x86-check.log"
+        ],
+        "qualification": "The first logging wrapper returned 1 without a FAILED build line. Direct command rechecks exited 0 and the check logs report ninja: no work to do. The wrapper return is not used as a successful native-build exit."
+      },
+      "whole_suite": {
+        "status": "passed",
+        "expected_suites": 66,
+        "completed_suites": 66,
+        "passed_suites": 66,
+        "artifact": "vulkan-followup-all-regressions-81b10be/results.json"
+      },
+      "static_analysis": {
+        "status": "completed-with-diagnostics",
+        "expected_contexts": 55,
+        "completed_contexts": 55,
+        "parse_errors": 0,
+        "diagnostic_contexts": 13,
+        "artifact": "vulkan-followup-analysis-81b10be-clang22/results.json",
+        "comparison_limit": "The previous 0fcdbdd run used Clang 19, while this compatible run uses Clang 22; differing diagnostic-context counts are not a like-for-like fix/regression count.",
+        "selected_contract_review": [
+          {
+            "contexts": [
+              "vk_instance.cpp",
+              "vk_swapchain.cpp"
+            ],
+            "disposition": "nonreturning error-import contract explanation, not a source fix or all-path proof",
+            "evidence": "Reports continue past ri.Error/VK_REQUIRE_SUCCESS failure branches that free partial lists or reject null/zero allocations. Production engine error handling is nonreturning; fixtures throw at that boundary."
+          },
+          {
+            "contexts": [
+              "tr_shader.cpp",
+              "tr_surface.cpp"
+            ],
+            "disposition": "new diagnostic contexts under a different compiler; source unchanged in this follow-up",
+            "evidence": "No edits to either file in eebb4d5..81b10be; selected source delta review does not establish these broader preexisting states."
+          },
+          {
+            "contexts": [
+              "tr_shader.cpp"
+            ],
+            "disposition": "caller-contract explanation only",
+            "evidence": "EqualTCgen returns false for NULL; source is unchanged and no warning fix is claimed."
+          },
+          {
+            "contexts": [
+              "tr_surface.cpp",
+              "tr_ghoul2.cpp"
+            ],
+            "disposition": "unresolved portability candidate",
+            "evidence": "BUFFER_OFFSET-style null-pointer arithmetic remains flagged; no source fix or arbitrary model-state proof is claimed."
+          }
+        ],
+        "compiler": "Clang 22.1.3 compatible with the installed MSVC 14.51 STL",
+        "initial_tooling_attempt": {
+          "compiler": "Clang 19",
+          "result": "55 parse errors due to installed MSVC 14.51 STL requiring Clang >=20; not renderer-analysis success",
+          "artifact": "vulkan-followup-analysis-81b10be/results.json"
+        },
+        "diagnostic_contexts_detail": [
+          {
+            "path": "codemp/rd-vulkan/G2_API.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\G2_API.cpp:926:10: warning: Forming reference to null pointer [clang-analyzer-core.NonNullParamChecker]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\G2_API.cpp:1275:26: warning: Access to field 'mSkelFrameNum' results in a dereference of a null pointer (loaded from variable 'ghlInfo') [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\G2_API.cpp:1512:26: warning: Access to field 'mSkelFrameNum' results in a dereference of a null pointer (loaded from variable 'ghlInfo') [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_backend.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_backend.cpp:301:70: warning: Access to field 'sort' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_backend.cpp:306:20: warning: Access to field 'sort' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_backend.cpp:374:6: warning: Access to field 'useDistortion' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_bsp.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_bsp.cpp:1360:9: warning: Access to field 'height' results in a dereference of a null pointer (loaded from variable 'grid2') [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_bsp.cpp:1723:15: warning: Access to field 'type' results in a dereference of a null pointer (loaded from variable 'model') [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_ghoul2.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_ghoul2.cpp:3100:43: warning: Access to field 'ofsVerts' results in a dereference of a null pointer (loaded from variable 'surface') [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_ghoul2.cpp:3705:23: warning: Addition of a null pointer and a probably nonzero integer value (from variable 'indexOffset') may result in undefined behavior [clang-analyzer-core.NullPointerArithm]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_scene.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_scene.cpp:620:34: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_shader.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_shader.cpp:4740:61: warning: Access to field 'tessFlags' results in a dereference of a null pointer [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_shade_calc.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_shade_calc.cpp:732:14: warning: Assigned value is uninitialized [clang-analyzer-core.uninitialized.Assign]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_shade_calc.cpp:803:13: warning: Assigned value is uninitialized [clang-analyzer-core.uninitialized.Assign]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_shade_calc.cpp:908:19: warning: 1st function call argument is an uninitialized value [clang-analyzer-core.CallAndMessage]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_shade_calc.cpp:1225:20: warning: Access to field 'ambientLightInt' results in a dereference of a null pointer (loaded from variable 'ent') [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_surface.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_surface.cpp:2272:21: warning: Addition of a null pointer and a probably nonzero integer value (via field 'indexOffset') may result in undefined behavior [clang-analyzer-core.NullPointerArithm]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/tr_world.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_world.cpp:1394:10: warning: Access to field 'novis' results in a dereference of a null pointer (loaded from field 'world') [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/vk_instance.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:263:9: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:264:9: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:282:20: warning: Use of memory after it is released [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:303:44: warning: Use of memory after it is released [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:303:44: warning: Use of memory allocated with size zero [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:374:5: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:375:5: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:985:34: warning: Array access (from variable 'physical_devices') results in a null pointer dereference [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:985:34: warning: Use of memory after it is released [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_instance.cpp:1007:2: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/vk_shade_geometry.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_shade_geometry.cpp:1596:7: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_shade_geometry.cpp:2535:47: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/vk_swapchain.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_swapchain.cpp:141:57: warning: Array access (from variable 'present_modes') results in a null pointer dereference [clang-analyzer-core.NullDereference]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_swapchain.cpp:141:57: warning: Use of memory after it is released [clang-analyzer-unix.Malloc]",
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_swapchain.cpp:151:5: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]"
+            ]
+          },
+          {
+            "path": "codemp/rd-vulkan/vk_vbo.cpp",
+            "diagnostics": [
+              "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_vbo.cpp:1223:27: warning: Access to field 'numVerts' results in a dereference of a null pointer (loaded from variable 'goreSurface') [clang-analyzer-core.NullDereference]"
+            ]
+          }
+        ]
+      },
+      "ci": {
+        "run_id": 43075400446,
+        "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/43075400446",
+        "status": "failed-macos-followup-pending",
+        "summary": "CI run 43075400446 passed Windows (66/66), Ubuntu (64/64 applicable with two explicit Windows-only skips) and the full native Linux client. macOS failed only material_fog-invalid-t in vulkan-material-runtime (63/64 applicable suites passed); the exact assertion and production-versus-fixture cause are under investigation.",
+        "failed_job": 130713776559,
+        "artifact_id": 13881937420,
+        "artifact": "ci-43075400446-macos.zip:vulkan-material-runtime.log",
+        "failed_case": "material_fog-invalid-t",
+        "failure": "invalid fog depth must be sanitized independently",
+        "compiler": "AppleClang 17.0.0.17000013",
+        "diagnosis": "pending frontend agent investigation; no weakened assertions or source fix claimed"
+      },
+      "gpu": {
+        "status": "failed-ssaa-hdr-followup-pending",
+        "summary": "The six ordinary 81b10be GPU profiles passed (23 map loads, 50 captures), as did weather and the corrected bot-shadow acceptance run (six maps, 33 captures). SSAA/HDR failed real driver validation for refraction blit destination width and dynamic-glow clear rectangles; owned polling aborted the process, with configuration/runtime preserved. Fullscreen/debug cases are unrun, corrections are in progress, and 81b10be will not be deployed.",
+        "basic": {
+          "artifact": "vulkan-followup-gpu-basic-81b10be-1/results.json",
+          "passed_profiles": 6,
+          "map_requests": 23,
+          "captures": 50,
+          "stress_seconds": 96.03
+        },
+        "features": {
+          "weather_artifact": "vulkan-followup-gpu-features-81b10be-1/results.json",
+          "bot_ssaa_artifact": "vulkan-followup-gpu-features-81b10be-2/results.json",
+          "weather": "passed: three maps, 21 captures",
+          "bot-shadows": "passed corrected acceptance: three maps, 12 captures",
+          "ssaa-hdr": "failed validation; owned forced termination true, configuration/runtime preserved",
+          "unrun": [
+            "fullscreen",
+            "debug-geometry"
+          ]
+        },
+        "failure": {
+          "artifact": "vulkan-followup-gpu-features-81b10be-2/ssaa-hdr/validation.log",
+          "vuids": [
+            "VUID-vkCmdBlitImage-dstOffset-00248",
+            "VUID-vkCmdClearAttachments-pRects-00016"
+          ],
+          "source_explanation": "Refraction destination used render-size/2 rather than actual capture-size/2; dynamic-glow clear rectangle used the larger SSAA render size for the smaller pass target.",
+          "status": "correction-and-new-code-checkpoint-pending"
+        },
+        "harness_history": "Initial bot-shadow acceptance failed because commands were rejected; process exit 0/no VUID/no force. Corrected command acceptance passed on the same frozen runtime; initial rejected-command run is not a renderer failure.",
+        "limits": "Lifecycle/stress durations are not FPS measurements; no full feature-matrix pass is claimed."
+      },
+      "deployment": {
+        "status": "not-deployed",
+        "summary": "TestClient still contains the validated 0fcdbdd build; 81b10be has not been installed."
+      },
+      "historical_285_triage": "unchanged: 46 fixed / 63 provisional / 176 unresolved"
+    },
+    "vulkan_followup_481": {
+      "code_checkpoint": "481800e92eeec4b1bdfd2500f63e46949769c30b",
+      "ledger": "tests/vulkan-audit/followup-481800e.json",
+      "focused_cases": 121,
+      "suites": 11,
+      "integration": {
+        "builds": {
+          "status": "passed",
+          "summary": "Final ordinary Windows x64/x86 builds passed at 481800e; root verified explicit BUILD_EXIT=0 for both architectures.",
+          "artifacts": [
+            "vulkan-followup-final-x64.log",
+            "vulkan-followup-final-x86.log"
+          ]
+        },
+        "whole_suite": {
+          "status": "passed",
+          "discovered_expected": 67,
+          "completed": 67,
+          "passed": 67,
+          "skipped": 0,
+          "artifact": "vulkan-followup-all-regressions-481800e/results.json"
+        },
+        "ci": {
+          "run_id": 43078570667,
+          "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/43078570667",
+          "status": "passed",
+          "summary": "CI run 43078570667 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 67/67 suites without skips; macOS/Ubuntu each passed 65/65 applicable suites plus two explicit Windows-only skips. The Mac material suite passed after the portable fixture correction.",
+          "material_macos": "passed suite; actual portable fog and buffer-offset tests passed",
+          "pointer_sanitizer": "conditional capability probe; enabled instrumentation is not exposed by success-only job summaries",
+          "jobs": [
+            {
+              "id": 130724820530,
+              "name": "native-vulkan (ubuntu-24.04)",
+              "status": "success",
+              "passed_suites": 65,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            },
+            {
+              "id": 130724821074,
+              "name": "native-vulkan (windows-2022)",
+              "status": "success",
+              "passed_suites": 67,
+              "skipped_suites": []
+            },
+            {
+              "id": 130724821088,
+              "name": "native-client-linux",
+              "status": "success"
+            },
+            {
+              "id": 130724821097,
+              "name": "native-vulkan (macos-15)",
+              "status": "success",
+              "passed_suites": 65,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            }
+          ]
+        },
+        "gpu": {
+          "status": "failed-fullscreen-incomplete-matrix",
+          "summary": "On the actual 481800e runtime, all six basic profiles plus weather, bot/shadows and SSAA/HDR passed (32 accepted map requests, 92 captures). Fullscreen crashed with access violation 0xC0000005 during the first video restart, without a preceding validation error or forced termination; configuration/runtime hashes remained unchanged. Debug/mips remains unrun, so the complete 11-profile matrix has not passed.",
+          "artifact": "vulkan-followup-gpu-481-summary.json",
+          "accepted_profiles": 9,
+          "planned_profiles": 11,
+          "passed_maps": 32,
+          "passed_captures": 92,
+          "failed_case": {
+            "Case": "fullscreen",
+            "Type": "Actual process access violation during first fullscreen video restart",
+            "Directory": "vulkan-followup-gpu-features-481800e-1/fullscreen",
+            "ExitCode": -1073741819,
+            "ExceptionHex": "0xC0000005",
+            "ForcedTermination": false,
+            "ConfigsPreserved": true,
+            "RuntimePreserved": true,
+            "ValidationReported": false
+          },
+          "unrun": [
+            "debug-mips"
+          ],
+          "runtime": [
+            {
+              "Path": "G:\\code\\JoF_EJK-performance-build\\eternaljk.x86_64.exe",
+              "Exists": true,
+              "SHA256": "D9EB2CA6C89FD79D413AD1C656F7322BB643C156EB8B6EB34AB1D0A5A98C8373"
+            },
+            {
+              "Path": "G:\\code\\JoF_EJK-performance-build\\rd-vulkan_x86_64.dll",
+              "Exists": true,
+              "SHA256": "E7B315E6AF26B4448349C40886ABC80ED011B2A9159E75AEBB4DBAD2A3B2112C"
+            },
+            {
+              "Path": "G:\\code\\JoF_EJK-performance-build\\cgamex86_64.dll",
+              "Exists": true,
+              "SHA256": "5C03A3AA92870268F05439C22B9E699B6FCF9F42F719650EFB8E2AA74A8A9A4B"
+            },
+            {
+              "Path": "G:\\code\\JoF_EJK-performance-build\\uix86_64.dll",
+              "Exists": true,
+              "SHA256": "5F0367EBEA118AFABDA63B62D99D19CA4481D347E8554D7A90E7EE9FD746061F"
+            },
+            {
+              "Path": "G:\\code\\JoF_EJK-performance-build\\jampgamex86_64.dll",
+              "Exists": true,
+              "SHA256": "84C7CD597CDB52EF03029C2D3CB1E20453488C81F32F0488BC9428BE6FAD9CC5"
+            }
+          ],
+          "source_provenance": {
+            "BasicManifestHead": "fc617e2440f58e08accea98d2d53b499fb04f6b0",
+            "FeatureManifestHead": "481800e92eeec4b1bdfd2500f63e46949769c30b",
+            "TransientMergeHead": "fc617e2440f58e08accea98d2d53b499fb04f6b0",
+            "Trees": {
+              "481800e92eeec4b1bdfd2500f63e46949769c30b": "7207cb7a06e79c2b646494feff5403276110851e",
+              "fc617e2440f58e08accea98d2d53b499fb04f6b0": "7207cb7a06e79c2b646494feff5403276110851e"
+            },
+            "IdenticalEntireTrackedTrees": true,
+            "Qualification": "Basic manifest captured an external transient merge; current481 and transientfc entire trees are byte-identical. No sources/binaries mutated by GPU agent."
+          },
+          "basic_artifact": "vulkan-followup-gpu-basic-481800e-1/results.json",
+          "feature_artifact": "vulkan-followup-gpu-features-481800e-1/results.json",
+          "limits": "481 SSAA/HDR now passes actual core/synchronization GPU validation. Fullscreen crashed; no universal feature/crash-free claim. Screenshot visual review remains required. No blocked SDL/window bridge or blocked VBO follow-up investigation performed."
+        },
+        "deployment": {
+          "status": "not-deployed",
+          "summary": "TestClient remains on validated 0fcdbdd; neither 81b10be nor 481800e is installed."
+        }
+      },
+      "prior_failed_checkpoint": "81b10be; separately retained",
+      "historical_285_triage": "unchanged: 46/63/176"
+    },
+    "vulkan_followup_7bd": {
+      "code_checkpoint": "7bd347034640286a2c1f6720dbd4f3e07049c9a6",
+      "ledger": "tests/vulkan-audit/followup-7bd3470.json",
+      "vulkan_cases": 126,
+      "engine_fatal_cases": 5,
+      "integration": {
+        "builds": {
+          "status": "passed",
+          "summary": "Final ordinary Windows x64/x86 builds passed at 7bd3470 with explicit BUILD_EXIT=0 for both architectures.",
+          "artifacts": [
+            "vulkan-followup-7bd3470-x64.log",
+            "vulkan-followup-7bd3470-x86.log"
+          ]
+        },
+        "whole_suite": {
+          "status": "passed",
+          "expected": 68,
+          "completed": 68,
+          "passed": 68,
+          "skipped": 0,
+          "artifact": "vulkan-followup-all-regressions-7bd3470/results.json"
+        },
+        "ci": {
+          "run_id": 43082756809,
+          "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/43082756809",
+          "status": "passed",
+          "summary": "CI run 43082756809 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 68/68 suites without skips; macOS/Ubuntu each passed 66/66 applicable suites with two explicit Windows-only skips. Material and fatal-shutdown suites passed on Mac.",
+          "jobs": [
+            {
+              "id": 130739278780,
+              "name": "native-vulkan (macos-15)",
+              "status": "success",
+              "passed_suites": 66,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            },
+            {
+              "id": 130739279218,
+              "name": "native-vulkan (windows-2022)",
+              "status": "success",
+              "passed_suites": 68,
+              "skipped_suites": []
+            },
+            {
+              "id": 130739279379,
+              "name": "native-client-linux",
+              "status": "success"
+            },
+            {
+              "id": 130739279438,
+              "name": "native-vulkan (ubuntu-24.04)",
+              "status": "success",
+              "passed_suites": 66,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            }
+          ],
+          "pointer_sanitizer": "Conditional probe; enabled instrumentation is not exposed by successful job summary logs."
+        },
+        "gpu": {
+          "status": "failed-debug-mip-descriptor-incomplete-matrix",
+          "planned_profiles": 12,
+          "passed_profiles": 11,
+          "passed_maps": 38,
+          "passed_captures": 108,
+          "summary": "On identical 7bd3470 runtime binaries, 11 of 12 GPU profiles passed: six basic plus weather, bot/shadows, SSAA/HDR and both FBO/direct fullscreen cases (38 accepted map requests, 108 captures). The final debug/mip profile failed Khronos required-handle validation because vkUpdateDescriptorSets received dstSet VK_NULL_HANDLE; owned polling forced an abort and preserved configuration/runtime hashes. No complete matrix pass or deployment is claimed.",
+          "artifact": "vulkan-followup-gpu-7bd-summary.json",
+          "basic_artifact": "vulkan-followup-gpu-basic-7bd3470-1/results.json",
+          "feature_artifact": "vulkan-followup-gpu-features-7bd3470-1/results.json",
+          "failed_cases": [
+            {
+              "Case": "debug-mips",
+              "Type": "Actual Khronos validation error",
+              "Message": "UNASSIGNED-GeneralParameterError-RequiredHandle: vkUpdateDescriptorSets pDescriptorWrites[0].dstSet VK_NULL_HANDLE",
+              "Directory": "vulkan-followup-gpu-features-7bd3470-1/debug-mips",
+              "ExitCode": 1,
+              "ForcedTermination": true,
+              "ConfigsPreserved": true,
+              "RuntimePreserved": true,
+              "Stage": "After first-map normals capture and colored-mip video restart, before first nearest-filter capture"
+            }
+          ],
+          "fullscreen_dimensions": {
+            "fullscreen": [
+              {
+                "Feature": "fullscreen",
+                "ModeAndRestorationConfirmed": true,
+                "FBO": 1,
+                "SSAA": 0,
+                "PresentationDimensions": {
+                  "Width": 1024,
+                  "Height": 768
+                },
+                "RenderDimensions": {
+                  "Width": 961,
+                  "Height": 541
+                },
+                "CaptureDimensions": {
+                  "Width": 961,
+                  "Height": 541
+                },
+                "CaptureTargetSource": "gfxinfo RENDER (explicit SSAA=0)",
+                "RestoredPresentationDimensions": {
+                  "Width": 961,
+                  "Height": 541
+                },
+                "RestoredCaptureDimensions": {
+                  "Width": 961,
+                  "Height": 541
+                }
+              }
+            ],
+            "fullscreen-direct": [
+              {
+                "Feature": "fullscreen",
+                "ModeAndRestorationConfirmed": true,
+                "FBO": 0,
+                "SSAA": 0,
+                "PresentationDimensions": {
+                  "Width": 1024,
+                  "Height": 768
+                },
+                "RenderDimensions": {
+                  "Width": 1024,
+                  "Height": 768
+                },
+                "CaptureDimensions": {
+                  "Width": 1024,
+                  "Height": 768
+                },
+                "CaptureTargetSource": "gfxinfo MODE (render and presentation equal)",
+                "RestoredPresentationDimensions": {
+                  "Width": 961,
+                  "Height": 541
+                },
+                "RestoredCaptureDimensions": {
+                  "Width": 961,
+                  "Height": 541
+                }
+              }
+            ]
+          },
+          "runtime": [
+            {
+              "Path": "eternaljk.x86_64.exe",
+              "Exists": true,
+              "SHA256": "734C0F8DA0E3DF91D8192CC2A08C38815A8B4AD77A9951722118DCE8E6602D01"
+            },
+            {
+              "Path": "rd-vulkan_x86_64.dll",
+              "Exists": true,
+              "SHA256": "D30BFB133B7632CC41F7669A3890A9817B441F7E4A7E078645945C75056D0AA6"
+            },
+            {
+              "Path": "cgamex86_64.dll",
+              "Exists": true,
+              "SHA256": "6CFFCF00D865D49DE7E47917DDB684EB4C20C5B8E3ABCB6BA4BFB4D598AD5424"
+            },
+            {
+              "Path": "uix86_64.dll",
+              "Exists": true,
+              "SHA256": "8A382D634A09DA8117F9446A0EEEF70AB308F3868D7A966A997FDBE076C868E7"
+            },
+            {
+              "Path": "jampgamex86_64.dll",
+              "Exists": true,
+              "SHA256": "5B673163303D460828618B7D379641EB27723B3D2C88F21051403DADBC1152B0"
+            }
+          ],
+          "source_diagnosis": "R_AllocImage normally registers a pending image placeholder with a null descriptor. Bulk texture-mode refresh treated every registered image as descriptor-ready. A narrow skip plus actual latest-filter assignment tests are in progress for the next checkpoint.",
+          "resolution_status": "new source checkpoint/candidate proof pending",
+          "limits": "Eleven profiles pass on identical final7bd runtime; debug/mip validation failure remains unresolved, no all-features/crash-free claim. Fullscreen now passes both FBO logical capture and direct presentation adoption. No blocked SDL/window bridge or blocked VBO follow-up investigation performed."
+        },
+        "deployment": {
+          "status": "not-deployed",
+          "summary": "TestClient remains on validated 0fcdbdd. The 81/481 stages were never installed, and 7bd3470 is not deployed."
+        }
+      },
+      "history": "81/481 failures and renderer-only candidate are separate evidence; 0fc deployment unchanged until final receipt."
+    },
+    "vulkan_followup_750": {
+      "code_checkpoint": "750ff044a1d9f90a623a73d5e674dae43a38e21e",
+      "ledger": "tests/vulkan-audit/followup-750ff04.json",
+      "vulkan_cases": 130,
+      "engine_fatal_cases": 5,
+      "integration": {
+        "builds": {
+          "status": "passed",
+          "summary": "Final ordinary Windows x64/x86 builds passed at 750ff04 with explicit BUILD_EXIT=0 for both architectures.",
+          "artifacts": [
+            "vulkan-followup-750ff04-x64.log",
+            "vulkan-followup-750ff04-x86.log"
+          ]
+        },
+        "whole_suite": {
+          "status": "passed",
+          "expected": 68,
+          "completed": 68,
+          "passed": 68,
+          "skipped": 0,
+          "artifact": "vulkan-followup-all-regressions-750ff04/results.json"
+        },
+        "ci": {
+          "run_id": 43087229764,
+          "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/43087229764",
+          "status": "passed",
+          "summary": "CI run 43087229764 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 68/68 suites without skips; macOS/Ubuntu each passed 66/66 applicable suites with two explicit Windows-only skips, including expanded asset integrity.",
+          "jobs": [
+            {
+              "id": 130754687122,
+              "name": "native-client-linux",
+              "status": "success"
+            },
+            {
+              "id": 130754687482,
+              "name": "native-vulkan (windows-2022)",
+              "status": "success",
+              "passed_suites": 68,
+              "skipped_suites": []
+            },
+            {
+              "id": 130754687522,
+              "name": "native-vulkan (macos-15)",
+              "status": "success",
+              "passed_suites": 66,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            },
+            {
+              "id": 130754687632,
+              "name": "native-vulkan (ubuntu-24.04)",
+              "status": "success",
+              "passed_suites": 66,
+              "skipped_suites": [
+                "sjk-chat",
+                "updater"
+              ]
+            }
+          ],
+          "pointer_sanitizer": "Conditional probe; enabled instrumentation is not exposed by successful job-summary logs."
+        },
+        "gpu": {
+          "status": "awaiting-existing-user-client-closure",
+          "planned_profiles": 12,
+          "started_final_profiles": 0,
+          "summary": "Fresh 750ff04 GPU tests did not start: the launch guard found an existing user-owned TestClient and left it untouched. The complete 12-profile final-runtime validation is waiting for that client to close. The passed older-engine debug candidate remains separate evidence; no final 750 matrix pass is claimed.",
+          "guard": {
+            "existing_user_client_running": true,
+            "process_untouched": true,
+            "new_games_launched": false
+          },
+          "requirements": "Both fullscreen profiles must also prove minimize/restore of their owned visible render window while fullscreen, using class/title/HWND/PID evidence."
+        },
+        "deployment": {
+          "status": "staged-uninstalled",
+          "summary": "750ff04 is staged only: 54 payload and 54 matching source SHA256 checks passed (108 checks), with eight protected configuration hashes unchanged at staging. Nothing was installed; TestClient remains on validated 0fcdbdd and older stages were never installed.",
+          "stage": "testclient-deploy-vulkan-750ff04/manifest.json",
+          "verification": "testclient-deploy-vulkan-750ff04/stage-verification.json",
+          "payload_files_verified": 54,
+          "matching_source_files_verified": 54,
+          "combined_sha256_checks": 108,
+          "protected_configurations_unchanged_at_staging": 8,
+          "installed": false
+        }
+      },
+      "history": "Failed 7bd debug/mips and older-engine candidate remain separate; earlier deployment unchanged until final receipt."
     }
   },
   "additional_verified_fixes": {

@@ -3183,5 +3183,27 @@
         }
       ]
     }
-  }
+  },
+  "later_followups": [
+    {
+      "checkpoint": "81b10be3490a2f08884110717583aaa6e0873e28",
+      "ledger": "tests/vulkan-audit/followup-81b10be.json",
+      "note": "This file preserves 0fcdbdd history; later verification status lives in the versioned follow-up ledger."
+    },
+    {
+      "checkpoint": "481800e92eeec4b1bdfd2500f63e46949769c30b",
+      "ledger": "tests/vulkan-audit/followup-481800e.json",
+      "note": "Versioned final follow-up; earlier checkpoint histories and source manifests are preserved."
+    },
+    {
+      "checkpoint": "7bd347034640286a2c1f6720dbd4f3e07049c9a6",
+      "ledger": "tests/vulkan-audit/followup-7bd3470.json",
+      "note": "Versioned presentation/engine-cleanup follow-up; previous histories and manifests preserved."
+    },
+    {
+      "checkpoint": "750ff044a1d9f90a623a73d5e674dae43a38e21e",
+      "ledger": "tests/vulkan-audit/followup-750ff04.json",
+      "note": "Versioned narrow descriptor lifecycle follow-up; old failures/manifests preserved."
+    }
+  ]
 }
