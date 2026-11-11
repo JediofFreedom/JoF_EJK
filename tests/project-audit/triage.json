@@ -21,9 +21,9 @@
       "message"
     ],
     "unique_findings_by_disposition": {
-      "unresolved-needs-fixture": 182,
+      "unresolved-needs-fixture": 180,
       "likely-contract-or-assert-false-positive": 59,
-      "confirmed-fixed": 44
+      "confirmed-fixed": 46
     },
     "contexts_by_overall_disposition": {
       "unresolved-needs-fixture": 68,
@@ -4928,14 +4928,17 @@
       "contexts": [
         "f7ef7d86f86d82f2"
       ],
-      "disposition": "unresolved-needs-fixture",
-      "rationale": "The screen-projection helper can return false before assigning coordinates, yet these paths still use or copy them. Test a behind-camera point and determine intended clipping/line behavior.",
+      "disposition": "confirmed-fixed",
+      "rationale": "The actual CG_WorldCoordToScreenCoord helper returns false without assigning outputs for a lead behind/inside its view-plane threshold. Both lead consumers still submitted ten dots using those uninitialized coordinates. The failed-projection draw is now skipped without changing valid/off-viewport output, vehicle brackets or later player targets. Actual projector/consumer fixtures fail against the saved pre-fix source and pass x64/x86 ASAN; valid coordinate digests match baseline.",
       "evidence": [
-        "codemp/cgame/cg_draw.c:vehicle lead indicators",
-        "codemp/rd-vanilla/tr_backend.cpp:R_WorldCoordToScreenCoord"
+        "codemp/cgame/cg_draw.c:CG_WorldCoordToScreenCoord",
+        "codemp/cgame/cg_draw.c:CG_BracketEntity",
+        "tests/cgame-lead-projection:lead_vehicle-behind",
+        "tests/cgame-lead-projection:lead_vehicle-near",
+        "tests/cgame-lead-projection:lead_vehicle-off-viewport"
       ],
       "group": "projection-failure-output",
-      "confidence": "high-confidence-output-candidate",
+      "confidence": "regression-tested",
       "reported_statement": "CG_DottedLine( x, y, leadX, leadY, 1, 10, g_color_table[ColorIndex(COLOR_RED)], 0.5f );"
     },
     {
@@ -4988,14 +4991,17 @@
       "contexts": [
         "f7ef7d86f86d82f2"
       ],
-      "disposition": "unresolved-needs-fixture",
-      "rationale": "The screen-projection helper can return false before assigning coordinates, yet these paths still use or copy them. Test a behind-camera point and determine intended clipping/line behavior.",
+      "disposition": "confirmed-fixed",
+      "rationale": "The actual CG_WorldCoordToScreenCoord helper returns false without assigning outputs for a lead behind/inside its view-plane threshold. Both lead consumers still submitted ten dots using those uninitialized coordinates. The failed-projection draw is now skipped without changing valid/off-viewport output, vehicle brackets or later player targets. Actual projector/consumer fixtures fail against the saved pre-fix source and pass x64/x86 ASAN; valid coordinate digests match baseline.",
       "evidence": [
-        "codemp/cgame/cg_draw.c:vehicle lead indicators",
-        "codemp/rd-vanilla/tr_backend.cpp:R_WorldCoordToScreenCoord"
+        "codemp/cgame/cg_draw.c:CG_WorldCoordToScreenCoord",
+        "codemp/cgame/cg_draw.c:CG_LeadIndicator",
+        "tests/cgame-lead-projection:lead_player-behind",
+        "tests/cgame-lead-projection:lead_player-near",
+        "tests/cgame-lead-projection:lead_player-off-viewport"
       ],
       "group": "projection-failure-output",
-      "confidence": "high-confidence-output-candidate",
+      "confidence": "regression-tested",
       "reported_statement": "CG_DottedLine( x, y, leadX, leadY, 1, 10, g_color_table[ColorIndex(COLOR_RED)], 0.5f ); //just draw the line"
     },
     {

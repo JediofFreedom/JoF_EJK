@@ -51,3 +51,18 @@ fixtures reproduce real buffer overflows without that instrumentation. All nine
 checks pass on x64 with AddressSanitizer and on x86 Release. Valid effects,
 sounds, loop notes, signed offsets and space-separated offsets also pass against
 the baseline. Other findings remain at their existing dispositions.
+
+Lead-projection findings 177 and 180 are now fixed, citing
+`tests/cgame-lead-projection`. The actual cgame projector leaves its outputs
+untouched when a moving target's predicted lead crosses behind/inside the view
+plane, but both vehicle/player consumers submitted ten dots with those
+uninitialized coordinates. Each failed projection now skips that lead draw;
+vehicle brackets, later player targets and valid off-viewport projections retain
+their behavior. All fourteen actual-projector/consumer checks pass under
+AddressSanitizer on x64 and x86. Five checks fail against the saved pre-fix source,
+whose hash matches the fresh targeted analyzer input. Four valid draw-stream
+coordinate digests match the baseline exactly on both architectures. The
+submission-count assertions and projector output contract establish this defect;
+ASan is used for bounds/lifetime checking. Only these two finding dispositions
+change, leaving 46 confirmed fixes, 59 provisional contract explanations and 180
+unresolved candidates among the original 285 findings.

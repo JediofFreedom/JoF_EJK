@@ -8235,9 +8235,7 @@ void CG_BracketEntity( centity_t *cent, float radius )
 									return;
 								}
 								if ( !CG_WorldCoordToScreenCoord(vehLeadPos, &leadX, &leadY) )
-								{//off-screen, don't draw it
-									//just draw the line
-									CG_DottedLine( x, y, leadX, leadY, 1, 10, g_color_table[ColorIndex(COLOR_RED)], 0.5f );
+								{//behind the view plane; projection did not assign leadX/leadY
 									return;
 								}
 								//draw a line from the ship's cur pos to the lead pos
@@ -12885,8 +12883,7 @@ static void CG_LeadIndicator(void)
 					if ( !CG_WorldCoordToScreenCoord(cent->lerpOrigin, &x, &y) ) {//off-screen, don't draw it
 						continue;
 					}
-					if ( !CG_WorldCoordToScreenCoord(LeadPos, &leadX, &leadY) ) {//off-screen, don't draw it
-						CG_DottedLine( x, y, leadX, leadY, 1, 10, g_color_table[ColorIndex(COLOR_RED)], 0.5f ); //just draw the line
+					if ( !CG_WorldCoordToScreenCoord(LeadPos, &leadX, &leadY) ) {//behind the view plane; coordinates are undefined
 						continue;
 					}
 					CG_DottedLine( x, y, leadX, leadY, 1, 10, g_color_table[ColorIndex(COLOR_RED)], 0.5f ); //draw a line from the ship's cur pos to the lead pos
