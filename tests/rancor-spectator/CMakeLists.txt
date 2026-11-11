@@ -34,6 +34,10 @@ target_include_directories(rancor_spectator PRIVATE
 if(MSVC)
   target_compile_definitions(rancor_spectator PRIVATE _CRT_SECURE_NO_WARNINGS)
 else()
+  # Match the main game's legacy C linkage: g_local.h contains tentative
+  # definitions shared by check.c, the actual AI and the actual timer source.
+  target_compile_options(rancor_spectator PRIVATE
+    "$<$<COMPILE_LANG_AND_ID:C,GNU,Clang,AppleClang>:-fcommon>")
   target_link_libraries(rancor_spectator PRIVATE m)
 endif()
 enable_testing()
