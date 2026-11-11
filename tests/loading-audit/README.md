@@ -577,3 +577,34 @@ A separate `local-sjk-ejk-reference-1` attempt stopped during warmup because the
 SJK content selection was unverified and the private harness could not complete
 cleanup. It produced no measured pairs or usable parity/winner result; all owned
 processes were subsequently cleaned up and original configurations preserved.
+
+
+### Native Vulkan correctness audit through `0fcdbdd`
+
+The renderer review covers all 55 direct compiled C++ files, with separate
+inventories for headers, shaders/tools and unbuilt terrain. Reproduced fixes
+cover frame/image/command ownership, image preparation/mips/samplers, model-shader
+interfaces, patch/scene/input bounds, bounded debug geometry, capture alignment/
+gamma and uniform/fog capacities. There are 55 focused cases in eight new suites,
+including saved-baseline failures and x64/x86 ASan coverage with documented
+fixture limits. In total, 103 affected SPIR-V modules were regenerated and
+validated; 91 unrelated arrays and binding symbols remain unchanged.
+
+Full ordinary Windows x64/x86 builds passed at 0fcdbdd. The predecessor `003609f` local Windows runner passed all 64 suites. CI run 43065663481 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 64/64 suites without skips; macOS/Ubuntu each passed 62/62 applicable suites plus two explicit Windows-only skips (sjk-chat and updater). Static analysis
+completed all 55 direct contexts without parse errors; nine contexts retain
+diagnostics and the historical 285-finding triage remains unchanged.
+Actual final 0fcdbdd direct and FBO/HDR/MSAA cases passed all strict lifecycle checks (six map loads, 12 captures, video restarts, owned minimize/restore, exit 0, zero retained resources and no validation messages). Five additional configurations passed on the immutable scissor candidate; they are separate versioned evidence, not six cases on identical final binaries.
+Validated 0fcdbdd is installed at `E:/Games/testClient/GameData`: launch `Play EJK Dev.cmd` for native Vulkan or `Play EJK Dev - OpenGL.cmd`. All 54 destination SHA256 checks passed, eight existing configuration hashes are unchanged, and overwritten files were backed up (`backup-20261111-171822`).
+
+The initial `4dd25b0` GPU validation failed because the real branchless `MAX`
+macro invalidated new image-dimension calculations; a safe macro substituted by
+the initial CPU fixture hid the interaction. The production correction in
+`0f92d64` uses `std::max`, tests actual stb macros and failed-preparation outputs,
+and passed a corrected direct GPU case with three maps, video restart, odd PNG
+captures, owned minimize/restore, normal exit and zero retained resources. The
+initial failed runtime's external owned-process stop is not a clean-exit claim.
+No additional loading/FPS improvement is claimed for these correctness fixes.
+General Vulkan allocation/teardown recovery and every renderer state remain
+unproven. A separate SDL/window bridge follow-up was blocked by automatic
+approval review and remains unimplemented; it was not retried. See
+[the audit inventory, evidence and remaining risks](../vulkan-audit/README.md).
