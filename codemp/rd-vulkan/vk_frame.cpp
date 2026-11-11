@@ -486,6 +486,7 @@ _retry:
     //vk.cmd->descriptor_set.end = 0;
 
     Com_Memset(&vk.cmd->scissor_rect, 0, sizeof(vk.cmd->scissor_rect));
+    vk.cmd->scissor_rect.extent.width = ~0U; // no dynamic state exists in a fresh command buffer
 
 #ifdef USE_VK_STATS
     // other stats
@@ -663,6 +664,9 @@ void vk_end_frame( void )
                 // render to capture FBO
                 vk_begin_render_pass(vk.render_pass.capture.handle, vk.framebuffers.capture, qfalse, gls.captureWidth, gls.captureHeight);
                 qvkCmdBindPipeline(vk.cmd->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk.capture_pipeline);
+                // A static scissor bind invalidates the previously set dynamic state.
+                // ~0U cannot be a valid scissor width (offset + extent <= INT32_MAX).
+                vk.cmd->scissor_rect.extent.width = ~0U;
                 qvkCmdBindDescriptorSets(vk.cmd->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk.pipeline_layout_post_process, 0, 1, &vk.color_descriptor, 0, NULL);
 
                 qvkCmdDraw(vk.cmd->command_buffer, 4, 1, 0, 0);
@@ -677,6 +681,7 @@ void vk_end_frame( void )
 
                 vk_begin_render_pass( vk.render_pass.gamma.handle, vk.framebuffers.gamma[vk.cmd->swapchain_image_index], qfalse, vk.renderWidth, vk.renderHeight );
                 qvkCmdBindPipeline( vk.cmd->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk.gamma_pipeline );
+                vk.cmd->scissor_rect.extent.width = ~0U;
                 //qvkCmdBindDescriptorSets( vk.cmd->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk.pipeline_layout_post_process, 0, 1, &vk.dglow_image_descriptor[0], 0, NULL );
                 qvkCmdBindDescriptorSets( vk.cmd->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk.pipeline_layout_post_process, 0, 1, &vk.color_descriptor, 0, NULL );
 
