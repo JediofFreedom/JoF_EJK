@@ -137,3 +137,83 @@ loading results and does not establish a live-server or general FPS improvement.
 with `-DUseLTO=OFF` to disable that automatic default. Explicit global/per-config
 CMake IPO settings retain precedence. Unsupported toolchains report why they
 use ordinary compilation; Debug flags and unrelated build errors stay intact.
+
+The idle-crowd profile then separated shadow impact marks from their world trace
+and water tests. In one fine diagnostic, impact marks used 0.171732 ms per
+completed active frame, versus 0.016685 for the shadow trace and 0.007889 for
+water contents. Removing two fully overwritten temporary-array initializers
+from Vulkan/vanilla polygon clipping preserves the resulting polygon vertices;
+the production-function fixture compares 12,000 randomized convex polygons,
+boundaries and six-plane sequences on x64 ASan and x86 Release.
+
+Five alternating uninstrumented pairs after one warmup pair measured that Vulkan
+change independently. The engine, cgame, game/UI, runtime DLLs, asset PK3s and
+pipeline seeds were byte-identical; only the active renderer DLL differed.
+Both used the same 5,005-frame idle-crowd demo and fresh 1080p profiles. No
+compiler, analyzer or other local game ran during playback.
+
+| Idle 24-bot replay FPS | Round 1 | Round 2 | Round 3 | Round 4 | Round 5 | Median |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Original clipping | 603.2 | 644.3 | 639.9 | 638.9 | 641.3 | 639.9 |
+| Redundant clears removed | 618.4 | 649.2 | 653.7 | 654.9 | 653.1 | 653.1 |
+
+The median was about 2.1% higher and every paired trial improved. Both variants
+also drifted over the sequence, so this remains a result for this idle scene,
+not combat, live prediction, general FPS or SJK performance. Initialization
+counts alone do not prove emitted machine stores. Local results and module
+hashes are retained in `project-clipping-runtime-benchmark/results.json` and
+`clipping-runtime-manifest.json`; this is separate from the LTO experiment.
+
+Four further diagnostic scopes distinguish animation sound triggers, pose
+playback, bone-frame queries and event scans/dispatch. In
+`crowd-idle-animation-fine-profile-1`, sound triggers used 0.125934 ms per
+completed active frame, including 0.115993 in event scans/dispatch; playback
+used 0.002334 and bone queries 0.006662. Those nested instrumented values
+identify the event lookup as the next target and do not establish a speed gain.
+
+Clean event-index builds then measured that change independently. All 58
+normalized cgame/cJSON compiler contexts and embedded metadata matched; only
+the cgame DLL differed in otherwise identical runtime folders. Five alternating
+idle-crowd pairs after one warmup pair gave control FPS
+611.0/651.9/650.4/652.2/646.7 and indexed FPS
+632.2/652.9/654.4/658.2/653.7: medians 650.4 and 653.7, about 0.5% apart.
+Both variants drifted during the sequence. The fixture's 94.5% reduction in
+visited event slots is not an equivalent reduction in total frame time.
+Actual branch counters confirmed that all 120,462 sampled queries used the
+index; nested event dispatch accounted for most of the remaining cost.
+
+In this replay every sampled dispatch was a footstep. Fine footstep stages
+measured 0.003846 ms per completed active frame in bolt work, 0.001965 in water
+traces, 0.002022 in ground traces and 0.097743 in sound submission, with no
+footstep effect or footprint-mark calls. This is the software audio workload
+(`s_useOpenAL 0`) used by the replay harness; it is not an assertion about every
+audio backend or scene.
+
+`runtime.ps1 -SoundProfile 1` enables default-off backend submission timers.
+`s_runtimeProfileReset` and `s_runtimeProfileReport` also work in the console;
+sound shutdown reports before cleanup. The diagnostic clock is `steady_clock`
+and never uses the event-pumping game clock. In
+`crowd-idle-sound-backend-profile-1`, 21,144 cache touches used 452.053 ms,
+versus 33.810 ms in the rate limiter, 4.147 in channel selection and 1.530 in
+channel setup. The old cache timestamp reaches Windows console-input polling
+through `Com_Milliseconds`. The implemented cache-clock change uses the direct
+system clock only when journaling is initialized and off. Recording, playback
+and uninitialized state retain the legacy call sequence. Actual journal bytes,
+queue delivery and LRU lifetime fixtures pass; controlled game timing remains
+separate from these diagnostic and avoided-work results.
+
+The single-pass archive catalogue experiment is recorded in
+[loading-audit](../loading-audit/README.md): five same-binary alternating pairs
+reduced median initial filesystem startup from 318 to 222 ms and the complete
+local three-map cycle from 8.0068440 to 7.5329079 s. That is a separate loading
+experiment, with unchanged quality and exact catalogue/purity/reference checks.
+
+Clean checkpoint `417b060` passed full Windows x64/x86 Release builds and all
+51 then-discovered standalone suites, plus visible-world/menu/restart checks
+with Khronos core/synchronization validation and packaged-module execution.
+The same folder's user configuration was preserved during refresh. A separate
+11-context production follow-up analyzed without parse failures/timeouts and
+retained 36 warning appearances for review. See the `followup_417` section of
+[the integration report](integration-analysis.json) for exact sampled hashes and
+contexts. Later sound-clock, EjectAll, AI and parser changes require their own
+checks; these results do not mark the project-wide audit complete.

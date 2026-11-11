@@ -26,7 +26,8 @@ Copy-Item "$binary/EternalJK/*.pk3", "$binary/*x86_64.dll" -Destination $mod
 Set-Content "$mod/autoexec.cfg" '' -Encoding ASCII
 @('set com_maxfps 125', 'set com_maxfpsUnfocused 125', 'set com_maxfpsMinimized 125',
   'set cg_logChat 0', 'set cl_asyncMapLoad 0', 'set net_port 0', 'set sv_pure 0', 'set sv_maxclients 1',
-  'devmap T1_Fatal', 'wait 125', 'team free', 'set cg_thirdPerson 1', 'ui_openmenu none', 'wait 125',
+  'devmap T1_Fatal', 'wait 125', 'team free', 'set cg_thirdPerson 1', 'wait 125',
+  'ui_openmenu none', 'set cl_paused 0', 'wait 60',
   'screenshot_png audit-world', 'wait 10', 'cosmetics hats afro', 'wait 60',
   'ui_openmenu ingame_player', 'wait 500', 'screenshot_png audit-models', 'wait 10',
   'echo AUDIT_CUSTOMIZATION_OPEN', 'ui_openmenu ingame_player2', 'wait 125',

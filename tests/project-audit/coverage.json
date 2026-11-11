@@ -2,43 +2,49 @@
   "branch": "perf/loading-and-runtime",
   "baseline": "6955dca2aba6ddc79ea3bf0cc22bb4d99612b7be",
   "started": "2026-11-11",
-  "scope": "Project-wide speed and correctness audit; entries distinguish initial scans from verified changes.",
+  "scope": "Project-wide speed and correctness audit; historical scans, measured changes, completed checkpoint checks and pending integration are recorded separately.",
   "priorities": [
-    "parallel texture processing",
-    "adaptive GPU residency",
-    "persistent prepared-texture cache"
+    "measured archive, decompression and loading critical-path costs",
+    "representative populated-scene cgame and animation profiling",
+    "compiler/runtime speed with unchanged quality, behavior and protocol"
   ],
   "areas": [
     {
       "area": "filesystem and archives",
-      "status": "focused review and tested changes",
-      "notes": "Source reads and pure package accounting remain on main thread. Cache resolves the actual writable game path through renderer API 11."
+      "status": "single-pass catalogue compatibility and five-pair loading measured; default1 committed, clean full integration in progress",
+      "notes": "One-pass package mounting, provider-index lookup and batched minizip scalar reads retain pure/reference/duplicate semantics. Checksum-feed-only restart metadata reuse defaults to fs_restartCache=1 after a real-server comparison; full shutdown/startup, rescans, identity checks and explicit-restart rebuilds remain. Engine filesystem work remains on the main thread. Writable cache paths use renderer API 11."
     },
     {
       "area": "image decoders and preparation",
-      "status": "checkpoint verified; source-prefix follow-up measured, default pending more samples",
+      "status": "zlib-ng integration built and CI-verified; source-prefix default enabled after primed pairs",
       "findings": [
         "Bounded PNG/TGA reads and RGBA8 output; 16-bit PNG conversion and TGA orientations/packets tested",
         "JPEG failure recovery and bounded encoder output",
         "Captured texture context preserves queued processing after live setting changes",
-        "Pure decoder callbacks use private malloc buffers on worker threads"
+        "Pure decoder callbacks use private malloc buffers on worker threads",
+        "Texture source-prefix validation defaults to 1 after five primed alternating pairs; the earlier default-0 experiment remains historical",
+        "Pinned zlib-ng 2.3.3 is the default supported internal backend; real ZIP/PNG compatibility and isolated speed checked, with a smaller measured heavy-server loading gain",
+        "Classic and external zlib choices remain; dependency runtime CPU dispatch is enabled and its own LTO/host-native ISA selection disabled"
       ]
     },
     {
       "area": "Vulkan resources",
-      "status": "checkpoint verified; runtime profiling and Ghoul2 follow-ups in integration",
+      "status": "383785a checkpoint verified; post-checkpoint runtime instrumentation and current integration require fresh full checks",
       "findings": [
         "Automatic residency scales with device memory and exact driver extension query",
         "Budget reductions reclaim fragmented idle pages",
         "Deferred registration decoding and immutable per-job settings",
         "Prepared cache implemented but defaults off: world-only timing showed no complete-cycle benefit",
-        "Result checking no longer shadows an outer VkResult named result"
+        "Result checking no longer shadows an outer VkResult named result",
+        "Instanced BSP registration no longer rebuilds the main-world VBO outside map-loading phase",
+        "Static VBO one-based identities, sprite grouping range/capacity and restart ownership are covered by production-function fixtures",
+        "Source-prefix validation defaults to 1; prepared texture disk cache remains disabled by default"
       ]
     },
     {
       "area": "vanilla and Rend2",
       "status": "focused fixes and fixtures",
-      "notes": "Shared image safety fixes, HDR decode failure/null output handling, 32-light/shadow bit masks, skin parsers, split paths, and shader type declaration reviewed. Full renderer builds verify integration."
+      "notes": "Shared image safety, HDR failures/null output, light/shadow masks, skin parsers, split paths and shader declaration fixes have focused fixtures. Desktop BSP registration capacity and debug model lifetime are covered. The 383785a Windows x64/x86 full builds and standalone checkpoint passed; new dependency integration is checked separately."
     },
     {
       "area": "audio",
@@ -53,17 +59,17 @@
     {
       "area": "client and networking",
       "status": "focused fixes and fixtures",
-      "notes": "Safe wildcard matching, recording/snapshot cvar handling, console padding and entity-interface bounds; packet-parser candidates retained for review."
+      "notes": "Wildcard bounds, recording/snapshot cvars, console padding and entity-interface guards are covered. Live command-line sentinel checks preserve 40 and 63 commands, quoted arguments and normal exit after fixing command storage. Connection milestone timing separates filesystem/cgame work from gamestate/network delay. Packet-parser candidates remain unresolved; no protocol/rate reduction is claimed."
     },
     {
       "area": "UI",
       "status": "focused fixes and fixtures",
-      "notes": "Missing preview handles, map bounds/empty catalog, malformed cvarInt parameters and arena allocation failure covered by baseline-failing fixtures."
+      "notes": "Preview handles, map bounds/empty catalog, malformed cvarInt parameters and arena allocation failures have baseline-failing fixtures. Species catalogs are built on actual dependent menu/feeder use, with script-parent onOpen context and normal-profile no-scan behavior; real menu/restart smoke checks and the 383785a suite checkpoint passed."
     },
     {
       "area": "cgame and effects",
-      "status": "focused review",
-      "notes": "Snapshot display guards and renderer light masks fixed; populated-scene effects/animation performance still needs representative profiling."
+      "status": "idle-scene clipping/index speed measured; lead HUD fixed; sound submission is next measured runtime cost",
+      "notes": "Conservative swept-bounds rejection preserves exact transformed trace/entity winners in deterministic/randomized fixtures. Snapshot/light masks, ROFF ownership/playback and model registration lifetime fixes are tested. Default-off aggregate cgame/Vulkan profiling identifies packet/player work in an idle 24-bot replay; nested clock totals and instrumented FPS are diagnostic, not a speed claim. Current profiler/spine changes still require final whole-project checks and matched performance validation."
     },
     {
       "area": "server and game simulation",
@@ -72,8 +78,8 @@
     },
     {
       "area": "platform, build and tests",
-      "status": "implemented; final integration in progress",
-      "notes": "MSVC language flags preserve settings without accumulation. Checkpoint 8cc641a passed 30/30 Windows suites and 28/28 applicable Linux/macOS suites (two explicit Windows-only skips). Added runtime/ROFF/Ghoul2 suites await final integration CI."
+      "status": "49-suite local run and30451bf CI green; clean51-suite417b060 integration running",
+      "notes": "MSVC language-specific flags no longer accumulate. Release LTO defaults on when supported and preserves explicit CMake IPO settings. Saved Windows checkpoint is 42/42 suites; matching CI 42952953751 passed Windows/Linux/macOS native Vulkan plus a full Linux native client. Current source has additional profiler/spine/zlib suites pending the final all-suite run. zlib-ng target IPO is explicitly OFF, including custom configurations; unsupported versions/compilers and mixed-architecture macOS universal builds retain classic zlib."
     }
   ],
   "measurements": {
@@ -273,10 +279,328 @@
         106.029
       ],
       "default": 0,
-      "decision": "Keep experimental until additional primed pairs."
+      "decision": "Keep experimental until additional primed pairs.",
+      "historical": true,
+      "superseded_by": "source_prefix_primed",
+      "superseded_decision": "The initial default-0 decision was superseded by five primed pairs; the current default is 1."
+    },
+    "minizip_directory": {
+      "result_file": "G:/code/JoF_EJK-minizip-tests/results.json",
+      "reference_source": "9160120df7630b479747352b3e4773e544b64b4d",
+      "method": "Seven alternating warmed MSVC x64 Release pairs after one discarded warmup pair; actual parser visits and metadata lookup produce two central-header parses per installed entry.",
+      "archives": 256,
+      "members": 75658,
+      "median_scan_ms": {
+        "reference": 339.5277,
+        "candidate": 276.5038
+      },
+      "read_callbacks": {
+        "reference": 7371148,
+        "candidate": 2686534
+      },
+      "matching_expanded_bytes": 14451732062,
+      "compatibility": "Names, metadata, offsets, extras/comments and extraction fingerprints match; zero extraction failures. Synthetic scalar/truncation/CRC cases passed x64/x86 and x64 ASAN.",
+      "limit": "18.56% less warm parser scan time; this is not complete startup, joining or FPS."
+    },
+    "filesystem_restart_cache": {
+      "result_file": "project-remote-fs-benchmark/results.json",
+      "method": "Three alternating real-server pairs on 13.140.233.106, yavin_temple_mp2, matching settings and isolated profiles; unchanged archive metadata is reused within the ordinary checksum-feed restart.",
+      "median_restart_ms": {
+        "off": 304,
+        "on": 102
+      },
+      "median_initial_startup_ms": {
+        "off": 320,
+        "on": 325
+      },
+      "median_connect_first_frame_ms": {
+        "off": 5724,
+        "on": 5492
+      },
+      "reused_archives": 262,
+      "reused_members": 78826,
+      "default": 1,
+      "decision": "Enabled by default after stable remount savings; explicit 0 remains supported and saved user values are not forced.",
+      "limit": "Initial mount is unchanged; complete join includes server/network variation. This measurement is separate from other loading features."
+    },
+    "source_prefix_primed": {
+      "result_file": "project-prefix-primed-benchmark/results.json",
+      "method": "Five alternating same-binary pairs after one unmeasured priming pair; identical pipeline seeds, fresh profiles, warm OS cache, 2048 MiB residency, filesystem restart reuse on, disk cache off and no competing local work.",
+      "median_map_ms": {
+        "off": [
+          1920,
+          849,
+          635
+        ],
+        "on": [
+          1841,
+          790,
+          569
+        ]
+      },
+      "median_cycle_seconds": {
+        "off": 8.0846813,
+        "on": 7.9106905
+      },
+      "default": 1,
+      "supersedes": "source_prefix_initial",
+      "decision": "Adopt source-prefix validation by default after consistent primed load improvements; explicit 0 preserves full validation.",
+      "limit": "Warm local one-player cycle, not disk-cold or a matched SJK comparison; percentages cannot be added to other experiments."
+    },
+    "zlib_ng": {
+      "version": "2.3.3",
+      "upstream_revision": "12731092979c6d07f42da27da673a9f6c7b13586",
+      "integration_commit": "e495b4cc715a53ddb0df2ab70085037c455bba27",
+      "default": "UseZlibNG=ON when UseInternalZlib=ON and supported; classic explicit OFF and external zlib remain available",
+      "portability": "Static compat API, runtime CPU detection and generic fallbacks ON; host-native ISA and all dependency IPO configurations OFF. CMake <3.14, unsupported compilers and multiple distinct macOS target architectures use classic zlib.",
+      "library": {
+        "result_file": "zlib-library-pairs-results.json",
+        "source": "6d72a0ed2af140d418e6cb0447fa1a06e57c6173",
+        "method": "Three alternating warmed x64 Release/LTO harness pairs, actual minizip and production PNG decoder; only zlib backend changes. PNG trial is the median of five decode passes.",
+        "zip_expanded_bytes": 824071333,
+        "zip_members": 8377,
+        "png_images": 128,
+        "png_rgba_bytes": 101777408,
+        "median_zip_ms": {
+          "classic": 1651.93,
+          "zlib_ng": 1309.8
+        },
+        "median_png_ms": {
+          "classic": 455.18,
+          "zlib_ng": 360.055
+        },
+        "limit": "About 21% less time in these isolated codec workloads, not whole-game loading."
+      },
+      "local_client": {
+        "result_file": "project-zlib-client-benchmark/results.json",
+        "source": "383785a31ff74d145b487a0acf50c9e5d6d52300",
+        "method": "Five alternating clean same-source Release/LTO pairs after one warmup pair; matching minizip/PNG, asset containers/DLLs, pipeline seeds, 2048 MiB GPU cache, filesystem reuse and prefix validation ON, fresh profiles, quiet machine.",
+        "median_map_ms": {
+          "classic": [
+            2009,
+            828,
+            602
+          ],
+          "zlib_ng": [
+            1980,
+            815,
+            576
+          ]
+        },
+        "median_cycle_seconds": {
+          "classic": 8.2282447,
+          "zlib_ng": 8.2248576
+        },
+        "limit": "Complete three-map cycle effectively flat; first/second handoff differences are small and noisy."
+      },
+      "remote_client": {
+        "result_file": "project-remote-zlib-benchmark/results.json",
+        "source": "383785a31ff74d145b487a0acf50c9e5d6d52300",
+        "method": "Three alternating matched clean-client pairs on 13.140.233.106, yavin_temple_mp2; no simultaneous clients or competing CPU work.",
+        "median_cgame_ms": {
+          "classic": 2465,
+          "zlib_ng": 2276
+        },
+        "median_graphics_ms": {
+          "classic": 1743,
+          "zlib_ng": 1608
+        },
+        "median_connect_first_frame_ms": {
+          "classic": 5408,
+          "zlib_ng": 5202
+        },
+        "median_gamestate_arrival_ms": {
+          "classic": 2454,
+          "zlib_ng": 2458
+        },
+        "limit": "Cgame/graphics about 7.7% shorter and all three paired cgame loads improve; complete join about 3.8% shorter with effectively unchanged gamestate arrival. Network/server variation remains; no universal loading, FPS or SJK claim."
+      },
+      "compatibility": {
+        "archives": 260,
+        "members": 77242,
+        "expanded_bytes": 14501374289,
+        "matching_zip_crc_and_sha256": true,
+        "matching_png_images": 128,
+        "matching_rgba_bytes": 101777408
+      },
+      "focused_verification": "Actual production chooser/minizip/PNG fixtures passed x64/x86 ASAN for both backends; generic and ISA-specific NG compile commands contain no /GL, generic functions no forced AVX. Mixed-architecture chooser policy has a guard-disabled failing control. Current whole-project production integration remains pending."
+    },
+    "idle_crowd_diagnostic": {
+      "coarse_result_file": "crowd-idle-profile-quiet-1/results.json",
+      "fine_result_file": "crowd-idle-fine-profile-1/results.json",
+      "demo_sha256": "5161fde48c2be772e9e44808c73b821f77c974631b0f5261bafee6a454879389",
+      "method": "One quiet coarse and one fine instrumented 5005-frame mp/duel1 idle-crowd replay; 24 bots, AI/movement frozen while ordinary client/Ghoul2 animation remains active.",
+      "completed_cgame_frames": 5003,
+      "early_returns": 0,
+      "snapshot_players_min_mean_max": [
+        24,
+        24,
+        24
+      ],
+      "coarse_ms_per_completed_frame": {
+        "whole_active_frame": 0.673392,
+        "packet_entities": 0.507016,
+        "renderer_scene_submission": 0.114994,
+        "audio_refdef": 0.026028,
+        "hud": 0.015542,
+        "cvars_radial": 0.001786,
+        "prediction": 0.000313
+      },
+      "fine_ms_per_completed_frame": {
+        "player_inclusive": 0.480244,
+        "shadow_water_seeker_inclusive": 0.193399,
+        "pose_bone_angles": 0.097527,
+        "animation_sounds": 0.10104
+      },
+      "limit": "Diagnostic only: packet entities account for about 75% of this sampled cgame call. Clock instrumentation affects timing, nested totals overlap and renderer denominators differ. This is idle population, not combat/live prediction/server simulation, and establishes no speed improvement."
+    },
+    "shadow_mark_clipping": {
+      "method": "Five alternating pairs after one unmeasured warmup pair; same 5005-frame 24-bot idle crowd, identical cgame/engine/assets/settings and pipeline seeds, fresh profiles, profiling disabled, no concurrent compilation/analysis/game.",
+      "control_fps": [
+        603.2,
+        644.3,
+        639.9,
+        638.9,
+        641.3
+      ],
+      "updated_fps": [
+        618.4,
+        649.2,
+        653.7,
+        654.9,
+        653.1
+      ],
+      "median_control_fps": 639.9,
+      "median_updated_fps": 653.1,
+      "demo_sha256": "5161FDE48C2BE772E9E44808C73B821F77C974631B0F5261BAFEE6A454879389",
+      "change": "Vulkan polygon clipping omits two fully overwritten 68-element temporary array initializers and rejects empty input before sentinel reads. Vanilla receives the equivalent correctness/work change.",
+      "verification": "Actual production Vulkan/vanilla clippers and scalar vector math produce identical complete output buffers for 12000 randomized convex polygons, boundaries and sequential six-plane clips; x64 ASan and x86 Release pass; old code fails the avoided-initialization check.",
+      "limit": "About 2.1% median FPS in this idle replay; all five paired updated trials were faster, but both variants drifted during the sequence. Not a live combat/prediction/general FPS or SJK claim. Source initialization counts alone do not prove emitted machine stores. Separate from the LTO experiment.",
+      "artifacts": [
+        "project-clipping-runtime-benchmark/results.json",
+        "clipping-runtime-manifest.json"
+      ]
+    },
+    "animation_event_index": {
+      "method": "Five alternating uninstrumented pairs after one warmup pair, fresh profiles, same 5005-frame idle 24-bot demo and pipeline seeds; clean abecf71/85b9324 cgame builds, 58 normalized compile contexts and embedded metadata match; only cgame DLL differs. No concurrent build/analyzer/game.",
+      "control_fps": [
+        611,
+        651.9,
+        650.4,
+        652.2,
+        646.7
+      ],
+      "indexed_fps": [
+        632.2,
+        652.9,
+        654.4,
+        658.2,
+        653.7
+      ],
+      "median_control_fps": 650.4,
+      "median_indexed_fps": 653.7,
+      "demo_sha256": "5161FDE48C2BE772E9E44808C73B821F77C974631B0F5261BAFEE6A454879389",
+      "fixture": "8007 cases, 11778 identical dispatches/RNG/state mutations; visited catalogue slots 1167727 to 63661. x64 ASan and x86 Release pass; actual parser includes/reset/cache/stomp lifecycle covered.",
+      "limit": "About 0.5% median FPS in this idle replay, with both variants drifting during the sequence. The later live diagnostic confirms all queries indexed, but dispatch dominates. The 94.5% fixture slot reduction is not an equivalent game-speed claim. Separate from clipping/LTO/loading experiments.",
+      "artifacts": [
+        "project-event-index-runtime-benchmark/results.json",
+        "event-index-client-manifest.json"
+      ]
+    },
+    "single_pass_archive_catalogue": {
+      "method": "Same x64 Release/LTO prototype binary, fs_zipCatalogFast 0/1 only; five alternating pairs after one warmup pair; fresh profiles, warm OS cache, matching pipeline seeds, 2048 MiB residency, fs_restartCache 1 and texture prefix 1, ordinary texture/audio/renderer settings. No concurrent compiler/analyzer/other game; other-client checks before/after each trial.",
+      "off_initial_fs_ms": [
+        315,
+        319,
+        318,
+        320,
+        318
+      ],
+      "on_initial_fs_ms": [
+        219,
+        227,
+        221,
+        225,
+        222
+      ],
+      "off_cycle_seconds": [
+        8.1650352,
+        8.006844,
+        7.9175396,
+        7.918795299999999,
+        8.1457708
+      ],
+      "on_cycle_seconds": [
+        7.743649899999999,
+        7.5277145999999995,
+        7.5329079,
+        7.5510236,
+        7.526648499999999
+      ],
+      "median_off_initial_fs_ms": 318,
+      "median_on_initial_fs_ms": 222,
+      "median_off_cycle_seconds": 8.006844,
+      "median_on_cycle_seconds": 7.5329079,
+      "corpus": {
+        "base_archives": 256,
+        "members": 75658,
+        "fingerprint": "ad2cc24b68a6a1d6",
+        "header_parses": [
+          151572,
+          75914
+        ],
+        "read_callbacks": [
+          2653276,
+          1375934
+        ],
+        "seeks": [
+          269197,
+          126876
+        ],
+        "verification": "Complete FS catalogues, order, hash chains, names/indexes, checksum words, pure/nonpure owners/sizes/positions and reference flags match. Both x64 ASan and x86 Release pass, plus 309 synthetic/error/state/payload cases and both restart-cache modes."
+      },
+      "default": 1,
+      "fallback": "fs_zipCatalogFast 0 selects a fresh legacy navigation/GetInfo scan; generic minizip APIs unchanged. New combined iterator invalidates current on combined parse errors; FS rejects/closes it and never retries mid-iterator.",
+      "limit": "About 30% shorter initial filesystem stage and 5.9% shorter complete local cycle, with every paired trial improving. This is not 30% faster whole-game loading or an SJK claim, and percentages must not be compounded with earlier experiments.",
+      "artifacts": [
+        "project-catalog-runtime-benchmark-v2/results.json",
+        "catalog-iterator-corpus-asan.log",
+        "catalog-iterator-tests-x86.log"
+      ]
+    },
+    "footstep_dispatch_diagnostic": {
+      "replay": "same idle 24-bot recording; cg_runtimeProfile 2, default cg_footsteps 3, software sound (s_useOpenAL 0)",
+      "completed_active_frames": 5003,
+      "dispatch_calls": 21142,
+      "milliseconds_per_active_frame": {
+        "footstep_inclusive": 0.106723,
+        "bolt_matrix": 0.003846,
+        "water_trace": 0.001965,
+        "ground_trace": 0.002022,
+        "sound_submission": 0.097743
+      },
+      "effect_calls": 0,
+      "mark_calls": 0,
+      "limit": "Nested instrumented owning-thread times identify sound submission as about 92% of this footstep group; they are not a frame-rate improvement or every-scene claim.",
+      "artifact": "crowd-idle-footsteps-fine-profile-1/run-1/EternalJK/qconsole.log"
+    },
+    "sound_cache_clock_diagnostic": {
+      "artifact": "crowd-idle-sound-backend-profile-1/run-1/EternalJK/qconsole.log",
+      "software_sound": true,
+      "cache_touch_calls": 21144,
+      "cache_touch_total_ms": 452.053,
+      "rate_limiter_total_ms": 33.81,
+      "channel_calls": 6190,
+      "channel_total_ms": 4.147,
+      "setup_total_ms": 1.53,
+      "cgame_footstep_sound_total_ms": 504.07,
+      "finding": "The old Com_Milliseconds cache touch pumps the OS/journal event path; Windows reaches console-input polling. About90% of the sampled submission cost is the cache clock.",
+      "implemented_source": "68858c4",
+      "fixture": "5000 ordinary touches with zero pumps, unchanged timestamps/levels/LRU eviction and byte-identical journal recording/replay plus queued event behavior; x64/x86 Asan and x86 Release.",
+      "limit": "Instrumented cost diagnosis and fixture work counts. Actual-game speed comparison is not yet complete. Null/nonzero journal states retain the legacy clock."
     }
   },
-  "verification_state": "Checkpoint validated: Windows x86/x64,30 standalone suites, real normal/custom player menus and Vulkan core/sync validation. Broader runtime/audit work remains.",
+  "verification_state": "Playable417b060 passed clean full Windows x64/x86 builds,51/51 standalone suites, native Vulkan core/sync and packaged-module checks with user settings preserved. Later sound-clock/EjectAll/AI/parser work and fresh CI remain in progress; the project-wide audit is ongoing.",
   "analysis": {
     "initial_contexts": 560,
     "excluded_vendor_contexts": [
@@ -289,9 +613,9 @@
     "qualification": "Diagnostics require individual source review/fixtures. Initial scan preceded later changes; modified units receive targeted follow-up analysis.",
     "compatibility": "Two bot contexts needed the recorded Clang MSVC-header narrowing switch; Rend2 shader type declaration was fixed.",
     "triage": {
-      "confirmed_fixed": 44,
-      "provisional_contract": 59,
-      "unresolved_candidates": 182
+      "confirmed_fixed": 46,
+      "provisional_contract": 63,
+      "unresolved_candidates": 176
     },
     "post_checkpoint": {
       "contexts": 560,
@@ -302,6 +626,182 @@
       "diagnostic_contexts": 105,
       "warning_appearances": 269,
       "report": "post-checkpoint-analysis.json"
+    },
+    "integration_followup": {
+      "contexts": 21,
+      "translation_units": 17,
+      "statuses": {
+        "analyzed": 21
+      },
+      "diagnostic_contexts": 10,
+      "warning_appearances": 35,
+      "report": "integration-analysis.json",
+      "qualification": "Per-file hashes describe the sampled sources. These 21 contexts were checked before later lead-HUD, event-index and mark-surface follow-ups; those require their own checks. Analyzer candidates are not automatically reachable defects or fixed bugs."
+    },
+    "earlier_triage_snapshot": {
+      "confirmed_fixed": 44,
+      "provisional_contract": 59,
+      "unresolved_candidates": 182
+    },
+    "clean_417_followup": {
+      "contexts": 11,
+      "translation_units": 8,
+      "statuses": {
+        "analyzed": 11
+      },
+      "diagnostic_contexts": 5,
+      "warning_appearances": 36,
+      "source": "417b060",
+      "report": "integration-analysis.json#followup_417"
+    }
+  },
+  "verification": {
+    "checkpoint": {
+      "source": "383785a31ff74d145b487a0acf50c9e5d6d52300",
+      "local_windows_results": "G:/code/JoF_EJK-project-regressions/results.json",
+      "windows_suites_passed": 42,
+      "windows_suites_applicable": 42,
+      "full_windows_builds": [
+        "x64 Release",
+        "x86 Release"
+      ],
+      "ci_run": 42952953751,
+      "ci_url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/42952953751",
+      "ci_conclusion": "success",
+      "ci_jobs": {
+        "native-vulkan (windows-2022)": "success",
+        "native-vulkan (ubuntu-24.04)": "success",
+        "native-vulkan (macos-15)": "success",
+        "native-client-linux": "success"
+      },
+      "platform_policy": "Every applicable standalone suite is required; sjk-chat and updater are explicitly Windows-only skips off Windows.",
+      "artifact_note": "The local results.json is a rolling runner output and has since been replaced by newer results. Historical 42-suite evidence is also in the immutable linked 383785a CI run."
+    },
+    "current_integration": {
+      "head_observed": "68858c44c2481dd9889be04c396cc9a5b38d8155",
+      "zlib_ng_commit": "e495b4cc715a53ddb0df2ab70085037c455bba27",
+      "discovered_suites": 53,
+      "new_since_42_suite_checkpoint": [
+        "cgame-runtime-profile",
+        "cgame-spine-gates",
+        "renderer-mark-clipping",
+        "zlib-backend",
+        "renderer-mark-surfaces",
+        "cgame-lead-projection",
+        "cgame-animation-events",
+        "vehicle-lifecycle",
+        "filesystem-catalog-iterator",
+        "sound-start-profile",
+        "sound-cache-clock"
+      ],
+      "status": "Clean417 checkpoint passed full x64/x86 builds and51 suites, targeted analysis, Vulkan validation and packaged runtime. Later journal-aware cache clock and EjectAll have focused regressions; clean controlled engine comparison and broader follow-up checks are in progress.",
+      "windows_suites_passed": 46,
+      "windows_results": "G:/code/JoF_EJK-performance-run/post-ng-46-regression-logs/results.json",
+      "ci_run": 42964907517,
+      "last_complete_local_pass": 51
+    },
+    "zlib_ng_checkpoint": {
+      "commit": "e495b4cc715a53ddb0df2ab70085037c455bba27",
+      "ci_run": 42963522869,
+      "ci": "success: native Vulkan Windows/Linux/macOS and complete native Linux client without OpenGL",
+      "local_builds": "x64 and x86 Release full builds passed; cgame profiling/pose working-tree follow-ups were included and are independently tested",
+      "gpu": "Native Vulkan 1.4 default, core/synchronization validation: world, models, cosmetics, menus, vid_restart, map change, normal exit and zero resident resources; zero validation warnings/errors",
+      "limit": "This does not attest to later uncommitted optimizations or replace their final full-suite/CI checks."
+    },
+    "local_49_suite_run": {
+      "base_source": "85b93247fd2e166db4e5ed2408bb3453722af415",
+      "passed": 49,
+      "applicable": 49,
+      "results": "G:/code/JoF_EJK-performance-run/post-events-49-regression-logs/results.json",
+      "qualification": "The rolling working tree also had the disabled fused-iterator scaffolding while this run finished; the later new iterator and vehicle suites require their own full run."
+    },
+    "playtest_85": {
+      "source": "85b93247fd2e166db4e5ed2408bb3453722af415",
+      "build": "Clean full x64 Release/LTO/native Vulkan/zlib-ng",
+      "directory": "G:/code/JoF_EJK-performance-playtest",
+      "config_preserved": true,
+      "packaged_modules": "Engine/renderers/UI/cgame/game match; loose and bundled DLL hashes verified, package active frame and clean teardown passed.",
+      "gpu": "Khronos core/synchronization validation passed visible world, models, basic/custom character and cosmetic menus, vid_restart, map change, zero resident resources and normal exit.",
+      "artifacts": [
+        "checkpoint-85-visible-world-smoke",
+        "checkpoint-packaged-85b9324"
+      ]
+    },
+    "runtime_checkpoint_ci": {
+      "source": "30451bf2b15dacd11f2e5d4eedcf9c17fa974fea",
+      "run": 42964907517,
+      "conclusion": "success",
+      "scope": "All applicable standalone suites on Windows/Linux/macOS and full native Linux client without OpenGL."
+    },
+    "clean_417": {
+      "source": "417b060367d9fecca7b7a83d1d671d067ff21fee",
+      "source_clean": true,
+      "full_builds": [
+        "Windows x64 Release/LTO/zlib-ng",
+        "Windows x86 Release/LTO/zlib-ng"
+      ],
+      "standalone_passed": 51,
+      "standalone_applicable": 51,
+      "skips": 0,
+      "results": "G:/code/JoF_EJK-integration-417-regressions/results.json",
+      "manifest": "G:/code/JoF_EJK-integration-417-validation/validation.json",
+      "gpu": "Native Vulkan core/synchronization validation passed world/models/player+species/cosmetic menus, vid_restart, map change, zero resident resources and normal exit.",
+      "packaged": "Fresh package profile reached active frame and normal teardown; loose and bundled production modules match.",
+      "playtest": "G:/code/JoF_EJK-performance-playtest",
+      "config_preserved": true,
+      "artifacts": [
+        "checkpoint-417-visible-world-smoke",
+        "checkpoint-packaged-417b060"
+      ],
+      "limit": "Does not attest to later clock, EjectAll, AI or parser follow-ups."
+    }
+  },
+  "additional_verified_fixes": {
+    "scope": "Later BSP/VBO/CLI fixes are separate from the initial diagnostic set. Lead findings 177/180 now increase the confirmed count within that original set; snapshot findings 183-186 have provisional caller evidence. Historical measurement/scan counts remain separately recorded.",
+    "desktop_bsp_registration": {
+      "verification": [
+        "tests/bsp-registration",
+        "383785a 42-suite results"
+      ],
+      "notes": "Renderer capacity guards preserve distinct instances and reject overflow without writes/allocations; debug testmodel retains one BSP handle across frames and resets its lifetime correctly."
+    },
+    "vulkan_main_world_vbo_scope": {
+      "verification": [
+        "tests/vulkan-world-vbo-scope",
+        "383785a 42-suite results",
+        "project-remote-gridfix-profile/EternalJK/qconsole.log"
+      ],
+      "notes": "Instanced BSP loads do not rebuild the global main-world VBO outside loading phase; cached/file-backed subworld fixtures preserve its resources."
+    },
+    "vulkan_static_vbo_identity": {
+      "verification": [
+        "tests/vulkan-sprite-vbo-identity",
+        "383785a 42-suite results"
+      ],
+      "notes": "Actual static VBO identities, complete sprite grouping bit range/capacity and resource ownership across renderer restart are checked."
+    },
+    "startup_command_storage": {
+      "verification": [
+        "cli-command-lines-before-long/results.json",
+        "cli-command-lines-after-long/results.json"
+      ],
+      "notes": "Before-fix live 40-command long launch missed its final sentinel and needed termination. Updated 40/63-command launches preserve quoted/final sentinels and exit normally with code 0."
+    },
+    "vehicle_boarding_and_passenger_ownership": {
+      "source": "1e8a5a5",
+      "verification": "tests/vehicle-lifecycle actual target activation/Board/Eject/Update/Inhabited paths; 12 cases pass x64/x86 ASan, 9 fail before; valid state outputs match.",
+      "limit": "Two separately reproduced defects; original analyzer vehicle findings108-122 remain individually unresolved where full lifecycle/caller proof is incomplete."
+    },
+    "vehicle_sparse_seats": {
+      "source": "a0e287c",
+      "verification": "Actual AttachRiders/Pmove/pilot-promotion scans, configured-capacity bounds and seat/bolt coordinates; expanded31 cases pass x64/x86 ASan, prior source fails12 consumer cases independently of count bug.",
+      "limit": "Keeps seat identities and dense behavior. EjectAll follow-up is not covered by this verified snapshot."
+    },
+    "vehicle_eject_all": {
+      "source": "d2c47d9",
+      "verification": "58 actual-path checks pass x64/x86 ASan;22 new cleanup cases fail before while31 earlier cases pass.23 baseline-valid state summaries match.",
+      "notes": "Bounded original rider snapshot prevents skipped promotions and duplicate alias damage. Failed exits retain slots/counts, successful pilot ejection clears only its exact old-pilot alias, callback detach/free and droid behavior are covered.",
+      "limit": "Later actual-game full-build/checkpoint integration is tracked separately; no speed claim or automatic reclassification of original vehicle findings."
     }
   }
 }
