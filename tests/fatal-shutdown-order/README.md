@@ -1,0 +1,5 @@
+This standalone suite compiles the actual `Com_Error` and `Com_Quit_f` bodies extracted from `codemp/qcommon/common.cpp`. The fixture models the server's dependency on live renderer exports during model cleanup. Client shutdown invalidates those exports; calling it first reproduces the secondary fatal-shutdown failure independently of Vulkan or window handling.
+
+Five CTests cover fatal errors (including the normal quit positive control and rapid-error escalation), build-script escalation, dedicated-server escalation, recoverable integer exceptions, and recursive error/quit guards. Fatal system exits remain nonreturning exceptions in the fixture; the production `NORETURN` function annotation is retained. Message formatting, cvar policy, and lifecycle/resource ordering are checked.
+
+Configure this directory directly with CMake, build, and run CTest. `COMMON_SOURCE` may point at an unchanged pre-fix `common.cpp` snapshot: its fatal, build-script and dedicated cases fail, while recoverable and recursive positive controls pass. The suite does not run a game or change profiles.

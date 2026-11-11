@@ -82,14 +82,16 @@ foreach(part frame backend samples capture capture_failures capture_dedicated ca
 endforeach()
 
 extract("${CORE_SOURCE_DIR}/vk_swapchain.cpp" "void vk_create_swapchain(" wsi)
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/swapchain.h" "${wsi}\n")
+extract("${EJK_SOURCE_DIR}/codemp/rd-vulkan/vk_init.cpp" "static void vk_set_render_scale(" surface_scale)
+extract("${EJK_SOURCE_DIR}/codemp/rd-vulkan/vk_init.cpp" "void vk_apply_surface_extent(" surface_extent)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/swapchain.h" "${surface_scale}\n${surface_extent}\n${wsi}\n")
 add_executable(vulkan_core_swapchain swapchain.cpp)
 target_include_directories(vulkan_core_swapchain PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${EJK_SOURCE_DIR}/codemp/rd-vulkan")
 if(MSVC)
   target_compile_options(vulkan_core_swapchain PRIVATE /EHsc)
 endif()
 add_test(NAME vulkan_core_swapchain COMMAND vulkan_core_swapchain capabilities)
-foreach(part extent capacity errors)
+foreach(part extent capacity errors fullscreen resize invalid_extent)
   add_test(NAME vulkan_swapchain_${part} COMMAND vulkan_core_swapchain ${part})
 endforeach()
 

@@ -14,6 +14,9 @@
 #define VK_SET_OBJECT_NAME(...) do{}while(0)
 #define Com_Memset std::memset
 #define Com_Memcpy std::memcpy
+#define GL_NEAREST 0x2600
+#define GL_LINEAR 0x2601
+#define PRINT_ALL 0
 #define PRINT_WARNING 1
 #define ERR_FATAL 2
 #define PV_NONE 0
@@ -28,8 +31,8 @@ static int checks,clearCalls,blits,copies;
 static uint64_t nextHandle;
 static struct {int vidWidth,vidHeight,stencilBits;}glConfig;
 static struct {int captureWidth,captureHeight,windowWidth,windowHeight;}gls;
-static struct {int integer;}fboSetting,ssaaSetting;
-static auto *r_fbo=&fboSetting,*r_ext_supersample=&ssaaSetting;
+static struct {int integer;}fboSetting,ssaaSetting,renderScaleSetting;
+static auto *r_fbo=&fboSetting,*r_ext_supersample=&ssaaSetting,*r_renderScale=&renderScaleSetting;
 static int vkSamples=1;
 struct Pass{VkRenderPass handle;};
 struct PostPass{Pass extract,blend,blur[8];};
@@ -37,6 +40,7 @@ struct PostFramebuffer{VkFramebuffer extract,blur[8];};
 struct Command{VkCommandBuffer command_buffer;uint32_t swapchain_image_index;int depth_range;}command;
 static struct {
  bool active,fboActive,bloomActive,dglowActive,refractionActive,msaaActive;
+ qboolean windowAdjusted;int blitX0,blitY0,blitFilter;float xscale2D,yscale2D;
  uint32_t screenMapSamples,screenMapWidth,screenMapHeight,swapchain_image_count;
  VkDevice device;Command *cmd;VkFormat bloom_format,color_format,capture_format;
  VkImage color_image,depth_image,msaa_image,refraction_extract_image,dglow_msaa_image;
@@ -53,7 +57,7 @@ static struct {
 static struct {int dirty_depth_attachment;}vk_world;
 static struct {bool projection2D;struct {int viewportX,viewportY,viewportWidth,viewportHeight,portalView,scissorX,scissorY,scissorWidth,scissorHeight;}viewParms;}backEnd;
 static struct {vec4_t clearColor;}tr;
-static struct {void Error(int,const char*,...){throw std::runtime_error("renderer error");}}ri;
+static struct {void Error(int,const char*,...){throw std::runtime_error("renderer error");}void Printf(int,const char*,...){}}ri;
 static void vk_debug(const char*,...){}
 static const char *va(const char*,...){return "name";}
 static const char *vk_result_string(VkResult){return "driver result";}
@@ -79,16 +83,18 @@ static void qvkCmdBlitImage(VkCommandBuffer,VkImage source,VkImageLayout,VkImage
  ++blits;const auto src=images.at(source),dst=images.at(destination);CHECK(count==1);CHECK(regions[0].srcOffsets[1].x==int32_t(src.width)&&regions[0].srcOffsets[1].y==int32_t(src.height));CHECK(regions[0].dstOffsets[1].x==int32_t(dst.width)&&regions[0].dstOffsets[1].y==int32_t(dst.height));
 }
 static void qvkCmdCopyImage(VkCommandBuffer,VkImage source,VkImageLayout,VkImage destination,VkImageLayout,uint32_t count,const VkImageCopy *regions){++copies;const auto src=images.at(source),dst=images.at(destination);CHECK(count==1);CHECK(regions[0].extent.width==src.width&&regions[0].extent.height==src.height);CHECK(regions[0].extent.width==dst.width&&regions[0].extent.height==dst.height);}
+static void ValidatePostProcessViewport(const VkPipelineViewportStateCreateInfo &state){CHECK(state.viewportCount==1&&state.scissorCount==1);const auto &v=state.pViewports[0];const auto &s=state.pScissors[0];CHECK(v.x>=0&&v.y>=0&&v.width>0&&v.height>0);CHECK(v.x+v.width<=active.width&&v.y+v.height<=active.height);CHECK(s.offset.x>=0&&s.offset.y>=0&&uint64_t(s.offset.x)+s.extent.width<=active.width&&uint64_t(s.offset.y)+s.extent.height<=active.height);}
 void get_scissor_rect(VkRect2D*);
 #include "targets.h"
-static void setup(uint32_t width,uint32_t height,bool ssaa,bool msaa=false){
- vk={};gls={int(width),int(height),int(width),int(height)};glConfig={int(width*(ssaa?2:1)),int(height*(ssaa?2:1)),8};fboSetting.integer=1;ssaaSetting.integer=ssaa?1:0;
+static void setup(uint32_t width,uint32_t height,bool ssaa,bool msaa=false,bool fbo=true,Extent presentation={0,0}){
+ vk={};gls={int(width),int(height),int(width),int(height)};glConfig={int(width*(ssaa?2:1)),int(height*(ssaa?2:1)),8};fboSetting.integer=fbo?1:0;ssaaSetting.integer=ssaa?1:0;renderScaleSetting.integer=0;
  images.clear();views.clear();framebuffers.clear();nextHandle=1;clearCalls=blits=copies=0;backEnd={};command={};vk.cmd=&command;
- vk.active=vk.fboActive=vk.bloomActive=vk.dglowActive=vk.refractionActive=true;vk.msaaActive=msaa;vkSamples=msaa?4:1;vk.screenMapSamples=1;vk.screenMapWidth=width/4;vk.screenMapHeight=height/4;vk.swapchain_image_count=1;
+ vk.active=true;vk.fboActive=vk.bloomActive=vk.dglowActive=vk.refractionActive=fbo;vk.msaaActive=msaa;vkSamples=msaa?4:1;vk.screenMapSamples=1;vk.screenMapWidth=width/4;vk.screenMapHeight=height/4;vk.swapchain_image_count=1;
+ if(presentation.width&&presentation.height)vk_apply_surface_extent(presentation.width,presentation.height);
  vk_create_attachments();
  // The presentation image comes from the window-system swapchain, independently
  // of renderer-created offscreen allocations.
- VkImage present;create_color_attachment(width,height,VK_SAMPLE_COUNT_1_BIT,VK_FORMAT_R8G8B8A8_UNORM,VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,&present,&vk.swapchain_image_views[0],VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,qfalse);
+ VkImage present;create_color_attachment(gls.windowWidth,gls.windowHeight,VK_SAMPLE_COUNT_1_BIT,VK_FORMAT_R8G8B8A8_UNORM,VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,&present,&vk.swapchain_image_views[0],VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,qfalse);
  vk_create_framebuffers();
  backEnd.viewParms.viewportWidth=glConfig.vidWidth;backEnd.viewParms.viewportHeight=glConfig.vidHeight;
 }
@@ -101,6 +107,17 @@ static void verifyTarget(bool depth=true){
 }
 int main(int argc,char **argv){
  const std::string part=argc>1?argv[1]:"ssaa";
+ if(part=="presentation"){
+  for(bool fbo:{false,true})for(bool ssaa:{false,true})for(bool msaa:{false,true}){
+   if(!fbo&&ssaa)continue;
+   setup(961,541,ssaa,msaa,fbo,{1024,768});
+   CHECK(gls.windowWidth==1024&&gls.windowHeight==768);
+   CHECK(glConfig.vidWidth==(fbo?(ssaa?1922:961):1024)&&gls.captureWidth==(fbo?961:1024));
+   vk_begin_main_render_pass();verifyTarget();
+   if(fbo){vk_begin_render_pass(vk.render_pass.gamma.handle,vk.framebuffers.gamma[0],qfalse,gls.windowWidth,gls.windowHeight);ActualPostProcessViewport(VK_POSTFX_PIPELINE_GAMMA,0,0);}
+  }
+  std::printf("%d actual presentation/framebuffer/pipeline checks passed\n",checks);return 0;
+ }
  for(const Extent extent: {Extent{961,541},Extent{1024,768},Extent{320,241}})for(bool msaa:{false,true}){
   const bool ssaa=part!="normal"&&part!="control";setup(extent.width,extent.height,ssaa,msaa);
   if(part=="control"){

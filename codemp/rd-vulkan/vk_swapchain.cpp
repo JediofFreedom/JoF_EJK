@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include <algorithm>
 
 void vk_restart_swapchain( const char *funcname )
 {
@@ -93,19 +94,23 @@ void vk_create_swapchain( VkPhysicalDevice physical_device, VkDevice device,
     VK_REQUIRE_SUCCESS( qvkGetPhysicalDeviceSurfaceCapabilitiesKHR( physical_device, surface, &surface_caps ) );
 
     image_extent = surface_caps.currentExtent;
-    if ( image_extent.width == 0xffffffff && image_extent.height == 0xffffffff ) {
-        image_extent.width = MIN( surface_caps.maxImageExtent.width, MAX( surface_caps.minImageExtent.width, (uint32_t)glConfig.vidWidth ) );
-        image_extent.height = MIN( surface_caps.maxImageExtent.height, MAX( surface_caps.minImageExtent.height, (uint32_t)glConfig.vidHeight ) );
+    if (image_extent.width == UINT32_MAX && image_extent.height == UINT32_MAX) {
+        // Presentation follows the window, not an independently supersampled
+        // FBO render target. Clamp only when the surface leaves size selection
+        // to the application.
+        image_extent.width = std::min(surface_caps.maxImageExtent.width,
+            std::max(surface_caps.minImageExtent.width, uint32_t(gls.windowWidth)));
+        image_extent.height = std::min(surface_caps.maxImageExtent.height,
+            std::max(surface_caps.minImageExtent.height, uint32_t(gls.windowHeight)));
     }
-
-    // A fixed currentExtent is mandatory, not a lower bound. Never manufacture
-    // an unsupported swapchain size to hide a minimized or changed surface.
-    // The caller defers minimized acquisition/recreation until restore; general
-    // resizing additionally needs matching renderer attachments and pipelines.
+    // Fixed currentExtent is mandatory and can legitimately change after a
+    // fullscreen restore. Adapt presentation resources before creating them.
+    // Minimized recreation is deferred by acquisition until restore.
     if (!image_extent.width || !image_extent.height ||
-        image_extent.width != gls.windowWidth || image_extent.height != gls.windowHeight)
-        ri.Error(ERR_FATAL, "Vulkan: surface extent %u x %u does not match renderer %u x %u; restart video after restoring the window",
-            image_extent.width, image_extent.height, gls.windowWidth, gls.windowHeight);
+        image_extent.width < surface_caps.minImageExtent.width || image_extent.width > surface_caps.maxImageExtent.width ||
+        image_extent.height < surface_caps.minImageExtent.height || image_extent.height > surface_caps.maxImageExtent.height)
+        ri.Error(ERR_FATAL, "Vulkan: unsupported surface extent %u x %u", image_extent.width, image_extent.height);
+    vk_apply_surface_extent(image_extent.width, image_extent.height);
 
     vk.clearAttachment = qtrue;
     vk.swapchainTransferDst = (surface_caps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT) ? qtrue : qfalse;

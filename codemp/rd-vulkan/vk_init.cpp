@@ -35,6 +35,11 @@ int vkMaxSamples = VK_SAMPLE_COUNT_1_BIT;
 
 static void vk_set_render_scale( void )
 {
+	// Surface recreation can change presentation dimensions. Recompute rather
+	// than accumulate aspect-ratio bars or retain an earlier filtering mode.
+	vk.windowAdjusted = qfalse;
+	vk.blitFilter = GL_NEAREST;
+	vk.blitX0 = vk.blitY0 = 0;
 	if (gls.windowWidth != glConfig.vidWidth || gls.windowHeight != glConfig.vidHeight)
 	{
 		if (r_renderScale->integer > 0)
@@ -72,6 +77,28 @@ static void vk_set_render_scale( void )
 	{
 		vk.blitFilter = GL_LINEAR;
 	}
+}
+
+void vk_apply_surface_extent( uint32_t width, uint32_t height )
+{
+	if (!width || !height || width > INT32_MAX || height > INT32_MAX)
+		ri.Error(ERR_FATAL, "Vulkan: invalid presentation extent %u x %u", width, height);
+	if (width == uint32_t(gls.windowWidth) && height == uint32_t(gls.windowHeight))
+		return;
+
+	ri.Printf(PRINT_ALL, "Vulkan: presentation extent changed from %d x %d to %u x %u\n",
+		gls.windowWidth, gls.windowHeight, width, height);
+	gls.windowWidth = int(width);
+	gls.windowHeight = int(height);
+	if (!vk.fboActive) {
+		// Direct rendering uses swapchain pixels for world/depth/capture too.
+		// FBO rendering keeps its independent render and capture resolutions.
+		glConfig.vidWidth = gls.captureWidth = int(width);
+		glConfig.vidHeight = gls.captureHeight = int(height);
+		vk.xscale2D = glConfig.vidWidth * (1.0 / 640.0);
+		vk.yscale2D = glConfig.vidHeight * (1.0 / 480.0);
+	}
+	vk_set_render_scale();
 }
 
 void get_viewport_rect( VkRect2D *r )

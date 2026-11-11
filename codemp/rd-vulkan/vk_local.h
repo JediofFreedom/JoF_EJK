@@ -1081,6 +1081,7 @@ void		vk_update_post_process_pipelines( void );
 // swapchain
 void		vk_restart_swapchain( const char *funcname );
 void		vk_destroy_swapchain( void );
+void		vk_apply_surface_extent( uint32_t width, uint32_t height );
 void		vk_create_swapchain( VkPhysicalDevice physical_device, VkDevice device,
 	VkSurfaceKHR surface, VkSurfaceFormatKHR surface_format, VkSwapchainKHR *swapchain);
 
