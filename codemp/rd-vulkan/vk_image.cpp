@@ -86,7 +86,7 @@ static std::unordered_map<image_t *, std::shared_ptr<ResidentTexture>> activeRes
 static cvar_t *textureSignaturePrefix;
 
 static void R_InitResidentTextures() {
-	textureSignaturePrefix = ri.Cvar_Get("r_textureSignaturePrefix", "0", CVAR_ARCHIVE_ND,
+	textureSignaturePrefix = ri.Cvar_Get("r_textureSignaturePrefix", "1", CVAR_ARCHIVE_ND,
 		"Validate texture sources only through the previously decoded winner (experimental)");
 	ri.Cvar_CheckRange(textureSignaturePrefix, 0, 1, qtrue);
 	cvar_t *budget = ri.Cvar_Get("r_textureCacheMegs", "-1", CVAR_ARCHIVE_ND,

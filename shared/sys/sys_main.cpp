@@ -23,6 +23,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <cstdlib>
 #include <cstdarg>
 #include <cstdio>
+#include <vector>
 #include <sys/stat.h>
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -746,7 +747,7 @@ static void IN_FrameLoop(void) {
 int main ( int argc, char* argv[] )
 {
 	int		i;
-	char	commandLine[ MAX_STRING_CHARS ] = { 0 };
+	std::vector<char> commandLine;
 
 	Sys_InstallCrashHandler();
 
@@ -778,17 +779,20 @@ int main ( int argc, char* argv[] )
 	{
 		const bool containsSpaces = (strchr(argv[i], ' ') != NULL);
 		if (containsSpaces)
-			Q_strcat( commandLine, sizeof( commandLine ), "\"" );
+			commandLine.push_back('"');
 
-		Q_strcat( commandLine, sizeof( commandLine ), argv[ i ] );
+		commandLine.insert(commandLine.end(), argv[i], argv[i] + strlen(argv[i]));
 
 		if (containsSpaces)
-			Q_strcat( commandLine, sizeof( commandLine ), "\"" );
+			commandLine.push_back('"');
 
-		Q_strcat( commandLine, sizeof( commandLine ), " " );
+		commandLine.push_back(' ');
 	}
 
-	Com_Init (commandLine);
+	commandLine.push_back('\0');
+	// Com_ParseCommandLine stores pointers into this mutable buffer. Keep its
+	// storage unchanged for the rest of main, including the no-argument case.
+	Com_Init (commandLine.data());
 
 	// Re-install: overlays/drivers loaded during Com_Init (Discord, Steam,
 	// GPU drivers) can replace the unhandled exception filter with their own.

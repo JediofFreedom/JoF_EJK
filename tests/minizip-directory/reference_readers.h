@@ -155,4 +155,3 @@ local int unz64local_getLong64 (const zlib_filefunc64_32_def* pzlib_filefunc_def
         *pX = 0;
     return err;
 }
-

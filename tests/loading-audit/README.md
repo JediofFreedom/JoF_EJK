@@ -351,20 +351,29 @@ names, comments, extras, offsets and bytes match. Both versions also extracted
 14,451,732,062 bytes with matching sizes/CRCs and zero failures. This measures
 archive parsing, not complete startup or joining. See `tests/minizip-directory`.
 
-`fs_restartCache 1`, set before initial startup, experimentally retains unchanged
+`fs_restartCache 1`, set before initial startup, retains unchanged
 archive catalogs across checksum-feed-only restarts. Existing shutdown/startup,
 directory rescans, handle cleanup, package order and pure checks remain in use.
 Strong file identity/change stamps and entry counts gate reuse; changed/new
 archives take ordinary parsing. Explicit restarts and effective mount changes
-rebuild normally. It defaults to `0` pending real-game A/B measurements. The
+rebuild normally. It now defaults to `1`; explicit `0` remains available. The
 production-path tests cover replacements with identical sizes/timestamps,
 checksum byte equivalence, reference flags, duplicates, races and error cleanup.
+Three alternating real-server pairs measured a median restart of 304 ms with
+reuse off versus 102 ms on, reusing 262 archives/78,826 members. Initial startup
+was 320 versus 325 ms; connect-to-first-present was 5,724 versus 5,492 ms. The
+join result includes variable server/network work and applies to this server.
 
-`r_textureSignaturePrefix 1` experimentally validates texture candidates only
+`r_textureSignaturePrefix 1` validates texture candidates only
 through the successfully decoded winner. Higher-priority candidates remain
 dependencies, including corrupt files that required a fallback. This defaults
-to `0` while first-map timing remains uncertain. `profile.ps1` accepts
-`-TextureSignaturePrefix 0/1` for matched comparisons.
+to `1` after five additional alternating pairs, following one unmeasured warmup
+pair and seeding identical pipeline data. In the same Release/LTO binary, with
+2048 MiB residency, archive reuse on and fresh profiles, median handoffs were
+1,920/849/635 ms off versus 1,841/790/569 ms on; complete cycles were 8.085 versus
+7.911 s. These are about 4%, 7% and 10% shorter handoffs, separate from earlier
+branch results. `0` preserves full signatures. `profile.ps1` accepts
+`-TextureSignaturePrefix 0/1` and `-FilesystemRestartCache 0/1` for comparisons.
 
 Loading logs now split source metadata from encoded reads and record connection
 milestones from setup through challenge, gamestate, cgame readiness and first

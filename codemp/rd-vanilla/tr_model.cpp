@@ -1168,6 +1168,24 @@ fail:
 }
 
 
+static qhandle_t RE_RegisterBSP(const char *name)
+{
+	if (static_cast<size_t>(tr.numBSPModels) >= ARRAY_LEN(tr.bspModels)) {
+		ri.Printf(PRINT_WARNING, "RE_RegisterBSP: MAX_SUB_BSP reached for %s\n", name);
+		return 0;
+	}
+	char temp[MAX_QPATH];
+	tr.numBSPModels++;
+	RE_LoadWorldMap_Actual(va("maps/%s.bsp", name + 1), tr.bspModels[tr.numBSPModels - 1], tr.numBSPModels);
+	Com_sprintf(temp, MAX_QPATH, "*%d-0", tr.numBSPModels);
+	const int hash = generateHashValue(temp, FILE_HASH_SIZE);
+	for (modelHash_t *mh = mhHashTable[hash]; mh; mh = mh->next) {
+		if (Q_stricmp(mh->name, temp) == 0)
+			return mh->handle;
+	}
+	return 0;
+}
+
 /*
 ====================
 RE_RegisterModel
@@ -1240,21 +1258,7 @@ Ghoul2 Insert Start
 
 	if (name[0] == '#')
 	{
-		char		temp[MAX_QPATH];
-
-		tr.numBSPModels++;
-		RE_LoadWorldMap_Actual(va("maps/%s.bsp", name + 1), tr.bspModels[tr.numBSPModels - 1], tr.numBSPModels);
-		Com_sprintf(temp, MAX_QPATH, "*%d-0", tr.numBSPModels);
-		hash = generateHashValue(temp, FILE_HASH_SIZE);
-		for (mh=mhHashTable[hash]; mh; mh=mh->next)
-		{
-			if (Q_stricmp(mh->name, temp) == 0)
-			{
-				return mh->handle;
-			}
-		}
-
-		return 0;
+		return RE_RegisterBSP(name);
 	}
 
 	if (name[0] == '*')

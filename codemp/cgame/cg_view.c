@@ -150,8 +150,11 @@ void CG_TestModelPrevSkin_f (void) {
 static void CG_AddTestModel (void) {
 	int		i;
 
-	// re-register the model, because the level may have changed
-	cg.testModelEntity.hModel = trap->R_RegisterModel( cg.testModelName );
+	// BSP registration creates a distinct instance. Keep the one created by
+	// testmodel; CG_Init clears it on level/renderer restart. Ordinary models
+	// retain their existing per-frame registration behavior.
+	if (cg.testModelName[0] != '#')
+		cg.testModelEntity.hModel = trap->R_RegisterModel( cg.testModelName );
 	if (! cg.testModelEntity.hModel ) {
 		trap->Print ("Can't register model\n");
 		return;

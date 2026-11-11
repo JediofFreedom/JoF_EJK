@@ -150,6 +150,10 @@ model_t *R_AllocModel( void ) {
 
 static qhandle_t RE_RegisterBSP(const char *name)
 {
+	if (static_cast<size_t>(tr.numBSPModels) >= ARRAY_LEN(tr.bspModels)) {
+		ri.Printf(PRINT_WARNING, "RE_RegisterBSP: MAX_SUB_BSP reached for %s\n", name);
+		return 0;
+	}
 	char bspFilePath[MAX_QPATH];
 	Com_sprintf(bspFilePath, sizeof(bspFilePath), "maps/%s.bsp", name + 1);
 

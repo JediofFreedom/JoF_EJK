@@ -160,7 +160,7 @@ static void checksum(pack_t *value) {
     CHECK(value->checksum==LittleLong(Com_BlockChecksum(words.data()+1,(words.size()-1)*sizeof(int))));
     CHECK(value->pure_checksum==LittleLong(Com_BlockChecksum(words.data(),words.size()*sizeof(int))));unzClose(file);
 }
-static void start(bool enabled=true) {
+static void start(int setting=1) {
     if(fs_searchpaths)FS_Shutdown(qtrue);CHECK(liveAllocations==0);cvars.clear();fs_numServerPaks=0;fs_reordered=false;
     fs_cmdlineGame[0]=lastValidBase[0]=lastValidGame[0]='\0';beforeEnumeration={};afterOpen={};throwEnumeration=missingCfgOnce=false;
     const auto root=std::filesystem::canonical(fixtureRoot);CHECK(std::filesystem::exists(root/"seed/base/pak0.pk3"));
@@ -172,7 +172,7 @@ static void start(bool enabled=true) {
     std::filesystem::copy(std::filesystem::path(fixtureRoot)/"seed",baseDirectory,std::filesystem::copy_options::recursive);
     std::filesystem::create_directories(homeDirectory);
     Cvar_Set("fs_basepath",baseDirectory.c_str());Cvar_Set("fs_homepath",homeDirectory.c_str());
-    if(enabled)Cvar_Set("fs_restartCache","1");
+    if(setting>=0)Cvar_Set("fs_restartCache",setting?"1":"0");
     FS_Startup(BASEGAME);Q_strncpyz(lastValidBase,baseDirectory.c_str(),sizeof(lastValidBase));Q_strncpyz(lastValidGame,fs_gamedirvar->string,sizeof(lastValidGame));
 }
 static int run(int argc,char **argv) {
@@ -195,7 +195,9 @@ static int run(int argc,char **argv) {
     CHECK(!FS_ConditionalRestart(fs_checksumFeed));
     centralReads=0;FS_Restart(fs_checksumFeed);CHECK(centralReads>1200); // Explicit restarts remain full scans.
     Cvar_Set("fs_restartCache","0");centralReads=0;CHECK(FS_ConditionalRestart(fs_checksumFeed+1));CHECK(centralReads>1200&&!pack("pak9")->checksumHeaders);
-    start(false);CHECK(!fs_restartCache->integer&&!pack("pak9")->checksumHeaders);
+    start(-1);CHECK(fs_restartCache->integer==1&&pack("pak9")->checksumHeaders);
+    centralReads=0;CHECK(FS_ConditionalRestart(fs_checksumFeed+1));CHECK(centralReads==0);
+    start(0);CHECK(!fs_restartCache->integer&&!pack("pak9")->checksumHeaders);
     centralReads=0;CHECK(FS_ConditionalRestart(fs_checksumFeed+1));CHECK(centralReads>1200);
 
     start();old=pack("pak9");Cvar_Set("fs_game","ignored");centralReads=0;

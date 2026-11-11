@@ -4023,7 +4023,7 @@ void FS_Startup( const char *gameName ) {
 	fs_dirbeforepak = Cvar_Get("fs_dirbeforepak", "0", CVAR_INIT|CVAR_PROTECTED, "Prioritize directories before paks if not pure" );
 	fs_lookupIndex = Cvar_Get("fs_lookupIndex", "1", CVAR_ARCHIVE, "Index mounted archive providers for file lookups (0 uses the linear resolver)");
 	Cvar_CheckRange(fs_lookupIndex, 0, 1, qtrue);
-	fs_restartCache = Cvar_Get("fs_restartCache", "0", CVAR_ARCHIVE, "Reuse unchanged archive catalogues during checksum-feed-only filesystem restarts");
+	fs_restartCache = Cvar_Get("fs_restartCache", "1", CVAR_ARCHIVE, "Reuse unchanged archive catalogues during checksum-feed-only filesystem restarts");
 	Cvar_CheckRange(fs_restartCache, 0, 1, qtrue);
 	FSRestartMetadataCache::recordCatalogs = fs_restartCache->integer != 0;
 

@@ -11,8 +11,10 @@ Changed/new/removed/invalid archives, same-size/same-mtime replacement, a change
 between pre/post stamps, configuration changes, pure order, cfg fallback and
 exception cleanup have explicit fixtures. Final allocation counts must be zero.
 
-`fs_restartCache` defaults to `0`. Set it before initial startup to compare `1`:
-only effective-configuration-preserving checksum-feed restarts can reuse metadata.
+`fs_restartCache` defaults to `1`. Set `0` before initial startup to compare the
+ordinary catalogue rebuild. The fixture verifies both the unconfigured default
+and the explicit `0` override. Only effective-configuration-preserving
+checksum-feed restarts can reuse metadata.
 Explicit `FS_Restart`, downloads/server restarts and effective game/path changes
 retain the full rebuild. Ignored `fs_game` changes under `fs_globalcfg 1` preserve
 the existing effective mount rules. No background filesystem calls are added.
