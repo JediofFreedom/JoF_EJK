@@ -5839,6 +5839,7 @@ static qboolean CG_PlayerShadow( centity_t *cent, float *shadowPlane ) {
 	trace_t		trace;
 	float		alpha;
 	float		radius = 24.0f;
+	cgProfileMark_t profile;
 
 	*shadowPlane = 0;
 
@@ -5880,7 +5881,9 @@ static qboolean CG_PlayerShadow( centity_t *cent, float *shadowPlane ) {
 	{ //stencil
 		end[2] -= 4096.0f;
 
+		profile = CG_ProfileFineBegin();
 		trap->CM_Trace( &trace, cent->lerpOrigin, end, mins, maxs, 0, MASK_PLAYERSOLID, 0 );
+		CG_ProfileEnd(CGP_SHADOW_TRACE,profile);
 
 		if ( trace.fraction == 1.0 || trace.startsolid || trace.allsolid )
 		{
@@ -5891,7 +5894,9 @@ static qboolean CG_PlayerShadow( centity_t *cent, float *shadowPlane ) {
 	{
 		end[2] -= SHADOW_DISTANCE;
 
+		profile = CG_ProfileFineBegin();
 		trap->CM_Trace( &trace, cent->lerpOrigin, end, mins, maxs, 0, MASK_PLAYERSOLID, 0 );
+		CG_ProfileEnd(CGP_SHADOW_TRACE,profile);
 
 		// no shadow if too high
 		if ( trace.fraction == 1.0 || trace.startsolid || trace.allsolid ) {
@@ -5925,8 +5930,10 @@ static qboolean CG_PlayerShadow( centity_t *cent, float *shadowPlane ) {
 	{
 		radius = 8.0f;
 	}
+	profile = CG_ProfileFineBegin();
 	CG_ImpactMark( cgs.media.shadowMarkShader, trace.endpos, trace.plane.normal,
 		cent->pe.legs.yawAngle, alpha,alpha,alpha,1, qfalse, radius, qtrue );
+	CG_ProfileEnd(CGP_SHADOW_MARK,profile);
 
 	return qtrue;
 }
@@ -5944,6 +5951,7 @@ static void CG_PlayerSplash( centity_t *cent ) {
 	trace_t		trace;
 	int			contents;
 	polyVert_t	verts[4];
+	cgProfileMark_t profile;
 
 	if ( !cg_shadows.integer ) {
 		return;
@@ -5954,7 +5962,9 @@ static void CG_PlayerSplash( centity_t *cent ) {
 
 	// if the feet aren't in liquid, don't make a mark
 	// this won't handle moving water brushes, but they wouldn't draw right anyway...
+	profile = CG_ProfileFineBegin();
 	contents = CG_PointContents( end, 0 );
+	CG_ProfileEnd(CGP_WATER_CONTENTS,profile);
 	if ( !( contents & ( CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA ) ) ) {
 		return;
 	}
@@ -5963,7 +5973,9 @@ static void CG_PlayerSplash( centity_t *cent ) {
 	start[2] += 32;
 
 	// if the head isn't out of liquid, don't make a mark
+	profile = CG_ProfileFineBegin();
 	contents = CG_PointContents( start, 0 );
+	CG_ProfileEnd(CGP_WATER_CONTENTS,profile);
 	if ( contents & ( CONTENTS_SOLID | CONTENTS_WATER | CONTENTS_SLIME | CONTENTS_LAVA ) ) {
 		return;
 	}
