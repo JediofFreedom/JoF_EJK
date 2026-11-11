@@ -83,6 +83,7 @@ endif()
 
 option(UseInternalOpenAL "If set, use bundled OpenAL."  ${UseInternalOpenALDefault})
 option(UseInternalZlib   "If set, use bundled zlib."    ${UseInternalZlibDefault})
+option(UseZlibNG "Use the bundled zlib-ng backend when UseInternalZlib is enabled and the toolchain supports it." ON)
 option(UseInternalPNG    "If set, use bundled libpng."  ${UseInternalPNGDefault})
 option(UseInternalJPEG   "If set, use bundled libjpeg." ${UseInternalJPEGDefault})
 option(UseTurboJPEG "Use the bundled SIMD-capable JPEG decoder when UseInternalJPEG is enabled." ON)

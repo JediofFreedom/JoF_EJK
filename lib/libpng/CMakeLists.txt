@@ -23,8 +23,13 @@
 
 # This only has effect in this directory (lib/png).
 include_directories(include/)
+include_directories(${ZLIB_INCLUDE_DIR})
 if(WIN32)
+	# Standalone legacy fixtures may supply zlib sources directly instead of
+	# configuring a backend. Production builds always use the selected headers.
+	if(NOT ZLIB_INCLUDE_DIR)
 	include_directories(../zlib/include/)
+	endif()
 endif()
 
 if(MSVC)

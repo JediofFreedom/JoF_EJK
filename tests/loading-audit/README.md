@@ -379,3 +379,81 @@ Loading logs now split source metadata from encoded reads and record connection
 milestones from setup through challenge, gamestate, cgame readiness and first
 presentation. MOTD and target-name resolution have separate durations. Network
 payloads, rates and settings are unchanged by these measurements.
+
+### Portable zlib-ng backend
+
+`UseZlibNG` defaults to `ON`. With `UseInternalZlib=ON`, supported compilers and
+CMake 3.14 or newer select the pinned zlib-ng 2.3.3 static library in its
+zlib-compatible API mode. `-DUseZlibNG=OFF` retains classic bundled zlib 1.3.1;
+`-DUseInternalZlib=OFF` continues to select the external zlib package. CMake
+3.10-3.13 and unsupported compilers explicitly fall back to classic zlib, so the
+project's minimum CMake version remains 3.10.
+macOS universal builds with multiple distinct `CMAKE_OSX_ARCHITECTURES` also
+use classic zlib because upstream selects optimized sources for only the first
+architecture. Single-architecture builds remain eligible for zlib-ng.
+
+Runtime CPU detection and generic fallbacks are enabled. Host-native ISA
+selection is disabled. zlib-ng's own IPO/LTO is explicitly disabled in every
+configuration to preserve the separation of runtime-dispatched instruction
+sets; the engine and its other libraries retain their Release LTO settings.
+The modified bundled minizip and bundled PNG code remain in use. No additional
+runtime DLL is required. The preserved license and upstream record are installed
+under the game's `licenses/zlib-ng` directory; see the
+[pinned source and license notes](../../lib/zlib-ng/EJK-UPSTREAM.md).
+
+Three alternating, warmed library pairs compared the same MSVC x64 Release/LTO
+harness, modified minizip and production PNG decoder, replacing only zlib. The
+ZIP workload expanded 824,071,333 bytes across 8,377 members; the PNG workload
+decoded 128 installed images to 101,777,408 RGBA bytes. Each PNG trial reports
+the median of five decode passes; the table reports the median of three trials.
+
+| Library measurement, median of three | Classic zlib | zlib-ng |
+| --- | ---: | ---: |
+| ZIP streaming extraction, including CRC checks | 1,651.93 ms | 1,309.80 ms |
+| Production PNG decode | 455.180 ms | 360.055 ms |
+
+These isolated workloads took about 20.7% and 20.9% less time. They do not
+measure complete game loading. A separate compatibility pass streamed all 260
+installed archives, 77,242 members and 14,501,374,289 bytes with matching CRCs
+and aggregate SHA-256; the 128 PNGs also produced matching dimensions and RGBA
+bytes. The [backend regressions](../zlib-backend/README.md) additionally exercise
+both backends, malformed streams/PNGs, allocator failures and build policy.
+
+Whole-client comparisons used two clean builds from the same `383785a` source,
+matching Release/LTO settings, bundled minizip/PNG, runtime DLLs, asset containers
+and pipeline seeds. The local T1_Fatal / mp/ffa3 / T1_Fatal comparison used five
+alternating pairs after one unmeasured warmup pair, fresh profiles, warm OS
+caches, 2048 MiB GPU residency, archive restart reuse and texture signature
+prefixes enabled. No compiler, analyzer or other client ran during timing.
+
+| Local measurement, median of five | Classic zlib | zlib-ng |
+| --- | ---: | ---: |
+| First T1_Fatal handoff | 2,009 ms | 1,980 ms |
+| mp/ffa3 handoff | 828 ms | 815 ms |
+| T1_Fatal revisit | 602 ms | 576 ms |
+| Complete three-map cycle | 8.228 s | 8.225 s |
+
+The complete local cycle was effectively unchanged. The first two handoff
+differences were small and noisy; faster isolated decoding does not guarantee
+an equivalent reduction in the loading critical path.
+
+Three alternating pairs then joined `13.140.233.106` on the heavier custom map
+`yavin_temple_mp2`, with matching assets and settings.
+
+| Real-server measurement, median of three | Classic zlib | zlib-ng |
+| --- | ---: | ---: |
+| Cgame initialization | 2,465 ms | 2,276 ms |
+| Graphics initialization within cgame | 1,743 ms | 1,608 ms |
+| Connect to first rendered frame | 5,408 ms | 5,202 ms |
+
+Cgame and graphics initialization were about 7.7% shorter, with all three
+paired cgame loads improving. Connect-to-first-frame was about 3.8% shorter;
+gamestate arrival was effectively unchanged (2,454 versus 2,458 ms). Network and
+server variation still affect the complete join. This supports the new default
+for this asset-heavy workload, rather than a claim of 21% faster whole-game
+loading, an FPS improvement or a lead over SJK. These experiments are separate
+from earlier branch comparisons; their percentages must not be added together.
+
+Recorded result files are `zlib-library-pairs-results.json`,
+`project-zlib-client-benchmark/results.json` and
+`project-remote-zlib-benchmark/results.json` in the local performance-run output.
