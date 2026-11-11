@@ -26,6 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "botlib/botlib.h"
 #include "qcommon/cm_public.h"
 #include "server/sv_gameapi.h"
+#include "sv_runtime_profile.h"
 
 typedef struct bot_debugpoly_s
 {
@@ -604,6 +605,7 @@ void SV_BotFrame( int time ) {
 	//NOTE: maybe the game is already shutdown
 	if (!svs.gameStarted)
 		return;
+	SVRuntimeProfileScope profile(SVRuntimeStage::BotAI);
 	GVM_BotAIStartFrame( time );
 }
 

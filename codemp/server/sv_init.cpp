@@ -28,6 +28,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "qcommon/MiniHeap.h"
 #include "qcommon/stringed_ingame.h"
 #include "sv_gameapi.h"
+#include "sv_runtime_profile.h"
 
 /*
 ===============
@@ -933,6 +934,7 @@ static void SV_InitRef( void ) {
 
 void SV_Init (void) {
 	int index;
+	SV_RuntimeProfileInit();
 
 	time( &svs.startTime );
 
@@ -1115,6 +1117,7 @@ void SV_Shutdown( char *finalmsg )
 	{
 		return;
 	}
+	SV_RuntimeProfileBoundary();
 
 //	Com_Printf( "----- Server Shutdown -----\n" );
 
