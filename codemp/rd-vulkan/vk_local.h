@@ -62,7 +62,7 @@ typedef float mat4_t[16];
 typedef float mat3x4_t[12];
 typedef unsigned int uvec4_t[4];
 
-#define BUFFER_OFFSET(i) ((char *)NULL + (i))
+#define BUFFER_OFFSET(i) ((char *)(uintptr_t)(i))
 
 #ifndef MAX
 #define MAX(x,y) ((x)>(y)?(x):(y))

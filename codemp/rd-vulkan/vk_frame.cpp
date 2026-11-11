@@ -219,8 +219,8 @@ void vk_create_framebuffers()
             uint32_t height = gls.captureHeight;
 
             desc.renderPass = vk.render_pass.dglow.extract.handle;
-            desc.width = width;
-            desc.height = height;
+            desc.width = glConfig.vidWidth;
+            desc.height = glConfig.vidHeight;
 
             desc.attachmentCount = 2;
             attachments[0] = vk.dglow_image_view[0];

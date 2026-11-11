@@ -83,12 +83,22 @@ void get_viewport_rect( VkRect2D *r )
 		r->extent.width = vk.renderWidth;
 		r->extent.height = vk.renderHeight;
 	}
+	else if (vk.renderWidth == uint32_t(glConfig.vidWidth) && vk.renderHeight == uint32_t(glConfig.vidHeight))
+	{
+		// Ordinary world rendering stays in identity pixel space: no divisions.
+		r->offset = { backEnd.viewParms.viewportX, glConfig.vidHeight - backEnd.viewParms.viewportY - backEnd.viewParms.viewportHeight };
+		r->extent = { uint32_t(backEnd.viewParms.viewportWidth), uint32_t(backEnd.viewParms.viewportHeight) };
+	}
 	else
 	{
-		r->offset.x = backEnd.viewParms.viewportX * vk.renderScaleX;
-		r->offset.y = vk.renderHeight - (backEnd.viewParms.viewportY + backEnd.viewParms.viewportHeight) * vk.renderScaleY;
-		r->extent.width = (float)backEnd.viewParms.viewportWidth * vk.renderScaleX;
-		r->extent.height = (float)backEnd.viewParms.viewportHeight * vk.renderScaleY;
+		// Derive both edges from the actual target. Float scale products can
+		// round a full odd-sized target down by one pixel in reduced passes.
+		const int64_t left = int64_t(backEnd.viewParms.viewportX) * vk.renderWidth / glConfig.vidWidth;
+		const int64_t right = (int64_t(backEnd.viewParms.viewportX) + backEnd.viewParms.viewportWidth) * vk.renderWidth / glConfig.vidWidth;
+		const int64_t top = (int64_t(glConfig.vidHeight) - backEnd.viewParms.viewportY - backEnd.viewParms.viewportHeight) * vk.renderHeight / glConfig.vidHeight;
+		const int64_t bottom = (int64_t(glConfig.vidHeight) - backEnd.viewParms.viewportY) * vk.renderHeight / glConfig.vidHeight;
+		r->offset = { int32_t(left), int32_t(top) };
+		r->extent = { uint32_t(right - left), uint32_t(bottom - top) };
 	}
 }
 
@@ -146,25 +156,37 @@ void get_scissor_rect( VkRect2D *r ) {
 
 	if (backEnd.viewParms.portalView != PV_NONE)
 	{
-		r->offset.x = backEnd.viewParms.scissorX;
-		r->offset.y = glConfig.vidHeight - backEnd.viewParms.scissorY - backEnd.viewParms.scissorHeight;
-		r->extent.width = backEnd.viewParms.scissorWidth;
-		r->extent.height = backEnd.viewParms.scissorHeight;
+		if (vk.renderWidth == uint32_t(glConfig.vidWidth) && vk.renderHeight == uint32_t(glConfig.vidHeight))
+		{
+			r->offset = { backEnd.viewParms.scissorX, glConfig.vidHeight - backEnd.viewParms.scissorY - backEnd.viewParms.scissorHeight };
+			r->extent = { uint32_t(backEnd.viewParms.scissorWidth), uint32_t(backEnd.viewParms.scissorHeight) };
+		}
+		else
+		{
+			const int64_t left = int64_t(backEnd.viewParms.scissorX) * vk.renderWidth / glConfig.vidWidth;
+			const int64_t right = (int64_t(backEnd.viewParms.scissorX) + backEnd.viewParms.scissorWidth) * vk.renderWidth / glConfig.vidWidth;
+			const int64_t top = (int64_t(glConfig.vidHeight) - backEnd.viewParms.scissorY - backEnd.viewParms.scissorHeight) * vk.renderHeight / glConfig.vidHeight;
+			const int64_t bottom = (int64_t(glConfig.vidHeight) - backEnd.viewParms.scissorY) * vk.renderHeight / glConfig.vidHeight;
+			r->offset = { int32_t(left), int32_t(top) };
+			r->extent = { uint32_t(right - left), uint32_t(bottom - top) };
+		}
 	}
 	else
 	{
 		get_viewport_rect(r);
 
-		if (r->offset.x < 0)
-			r->offset.x = 0;
-		if (r->offset.y < 0)
-			r->offset.y = 0;
-
-		if (r->offset.x + r->extent.width > glConfig.vidWidth)
-			r->extent.width = glConfig.vidWidth - r->offset.x;
-		if (r->offset.y + r->extent.height > glConfig.vidHeight)
-			r->extent.height = glConfig.vidHeight - r->offset.y;
 	}
+	// View and portal coordinates are in world-render pixels, while glow,
+	// screenmap and other reduced targets can be smaller (especially with SSAA).
+	// Clip both edges to the active target, including fully off-target views.
+	const int64_t right = int64_t(r->offset.x) + r->extent.width;
+	const int64_t bottom = int64_t(r->offset.y) + r->extent.height;
+	const int64_t left = std::min<int64_t>(vk.renderWidth, std::max<int64_t>(0, r->offset.x));
+	const int64_t top = std::min<int64_t>(vk.renderHeight, std::max<int64_t>(0, r->offset.y));
+	r->offset.x = int32_t(left);
+	r->offset.y = int32_t(top);
+	r->extent.width = uint32_t(std::max<int64_t>(left, std::min<int64_t>(right, vk.renderWidth)) - left);
+	r->extent.height = uint32_t(std::max<int64_t>(top, std::min<int64_t>(bottom, vk.renderHeight)) - top);
 }
 
 static void vk_render_splash( void )

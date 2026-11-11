@@ -12,6 +12,11 @@ The fixture proves these selected material calculations, not every shader or
 caller contract. The fog-depth failure uses large finite coordinates that
 overflow the depth dot product while distance and eye-plane math stay finite;
 ordinary finite coordinates remain a separate unchanged control.
+The overflow is positive before the outside-plane ratio computes inf/inf.
+Opposite-sign overflowing products are deliberately avoided: fused arithmetic
+can turn that expression into negative infinity, which the renderer correctly
+clips to a finite depth. The positive-overflow case tests the same sanitizer
+with consistent expectations for both fused and unfused arithmetic.
 
 The state cases extract the production stageVars layout, silhouette edge
 builder and weather entry point. A full 1,000-vertex shadow retains all 6,000
@@ -29,6 +34,15 @@ contract. This proves safe stopping, not global device-loss/OOM recovery.
 The expanded color layout adds 12,000 bytes to the global tessellator and no
 per-frame allocation. Reported geometry capacity uses requested buffer bytes,
 not padding returned in allocation requirements.
+
+The buffer-offset case extracts the Vulkan-only macro and checks zero, nonzero,
+full-width integer bits, its char-pointer interface and single evaluation.
+It enables pointer-overflow UBSan when a Clang/GNU toolchain can compile and
+link that instrumentation. The encoded offset is never dereferenced. Ordinary
+bit checks also pass for the prior null-pointer-arithmetic macro; UBSan, where
+available, distinguishes that undefined operation from integer conversion.
+`BUFFER_OFFSET_SOURCE` can select a saved production `vk_local.h` for the
+before-fix macro control without replacing other engine helper definitions.
 
 Use `-DVULKAN_SOURCE_DIRECTORY=<saved source directory>` for before-fix controls.
 

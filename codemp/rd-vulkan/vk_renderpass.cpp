@@ -750,7 +750,7 @@ void vk_refraction_extract( void ) {
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		0, 0 );
 
-	if ( REFRACTION_EXTRACT_SCALE > 1 ) {
+	if ( REFRACTION_EXTRACT_SCALE > 1 || glConfig.vidWidth != gls.captureWidth || glConfig.vidHeight != gls.captureHeight ) {
 		VkImageBlit region;
 
 		region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -765,7 +765,7 @@ void vk_refraction_extract( void ) {
 		region.srcOffsets[1].z = 1;
 		region.dstSubresource = region.srcSubresource;
 		region.dstOffsets[0] = { 0, 0, 0 };
-		region.dstOffsets[1] = { glConfig.vidWidth / REFRACTION_EXTRACT_SCALE, glConfig.vidHeight / REFRACTION_EXTRACT_SCALE, 1 };
+		region.dstOffsets[1] = { gls.captureWidth / REFRACTION_EXTRACT_SCALE, gls.captureHeight / REFRACTION_EXTRACT_SCALE, 1 };
 
 		qvkCmdBlitImage( vk.cmd->command_buffer, srcImage,
 			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dstImage,
@@ -867,7 +867,8 @@ void vk_begin_bloom_extract_render_pass( void )
 
     vk.renderWidth = gls.captureWidth;
     vk.renderHeight = gls.captureHeight;
-    vk.renderScaleX = vk.renderScaleY = 1.0f;
+    vk.renderScaleX = (float)vk.renderWidth / (float)glConfig.vidWidth;
+    vk.renderScaleY = (float)vk.renderHeight / (float)glConfig.vidHeight;
 
     vk_begin_render_pass(vk.render_pass.bloom.extract.handle, frameBuffer, qfalse, vk.renderWidth, vk.renderHeight);
 }
@@ -878,7 +879,8 @@ void vk_begin_bloom_blur_render_pass( uint32_t index )
 
     vk.renderWidth = gls.captureWidth / (2 << (index / 2));
     vk.renderHeight = gls.captureHeight / (2 << (index / 2));
-    vk.renderScaleX = vk.renderScaleY = 1.0f;
+    vk.renderScaleX = (float)vk.renderWidth / (float)glConfig.vidWidth;
+    vk.renderScaleY = (float)vk.renderHeight / (float)glConfig.vidHeight;
 
     vk_begin_render_pass( vk.render_pass.bloom.blur[index].handle, frameBuffer, qfalse, vk.renderWidth, vk.renderHeight );
 }
@@ -889,7 +891,8 @@ void vk_begin_dglow_blur_render_pass( uint32_t index )
 
     vk.renderWidth = gls.captureWidth / (2 << (index / 2));
     vk.renderHeight = gls.captureHeight / (2 << (index / 2));
-    vk.renderScaleX = vk.renderScaleY = 1.0f;
+    vk.renderScaleX = (float)vk.renderWidth / (float)glConfig.vidWidth;
+    vk.renderScaleY = (float)vk.renderHeight / (float)glConfig.vidHeight;
 
     vk_begin_render_pass( vk.render_pass.dglow.blur[index].handle, frameBuffer, qfalse, vk.renderWidth, vk.renderHeight );
 }
@@ -900,8 +903,10 @@ void vk_begin_dglow_extract_render_pass( void )
 
     vk.renderPassIndex = RENDER_PASS_DGLOW;
 
-    vk.renderWidth = gls.captureWidth;
-    vk.renderHeight = gls.captureHeight;
+    // The extracted glow shares LOADed main depth/stencil. Keep identical
+    // world-to-depth pixel coordinates; only subsequent blur levels downsample.
+    vk.renderWidth = glConfig.vidWidth;
+    vk.renderHeight = glConfig.vidHeight;
     vk.renderScaleX = vk.renderScaleY = 1.0f;
 
     vk_begin_render_pass( vk.render_pass.dglow.extract.handle, frameBuffer, qtrue, vk.renderWidth, vk.renderHeight );

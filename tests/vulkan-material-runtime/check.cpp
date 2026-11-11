@@ -112,10 +112,12 @@ static void fogCoordinates(const char *name) {
     if (!std::strcmp(name,"fog-invalid-s")) fog.tcScale=std::numeric_limits<float>::quiet_NaN();
     if (!std::strcmp(name,"fog-invalid-t")) {
         fog.hasSurface=qtrue;
-        fog.surface[0]=fog.surface[1]=1.0e38f;
+        // A positive overflowing depth dot product gives +inf, then the outside-
+        // plane ratio is inf/inf. Avoid opposite-sign overflowing products:
+        // fused arithmetic may yield -inf instead of NaN and validly clip it.
+        fog.surface[0]=1.0e38f;
         fog.surface[3]=2;
         tess.xyz[0][0]=1.0e38f;
-        tess.xyz[0][1]=-1.0e38f;
     }
     RB_CalcFogTexCoords(st);
     if (!std::strcmp(name,"fog-invalid-s")) {

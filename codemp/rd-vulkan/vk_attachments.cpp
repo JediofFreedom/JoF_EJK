@@ -326,11 +326,13 @@ void vk_create_attachments( void )
             uint32_t width = gls.captureWidth;
             uint32_t height = gls.captureHeight;
 
-            create_color_attachment( width, height, VK_SAMPLE_COUNT_1_BIT, vk.color_format,
+            // Glow reuses the main pass depth image. Extraction must address
+            // the same world pixels, even when SSAA makes capture smaller.
+            create_color_attachment( glConfig.vidWidth, glConfig.vidHeight, VK_SAMPLE_COUNT_1_BIT, vk.color_format,
                 usage, &vk.dglow_image[0], &vk.dglow_image_view[0], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, qfalse );
 
             if( vk.msaaActive ){
-                create_color_attachment( width, height, (VkSampleCountFlagBits)vkSamples, vk.color_format,
+                create_color_attachment( glConfig.vidWidth, glConfig.vidHeight, (VkSampleCountFlagBits)vkSamples, vk.color_format,
                 usage, &vk.dglow_msaa_image, &vk.dglow_msaa_image_view, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, qfalse );
             }
 
@@ -464,6 +466,8 @@ void vk_clear_depthstencil_attachments( qboolean clear_stencil ) {
     }
 
     get_scissor_rect( &clear_rect[0].rect );
+    if (!clear_rect[0].rect.extent.width || !clear_rect[0].rect.extent.height)
+        return;
     clear_rect[0].baseArrayLayer = 0;
     clear_rect[0].layerCount = 1;
 
@@ -486,6 +490,8 @@ void vk_clear_color_attachments( const vec4_t color )
     attachment.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
     get_scissor_rect( &clear_rect.rect );
+    if (!clear_rect.rect.extent.width || !clear_rect.rect.extent.height)
+        return;
     clear_rect.baseArrayLayer = 0;
     clear_rect.layerCount = 1;
 
