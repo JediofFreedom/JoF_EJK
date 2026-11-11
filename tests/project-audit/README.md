@@ -81,6 +81,45 @@ comparisons: clock instrumentation changes timing and nested totals overlap.
 Reset/report commands and the pre-shutdown report avoid per-frame logging.
 Profiling defaults off and disabled scopes do not read the clock.
 
+`cg_runtimeProfile` independently profiles cgame: `0` disables it, `1` records
+coarse active-frame stages, and `2` adds aggregate entity/player stages such as
+interpolation, model/equipment setup, bone angles, animation, shadows, sabers and
+cosmetics. During gameplay, `cg_runtimeProfileReset` clears the counters and
+`cg_runtimeProfileReport` prints them; cgame shutdown also reports before its
+imports are released. `runtime.ps1 -CgameProfile 2` enables the fine mode for a
+supplied replay. It defaults to `0`. There is no per-frame logging, and disabled
+scopes read no clocks. Level `1` also skips all fine-stage clocks.
+
+The separate idle-crowd recording on `mp/duel1` completes 5,005 replay frames.
+Clientlist and screenshots verify 24 visible bots plus the observer; the coarse
+profile has 5,003 completed active-frame samples, zero early returns, and
+snapshot player counts of 24/24/24 (minimum/mean/maximum). Bot AI and movement
+were frozen while ordinary client/Ghoul2 animation remained active. This is an
+idle population workload, not combat, effects, live prediction or server
+simulation. Its demo SHA-256 is
+`5161FDE48C2BE772E9E44808C73B821F77C974631B0F5261BAFEE6A454879389`.
+
+One quiet coarse diagnostic run, `crowd-idle-profile-quiet-1`, measured:
+
+| Cgame stage | Milliseconds per completed active frame |
+| --- | ---: |
+| Whole active-frame call | 0.673392 |
+| Packet entities | 0.507016 |
+| Renderer scene submission | 0.114994 |
+| Audio/refdef | 0.026028 |
+| HUD | 0.015542 |
+| Cvars/radial menu | 0.001786 |
+| Prediction | 0.000313 |
+
+Packet entities account for about 75% of that sampled cgame call, motivating
+the finer player stages. These are inclusive owning-thread elapsed times:
+nested stages overlap and must not be summed. Renderer counters use their own
+frame denominator; the same run's backend was 0.848853 ms/frame, including
+0.496682 ms/frame in queue present. Fine clock instrumentation adds overhead,
+so profile runs diagnose costs and are kept separate from uninstrumented FPS
+comparisons. These data establish neither a speed improvement nor a general
+gameplay bottleneck.
+
 Three alternating pairs of clean MSVC x64 Release builds at `614e46e` measured
 LTO independently. Normalized production compiler databases matched after
 removing `/GL`; only LTO links had `/LTCG`. Both used byte-identical assets and

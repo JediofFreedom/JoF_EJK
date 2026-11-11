@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 // cg_main.c -- initialization and primary entry point for cgame
 #include "cg_local.h"
+#include "cg_runtime_profile.h"
 #include "cg_dialogue.h"
 
 #include "ui/ui_shared.h"
@@ -3177,6 +3178,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum )
 	char loadTimingValue[16];
 	trap->Cvar_VariableStringBuffer("cl_loadTimings", loadTimingValue, sizeof(loadTimingValue));
 	cgLoadProfileEnabled = atoi(loadTimingValue) ? qtrue : qfalse;
+	CG_RuntimeProfileInit(trap->Print);
 
 	BG_InitAnimsets(); //clear it out
 
@@ -3497,6 +3499,7 @@ Ghoul2 Insert End
 		}
 	}
 #endif
+	CG_RuntimeProfileReady();
 }
 
 //makes sure returned string is in localized format
@@ -3559,6 +3562,7 @@ Called before every level change or subsystem restart
 */
 void CG_Shutdown( void )
 {
+	CG_RuntimeProfileShutdown();
 	trap->Cvar_Set("cl_destructionSelected", "0");
 	// Userinfo is handled by the engine even when game commands are flood
 	// filtered. Do not leave readiness behind for a subsequently loaded mod.

@@ -26,6 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // executed by a key binding
 
 #include "cg_local.h"
+#include "cg_runtime_profile.h"
 #include "game/bg_saga.h"
 #include "ui/ui_shared.h"
 
@@ -2906,6 +2907,8 @@ static void CG_ForceDestruction_f(void)
 }
 
 static consoleCommand_t	commands[] = {
+	{ "cg_runtimeProfileReset", CG_RuntimeProfileReset },
+	{ "cg_runtimeProfileReport", CG_RuntimeProfileReport },
 	{ "force_destruction", CG_ForceDestruction_f },
 	{ "+scores",					CG_ScoresDown_f },
 	{ "-scores",					CG_ScoresUp_f },

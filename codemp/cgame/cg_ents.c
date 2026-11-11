@@ -25,6 +25,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // cg_ents.c -- present snapshot entities, happens every single frame
 
 #include "cg_local.h"
+#include "cg_runtime_profile.h"
 /*
 Ghoul2 Insert Start
 */
@@ -3815,6 +3816,7 @@ CG_AddCEntity
 ===============
 */
 static void CG_AddCEntity( centity_t *cent ) {
+	cgProfileMark_t profileStage;
 	// event-only entities will have been dealt with already
 
 #if _DRAWTRIGGERS
@@ -3855,9 +3857,12 @@ static void CG_AddCEntity( centity_t *cent ) {
 
 
 	// calculate the current origin
+	profileStage = CG_ProfileFineBegin();
 	CG_CalcEntityLerpPositions( cent );
+	CG_ProfileEnd(CGP_ENTITY_LERP,profileStage);
 
 	// add automatic effects
+	profileStage = CG_ProfileFineBegin();
 	CG_EntityEffects( cent );
 /*
 Ghoul2 Insert Start
@@ -3890,6 +3895,7 @@ Ghoul2 Insert Start
 		}
 	}
 		
+	CG_ProfileEnd(CGP_ENTITY_EFFECTS,profileStage);
 /*
 Ghoul2 Insert End
 */

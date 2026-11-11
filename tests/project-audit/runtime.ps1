@@ -8,6 +8,7 @@ param(
     [switch]$LegacyCompletion,
     [ValidateRange(1,20)][int]$Runs = 3,
     [ValidateSet(0,1,2)][int]$RuntimeProfile = 0,
+    [ValidateSet(0,1,2)][int]$CgameProfile = 0,
     [ValidateRange(1000,100000)][int]$MinimumFrames = 1000
 )
 $ErrorActionPreference = 'Stop'
@@ -34,6 +35,7 @@ foreach ($run in 1..$count) {
     }
     $commands = @('set cg_logChat 0', 'set cl_asyncMapLoad 0', 'set net_port 0', 'set sv_pure 0')
     if ($RuntimeProfile) { $commands += @("set r_runtimeProfile $RuntimeProfile", 'r_runtimeProfileReset') }
+    if ($CgameProfile) { $commands += @("set cg_runtimeProfile $CgameProfile") }
     if ($Record) {
         $commands += @('set com_maxfps 125', 'set com_maxfpsUnfocused 125', 'set com_maxfpsMinimized 125',
             'set sv_maxclients 16', 'set bot_enable 1', 'set g_gametype 0', 'set timelimit 0', 'set fraglimit 0',
@@ -82,7 +84,10 @@ foreach ($run in 1..$count) {
     if ($frames -lt $MinimumFrames) { throw "Replay too short: $frames frames." }
     if ($null -ne $frameCount -and $frames -ne $frameCount) { throw 'Replay frame counts differ.' }
     $frameCount = $frames
-    $result = [pscustomobject]@{Run=$run; Frames=$frames; Seconds=[double]$matches[0].Groups[2].Value;
+    # Cgame emits its final aggregate report in CG_Shutdown while imports are
+    # valid. A post-demo console command may no longer reach a disconnected VM.
+    if ($CgameProfile -and -not $log.Contains('CGPROFILE')) { throw 'Cgame runtime report was not produced.' }
+    $result = [pscustomobject]@{Run=$run; RuntimeProfile=$RuntimeProfile; CgameProfile=$CgameProfile; Frames=$frames; Seconds=[double]$matches[0].Groups[2].Value;
         FPS=[double]$matches[0].Groups[3].Value; DemoSHA256=(Get-FileHash -LiteralPath $DemoFile -Algorithm SHA256).Hash;
         Log="$mod/qconsole.log"}
     $results += $result

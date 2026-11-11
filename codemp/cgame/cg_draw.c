@@ -25,6 +25,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // active (after loading) gameplay
 
 #include "cg_local.h"
+#include "cg_runtime_profile.h"
 #include "cg_dialogue.h"
 
 #include "game/bg_saga.h"
@@ -12224,7 +12225,11 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 	CG_DrawMiscStaticModels();
 
 	// draw 3D view
-	trap->R_RenderScene( &cg.refdef );
+	{
+		cgProfileMark_t profile = CG_ProfileBegin();
+		trap->R_RenderScene( &cg.refdef );
+		CG_ProfileEnd(CGP_RENDER_SCENE,profile);
+	}
 
 	// restore original viewpoint if running stereo
 	if ( separation != 0 ) {
@@ -12232,7 +12237,11 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 	}
 
 	// draw status bar and other floating elements
- 	CG_Draw2D();
+	{
+		cgProfileMark_t profile = CG_ProfileBegin();
+		CG_Draw2D();
+		CG_ProfileEnd(CGP_HUD,profile);
+	}
 
 	//
 	if (cg_drawPartnerView.integer)
