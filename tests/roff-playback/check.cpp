@@ -21,7 +21,7 @@ struct Note { bool client; int entity; std::string text; };
 static std::vector<Note> notes;
 static std::vector<std::string> warnings;
 static sharedEntity_t *SV_GentityNum(int entity) { return missingEntity ? nullptr : &serverEntity; }
-static void Com_Printf(const char *format, ...) {
+void QDECL Com_Printf(const char *format, ...) {
   char text[2048]; va_list args; va_start(args, format);
   std::vsnprintf(text, sizeof(text), format, args); va_end(args);
   warnings.push_back(text);

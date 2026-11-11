@@ -338,3 +338,35 @@ The handoffs are about 37%, 50% and 68% shorter; the complete cycle is about 31%
 shorter. The complete cycle includes fixed waits and startup work. This measures
 the combined checkpoint behavior, not isolated features. It remains a local
 one-player comparison and does not establish a lead over SJK or an FPS gain.
+
+### Archive reading and restart experiments
+
+MiniZip now reads 2/4/8-byte fields with one callback on ordinary reads, retaining
+the original continuation behavior on short reads and errors. A separate
+same-toolchain Release benchmark traverses 256 installed Base PK3s with 75,658
+members, requesting metadata once per entry as the engine does. After warmup,
+seven alternating pairs measured 339.528 ms versus 276.504 ms median: 18.56%
+less parser time, with callbacks falling from 7,371,148 to 2,686,534. Metadata,
+names, comments, extras, offsets and bytes match. Both versions also extracted
+14,451,732,062 bytes with matching sizes/CRCs and zero failures. This measures
+archive parsing, not complete startup or joining. See `tests/minizip-directory`.
+
+`fs_restartCache 1`, set before initial startup, experimentally retains unchanged
+archive catalogs across checksum-feed-only restarts. Existing shutdown/startup,
+directory rescans, handle cleanup, package order and pure checks remain in use.
+Strong file identity/change stamps and entry counts gate reuse; changed/new
+archives take ordinary parsing. Explicit restarts and effective mount changes
+rebuild normally. It defaults to `0` pending real-game A/B measurements. The
+production-path tests cover replacements with identical sizes/timestamps,
+checksum byte equivalence, reference flags, duplicates, races and error cleanup.
+
+`r_textureSignaturePrefix 1` experimentally validates texture candidates only
+through the successfully decoded winner. Higher-priority candidates remain
+dependencies, including corrupt files that required a fallback. This defaults
+to `0` while first-map timing remains uncertain. `profile.ps1` accepts
+`-TextureSignaturePrefix 0/1` for matched comparisons.
+
+Loading logs now split source metadata from encoded reads and record connection
+milestones from setup through challenge, gamestate, cgame readiness and first
+presentation. MOTD and target-name resolution have separate durations. Network
+payloads, rates and settings are unchanged by these measurements.

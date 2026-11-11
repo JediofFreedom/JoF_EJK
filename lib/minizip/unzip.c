@@ -235,120 +235,70 @@ local int unz64local_getByte(const zlib_filefunc64_32_def* pzlib_filefunc_def, v
 }
 
 
-/* ===========================================================================
-   Reads a long in LSB order from the given gz_stream. Sets
-*/
-local int unz64local_getShort OF((
-    const zlib_filefunc64_32_def* pzlib_filefunc_def,
-    voidpf filestream,
-    uLong *pX));
+/* Read a complete little-endian field in one callback on the common path.
+   A callback may return fewer bytes than requested even before EOF. Continue
+   those reads through getByte so errors, positions and the legacy UNZ_EOF
+   (which equals UNZ_OK) behavior remain the same as the byte-at-a-time reader. */
+local int unz64local_getBytes(const zlib_filefunc64_32_def* pzlib_filefunc_def,
+                             voidpf filestream, unsigned char* bytes, uLong size)
+{
+    uLong read = ZREAD64(*pzlib_filefunc_def,filestream,bytes,size);
+    int i;
+    int err;
+    if (read == size)
+        return UNZ_OK;
 
+    if (read == 0)
+    {
+        if (ZERROR64(*pzlib_filefunc_def,filestream))
+            return UNZ_ERRNO;
+        bytes[read++] = 0;
+    }
+    i = bytes[read-1];
+    while (read < size)
+    {
+        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
+        if (err != UNZ_OK)
+            return err;
+        bytes[read++] = (unsigned char)i;
+    }
+    return UNZ_OK;
+}
+
+/* ===========================================================================
+   Read little-endian fields without depending on host byte order or alignment.
+*/
 local int unz64local_getShort (const zlib_filefunc64_32_def* pzlib_filefunc_def,
                              voidpf filestream,
                              uLong *pX)
 {
-    uLong x ;
-    int i = 0;
-    int err;
-
-    err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x = (uLong)i;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((uLong)i)<<8;
-
-    if (err==UNZ_OK)
-        *pX = x;
-    else
-        *pX = 0;
+    unsigned char bytes[2];
+    int err = unz64local_getBytes(pzlib_filefunc_def,filestream,bytes,2);
+    *pX = (err == UNZ_OK) ? (uLong)bytes[0] | ((uLong)bytes[1] << 8) : 0;
     return err;
 }
-
-local int unz64local_getLong OF((
-    const zlib_filefunc64_32_def* pzlib_filefunc_def,
-    voidpf filestream,
-    uLong *pX));
 
 local int unz64local_getLong (const zlib_filefunc64_32_def* pzlib_filefunc_def,
                             voidpf filestream,
                             uLong *pX)
 {
-    uLong x ;
-    int i = 0;
-    int err;
-
-    err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x = (uLong)i;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((uLong)i)<<8;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((uLong)i)<<16;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x += ((uLong)i)<<24;
-
-    if (err==UNZ_OK)
-        *pX = x;
-    else
-        *pX = 0;
+    unsigned char bytes[4];
+    int err = unz64local_getBytes(pzlib_filefunc_def,filestream,bytes,4);
+    *pX = (err == UNZ_OK) ? (uLong)bytes[0] | ((uLong)bytes[1] << 8) |
+                          ((uLong)bytes[2] << 16) | ((uLong)bytes[3] << 24) : 0;
     return err;
 }
 
-local int unz64local_getLong64 OF((
-    const zlib_filefunc64_32_def* pzlib_filefunc_def,
-    voidpf filestream,
-    ZPOS64_T *pX));
-
-
 local int unz64local_getLong64 (const zlib_filefunc64_32_def* pzlib_filefunc_def,
-                            voidpf filestream,
-                            ZPOS64_T *pX)
+                              voidpf filestream,
+                              ZPOS64_T *pX)
 {
-    ZPOS64_T x ;
-    int i = 0;
-    int err;
-
-    err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x = (ZPOS64_T)i;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<8;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<16;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<24;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<32;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<40;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<48;
-
-    if (err==UNZ_OK)
-        err = unz64local_getByte(pzlib_filefunc_def,filestream,&i);
-    x |= ((ZPOS64_T)i)<<56;
-
-    if (err==UNZ_OK)
-        *pX = x;
-    else
-        *pX = 0;
+    unsigned char bytes[8];
+    int err = unz64local_getBytes(pzlib_filefunc_def,filestream,bytes,8);
+    *pX = (err == UNZ_OK) ? (ZPOS64_T)bytes[0] | ((ZPOS64_T)bytes[1] << 8) |
+                          ((ZPOS64_T)bytes[2] << 16) | ((ZPOS64_T)bytes[3] << 24) |
+                          ((ZPOS64_T)bytes[4] << 32) | ((ZPOS64_T)bytes[5] << 40) |
+                          ((ZPOS64_T)bytes[6] << 48) | ((ZPOS64_T)bytes[7] << 56) : 0;
     return err;
 }
 

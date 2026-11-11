@@ -577,7 +577,7 @@ VBO_t *R_CreateVBO(const char *name, const byte *data, int size) {
     VBO_t *vbo = tr.vbos[tr.numVBOs] = (VBO_t *)ri.Hunk_Alloc(sizeof(*vbo), h_low);
     vk_create_static_model_buffer(name, data, size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, &vbo->buffer, &vbo->memory);
     vbo->size = size;
-    ++tr.numVBOs;
+    vbo->index = ++tr.numVBOs;
     return vbo;
 }
 

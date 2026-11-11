@@ -335,6 +335,8 @@ void CL_ParseSnapshot( msg_t *msg ) {
 
 	// copy to the current good spot
 	cl.snap = newSnap;
+	if (cls.state == CA_PRIMED && !(cl.snap.snapFlags & SNAPFLAG_NOT_ACTIVE))
+		CL_LoadProfileEvent(CL_LOAD_SNAPSHOT);
 	cl.snap.ping = 999;
 	// calculate ping time
 	for ( i = 0 ; i < PACKET_BACKUP ; i++ ) {
@@ -541,6 +543,8 @@ void CL_ParseGamestate( msg_t *msg ) {
 	entityState_t	nullstate;
 	int				cmd;
 	char			*s;
+	const int gamestateStarted = Sys_Milliseconds();
+	CL_LoadProfileEvent(CL_LOAD_GAMESTATE);
 
 	Con_Close();
 
@@ -640,6 +644,7 @@ void CL_ParseGamestate( msg_t *msg ) {
 
 	// parse serverId and other cvars
 	CL_SystemInfoChanged();
+	CL_LoadProfileStage("gamestate parsing and systeminfo", gamestateStarted);
 
 	// reinitialize the filesystem if the game directory has changed
 	const int filesystemStarted = Sys_Milliseconds();

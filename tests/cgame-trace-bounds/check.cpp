@@ -28,7 +28,7 @@ static CCMShader fixtureShaders[1];
 static int tempCalls, transformedCalls, g2Calls;
 static bool rejectG2;
 
-static void TestError(int, const char *, ...) { CHECK(false); std::abort(); }
+static void NORETURN QDECL TestError(int, const char *, ...) { CHECK(false); std::abort(); }
 
 #include "primitives.h"
 

@@ -48,11 +48,27 @@ cvar_t *cl_name;
 cvar_t	*cl_renderer;
 static int clLoadProfileStarted;
 static qboolean clLoadProfilePending;
+static unsigned int clLoadProfileEvents;
 static const char *clLoadProfileLabel = "map-handoff-to-first-frame";
 
 void CL_LoadProfileStage(const char *stage, int started) {
 	if (Cvar_VariableIntegerValue("cl_loadTimings"))
 		Com_Printf("LOADPROFILE %s: %d ms\n", stage, Sys_Milliseconds() - started);
+}
+
+void CL_LoadProfileEvent(clLoadProfileEvent_t event) {
+	static const char *const stages[] = {
+		"load elapsed to setup complete", "load elapsed to challenge request",
+		"load elapsed to challenge accepted", "load elapsed to connect request",
+		"load elapsed to connect accepted", "load elapsed to first server packet",
+		"load elapsed to gamestate received", "load elapsed to cgame ready (CA_PRIMED)",
+		"load elapsed to first active snapshot", "load elapsed to CA_ACTIVE"
+	};
+	const unsigned int bit = 1u << event;
+	if (clLoadProfilePending && !(clLoadProfileEvents & bit)) {
+		clLoadProfileEvents |= bit;
+		CL_LoadProfileStage(stages[event], clLoadProfileStarted);
+	}
 }
 
 void CL_LoadProfilePresented(void) {
@@ -1131,7 +1147,9 @@ void CL_RequestMotd( void ) {
 		return;
 	}
 
+	const int resolutionStarted = Sys_Milliseconds();
 	i = NET_StringToAdr( motdaddress, &to );
+	CL_LoadProfileStage("MOTD address resolution", resolutionStarted);
 
 	if ( !i )
 	{
@@ -1241,6 +1259,7 @@ void CL_Connect_f( void ) {
 	}
 	clLoadProfileStarted = Sys_Milliseconds();
 	clLoadProfilePending = Cvar_VariableIntegerValue("cl_loadTimings") ? qtrue : qfalse;
+	clLoadProfileEvents = 0;
 	clLoadProfileLabel = "connect-to-first-frame";
 
 	// save arguments for reconnect
@@ -1249,7 +1268,9 @@ void CL_Connect_f( void ) {
 	Cvar_Set("ui_singlePlayerActive", "0");
 
 	// fire a message off to the motd server
+	const int motdStarted = Sys_Milliseconds();
 	CL_RequestMotd();
+	CL_LoadProfileStage("MOTD request", motdStarted);
 
 	// clear any previous "server full" type messages
 	clc.serverMessage[0] = 0;
@@ -1270,7 +1291,10 @@ void CL_Connect_f( void ) {
 
 	Q_strncpyz( cls.servername, server, sizeof(cls.servername) );
 
-	if (!NET_StringToAdr( cls.servername, &clc.serverAddress) ) {
+	const int resolutionStarted = Sys_Milliseconds();
+	const qboolean addressResolved = NET_StringToAdr( cls.servername, &clc.serverAddress );
+	CL_LoadProfileStage("server address resolution", resolutionStarted);
+	if (!addressResolved) {
 		Com_Printf ("Bad server address\n");
 		cls.state = CA_DISCONNECTED;
 		return;
@@ -1311,6 +1335,7 @@ void CL_Connect_f( void ) {
 	// server connection string
 	Cvar_Set( "cl_currentServerAddress", server );
 	Cvar_Set( "cl_currentServerIP", serverString );
+	CL_LoadProfileEvent(CL_LOAD_CONNECT_SETUP);
 }
 
 #define MAX_RCON_MESSAGE 1024
@@ -1621,6 +1646,7 @@ void CL_DownloadsComplete( void ) {
 	if (!clLoadProfilePending && Cvar_VariableIntegerValue("cl_loadTimings")) {
 		clLoadProfileStarted = Sys_Milliseconds();
 		clLoadProfilePending = qtrue;
+		clLoadProfileEvents = 0;
 		clLoadProfileLabel = "map-handoff-to-first-frame";
 	}
 	cls.state = CA_LOADING;
@@ -1732,6 +1758,8 @@ void CL_DownloadsComplete( void ) {
 		cls.cgameStarted = qtrue;
 		CL_InitCGame();
 	}
+
+	CL_LoadProfileEvent(CL_LOAD_CGAME_READY);
 
 	// set pure checksums
 	CL_SendPureChecksums();
@@ -1996,6 +2024,7 @@ void CL_CheckForResend( void ) {
 		Com_sprintf(data, sizeof(data), "getchallenge %d", clc.challenge);
 
 		NET_OutOfBandPrint(NS_CLIENT, clc.serverAddress, data);
+		CL_LoadProfileEvent(CL_LOAD_CHALLENGE_SENT);
 		break;
 
 	case CA_CHALLENGING:
@@ -2078,6 +2107,7 @@ void CL_CheckForResend( void ) {
 
 		Com_sprintf(data, sizeof(data), "connect \"%s\"", info );
 		NET_OutOfBandData( NS_CLIENT, clc.serverAddress, (byte *)data, strlen(data) );
+		CL_LoadProfileEvent(CL_LOAD_CONNECT_SENT);
 
 		// the most current userinfo has been sent, so watch for any
 		// newer changes to userinfo variables
@@ -2618,6 +2648,7 @@ void CL_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 		// a server proxy to hand off connections to multiple servers
 		clc.serverAddress = from;
 		Com_DPrintf ("challengeResponse: %d\n", clc.challenge);
+		CL_LoadProfileEvent(CL_LOAD_CHALLENGE_ACCEPTED);
 		return;
 	}
 
@@ -2638,6 +2669,7 @@ void CL_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 		Netchan_Setup (NS_CLIENT, &clc.netchan, from, Cvar_VariableValue( "net_qport" ) );
 		cls.state = CA_CONNECTED;
 		clc.lastPacketSentTime = -9999;		// send first packet immediately
+		CL_LoadProfileEvent(CL_LOAD_CONNECT_ACCEPTED);
 		return;
 	}
 
@@ -2747,6 +2779,7 @@ void CL_PacketEvent( netadr_t from, msg_t *msg ) {
 		return;
 	}
 
+	CL_LoadProfileEvent(CL_LOAD_SERVER_PACKET);
 	if (!CL_Netchan_Process( &clc.netchan, msg) ) {
 		return;		// out of order, duplicated, etc
 	}
@@ -3058,6 +3091,8 @@ void CL_Frame ( int msec ) {
 
 	// decide on the serverTime to render
 	CL_SetCGameTime();
+	if (clLoadProfilePending && cls.state == CA_ACTIVE)
+		CL_LoadProfileEvent(CL_LOAD_ACTIVE);
 
 	if (render) {
 		// update the screen

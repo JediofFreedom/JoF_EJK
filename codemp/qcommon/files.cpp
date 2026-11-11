@@ -34,6 +34,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <condition_variable>
 #include <deque>
 #include <mutex>
+#include <new>
 #include <string>
 #include <thread>
 #include <vector>
@@ -228,6 +229,10 @@ typedef struct pack_s {
 	fileInPack_t*	*hashTable;					// hash table
 	fileInPack_t*	buildBuffer;				// buffer with the filenames etc.
 	int				*nameIndex;				// file indices sorted by case-insensitive name
+	int				*checksumHeaders;		// feed followed by ordered nonempty-entry CRCs
+	int				numChecksumHeaders;
+	MountedArchiveIdentities::Stamp metadataStamp;
+	qboolean		metadataStampValid;
 } pack_t;
 
 typedef struct directory_s {
@@ -242,6 +247,64 @@ typedef struct searchpath_s {
 	pack_t		*pack;		// only one of pack / dir will be non NULL
 	directory_t	*dir;
 } searchpath_t;
+
+// This cache exists only inside a checksum-feed-only FS_Restart. Archive
+// handles and searchpath nodes always follow the ordinary shutdown/startup.
+class FSRestartMetadataCache {
+public:
+	static FSRestartMetadataCache *active;
+	static bool recordCatalogs;
+	explicit FSRestartMetadataCache(bool enabled) : previous(active), collecting(enabled) {
+		active = enabled ? this : NULL;
+	}
+	FSRestartMetadataCache(const FSRestartMetadataCache &) = delete;
+	FSRestartMetadataCache &operator=(const FSRestartMetadataCache &) = delete;
+	~FSRestartMetadataCache() {
+		active = previous;
+		for (pack_t *pack : packs) release(pack);
+	}
+	void prepare(searchpath_t *paths) {
+		size_t count = 0;
+		for (searchpath_t *path = paths; path; path = path->next) if (path->pack) ++count;
+		try { packs.reserve(count); }
+		catch (const std::bad_alloc &) { collecting = false; }
+	}
+	void finishCollecting() { collecting = false; }
+	bool retain(pack_t *pack) {
+		if (!collecting || !pack->metadataStampValid || !pack->checksumHeaders) return false;
+		// prepare() reserved one slot for every mounted pack before any free.
+		packs.push_back(pack);
+		return true;
+	}
+	pack_t *take(const char *path, const MountedArchiveIdentities::Stamp &before, unsigned long count) {
+		for (pack_t *&pack : packs) {
+			if (!pack || strcmp(pack->pakFilename, path) || pack->metadataStamp != before ||
+				(unsigned long)pack->numfiles != count) continue;
+			MountedArchiveIdentities::Stamp after;
+			if (!MountedArchiveIdentities::snapshot(path, 0, after) || after != before) return NULL;
+			pack_t *result = pack;
+			pack = NULL;
+			++reusedPaks;
+			reusedMembers += result->numfiles;
+			return result;
+		}
+		return NULL;
+	}
+	static void release(pack_t *pack) {
+		if (!pack) return;
+		if (pack->handle) unzClose(pack->handle);
+		Z_Free(pack->checksumHeaders);
+		Z_Free(pack->buildBuffer);
+		Z_Free(pack);
+	}
+	size_t reusedPaks = 0, reusedMembers = 0;
+private:
+	FSRestartMetadataCache *previous;
+	bool collecting;
+	std::vector<pack_t *> packs;
+};
+FSRestartMetadataCache *FSRestartMetadataCache::active = NULL;
+bool FSRestartMetadataCache::recordCatalogs = false;
 
 static char			fs_gamedir[MAX_OSPATH];	// this will be a single file name with no separators
 static cvar_t		*fs_debug;
@@ -274,6 +337,8 @@ static char			fs_gameModuleDir[MAX_QPATH];	// game folder the server game module
 static searchpath_t	*fs_searchpaths;
 static PakProviderIndex<searchpath_t> fs_pakLookupIndex;
 static cvar_t *fs_lookupIndex;
+static cvar_t *fs_restartCache;
+static std::string fs_restartConfiguration;
 static int			fs_readCount;			// total bytes read
 static int			fs_loadCount;			// total files read
 static int			fs_packFiles = 0;		// total number of files in packs
@@ -2452,6 +2517,9 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 		unsigned long pos, len, crc;
 	};
 	std::vector<zipEntry_t> entries;
+	MountedArchiveIdentities::Stamp before;
+	const bool stamped = FSRestartMetadataCache::recordCatalogs &&
+		MountedArchiveIdentities::snapshot(zipfile, 0, before);
 
 	fs_numHeaderLongs = 0;
 
@@ -2462,6 +2530,28 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 	err = unzGetGlobalInfo (uf,&gi);
 
 	if (err != UNZ_OK) {
+		unzClose(uf);
+		return NULL;
+	}
+	if (stamped && FSRestartMetadataCache::active) {
+		pack = FSRestartMetadataCache::active->take(zipfile, before, gi.number_entry);
+		if (pack) {
+			pack->handle = uf;
+			pack->referenced = 0;
+			pack->pakPathname[0] = pack->pakGamename[0] = '\0';
+			Q_strncpyz(pack->pakBasename, basename, sizeof(pack->pakBasename));
+			if (strlen(pack->pakBasename) > 4 &&
+				!Q_stricmp(pack->pakBasename + strlen(pack->pakBasename) - 4, ".pk3"))
+				pack->pakBasename[strlen(pack->pakBasename) - 4] = '\0';
+			pack->checksumHeaders[0] = LittleLong(fs_checksumFeed);
+			pack->pure_checksum = LittleLong(Com_BlockChecksum(pack->checksumHeaders,
+				pack->numChecksumHeaders * sizeof(*pack->checksumHeaders)));
+			return pack;
+		}
+	}
+	// Both zone allocations and the public pack count use signed sizes.
+	if (gi.number_entry > (INT_MAX - sizeof(pack_t) -
+		2 * MAX_FILEHASH_SIZE * sizeof(fileInPack_t *)) / (sizeof(fileInPack_t) + sizeof(int))) {
 		unzClose(uf);
 		return NULL;
 	}
@@ -2480,10 +2570,15 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 			unzClose(uf);
 			return NULL;
 		}
+		const size_t nameBytes = strlen(filename_inzip) + 1;
+		if (nameBytes > INT_MAX - gi.number_entry * sizeof(fileInPack_t) - len) {
+			unzClose(uf);
+			return NULL;
+		}
 		// Keep metadata from this walk; rebuilding the index must not reread
 		// the entire central directory just to recover offsets and CRCs.
 		entries.push_back({filename_inzip, unzGetOffset(uf), file_info.uncompressed_size, file_info.crc});
-		len += strlen(filename_inzip) + 1;
+		len += nameBytes;
 		err = unzGoToNextFile(uf);
 	}
 
@@ -2544,10 +2639,19 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 	pack->checksum = LittleLong( pack->checksum );
 	pack->pure_checksum = LittleLong( pack->pure_checksum );
 
-	Z_Free(fs_headerLongs);
-
 	pack->buildBuffer = buildBuffer;
-	pack->sourceIdentity = fsArchiveIdentities.identify(zipfile, uint32_t(pack->checksum));
+	MountedArchiveIdentities::Stamp after;
+	if (stamped && MountedArchiveIdentities::snapshot(zipfile, 0, after) && before == after) {
+		pack->checksumHeaders = fs_headerLongs;
+		pack->numChecksumHeaders = fs_numHeaderLongs;
+		pack->metadataStamp = after;
+		pack->metadataStampValid = qtrue;
+		after[7] = uint32_t(pack->checksum);
+		pack->sourceIdentity = fsArchiveIdentities.identify(zipfile, after);
+	} else {
+		Z_Free(fs_headerLongs);
+		pack->sourceIdentity = fsArchiveIdentities.identify(zipfile, uint32_t(pack->checksum));
+	}
 	return pack;
 }
 
@@ -2561,9 +2665,10 @@ Frees a pak structure and releases all associated resources
 
 void FS_FreePak(pack_t *thepak)
 {
-	unzClose(thepak->handle);
-	Z_Free(thepak->buildBuffer);
-	Z_Free(thepak);
+	if (thepak->handle) unzClose(thepak->handle);
+	thepak->handle = NULL;
+	if (FSRestartMetadataCache::active && FSRestartMetadataCache::active->retain(thepak)) return;
+	FSRestartMetadataCache::release(thepak);
 }
 
 /*
@@ -3677,6 +3782,7 @@ void FS_Shutdown( qboolean closemfp ) {
 
 	std::lock_guard<std::mutex> lock(fs_listMutex);
 	fs_pakLookupIndex.reset(); // Drop member pointers before any archive is freed.
+	if (FSRestartMetadataCache::active) FSRestartMetadataCache::active->prepare(fs_searchpaths);
 
 #if defined(_WIN32)
 	// Delete temporary files
@@ -3861,6 +3967,21 @@ qboolean FS_CmdlineGameModule( void ) {
 
 	@param gameName Name of the default folder (i.e. always BASEGAME = "base" in OpenJK)
 */
+static std::string FS_RestartConfiguration()
+{
+	const char *names[] = {"fs_basepath", "fs_homepath", "fs_cdpath", "fs_basegame",
+		"fs_globalcfg", "fs_dirbeforepak", "fs_portable", "fs_apppath"};
+	std::string configuration;
+	for (const char *name : names) {
+		configuration.append(Cvar_VariableString(name));
+		configuration.push_back('\0');
+	}
+	if (!Cvar_VariableIntegerValue("fs_globalcfg")) configuration.append(Cvar_VariableString("fs_game"));
+	configuration.push_back('\0');
+	configuration.append(FS_CmdlineGame());
+	return configuration;
+}
+
 void FS_Startup( const char *gameName ) {
 	const char *homePath;
 
@@ -3902,6 +4023,9 @@ void FS_Startup( const char *gameName ) {
 	fs_dirbeforepak = Cvar_Get("fs_dirbeforepak", "0", CVAR_INIT|CVAR_PROTECTED, "Prioritize directories before paks if not pure" );
 	fs_lookupIndex = Cvar_Get("fs_lookupIndex", "1", CVAR_ARCHIVE, "Index mounted archive providers for file lookups (0 uses the linear resolver)");
 	Cvar_CheckRange(fs_lookupIndex, 0, 1, qtrue);
+	fs_restartCache = Cvar_Get("fs_restartCache", "0", CVAR_ARCHIVE, "Reuse unchanged archive catalogues during checksum-feed-only filesystem restarts");
+	Cvar_CheckRange(fs_restartCache, 0, 1, qtrue);
+	FSRestartMetadataCache::recordCatalogs = fs_restartCache->integer != 0;
 
 #ifndef TOURNAMENT_CLIENT
 	fs_loadpakdlls = Cvar_Get("fs_loadpakdlls", "1", CVAR_NORESTART|CVAR_PROTECTED, "Toggle loading DLLs from pk3 files");
@@ -3993,6 +4117,7 @@ void FS_Startup( const char *gameName ) {
 		FS_Path_f();
 
 	fs_gamedirvar->modified = qfalse; // We just loaded, it's not modified
+	fs_restartConfiguration = FS_RestartConfiguration();
 
 	Com_Printf( "----------------------\n" );
 
@@ -4427,19 +4552,27 @@ void FS_InitFilesystem( void ) {
 FS_Restart
 ================
 */
-void FS_Restart( int checksumFeed ) {
+static void FS_Restart( int checksumFeed, qboolean reuseMetadata ) {
+	{
+		FSRestartMetadataCache cache(reuseMetadata != qfalse);
 
-	// free anything we currently have loaded
-	FS_Shutdown(qfalse);
+		// free anything we currently have loaded; only validated metadata can
+		// survive this scope. Handles, nodes and provider snapshots do not.
+		FS_Shutdown(qfalse);
+		cache.finishCollecting();
 
-	// set the checksum feed
-	fs_checksumFeed = checksumFeed;
+		// set the checksum feed
+		fs_checksumFeed = checksumFeed;
 
-	// clear pak references
-	FS_ClearPakReferences(0);
+		// clear pak references
+		FS_ClearPakReferences(0);
 
-	// try to start up normally
-	FS_Startup( BASEGAME );
+		// Rescan directories, remount in normal order and apply pure ordering.
+		FS_Startup( BASEGAME );
+		if (reuseMetadata && Cvar_VariableIntegerValue("cl_loadTimings"))
+			Com_Printf("LOADPROFILE filesystem restart cache: %u archives, %u members reused\n",
+				(unsigned)cache.reusedPaks, (unsigned)cache.reusedMembers);
+	} // Discard unused metadata before cfg checks or full fallback restarts.
 
 	// if we can't find default.cfg, assume that the paths are
 	// busted and error out now, rather than getting an unreadable
@@ -4472,6 +4605,10 @@ void FS_Restart( int checksumFeed ) {
 
 }
 
+void FS_Restart( int checksumFeed ) {
+	FS_Restart(checksumFeed, qfalse);
+}
+
 /*
 =================
 FS_ConditionalRestart
@@ -4480,7 +4617,10 @@ restart if necessary
 */
 qboolean FS_ConditionalRestart( int checksumFeed ) {
 	if( fs_gamedirvar->modified || checksumFeed != fs_checksumFeed ) {
-		FS_Restart( checksumFeed );
+		const qboolean reuseMetadata = fs_restartCache && fs_restartCache->integer &&
+			!fs_gamedirvar->modified && checksumFeed != fs_checksumFeed &&
+			fs_restartConfiguration == FS_RestartConfiguration() ? qtrue : qfalse;
+		FS_Restart( checksumFeed, reuseMetadata );
 		return qtrue;
 	}
 #if 0

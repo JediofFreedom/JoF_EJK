@@ -933,7 +933,7 @@ typedef struct srfFlare_s {
 #define SS_MAX_GROUP_CMD					1024
 
 #define SS_ENT_BITS							11
-#define SS_VBO_BITS							10
+#define SS_VBO_BITS							12
 #define SS_FOG_BITS							7
 #define SS_ENT_MASK							((1U << SS_ENT_BITS) - 1)
 #define SS_VBO_MASK							((1U << SS_VBO_BITS) - 1)
@@ -1697,10 +1697,10 @@ typedef struct trGlobals_s {
 	int						currentLevel;
 
 	int						numVBOs;
-	VBO_t					*vbos[4069];
+	VBO_t					*vbos[MAX_VBOS];
 
 	int						numIBOs;
-	IBO_t					*ibos[4069];
+	IBO_t					*ibos[MAX_VBOS];
 
 #ifdef _G2_GORE
 	VBO_t					*goreVBO;
