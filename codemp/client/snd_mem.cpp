@@ -28,6 +28,9 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "snd_ambient.h"
 
 #include <string>
+#include <climits>
+#include <cstdint>
+#include <cstring>
 
 #ifdef USE_OPENAL
 // Open AL
@@ -42,11 +45,6 @@ WAV loading
 ===============================================================================
 */
 
-byte	*data_p;
-byte 	*iff_end;
-byte 	*last_chunk;
-byte 	*iff_data;
-int 	iff_chunk_len;
 extern sfx_t		s_knownSfx[];
 extern	int			s_numSfx;
 
@@ -55,150 +53,50 @@ extern cvar_t		*s_lip_threshold_2;
 extern cvar_t		*s_lip_threshold_3;
 extern cvar_t		*s_lip_threshold_4;
 
-short GetLittleShort(void)
-{
-	short val = 0;
-	val = *data_p;
-	val = (short)(val + (*(data_p+1)<<8));
-	data_p += 2;
-	return val;
+// Parse only complete, bounded chunks. Invalid metadata never reaches resampling.
+wavinfo_t GetWavinfo(const char *name, byte *wav, int wavlength) {
+    const wavinfo_t invalid = {};
+    if (!wav || wavlength < 12 || std::memcmp(wav, "RIFF", 4) || std::memcmp(wav + 8, "WAVE", 4)) return invalid;
+    const auto le16 = [](const byte *p) -> unsigned { return unsigned(p[0]) | (unsigned(p[1]) << 8); };
+    const auto le32 = [](const byte *p) -> unsigned {
+        return unsigned(p[0]) | (unsigned(p[1]) << 8) | (unsigned(p[2]) << 16) | (unsigned(p[3]) << 24);
+    };
+    const size_t riffLength = le32(wav + 4);
+    if (riffLength < 4 || riffLength > size_t(wavlength) - 8) return invalid;
+    const size_t end = riffLength + 8;
+    const byte *format = NULL, *data = NULL;
+    size_t dataLength = 0;
+    for (size_t offset = 12; offset < end;) {
+        if (end - offset < 8) return invalid;
+        const size_t size = le32(wav + offset + 4);
+        if (size > end - offset - 8) return invalid;
+        if (!format && !std::memcmp(wav + offset, "fmt ", 4)) {
+            if (size < 16) return invalid;
+            format = wav + offset + 8;
+        } else if (!data && !std::memcmp(wav + offset, "data", 4)) {
+            data = wav + offset + 8;
+            dataLength = size;
+        }
+        if (format && data) break;
+        offset += 8 + size;
+        if (size & 1) { if (offset == end) break; ++offset; }
+    }
+    if (!format || !data) return invalid;
+    const unsigned bits = le16(format + 14), rate = le32(format + 4), channels = le16(format + 2);
+    if (le16(format) != 1 || (bits != 8 && bits != 16) || !rate || rate > 0x7fffffffU ||
+        (channels != 1 && channels != 2) || !dataLength || dataLength % (channels * (bits / 8))) {
+        Com_Printf("Invalid or unsupported PCM WAV: %s\n", name);
+        return invalid;
+    }
+    wavinfo_t info = {};
+    info.format = 1;
+    info.channels = channels;
+    info.rate = rate;
+    info.width = bits / 8;
+    info.samples = static_cast<int>(dataLength / info.width);
+    info.dataofs = static_cast<int>(data - wav);
+    return info;
 }
-
-int GetLittleLong(void)
-{
-	int val = 0;
-	val = *data_p;
-	val = val + (*(data_p+1)<<8);
-	val = val + (*(data_p+2)<<16);
-	val = val + (*(data_p+3)<<24);
-	data_p += 4;
-	return val;
-}
-
-void FindNextChunk(char *name)
-{
-	while (1)
-	{
-		data_p=last_chunk;
-
-		if (data_p >= iff_end)
-		{	// didn't find the chunk
-			data_p = NULL;
-			return;
-		}
-
-		data_p += 4;
-		iff_chunk_len = GetLittleLong();
-		if (iff_chunk_len < 0)
-		{
-			data_p = NULL;
-			return;
-		}
-		data_p -= 8;
-		last_chunk = data_p + 8 + ( (iff_chunk_len + 1) & ~1 );
-		if (!Q_strncmp((char *)data_p, name, 4))
-			return;
-	}
-}
-
-void FindChunk(char *name)
-{
-	last_chunk = iff_data;
-	FindNextChunk (name);
-}
-
-
-void DumpChunks(void)
-{
-	char	str[5];
-
-	str[4] = 0;
-	data_p=iff_data;
-	do
-	{
-		memcpy (str, data_p, 4);
-		data_p += 4;
-		iff_chunk_len = GetLittleLong();
-		Com_Printf ("0x%x : %s (%d)\n", (intptr_t)(data_p - 4), str, iff_chunk_len);
-		data_p += (iff_chunk_len + 1) & ~1;
-	} while (data_p < iff_end);
-}
-
-/*
-============
-GetWavinfo
-============
-*/
-wavinfo_t GetWavinfo (const char *name, byte *wav, int wavlength)
-{
-	wavinfo_t	info;
-	int		samples;
-
-	memset (&info, 0, sizeof(info));
-
-	if (!wav)
-		return info;
-
-	iff_data = wav;
-	iff_end = wav + wavlength;
-
-// find "RIFF" chunk
-	FindChunk("RIFF");
-	if (!(data_p && !Q_strncmp((char *)data_p+8, "WAVE", 4)))
-	{
-		Com_Printf("Missing RIFF/WAVE chunks\n");
-		return info;
-	}
-
-// get "fmt " chunk
-	iff_data = data_p + 12;
-// DumpChunks ();
-
-	FindChunk("fmt ");
-	if (!data_p)
-	{
-		Com_Printf("Missing fmt chunk\n");
-		return info;
-	}
-	data_p += 8;
-	info.format = GetLittleShort();
-	info.channels = GetLittleShort();
-	info.rate = GetLittleLong();
-	data_p += 4+2;
-	info.width = GetLittleShort() / 8;
-
-	if (info.format != 1)
-	{
-		Com_Printf("Microsoft PCM format only\n");
-		return info;
-	}
-
-
-// find data chunk
-	FindChunk("data");
-	if (!data_p)
-	{
-		Com_Printf("Missing data chunk\n");
-		return info;
-	}
-
-	data_p += 4;
-	samples = GetLittleLong () / info.width;
-
-	if (info.samples)
-	{
-		if (samples < info.samples)
-			Com_Error (ERR_DROP, "Sound %s has a bad loop length", name);
-	}
-	else
-		info.samples = samples;
-
-	info.dataofs = data_p - wav;
-
-
-	return info;
-}
-
 
 /*
 ================
@@ -209,46 +107,40 @@ resample / decimate to the current source rate
 */
 void ResampleSfx (sfx_t *sfx, int iInRate, int iInWidth, byte *pData)
 {
-	int		iOutCount;
-	int		iSrcSample;
-	float	fStepScale;
-	int		i;
-	int		iSample;
-	unsigned int uiSampleFrac, uiFracStep;	// uiSampleFrac MUST be unsigned, or large samples (eg music tracks) crash
+	const int inputCount = sfx->iSoundLengthInSamples;
+	sfx->iSoundLengthInSamples = 0;
+	sfx->pSoundData = NULL;
+	sfx->fVolRange = 0;
+	if (!pData || inputCount <= 0 || iInRate <= 0 || dma.speed <= 0 ||
+		(iInWidth != 1 && iInWidth != 2)) return;
 
-	fStepScale = (float)iInRate / dma.speed;	// this is usually 0.5, 1, or 2
+	// Retain the existing nearest-sample conversion and output lengths. Check
+	// the float result before converting it or doubling the allocation size.
+	const float stepScale = static_cast<float>(iInRate) / dma.speed;
+	const float outputCount = inputCount / stepScale;
+	if (!(outputCount >= 1) || outputCount > static_cast<double>(INT_MAX / 2)) return;
+	sfx->iSoundLengthInSamples = static_cast<int>(outputCount);
+	sfx->pSoundData = reinterpret_cast<short *>(SND_malloc(sfx->iSoundLengthInSamples * 2, sfx));
+	if (!sfx->pSoundData) { sfx->iSoundLengthInSamples = 0; return; }
 
-	// When stepscale is > 1 (we're downsampling), we really ought to run a low pass filter on the samples
-
-	iOutCount = (int)(sfx->iSoundLengthInSamples / fStepScale);
-	sfx->iSoundLengthInSamples = iOutCount;
-
-	sfx->pSoundData = (short *) SND_malloc( sfx->iSoundLengthInSamples*2 ,sfx );
-
-	sfx->fVolRange	= 0;
-	uiSampleFrac	= 0;
-	uiFracStep		= (int)(fStepScale*256);
-
-	for (i=0 ; i<sfx->iSoundLengthInSamples ; i++)
-	{
-		iSrcSample = uiSampleFrac >> 8;
-		uiSampleFrac += uiFracStep;
+	// A 32-bit 8-bit-fraction accumulator wrapped after 2^24 input samples,
+	// replaying the beginning of long sounds. Its step still determines normal
+	// conversion; the rational fallback handles rates below 1/256 output rate.
+	uint64_t sampleFraction = 0;
+	const uint64_t fractionStep = static_cast<uint64_t>(stepScale * 256.0f);
+	for (int i = 0; i < sfx->iSoundLengthInSamples; ++i) {
+		const uint64_t source = fractionStep ? sampleFraction >> 8 : uint64_t(i) * iInRate / dma.speed;
+		const int sourceSample = static_cast<int>(source < uint64_t(inputCount) ? source : inputCount - 1);
+		sampleFraction += fractionStep;
+		int sample;
 		if (iInWidth == 2) {
-			iSample = LittleShort ( ((short *)pData)[iSrcSample] );
-		} else {
-			iSample = (int)( (unsigned char)(pData[iSrcSample]) - 128) << 8;
-		}
-
-		sfx->pSoundData[i] = (short)iSample;
-
-		// work out max vol for this sample...
-		//
-		if (iSample < 0)
-			iSample = -iSample;
-		if (sfx->fVolRange < (iSample >> 8) )
-		{
-			sfx->fVolRange =  iSample >> 8;
-		}
+			short value;
+			std::memcpy(&value, pData + size_t(sourceSample) * 2, sizeof(value));
+			sample = LittleShort(value);
+		} else sample = (int(pData[sourceSample]) - 128) * 256;
+		sfx->pSoundData[i] = static_cast<short>(sample);
+		if (sample < 0) sample = -sample;
+		if (sfx->fVolRange < (sample >> 8)) sfx->fVolRange = sample >> 8;
 	}
 }
 
@@ -258,11 +150,6 @@ void ResampleSfx (sfx_t *sfx, int iInRate, int iInWidth, byte *pData)
 
 void S_LoadSound_Finalize(wavinfo_t	*info, sfx_t *sfx, byte *data)
 {
-	float	stepscale	= (float)info->rate / dma.speed;
-	int		len			= (int)(info->samples / stepscale);
-
-	len *= info->width;
-
 	sfx->eSoundCompressionMethod = ct_16;
 	sfx->iSoundLengthInSamples	 = info->samples;
 	ResampleSfx( sfx, info->rate, info->width, data + info->dataofs );
@@ -732,7 +619,6 @@ qboolean gbInsideLoadSound = qfalse;
 static qboolean S_LoadSound_Actual( sfx_t *sfx )
 {
 	byte	*data;
-	short	*samples;
 	wavinfo_t	info;
 	int		size;
 	char	*psExt;
@@ -914,12 +800,15 @@ static qboolean S_LoadSound_Actual( sfx_t *sfx )
 			Com_Printf(S_COLOR_YELLOW "WARNING: %s is not a 22kHz wav file\n", sLoadName);
 		}
 */
-		samples = (short *)Z_Malloc(info.samples * sizeof(short) * 2, TAG_TEMP_WORKSPACE, qfalse);
 
 		sfx->eSoundCompressionMethod = ct_16;
 		sfx->iSoundLengthInSamples	 = info.samples;
 		sfx->pSoundData = NULL;
 		ResampleSfx( sfx, info.rate, info.width, data + info.dataofs );
+		if (!sfx->pSoundData) {
+			FS_FreeFile(data);
+			return qfalse;
+		}
 
 		// Open AL
 #ifdef USE_OPENAL
@@ -954,7 +843,6 @@ static qboolean S_LoadSound_Actual( sfx_t *sfx )
 		}
 #endif
 
-		Z_Free(samples);
 	}
 
 	FS_FreeFile( data );

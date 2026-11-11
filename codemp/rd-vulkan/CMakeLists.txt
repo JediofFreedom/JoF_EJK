@@ -80,6 +80,8 @@ set(MPVulkanRendererFiles
 	"${MPDir}/rd-vulkan/vk_flares.cpp"
 	"${MPDir}/rd-vulkan/vk_frame.cpp"
 	"${MPDir}/rd-vulkan/vk_image.cpp"
+	"${MPDir}/rd-vulkan/vk_prepared_cache.cpp"
+	"${MPDir}/rd-vulkan/vk_prepared_cache.h"
 	"${MPDir}/rd-vulkan/vk_image_process.cpp"
 	"${MPDir}/rd-vulkan/vk_info.cpp"
 	"${MPDir}/rd-vulkan/vk_init.cpp"
@@ -219,3 +221,12 @@ set_property(TARGET ${MPVulkanRenderer} APPEND PROPERTY COMPILE_OPTIONS ${OPENJK
 set_target_properties(${MPVulkanRenderer} PROPERTIES INCLUDE_DIRECTORIES "${MPVulkanRendererIncludeDirectories}")
 set_target_properties(${MPVulkanRenderer} PROPERTIES PROJECT_LABEL "MP Vulkan Renderer")
 target_link_libraries(${MPVulkanRenderer} ${MPVulkanRendererLibraries})
+find_package(Threads REQUIRED)
+target_link_libraries(${MPVulkanRenderer} Threads::Threads)
+install(FILES "${OpenJKLibDir}/xxhash/LICENSE"
+    DESTINATION "${JKAInstallDir}/licenses/xxHash"
+    COMPONENT ${JKAMPClientComponent})
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/vulkan/Apache-2.0.txt"
+              "${CMAKE_CURRENT_SOURCE_DIR}/vulkan/MIT.txt"
+    DESTINATION "${JKAInstallDir}/licenses/Vulkan-Headers"
+    COMPONENT ${JKAMPClientComponent})

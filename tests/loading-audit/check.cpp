@@ -15,14 +15,28 @@
 #include <vector>
 #include "filesystem_archive_identity.h"
 #include <jpeglib.h>
+#include <jerror.h>
+#include <png.h>
+#include <climits>
+#include <fstream>
 #include "vk_api_version.h"
 #include "vk_resident_cache.h"
 #include "vk_allocation_ranges.h"
 #include "vk_host_image_copy.h"
 #include "vk_sync2.h"
 #include "vk_pipeline_index.h"
+#include "vk_texture_budget.h"
+#include "vk_load_profile.h"
+#include "vk_texture_context.h"
+#include "vk_texture_scratch.h"
+#include "vk_texture_jobs.h"
 #include <minizip/unzip.h>
 #include <vulkan/vulkan_core.h>
+#include "vk_device_extensions.h"
+#define STB_DXT_IMPLEMENTATION
+#include "utils/stb_dxt.h"
+#undef MIN
+#undef MAX
 
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #x); std::exit(1); } } while (0)
 #define ARRAY_LEN(x) (sizeof(x) / sizeof((x)[0]))
@@ -209,6 +223,7 @@ namespace jpegTest {
 static std::vector<byte> input;
 static long read(const char *, void **out) { *out = Z_Malloc(input.size(), 0); std::memcpy(*out, input.data(), input.size()); return long(input.size()); }
 struct Services { long (*FS_ReadFile)(const char *, void **); void (*FS_FreeFile)(void *); void (*Z_Free)(void *); } ri = {read, Z_Free, Z_Free};
+#include "tr_image_decode.h"
 #include "jpeg.h"
 static void check() {
     for (int gray = 0; gray < 2; ++gray) for (int progressive = 0; progressive < 2; ++progressive) {
@@ -262,7 +277,8 @@ static void check() {
 namespace uploadTest {
 struct image_t { int internalFormat; VkImage handle; qboolean hostTransfer; uint32_t mipLevels; };
 static struct { struct { VkDeviceSize size; byte *ptr; VkBuffer handle; } staging_buffer; VkDevice device; qboolean hostImageCopy, synchronization2; } vk;
-static struct { size_t uploadBytes, hostImageCopyBytes, bufferUploadBytes; unsigned hostImageCopies, bufferUploads; int hostImageCopyMs; } vkLoadStats;
+static struct { size_t uploadBytes, hostImageCopyBytes, bufferUploadBytes; unsigned hostImageCopies, bufferUploads; int hostImageCopyMs;
+    uint64_t imageUploadRecordUs, imageTransferFlushUs; } vkLoadStats;
 static const int PRINT_WARNING = 1;
 static struct { static int Milliseconds() { return 0; } static void Printf(int, const char *, ...) {} } ri;
 static const char *vk_result_string(VkResult) { return "test error"; }
@@ -404,6 +420,8 @@ static void check() {
 
 #include "modern_checks.h"
 #include "vulkan_modern_checks.h"
+#include "asset_checks.h"
+#include "texture_commit_checks.h"
 
 int main(int argc, char **argv) {
     CHECK(argc == 2);
@@ -415,5 +433,7 @@ int main(int argc, char **argv) {
     filesystemTest::check(argv[1]);
     modernTest::check();
     deviceFeatureTest::check(); pipelineIndexTest::check(); synchronization2Test::check();
+    assetTest::check(argv[1]);
+    textureCommitTest::check();
     CHECK(allocations == 0); std::puts("Loading audit regressions passed.");
 }

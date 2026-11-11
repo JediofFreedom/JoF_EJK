@@ -40,6 +40,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "qcommon/qcommon.h"
 #include "filesystem_archive_identity.h"
+#include "filesystem_pak_index.h"
 
 static std::mutex fs_listMutex;
 
@@ -271,6 +272,8 @@ static char			fs_cmdlineGame[MAX_QPATH];	// +set fs_game from the command line, 
 #endif
 static char			fs_gameModuleDir[MAX_QPATH];	// game folder the server game module was last loaded from
 static searchpath_t	*fs_searchpaths;
+static PakProviderIndex<searchpath_t> fs_pakLookupIndex;
+static cvar_t *fs_lookupIndex;
 static int			fs_readCount;			// total bytes read
 static int			fs_loadCount;			// total files read
 static int			fs_packFiles = 0;		// total number of files in packs
@@ -594,6 +597,19 @@ FS_CreatePath
 Creates any directories needed to store the given filename
 ============
 */
+qboolean FS_GetWritePath(const char *qpath, char *destination, size_t size) {
+	if (!destination || !size) return qfalse;
+	destination[0] = 0;
+	FS_AssertInitialised();
+	if (!qpath || !qpath[0] || qpath[0] == '/' || qpath[0] == '\\' ||
+		strstr(qpath, "..") || strchr(qpath, ':')) return qfalse;
+	if (strlen(fs_homepath->string) + strlen(fs_gamedir) + strlen(qpath) + 3 > MAX_OSPATH) return qfalse;
+	const char *path = FS_BuildOSPath(fs_homepath->string, fs_gamedir, qpath);
+	if (strlen(path) >= size) return qfalse;
+	memcpy(destination, path, strlen(path) + 1);
+	return qtrue;
+}
+
 qboolean FS_CreatePath (char *OSPath) {
 	char	*ofs;
 	char	path[MAX_OSPATH];
@@ -1443,7 +1459,7 @@ separate file or a ZIP file.
 */
 extern qboolean		com_fullyInitialized;
 
-static long FS_FOpenFileReadInternal( const char *filename, fileHandle_t *file, qboolean uniqueFILE, fsReadFileIdentity_t *identity, qboolean markReferenced ) {
+static long FS_FOpenFileReadInternal( const char *filename, fileHandle_t *file, qboolean uniqueFILE, fsReadFileIdentity_t *identity, qboolean markReferenced, qboolean pathsLocked = qfalse ) {
 	searchpath_t	*search;
 	char			*netpath;
 	pack_t			*pak;
@@ -1513,7 +1529,18 @@ static long FS_FOpenFileReadInternal( const char *filename, fileHandle_t *file, 
 	{
 		bFasterToReOpenUsingNewLocalFile = qfalse;
 
-		for ( search = fs_searchpaths ; search ; search = search->next ) {
+		// Serialize publication only. Keep normal file I/O and fatal-error
+		// shutdown outside this lock; each cursor retains its index snapshot.
+		std::unique_lock<std::mutex> indexLock(fs_listMutex, std::defer_lock);
+		if (!pathsLocked) indexLock.lock();
+		const size_t previousIndexBuilds = fs_pakLookupIndex.buildCount();
+		auto readPaths = fs_pakLookupIndex.lookup(fs_searchpaths, filename, fs_lookupIndex && fs_lookupIndex->integer);
+		if (indexLock.owns_lock()) indexLock.unlock();
+		if (fs_pakLookupIndex.buildCount() != previousIndexBuilds && Cvar_VariableIntegerValue("cl_loadTimings"))
+			Com_Printf("LOADPROFILE filesystem provider index: %u members, %.2f MiB, %.2f ms\n",
+				(unsigned)fs_pakLookupIndex.memberCount(), fs_pakLookupIndex.memoryBytes() / (1024.0 * 1024.0),
+				fs_pakLookupIndex.buildMilliseconds());
+		for (; (search = readPaths.next()) != NULL;) {
 			//
 			if ( search->pack ) {
 				hash = filenameHash & (search->pack->hashSize - 1);
@@ -1804,7 +1831,7 @@ qboolean FS_GetReadFileIdentity(const char *qpath, fsReadFileIdentity_t *identit
 	for (const char *ch = qpath; *ch; ++ch) if (*ch == '/' || *ch == '\\') name = ch + 1;
 	if (!Q_stricmp(name, "identity.key")) return qfalse;
 	std::lock_guard<std::mutex> lock(fs_listMutex);
-	return FS_FOpenFileReadInternal(qpath, NULL, qfalse, identity, markReferenced) >= 0 ? qtrue : qfalse;
+	return FS_FOpenFileReadInternal(qpath, NULL, qfalse, identity, markReferenced, qtrue) >= 0 ? qtrue : qfalse;
 }
 
 // This is a bit of a hack but it is used for other OS'/arch to still be acceptable with pure servers.
@@ -3395,6 +3422,7 @@ then loads the zip headers
 */
 #define	MAX_PAKFILES	1024
 static void FS_AddGameDirectory( const char *path, const char *dir ) {
+	std::lock_guard<std::mutex> lock(fs_listMutex);
 	searchpath_t	*sp;
 	int				i;
 	searchpath_t	*search;
@@ -3413,6 +3441,7 @@ static void FS_AddGameDirectory( const char *path, const char *dir ) {
 		}
 	}
 
+	fs_pakLookupIndex.invalidate();
 	Q_strncpyz( fs_gamedir, dir, sizeof( fs_gamedir ) );
 
 	// find all pak files in this directory
@@ -3647,6 +3676,7 @@ void FS_Shutdown( qboolean closemfp ) {
 	int	i;
 
 	std::lock_guard<std::mutex> lock(fs_listMutex);
+	fs_pakLookupIndex.reset(); // Drop member pointers before any archive is freed.
 
 #if defined(_WIN32)
 	// Delete temporary files
@@ -3737,6 +3767,8 @@ NOTE TTimo: the reordering that happens here is not reflected in the cvars (\cva
 */
 static void FS_ReorderPurePaks()
 {
+	std::lock_guard<std::mutex> lock(fs_listMutex);
+	fs_pakLookupIndex.invalidate();
 	searchpath_t *s;
 	int i;
 	searchpath_t **p_insert_index, // for linked list reordering
@@ -3868,6 +3900,8 @@ void FS_Startup( const char *gameName ) {
 #endif
 
 	fs_dirbeforepak = Cvar_Get("fs_dirbeforepak", "0", CVAR_INIT|CVAR_PROTECTED, "Prioritize directories before paks if not pure" );
+	fs_lookupIndex = Cvar_Get("fs_lookupIndex", "1", CVAR_ARCHIVE, "Index mounted archive providers for file lookups (0 uses the linear resolver)");
+	Cvar_CheckRange(fs_lookupIndex, 0, 1, qtrue);
 
 #ifndef TOURNAMENT_CLIENT
 	fs_loadpakdlls = Cvar_Get("fs_loadpakdlls", "1", CVAR_NORESTART|CVAR_PROTECTED, "Toggle loading DLLs from pk3 files");

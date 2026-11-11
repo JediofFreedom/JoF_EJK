@@ -540,28 +540,32 @@ void Info_Print( const char *s ) {
 Com_StringContains
 ============
 */
-char *Com_StringContains(char *str1, char *str2, int casesensitive) {
-	int len, i, j;
-
-	len = strlen(str1) - strlen(str2);
-	for (i = 0; i <= len; i++, str1++) {
-		for (j = 0; str2[j]; j++) {
+static char *Com_StringContainsN(char *str1, const char *str2, size_t needleLength, int casesensitive) {
+	const size_t length = strlen(str1);
+	if (needleLength > length) return NULL;
+	for (size_t i = 0; i <= length - needleLength; i++, str1++) {
+		size_t j;
+		for (j = 0; j < needleLength; j++) {
 			if (casesensitive) {
 				if (str1[j] != str2[j]) {
 					break;
 				}
 			}
 			else {
-				if (toupper(str1[j]) != toupper(str2[j])) {
+				if (toupper((unsigned char)str1[j]) != toupper((unsigned char)str2[j])) {
 					break;
 				}
 			}
 		}
-		if (!str2[j]) {
+		if (j == needleLength) {
 			return str1;
 		}
 	}
 	return NULL;
+}
+
+char *Com_StringContains(char *str1, char *str2, int casesensitive) {
+	return Com_StringContainsN(str1, str2, strlen(str2), casesensitive);
 }
 
 /*
@@ -571,26 +575,26 @@ Com_Filter
 */
 int Com_Filter(char *filter, char *name, int casesensitive)
 {
-	char buf[MAX_TOKEN_CHARS];
 	char *ptr;
-	int i, found;
+	int found;
 
 	while(*filter) {
 		if (*filter == '*') {
 			filter++;
-			for (i = 0; *filter; i++) {
+			const char *literal = filter;
+			while (*filter) {
 				if (*filter == '*' || *filter == '?') break;
-				buf[i] = *filter;
 				filter++;
 			}
-			buf[i] = '\0';
-			if (strlen(buf)) {
-				ptr = Com_StringContains(name, buf, casesensitive);
+			const size_t literalLength = filter - literal;
+			if (literalLength) {
+				ptr = Com_StringContainsN(name, literal, literalLength, casesensitive);
 				if (!ptr) return qfalse;
-				name = ptr + strlen(buf);
+				name = ptr + literalLength;
 			}
 		}
 		else if (*filter == '?') {
+			if (!*name) return qfalse;
 			filter++;
 			name++;
 		}
@@ -598,6 +602,7 @@ int Com_Filter(char *filter, char *name, int casesensitive)
 			filter++;
 		}
 		else if (*filter == '[') {
+			if (!*name) return qfalse;
 			filter++;
 			found = qfalse;
 			while(*filter && !found) {
@@ -607,8 +612,8 @@ int Com_Filter(char *filter, char *name, int casesensitive)
 						if (*name >= *filter && *name <= *(filter+2)) found = qtrue;
 					}
 					else {
-						if (toupper(*name) >= toupper(*filter) &&
-							toupper(*name) <= toupper(*(filter+2))) found = qtrue;
+						if (toupper((unsigned char)*name) >= toupper((unsigned char)*filter) &&
+							toupper((unsigned char)*name) <= toupper((unsigned char)*(filter+2))) found = qtrue;
 					}
 					filter += 3;
 				}
@@ -617,7 +622,7 @@ int Com_Filter(char *filter, char *name, int casesensitive)
 						if (*filter == *name) found = qtrue;
 					}
 					else {
-						if (toupper(*filter) == toupper(*name)) found = qtrue;
+						if (toupper((unsigned char)*filter) == toupper((unsigned char)*name)) found = qtrue;
 					}
 					filter++;
 				}
@@ -627,6 +632,7 @@ int Com_Filter(char *filter, char *name, int casesensitive)
 				if (*filter == ']' && *(filter+1) != ']') break;
 				filter++;
 			}
+			if (!*filter) return qfalse;
 			filter++;
 			name++;
 		}
@@ -635,7 +641,7 @@ int Com_Filter(char *filter, char *name, int casesensitive)
 				if (*filter != *name) return qfalse;
 			}
 			else {
-				if (toupper(*filter) != toupper(*name)) return qfalse;
+				if (toupper((unsigned char)*filter) != toupper((unsigned char)*name)) return qfalse;
 			}
 			filter++;
 			name++;
@@ -1215,7 +1221,9 @@ void Com_Init( char *commandLine ) {
 
 		com_homepath = Cvar_Get("com_homepath", "", CVAR_INIT);
 
+		const int filesystemStarted = Sys_Milliseconds();
 		FS_InitFilesystem ();
+		const int filesystemInitMs = Sys_Milliseconds() - filesystemStarted;
 
 		Com_InitJournaling();
 
@@ -1372,6 +1380,8 @@ void Com_Init( char *commandLine ) {
 		Cvar_Set("ui_singlePlayerActive", "0");
 
 		com_fullyInitialized = qtrue;
+		if (Cvar_VariableIntegerValue("cl_loadTimings"))
+			Com_Printf("LOADPROFILE initial filesystem startup: %d ms\n", filesystemInitMs);
 		Com_Printf ("--- Common Initialization Complete ---\n");
 	}
 	catch ( int code )

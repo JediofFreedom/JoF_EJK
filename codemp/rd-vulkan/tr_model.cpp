@@ -1122,6 +1122,7 @@ static qboolean R_LoadMD3 ( model_t *mod, int lod, void *buffer, const char *mod
 void RE_BeginRegistration( glconfig_t *glconfigOut ) {
 
 	R_Init();
+	R_SetTextureRegistration(qtrue);
 
 	*glconfigOut = glConfig;
 
@@ -1168,6 +1169,7 @@ void R_ModelInit( void )
 extern void KillTheShaderHashTable( void );
 void RE_HunkClearCrap( void )
 { //get your dirty sticky assets off me, you damn dirty hunk!
+	R_FlushTextureJobs(qtrue);
 	KillTheShaderHashTable();
 	tr.numModels = 0;
 	CModelCache->DeleteAll();

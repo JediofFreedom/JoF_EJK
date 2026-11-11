@@ -455,7 +455,7 @@ void SCR_DrawDemoRecording( void ) {
 	int		pos, xpos, ypos;
 
 #ifndef TOURNAMENT_CLIENT
-	if (com_renderfps->integer > 0) //Draw render FPS - Sad hack sortof
+	if (com_renderfps->integer > 0 && cls.frametime > 0) //Draw render FPS - Sad hack sortof
 	{
 		char	string2[32];
 		Com_sprintf(string2, sizeof(string2), "%i", 1000 / cls.frametime);
@@ -471,7 +471,7 @@ void SCR_DrawDemoRecording( void ) {
 	if ( clc.spDemoRecording ) {
 		return;
 	}
-	if (!cl_drawRecording->integer) {
+	if (cl_drawRecording->integer <= 0) {
 		return;
 	}
 	pos = FS_FTell( clc.demofile );

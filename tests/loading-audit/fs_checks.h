@@ -1,4 +1,5 @@
 // Compile the real resolver, including its pure/loose and private-key rules.
+#include "filesystem_pak_index.h"
 namespace filesystemTest {
 typedef int fileHandle_t;
 enum fsMode_t { FS_READ, FS_WRITE, FS_APPEND, FS_APPEND_SYNC };
@@ -16,8 +17,12 @@ typedef Pack pack_t;
 typedef Entry fileInPack_t;
 typedef Directory directory_t;
 static Search *fs_searchpaths;
+static PakProviderIndex<searchpath_t> fs_pakLookupIndex;
+static struct { int integer; } lookupSetting = {1}, *fs_lookupIndex = &lookupSetting;
+static int Cvar_VariableIntegerValue(const char *) { return 0; }
 static std::mutex fs_listMutex;
 static int handleAllocations, fs_numServerPaks, fs_fakeChkSum;
+static size_t pakPureChecks, filenameComparisons;
 static bool com_fullyInitialized = true;
 static struct { int integer; } debug, *fs_debug = &debug;
 static struct Handle {
@@ -28,11 +33,21 @@ static void FS_AssertInitialised() {}
 static void Com_Error(int, const char *, ...) { throw 1; }
 static void Com_DPrintf(const char *, ...) {}
 static int FS_HandleForFile() { ++handleAllocations; return 1; }
+#ifdef EJK_PROVIDER_PRODUCTION_HASH
+#include "filesystem_hash.h"
+#include "filesystem_compare.h"
+#else
 static long FS_HashFileName(const char *, int) { return 0; } // Single bucket fixture.
-static bool FS_PakIsPure(Pack *pack) { return !fs_numServerPaks || pack->pure; }
+#endif
+static bool FS_PakIsPure(Pack *pack) { ++pakPureChecks; return !fs_numServerPaks || pack->pure; }
 static int FS_FilenameCompare(const char *a, const char *b) {
+    ++filenameComparisons;
+#ifdef EJK_PROVIDER_PRODUCTION_HASH
+    return FS_ProviderFixtureCompare(a, b);
+#else
     std::string x(a), y(b); std::replace(x.begin(), x.end(), '\\', '/'); std::replace(y.begin(), y.end(), '\\', '/');
     return Q_stricmp(x.c_str(), y.c_str());
+#endif
 }
 static bool FS_IsExt(const char *name, const char *ext, int length) {
     int n = int(std::strlen(ext)); return length >= n && !Q_stricmp(name + length - n, ext);
@@ -57,7 +72,9 @@ static int FS_FOpenFileAppend(const char *) { return 0; }
 #define _WIN32
 #undef AUDIT_WINDOWS
 #endif
-static void check(const char *root) {
+static void checkMode(const char *root, int indexed) {
+    lookupSetting.integer = indexed;
+    fs_pakLookupIndex.reset();
     Entry a = {"probe.jpg", 9, 0, nullptr}, b = {"probe.jpg", 7, 0, nullptr};
     Entry *ah[] = {&a}, *bh[] = {&b};
     Pack high = {1, ah, 0, {}, nullptr, true, 42, 123}, low = {1, bh, 0, {}, nullptr, true, 43, 456};
@@ -93,6 +110,11 @@ static void check(const char *root) {
 	CHECK(handleAllocations == 0);
 	fs_numServerPaks = 0;
     CHECK(!std::remove((std::string(root) + "/probe.jpg").c_str()));
+    fs_pakLookupIndex.reset();
     fs_searchpaths = nullptr;
+}
+static void check(const char *root) {
+    checkMode(root, 0);
+    checkMode(root, 1);
 }
 }

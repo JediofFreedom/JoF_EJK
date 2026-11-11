@@ -127,7 +127,8 @@ changes and was collected separately. Neither comparison measures SJK.
 
 Use `profile.ps1 -TextureCacheMegs 0` and `-TextureCacheMegs 512` with fresh
 output directories to repeat the comparison. Omit that argument to use the
-configured default (512 MiB x64, 128 MiB x86, capped by device-local memory).
+configured budget. The current default is automatic (`r_textureCacheMegs -1`),
+scaling with device capacity/headroom up to 2 GiB on x64, or 128 MiB on x86.
 The cache validates source/package identity, pixel-processing settings and
 image flags. Loose overrides decode normally, pure restrictions still apply,
 and descriptor sets are recreated after map reset. Full video/device restart
@@ -190,3 +191,129 @@ paths. Use a fresh output directory for every run. The production-function
 regressions additionally check old-device feature gates, host-copy failures,
 mip offsets, mixed upload bytes, large-buffer boundaries, semantic pipeline
 keys/base indices/reset, and synchronization2 submission/barrier translation.
+
+### World texture workers and automatic residency
+
+The project-wide follow-up compares the same prototype binary with
+`r_textureWorkers 0` and `-1` (up to four workers), a fixed 2048 MiB residency
+budget, and the prepared disk cache disabled. Three alternating pairs used
+fresh profiles and warm OS caches, with no build, static analysis or other game
+client running. The first pair ran synchronous first; the second reversed it.
+
+| Measurement, median of three | Synchronous decode | Worker decode |
+| --- | ---: | ---: |
+| First T1_Fatal handoff | 3.601 s | 3.249 s |
+| mp/ffa3 handoff | 1.836 s | 1.684 s |
+| T1_Fatal revisit | 1.196 s | 1.247 s |
+| Complete three-map client cycle | 12.236 s | 12.061 s |
+
+The first two loads were about 10% and 8% shorter. The cached revisit did not
+benefit; the complete-cycle difference was small. These are prototype feature
+comparisons, not timings of every final project-wide change or of SJK.
+
+A separate three-round, rotated-order experiment used residency budgets of
+512, 1024 and 2048 MiB. Map handoff medians were respectively
+`[3496,1854,2306]`, `[3495,1833,2270]` and `[3483,1791,1147]` milliseconds.
+Complete-cycle medians were 13.221, 13.174 and 11.966 seconds. The larger budget
+approximately halved the revisit time; the first load was unchanged. This
+motivates the device-scaled automatic budget, with driver memory headroom checks
+and reclamation of fragmented idle pages when the budget decreases.
+
+Use `profile.ps1 -TextureWorkers 0` / `-TextureWorkers -1` to isolate decoding,
+and explicit `-TextureCacheMegs` values to isolate residency. `-TextureDiskCacheMegs`
+is separately controlled and defaults to 0 in the harness. See
+[prepared-cache checks](../prepared-texture-cache/README.md) for persistence,
+corruption, concurrency and bounded-write coverage.
+
+The shared codec tests cover 8/16-bit RGB/RGBA PNG, palette/transparency,
+grayscale, every truncation of fixtures, TGA orientation and packet bounds,
+failed writes and insufficient JPEG output capacity. Both normal optimized
+builds and AddressSanitizer runs are necessary: identical empty loader stubs can
+be folded by the MSVC linker, so the fixtures give loaders distinct behavior.
+The worker queue also checks concurrent decoding and joining active work before
+input lifetimes end.
+
+Three rotated-order rounds then compared the same world-scope cache prototype
+with prepared disk data off, cold, and warm (2048 MiB budgets, automatic workers).
+Pipeline data was seeded identically; warm texture data was copied into fresh
+profiles before starting the timer. No compilation, analysis or other client
+ran during measurements.
+
+| Measurement, median of three | Off | Cold cache | Warm cache |
+| --- | ---: | ---: | ---: |
+| First T1_Fatal handoff | 3.038 s | 3.164 s | 3.019 s |
+| mp/ffa3 handoff | 1.565 s | 1.666 s | 1.488 s |
+| T1_Fatal revisit | 1.138 s | 1.121 s | 1.148 s |
+| Complete client cycle | 11.751 s | 11.941 s | 11.980 s |
+
+There was no complete-cycle benefit, so prepared caching stays disabled by
+default. The subsequent registration expansion includes model/UI textures and
+needs its own comparison. The cache's existence is not evidence of a gain.
+`-SeedVulkanCacheDirectory` copies known cache data before timing; use identical
+pipeline seeds when comparing cache modes.
+
+### Broader registration decoding
+
+The final registration scope also queues model/UI textures after renderer
+initialization and drains before backend execution, map-context transitions,
+sampler/gamma changes and registration end. Captured per-image settings are
+compared byte-for-byte against ordinary preparation over 64 combinations.
+Corrupt-primary fixtures verify that a valid alternate image can have different
+dimensions. Procedural images, transfer sources and runtime/backend requests
+remain immediate.
+
+Three alternating pairs on one binary isolate `r_textureWorkers 0` versus `-1`,
+with a fixed 2048 MiB GPU cache and the prepared disk cache off. Fresh profiles,
+warm OS caches and a quiet machine were used as above.
+
+| Measurement, median of three | Synchronous | Registration workers |
+| --- | ---: | ---: |
+| First T1_Fatal handoff | 3.572 s | 2.914 s |
+| mp/ffa3 handoff | 1.831 s | 1.567 s |
+| T1_Fatal revisit | 1.182 s | 1.227 s |
+| Complete client cycle | 12.308 s | 11.408 s |
+
+The first two loads were about 18% and 14% shorter; the complete cycle was about
+7% shorter. The cached revisit did not benefit. A diagnostic rendering run
+queued 667 textures for the first map instead of the world-only prototype's194.
+Worker decode effort is summed elapsed time and can overlap other loading work;
+use handoff timings for end-to-end effects. Do not add this percentage to the
+separately measured residency or earlier branch improvements.
+
+### Preparation, provider lookup and optional catalogs
+
+Texture greyscale/resampling/mip generation/compression shares the same
+algorithms with bounded private worker scratch. GPU resource creation/upload
+stays on the main thread. Exact-byte fixtures run 240 cases across four threads,
+including HQ/simple filtering, rectangular chains, BC3 and both 16-bit formats.
+Oversized jobs drain and use the ordinary path. Wider resampling keeps the
+common stack path but supports bounded index buffers and 64-bit fraction math.
+
+Mounted package members have a provider index, while loose directories remain
+live and original pure/reference/duplicate rules still run. Optional species
+catalogs build on actual customization use. The automatic basic profile uses
+current model/skin cvars without scanning all species; actual script-parent
+context handles menu `onOpen` before focus changes. A real customization smoke
+check verifies catalog creation occurs only after its explicit open marker.
+
+Three rotated-order rounds compare one disabled feature at a time in the same
+binary, with 2048 MiB GPU residency, automatic decoder workers, disk cache off,
+fresh profiles and warm OS cache. No local compiler, analyzer or other game
+client ran during measurements.
+
+| Measurement, median of three | All enabled | Main-thread prep | Linear package lookup | Eager catalog |
+| --- | ---: | ---: | ---: | ---: |
+| First T1_Fatal handoff | 2.222 s | 2.347 s | 2.348 s | 2.572 s |
+| mp/ffa3 handoff | 0.954 s | 1.054 s | 1.011 s | 1.340 s |
+| T1_Fatal revisit | 0.707 s | 0.704 s | 0.763 s | 1.089 s |
+| Complete client cycle | 9.176 s | 9.349 s | 9.368 s | 10.626 s |
+
+Map UI initialization median was 112 ms with lazy catalogs versus 514 ms eager;
+initial startup UI was 421 versus 761 ms. The complete cycle includes fixed
+waits and startup work. These feature comparisons are separate from earlier
+worker/residency experiments; their percentages must not be added together.
+They do not measure SJK or establish an FPS improvement.
+
+Use `-WorkerPrepare 0`, `-FilesystemIndex 0` and `-LazyPlayerSpecies 0` with
+`profile.ps1` to reproduce individual comparisons. Corresponding settings are
+`r_textureWorkerPrepare`, `fs_lookupIndex` and `ui_lazyPlayerSpecies`.

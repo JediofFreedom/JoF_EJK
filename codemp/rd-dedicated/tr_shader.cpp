@@ -1379,7 +1379,7 @@ static qboolean ParseStage( shaderStage_t *stage, const char **text )
 			{
 				vec3_t	color;
 
-				ParseVector( text, 3, color );
+				if (!ParseVector(text, 3, color)) return qfalse;
 				stage->constantColor[0] = 255 * color[0];
 				stage->constantColor[1] = 255 * color[1];
 				stage->constantColor[2] = 255 * color[2];

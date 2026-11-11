@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - CMakeLists.txt
+      - CMakeModules/**
+      - cmake/**
       - codemp/**
       - shared/**
       - lib/**
@@ -49,6 +51,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Install x86 SIMD assembler
         if: runner.os == 'Windows'
         run: choco install nasm --yes --no-progress
@@ -69,11 +74,12 @@ jobs:
           -DBuildDiscordRichPresence=OFF
       - name: Build native Vulkan
         run: cmake --build build-vulkan --config Release --parallel 4
-      - name: Run renderer and loading regressions
+      - name: Run every standalone regression suite
         shell: bash
-        run: |
-          for suite in loading-performance renderer-shader-registration vulkan-pipeline-cache loading-audit; do
-            cmake -S tests/$suite -B check-$suite -DCMAKE_BUILD_TYPE=Release
-            cmake --build check-$suite --config Release --parallel 4
-            ctest --test-dir check-$suite -C Release --output-on-failure
-          done
+        run: python tests/project-audit/regressions.py --output checks --jobs 4
+      - name: Upload regression logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-logs-${{ matrix.os }}
+          path: checks/*.log

@@ -642,7 +642,12 @@ void CL_ParseGamestate( msg_t *msg ) {
 	CL_SystemInfoChanged();
 
 	// reinitialize the filesystem if the game directory has changed
-	if( FS_ConditionalRestart( clc.checksumFeed ) ) {
+	const int filesystemStarted = Sys_Milliseconds();
+	const qboolean filesystemRestarted = FS_ConditionalRestart(clc.checksumFeed);
+	if (Cvar_VariableIntegerValue("cl_loadTimings"))
+		Com_Printf("LOADPROFILE gamestate filesystem restart: %d ms (%s)\n",
+			Sys_Milliseconds() - filesystemStarted, filesystemRestarted ? "restarted" : "unchanged");
+	if (filesystemRestarted) {
 		// don't set to true because we yet have to start downloading
 		// enabling this can cause double loading of a map when connecting to
 		// a server which has a different game directory set

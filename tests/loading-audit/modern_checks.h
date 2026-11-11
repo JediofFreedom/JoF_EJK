@@ -152,26 +152,30 @@ namespace preparationTest {
 enum { IMGFLAG_MIPMAP = 1, IMGFLAG_PICMIP = 2, IMGFLAG_NOSCALE = 4,
        IMGFLAG_LIGHTMAP = 8, IMGFLAG_NO_COMPRESSION = 16, IMGFLAG_COLORSHIFT = 32, IMGFLAG_NOLIGHTSCALE = 64 };
 const int IMAGE_UPLOAD_SCRATCH_MIN = 64, IMAGE_RESAMPLE_SCRATCH_MIN = 32;
+typedef int imgFlags_t;
 struct image_t { int width, height, flags, internalFormat; };
 struct Image_Upload_Data { byte *buffer; int buffer_size, mip_levels, base_level_width, base_level_height; };
-static struct Cvar { int integer; } off = {0}, bits = {16}, *r_roundImagesDown = &off, *r_nomip = &off,
-    *r_picmip = &off, *r_texturebits = &bits, *r_colorMipLevels = &off;
+static struct Cvar { int integer; float value; } round = {}, nomip = {}, picmip = {}, color = {}, smart = {}, bits = {16}, simple = {1}, grey = {},
+    *r_roundImagesDown = &round, *r_nomip = &nomip, *r_picmip = &picmip, *r_texturebits = &bits,
+    *r_colorMipLevels = &color, *r_simpleMipMaps = &simple, *r_smartpicmip = &smart, *r_mapGreyScale = &grey;
 static struct { bool mapLoading; } tr;
-static struct { int maxTextureSize; } glConfig = {4096};
-static struct { int compressed_format; } vk;
+static struct { int maxTextureSize; bool deviceSupportsGamma; } glConfig = {4096};
+static struct { int compressed_format; bool fboActive; } vk;
+static byte s_gammatable[256], s_intensitytable[256];
+static struct { uint64_t imagePrepareUs; } vkLoadStats;
 static struct { int upload, resample, mip, compress; } s_imageScratch = {0, 1, 2, 3};
 static std::vector<byte> scratch[4];
-static byte *R_ImageScratchAlloc(int *slot, size_t bytes) { scratch[*slot].resize(bytes); return scratch[*slot].data(); }
-static void ResampleTexture(unsigned *, int, int, unsigned *, int, int) { CHECK(false); }
+static thread_local bool privateWorker;
+static byte *R_ImageScratchAlloc(int *slot, size_t bytes) { CHECK(!privateWorker); scratch[*slot].resize(bytes); return scratch[*slot].data(); }
+static struct {
+    static void *Hunk_AllocateTempMemory(int bytes) { CHECK(!privateWorker); return std::malloc(bytes); }
+    static void Hunk_FreeTempMemory(void *memory) { CHECK(!privateWorker); std::free(memory); }
+    static void Error(int, const char *, ...) { CHECK(false); }
+} ri;
 static void R_ColorShiftLightingBytes(byte *, byte *, qboolean) { CHECK(false); }
-static void R_LightScaleTexture(byte *, int, int, qboolean) { CHECK(false); }
-static void R_MipMap(byte *in, byte *out, int width, int height) {
-    const size_t bytes = size_t(std::max(1, width / 2)) * std::max(1, height / 2) * 4;
-    std::memmove(out, in, bytes);
-}
-static void R_BlendOverTexture(byte *, int, int) { CHECK(false); }
-static int rygCompressedSize(int w, int h) { return ((w + 3) / 4) * ((h + 3) / 4) * 16; }
-static void rygCompress(byte *, byte *, int, int) { CHECK(false); }
+static bool vk_generate_image_upload_data(image_t *, byte *, Image_Upload_Data *, const TexturePreparationContext * = nullptr, TexturePreparationBuffers * = nullptr);
+#define LERP(a,b,w) ((a)*(1.0f-(w))+(b)*(w))
+#define LUMA(r,g,b) (0.2126f*(r)+0.7152f*(g)+0.0722f*(b))
 #include "preparation.h"
 static void check() {
     byte rgba[4 * 4 * 4];
@@ -188,6 +192,157 @@ static void check() {
         byte *converted = uploadTest::vk_resample_image_data(image.internalFormat, upload.buffer, upload.buffer_size, &bpp);
         CHECK(converted && bpp == 2 && uploadTest::converted.size() == (16 + 4 + 1) * 2);
     }
+    // Deferred preparation must produce the bytes that immediate registration
+    // would have produced, even after the world/UI phase and live cvars change.
+    alignas(4) byte original[4 * 8 * 4];
+    for (size_t i = 0; i < sizeof(original); ++i) original[i] = byte(i * 17 + 3);
+    for (int world = 0; world < 2; ++world) for (int noMip = 0; noMip < 2; ++noMip)
+    for (int level = 0; level < 2; ++level) for (int precision : {0,16})
+    for (int filtering = 0; filtering < 2; ++filtering) for (int gamma = 0; gamma < 2; ++gamma) {
+        tr.mapLoading = world != 0; nomip.integer = noMip; picmip.integer = level;
+        bits.integer = precision; simple.integer = filtering; color.integer = round.integer = 0;
+        grey.integer = 0; grey.value = 0.5f;
+        glConfig.maxTextureSize = 4096; glConfig.deviceSupportsGamma = gamma != 0;
+        for (int c = 0; c < 256; ++c) { s_gammatable[c] = byte(c * 3 / 4); s_intensitytable[c] = byte(std::min(255, c * 2)); }
+        const TexturePreparationContext saved = R_CaptureTextureContext();
+        const int flags = IMGFLAG_PICMIP | IMGFLAG_MIPMAP | IMGFLAG_NO_COMPRESSION;
+        const std::string key = R_ResidentTextureKey("models/fixture.png", flags, saved);
+        byte input[sizeof(original)]; std::memcpy(input, original, sizeof(input));
+        R_GreyscaleFileImage(input, 4, 8, saved);
+        image_t immediate = {4,8,flags,0}; Image_Upload_Data expectedUpload;
+        vk_generate_image_upload_data(&immediate,input,&expectedUpload);
+        const std::vector<byte> expected(expectedUpload.buffer, expectedUpload.buffer + expectedUpload.buffer_size);
+        tr.mapLoading = !world; nomip.integer = !noMip; picmip.integer = 2;
+        bits.integer = precision ? 0 : 16; simple.integer = !filtering; color.integer = 1;
+        glConfig.maxTextureSize = 1; glConfig.deviceSupportsGamma = !gamma;
+        grey.integer = 1; grey.value = 1;
+        std::memset(s_gammatable, 0, sizeof(s_gammatable)); std::memset(s_intensitytable, 0, sizeof(s_intensitytable));
+        CHECK(key == R_ResidentTextureKey("models/fixture.png", flags, saved));
+        CHECK(key != R_ResidentTextureKey("models/fixture.png", flags, R_CaptureTextureContext()));
+        std::memcpy(input, original, sizeof(input)); R_GreyscaleFileImage(input,4,8,saved);
+        image_t deferred = {4,8,flags,0}; Image_Upload_Data actual;
+        vk_generate_image_upload_data(&deferred,input,&actual,&saved);
+        CHECK(immediate.internalFormat == deferred.internalFormat);
+        CHECK(expectedUpload.base_level_width == actual.base_level_width && expectedUpload.base_level_height == actual.base_level_height);
+        CHECK(expectedUpload.mip_levels == actual.mip_levels && expectedUpload.buffer_size == actual.buffer_size);
+        CHECK(expected == std::vector<byte>(actual.buffer, actual.buffer + actual.buffer_size));
+    }
+    TexturePreparationContext map = {}; map.mapLoading = 1; map.mapGreyInteger = 1; map.mapGreyScale = 1;
+    byte worldPixel[] = {20,100,230,77}; R_GreyscaleFileImage(worldPixel,1,1,map);
+    CHECK(worldPixel[0] == worldPixel[1] && worldPixel[1] == worldPixel[2] && worldPixel[3] == 77);
+    byte uiPixel[] = {20,100,230,77}; map.mapLoading = 0; R_GreyscaleFileImage(uiPixel,1,1,map);
+    CHECK(uiPixel[0] == 20 && uiPixel[1] == 100 && uiPixel[2] == 230 && uiPixel[3] == 77);
+    // Compare the actual shared CPU algorithms with private buffers under
+    // concurrent HQ mip, grayscale, resampling, BC3 and both 16-bit modes.
+    struct Fixture {
+        int width, height, flags, format;
+        TexturePreparationContext context;
+        Image_Upload_Data description;
+        std::vector<byte> source, expected;
+    };
+    std::vector<Fixture> fixtures;
+    byte warmPixels[64] = {}, warmBlock[16];
+    stb_compress_dxt_block(warmBlock,warmPixels,1,STB_DXT_NORMAL); // Same main-thread prewarm as production.
+    for (const auto dimensions : {std::pair<int,int>(1,1),{1,32},{2,16},{16,8},{32,32}})
+    for (int mode = 0; mode < 4; ++mode) for (int filtering = 0; filtering < 2; ++filtering)
+    for (int level = 0; level < 2; ++level) for (float greyScale : {0.0f,0.35f,1.0f}) {
+        Fixture fixture;
+        fixture.width = dimensions.first; fixture.height = dimensions.second;
+        fixture.flags = IMGFLAG_PICMIP | ((fixtures.size() & 1) ? IMGFLAG_MIPMAP : 0);
+        const size_t pixels = size_t(fixture.width) * fixture.height;
+        fixture.source.resize(pixels * 4);
+        for (size_t i = 0; i < pixels; ++i) {
+            fixture.source[i*4] = byte(i*13+5); fixture.source[i*4+1] = byte(i*17+17); fixture.source[i*4+2] = byte(i*23+29);
+            fixture.source[i*4+3] = mode == 2 ? 127 : 255;
+        }
+        bits.integer = mode == 1 || mode == 2 ? 16 : 0; vk.compressed_format = mode == 3 ? VK_FORMAT_BC3_UNORM_BLOCK : 0;
+        simple.integer = filtering; picmip.integer = level; nomip.integer = 0; color.integer = level;
+        glConfig.maxTextureSize = 4096; glConfig.deviceSupportsGamma = false; tr.mapLoading = true;
+        grey.integer = int(greyScale); grey.value = greyScale;
+        for (int c = 0; c < 256; ++c) { s_gammatable[c] = byte(c*3/4); s_intensitytable[c] = byte(std::min(255,c*2)); }
+        fixture.context = R_CaptureTextureContext();
+        auto input = fixture.source; R_GreyscaleFileImage(input.data(),fixture.width,fixture.height,fixture.context);
+        image_t image = {fixture.width,fixture.height,fixture.flags,0};
+        CHECK(vk_generate_image_upload_data(&image,input.data(),&fixture.description,&fixture.context));
+        fixture.format = image.internalFormat;
+        fixture.expected.assign(fixture.description.buffer,fixture.description.buffer+fixture.description.buffer_size);
+        fixture.description.buffer = nullptr;
+        fixtures.push_back(std::move(fixture));
+    }
+    // Live engine state is deliberately incompatible with every captured job.
+    std::memset(s_gammatable,0,sizeof(s_gammatable)); std::memset(s_intensitytable,0,sizeof(s_intensitytable));
+    bits.integer = 123; simple.integer = 42; color.integer = 0; glConfig.maxTextureSize = 1;
+    const uint64_t mainPreparationCounter = vkLoadStats.imagePrepareUs;
+    std::vector<std::thread> threads;
+    for (int thread = 0; thread < 4; ++thread) threads.emplace_back([&]() {
+        privateWorker = true;
+        for (const auto &fixture : fixtures) {
+            auto input = fixture.source; R_GreyscaleFileImage(input.data(),fixture.width,fixture.height,fixture.context);
+            const size_t budget = size_t(fixture.width)*fixture.height*16+65536;
+            TexturePreparationBuffers storage(budget);
+            image_t image = {fixture.width,fixture.height,fixture.flags,0}; Image_Upload_Data actual = {};
+            CHECK(vk_generate_image_upload_data(&image,input.data(),&actual,&fixture.context,&storage));
+            CHECK(storage.peak <= budget && storage.used <= budget);
+            CHECK(image.internalFormat == fixture.format && actual.buffer_size == fixture.description.buffer_size && actual.mip_levels == fixture.description.mip_levels);
+            CHECK(actual.base_level_width == fixture.description.base_level_width && actual.base_level_height == fixture.description.base_level_height);
+            CHECK(!std::memcmp(actual.buffer,fixture.expected.data(),fixture.expected.size()));
+            TexturePreparationBuffers exhausted(1);
+            CHECK(!vk_generate_image_upload_data(&image,input.data(),&actual,&fixture.context,&exhausted));
+        }
+        privateWorker = false;
+    });
+    for (auto &thread : threads) thread.join();
+    CHECK(vkLoadStats.imagePrepareUs == mainPreparationCounter);
+    // Wide valid textures keep the same sampling formula beyond the old
+    // 2048-index stack limit, including the former signed overflow at32768.
+    for (int sourceWidth : {8192,32768}) {
+        const int targetWidth = sourceWidth / 2;
+        std::vector<byte> input(size_t(sourceWidth) * 2 * 4);
+        for (int y = 0; y < 2; ++y) for (int x = 0; x < sourceWidth; ++x) {
+            byte *pixel = input.data() + (size_t(y)*sourceWidth+x)*4;
+            pixel[0] = byte(x); pixel[1] = byte(x >> 8); pixel[2] = byte(y*80); pixel[3] = 255;
+        }
+        TexturePreparationContext context = {};
+        context.picmip = 1; context.maxTextureSize = 32768; context.mapLoading = 1; context.simpleMipMaps = 1;
+        const int flags = IMGFLAG_PICMIP | IMGFLAG_NO_COMPRESSION | IMGFLAG_NOLIGHTSCALE;
+        image_t image = {sourceWidth,2,flags,0}; Image_Upload_Data mainOutput;
+        CHECK(vk_generate_image_upload_data(&image,input.data(),&mainOutput,&context));
+        CHECK(mainOutput.base_level_width == targetWidth && mainOutput.base_level_height == 1);
+        const std::vector<byte> expected(mainOutput.buffer,mainOutput.buffer+mainOutput.buffer_size);
+        for (int x = 0; x < targetWidth; ++x) {
+            CHECK(expected[x*4] == byte(x*2) && expected[x*4+1] == byte((x*2) >> 8));
+            CHECK(expected[x*4+2] == 40 && expected[x*4+3] == 255);
+        }
+        privateWorker = true;
+        TexturePreparationBuffers storage(size_t(sourceWidth)*2*16+65536);
+        Image_Upload_Data workerOutput;
+        CHECK(vk_generate_image_upload_data(&image,input.data(),&workerOutput,&context,&storage));
+        CHECK(workerOutput.buffer_size == int(expected.size()) && !std::memcmp(workerOutput.buffer,expected.data(),expected.size()));
+        const size_t minimum = size_t(targetWidth)*4*2 + size_t(targetWidth)*sizeof(unsigned)*2;
+        TexturePreparationBuffers exhausted(minimum-1);
+        CHECK(!vk_generate_image_upload_data(&image,input.data(),&workerOutput,&context,&exhausted));
+        privateWorker = false;
+    }
+}
+}
+
+namespace registrationScopeTest {
+typedef int imgFlags_t;
+enum {IMGFLAG_LIGHTMAP = 1, IMGFLAG_COLORSHIFT = 2, IMGFLAG_TRANSFER_SRC = 4};
+static bool textureRegistrationActive, textureBackendExecuting, pending;
+static struct { unsigned frame_count; } vk;
+static void R_FlushTextureJobs() { pending = false; }
+#include "texture_scope.h"
+static void check() {
+    CHECK(!R_CanDeferTexture("ui/a.png",0));
+    R_SetTextureRegistration(qtrue); CHECK(R_CanDeferTexture("ui/a.png",0));
+    pending = true; R_TextureBackend(qtrue);
+    CHECK(!pending && !R_CanDeferTexture("ui/a.png",0));
+    R_TextureBackend(qfalse); CHECK(R_CanDeferTexture("ui/a.png",0));
+    for (int flags : {IMGFLAG_LIGHTMAP,IMGFLAG_COLORSHIFT,IMGFLAG_TRANSFER_SRC}) CHECK(!R_CanDeferTexture("ui/a.png",flags));
+    CHECK(!R_CanDeferTexture("*procedural",0));
+    vk.frame_count = 1; CHECK(!R_CanDeferTexture("ui/a.png",0)); vk.frame_count = 0;
+    pending = true; R_SetTextureRegistration(qfalse); CHECK(!pending && !R_CanDeferTexture("ui/a.png",0));
 }
 }
 
@@ -253,6 +408,6 @@ static void check() {
     pinned.reset(); CHECK(cache.evictIdle() && Resource::count == 0);
     cache.setLimit(0); cache.store("off", bytes, std::make_shared<Resource>(), 50); CHECK(cache.size() == 0 && Resource::count == 0);
     hostCopyCapabilityTest::check();
-    rendererLoaderTest::check(); lodTest::check(); sourceTest::check(); preparationTest::check();
+    rendererLoaderTest::check(); lodTest::check(); sourceTest::check(); preparationTest::check(); registrationScopeTest::check();
 }
 }

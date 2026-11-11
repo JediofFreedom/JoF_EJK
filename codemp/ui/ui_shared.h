@@ -224,6 +224,8 @@ typedef struct multiDef_s {
 	float cvarValue[MAX_MULTI_CVARS];
 	int count;
 	qboolean strDef;
+	unsigned int speciesGeneration; // Lazy player-species choices for this UI catalog.
+	qboolean speciesFeeder;
 } multiDef_t;
 
 typedef struct modelDef_s {
@@ -536,6 +538,7 @@ void Menu_Init(menuDef_t *menu);
 void Item_Init(itemDef_t *item);
 void Menu_PostParse(menuDef_t *menu);
 menuDef_t *Menu_GetFocused();
+menuDef_t *Menu_GetScriptMenu(void);
 void Menu_HandleKey(menuDef_t *menu, int key, qboolean down);
 void Menu_HandleMouseMove(menuDef_t *menu, float x, float y);
 void Menu_ScrollFeeder(menuDef_t *menu, int feeder, qboolean down);

@@ -1,0 +1,30 @@
+`triage.json` accounts for the initial analyzer's 115 diagnostic compiler
+contexts and 349 warning appearances. Exact duplicates across contexts become
+285 findings, retaining each original context identifier. The deduplication key
+includes the source path, line, column, check and message.
+
+Every finding has a disposition, rationale and source/test evidence. Source
+locations and recorded statements refer to the initial diagnostic trace; line
+numbers may move as fixes land. Context summaries stay unresolved if any of
+their findings remain unresolved. A context containing fixes and provisional
+contract explanations retains those separate finding dispositions.
+
+The review examined every reported statement and nearby source. Specific
+allocator, error, aliasing and ownership contracts were followed where cited.
+This is not a complete caller-path proof for every finding, and the JSON keeps
+those cases unresolved. A likely contract/assert false positive is provisional;
+it is neither a production fix nor permission to ignore a future reproducer.
+
+Confirmed fixes cite regression fixtures. Unresolved entries include additional
+high-confidence candidates awaiting fixtures and lower-confidence warnings
+requiring valid runtime state. Dependencies such as bundled MikkTSpace remain
+identified explicitly. Parse failures and timeouts belong in the overall audit
+coverage ledger; they are not clean translation units.
+
+The Icarus metadata update marks five findings in the actual `Get`, `GetVector`
+and `Move` paths as fixed, citing `tests/icarus-task-parameters`. Those fixtures
+pass on x64 with AddressSanitizer and on x86, and fail against the baseline.
+Sixteen other Icarus command-consumer findings retain unresolved status because
+this step did not execute those commands or confirm their post-fix diagnostics.
+Sharing the corrected readers alone does not give every Icarus finding fixed
+status.

@@ -474,6 +474,7 @@ int CTaskManager::GetVector( int entID, CBlock *block, int &memberNum, vector_t 
 		if ( type != TK_VECTOR )
 		{
 			(m_owner->GetInterface())->I_DPrintf( WL_ERROR, "Get() call tried to return a non-VECTOR parameter!\n" );
+			return false;
 		}
 
 		return (m_owner->GetInterface())->I_GetVector( entID, type, name, value );
@@ -504,14 +505,16 @@ int CTaskManager::GetVector( int entID, CBlock *block, int &memberNum, vector_t 
 		float	tagLookup;
 
 		memberNum++;
-		ICARUS_VALIDATE ( Get( entID, block, memberNum, &tagName ) );
-		ICARUS_VALIDATE ( GetFloat( entID, block, memberNum, tagLookup ) );
+		// Parameter readers return boolean success; TASK_FAILED is a nonzero
+		// command status and would incorrectly report success here.
+		if (!Get(entID, block, memberNum, &tagName) ||
+			!GetFloat(entID, block, memberNum, tagLookup)) return false;
 
 		if ( (m_owner->GetInterface())->I_GetTag( entID, tagName, (int) tagLookup, value ) == false)
 		{
 			(m_owner->GetInterface())->I_DPrintf( WL_ERROR, "Unable to find tag \"%s\" for ent %i!\n", tagName, entID );
 //			assert(0);
-			return TASK_FAILED;
+			return false;
 		}
 
 		return true;
@@ -639,8 +642,8 @@ int CTaskManager::Get( int entID, CBlock *block, int &memberNum, char **value )
 	if ( Check( ID_TAG, block, memberNum ) )
 	{
 		memberNum++;
-		ICARUS_VALIDATE ( Get( entID, block, memberNum, &tagName ) );
-		ICARUS_VALIDATE ( GetFloat( entID, block, memberNum, tagLookup ) );
+		if (!Get(entID, block, memberNum, &tagName) ||
+			!GetFloat(entID, block, memberNum, tagLookup)) return false;
 
 		if ( ( m_owner->GetInterface())->I_GetTag( entID, tagName, (int) tagLookup, vector ) == false)
 		{

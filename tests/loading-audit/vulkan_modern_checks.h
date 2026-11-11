@@ -1,4 +1,29 @@
 namespace deviceFeatureTest {
+static void checkExtensionQuery() {
+    bool fail = false, shrink = false;
+    int incomplete = 0;
+    const auto enumerate = [&](VkPhysicalDevice, const char *, uint32_t *count, VkExtensionProperties *out) -> VkResult {
+        if (fail) return VK_ERROR_INITIALIZATION_FAILED;
+        if (!out) { *count = 300; return VK_SUCCESS; }
+        if (incomplete) { --incomplete; return VK_INCOMPLETE; }
+        const unsigned limit = shrink ? 30 : 300;
+        for (unsigned i = 0; i < limit; ++i) {
+            std::snprintf(out[i].extensionName, sizeof(out[i].extensionName), "VK_TEST_extension_%u", i);
+        }
+        if (!shrink) std::strcpy(out[299].extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
+        *count = limit; return VK_SUCCESS;
+    };
+    CHECK(VK_HasDeviceExtension(VK_NULL_HANDLE, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME, enumerate));
+    CHECK(!VK_HasDeviceExtension(VK_NULL_HANDLE, "VK_EXT_memory_budget_suffix", enumerate));
+    incomplete = 1;
+    CHECK(VK_HasDeviceExtension(VK_NULL_HANDLE, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME, enumerate));
+    incomplete = 4;
+    CHECK(!VK_HasDeviceExtension(VK_NULL_HANDLE, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME, enumerate));
+    incomplete = 0; shrink = true;
+    CHECK(!VK_HasDeviceExtension(VK_NULL_HANDLE, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME, enumerate));
+    fail = true;
+    CHECK(!VK_HasDeviceExtension(VK_NULL_HANDLE, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME, enumerate));
+}
 struct cvar_t { int integer; } setting = {1};
 static const int CVAR_ARCHIVE_ND = 1, CVAR_LATCH = 2;
 static struct { uint32_t instanceApiVersion; } vk;
@@ -31,6 +56,20 @@ static PFN_vkGetPhysicalDeviceProperties2 qvkGetPhysicalDeviceProperties2 = prop
 static PFN_vkGetPhysicalDeviceImageFormatProperties2 qvkGetPhysicalDeviceImageFormatProperties2 = hostCopyCapabilityTest::query;
 #include "device_features.h"
 static void check() {
+    checkExtensionQuery();
+    const uint64_t mib = UINT64_C(1024) * 1024;
+    CHECK(VK_TextureCacheBudget(-1, true, 16 * 1024 * mib) == 2048 * mib);
+    CHECK(VK_TextureCacheBudget(-1, true, 8 * 1024 * mib) == 1024 * mib);
+    CHECK(VK_TextureCacheBudget(-1, true, 4 * 1024 * mib) == 512 * mib);
+    CHECK(VK_TextureCacheBudget(-1, false, 16 * 1024 * mib) == 128 * mib);
+    CHECK(VK_TextureCacheBudget(0, true, 16 * 1024 * mib) == 0);
+    CHECK(VK_TextureCacheBudget(512, true, 16 * 1024 * mib) == 512 * mib);
+    CHECK(VK_TextureCacheBudget(2048, true, 1024 * mib) == 256 * mib);
+    CHECK(VK_TextureCacheBudget(-1, true, 0) == 0);
+    CHECK(VK_TextureCacheBudget(-1, true, 128 * mib) == 0);
+    CHECK(VK_TextureCacheBudget(-1, true, 16 * 1024 * mib, true, 1024 * mib, 800 * mib) == 112 * mib);
+    CHECK(VK_TextureCacheBudget(-1, true, 16 * 1024 * mib, true, 1024 * mib, 800 * mib, 512 * mib) == 368 * mib);
+    CHECK(VK_TextureCacheBudget(-1, true, 16 * 1024 * mib, true, 100 * mib, 200 * mib) == 0);
     VkPhysicalDeviceHostImageCopyFeatures host = {};
     host.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_HOST_IMAGE_COPY_FEATURES;
     VkPhysicalDeviceSynchronization2Features synchronization = {};

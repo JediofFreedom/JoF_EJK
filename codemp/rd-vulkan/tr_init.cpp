@@ -1194,12 +1194,22 @@ Touch all images to make sure they are resident
 =============
 */
 void RE_EndRegistration( void ) {
+	R_SetTextureRegistration(qfalse);
 	vk_wait_idle();
 	vk_report_texture_cache();
 	if (ri.Cvar_VariableIntegerValue("cl_loadTimings")) {
 		ri.Printf(PRINT_ALL, "LOADPROFILE Vulkan images: %u loads, decode %d ms, create %d ms; uploads %u, %.1f MiB, queue waits %d ms\n",
 			vkLoadStats.imageLoads, vkLoadStats.imageDecodeMs, vkLoadStats.imageCreateMs,
 			vkLoadStats.uploadSubmissions, vkLoadStats.uploadBytes / (1024.0 * 1024.0), vkLoadStats.uploadWaitMs);
+		ri.Printf(PRINT_ALL, "LOADPROFILE texture main stages: source metadata/read-probe %.3f ms, synchronous read/decode %.3f ms, grey/mip prep %.3f ms, image API create %.3f ms, upload record/copy %.3f ms, transfer submit/wait %.3f ms, disk enqueue %.3f ms\n",
+			vkLoadStats.imageSourceUs / 1000.0, vkLoadStats.imageSyncReadDecodeUs / 1000.0,
+			vkLoadStats.imagePrepareUs / 1000.0, vkLoadStats.imageGpuCreateUs / 1000.0,
+			vkLoadStats.imageUploadRecordUs / 1000.0, vkLoadStats.imageTransferFlushUs / 1000.0, vkLoadStats.imageCacheEnqueueUs / 1000.0);
+		ri.Printf(PRINT_ALL, "LOADPROFILE texture decoder effort: worker decode sum %.3f ms, worker cache/hash/read sum %.3f ms (overlaps main; not end-to-end); inline decode %.3f ms, inline cache/hash/read %.3f ms\n",
+			vkLoadStats.workerDecodeUs / 1000.0, vkLoadStats.workerCacheUs / 1000.0,
+			vkLoadStats.inlineDecodeUs / 1000.0, vkLoadStats.inlineCacheUs / 1000.0);
+		ri.Printf(PRINT_ALL, "LOADPROFILE texture worker preparation: %u completed, %u main-thread fallbacks, %u oversized synchronous loads, %.3f ms summed effort (overlaps main)\n",
+			vkLoadStats.workerPreparedJobs, vkLoadStats.workerPreparationFallbacks, vkLoadStats.workerPreparationOversized, vkLoadStats.workerPrepareUs / 1000.0);
 		ri.Printf(PRINT_ALL, "LOADPROFILE Vulkan host copies: %u images, %.1f MiB, %d ms\n",
 			vkLoadStats.hostImageCopies, vkLoadStats.hostImageCopyBytes / (1024.0 * 1024.0), vkLoadStats.hostImageCopyMs);
 		ri.Printf(PRINT_ALL, "LOADPROFILE Vulkan static buffer uploads: %u buffers, %.1f MiB\n",

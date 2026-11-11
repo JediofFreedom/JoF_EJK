@@ -25,6 +25,16 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "vk_resident_cache.h"
 #include "vk_host_image_copy.h"
 #include "vk_sync2.h"
+#include "vk_texture_budget.h"
+#include "vk_device_extensions.h"
+#include "vk_texture_jobs.h"
+#include "vk_texture_context.h"
+#include "vk_texture_scratch.h"
+#include "vk_prepared_cache.h"
+#include "../rd-common/tr_image_decode.h"
+#include <chrono>
+#include <atomic>
+#include "vk_load_profile.h"
 #include "vk_allocation_ranges.h"
 vkLoadStats_t vkLoadStats = {};
 
@@ -75,21 +85,47 @@ static ResidentResourceCache<ResidentTexture> residentTextures;
 static std::unordered_map<image_t *, std::shared_ptr<ResidentTexture>> activeResidentTextures;
 
 static void R_InitResidentTextures() {
-	cvar_t *budget = ri.Cvar_Get("r_textureCacheMegs", sizeof(void *) == 8 ? "512" : "128",
-		CVAR_ARCHIVE_ND, "GPU textures retained between maps, including source validation bytes; 0 disables");
-	ri.Cvar_CheckRange(budget, 0, 2048, qtrue);
+	cvar_t *budget = ri.Cvar_Get("r_textureCacheMegs", "-1", CVAR_ARCHIVE_ND,
+		"GPU textures retained between maps: -1 chooses a device-scaled budget, 0 disables, positive values set MiB");
+	ri.Cvar_CheckRange(budget, -1, 2048, qtrue);
 	VkPhysicalDeviceProperties properties;
 	qvkGetPhysicalDeviceProperties(vk.physical_device, &properties);
 	qvkGetPhysicalDeviceMemoryProperties(vk.physical_device, &vk.devMemProperties);
 	residentTextureLimit = std::min<size_t>(128, properties.limits.maxMemoryAllocationCount / 4);
 	VkDeviceSize deviceMemory = 0;
+	uint32_t selectedHeap = 0;
 	for (uint32_t i = 0; i < vk.devMemProperties.memoryHeapCount; ++i)
-		if (vk.devMemProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
-			deviceMemory = std::max(deviceMemory, vk.devMemProperties.memoryHeaps[i].size);
-	const size_t requested = size_t(budget->integer) * 1024 * 1024;
-	const size_t limit = deviceMemory ? size_t(std::min<VkDeviceSize>(requested, deviceMemory / 4)) : 0;
+		if ((vk.devMemProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) &&
+			vk.devMemProperties.memoryHeaps[i].size > deviceMemory) {
+			deviceMemory = vk.devMemProperties.memoryHeaps[i].size;
+			selectedHeap = i;
+		}
+	VkPhysicalDeviceMemoryBudgetPropertiesEXT feedback = {};
+	feedback.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT;
+	bool hasBudget = false;
+	if (vk.instanceApiVersion >= VK_API_VERSION_1_1 &&
+		VK_HasDeviceExtension(vk.physical_device, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME, qvkEnumerateDeviceExtensionProperties)) {
+		const auto query = reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties2>(
+			qvkGetInstanceProcAddr(vk.instance, "vkGetPhysicalDeviceMemoryProperties2"));
+		if (query) {
+			VkPhysicalDeviceMemoryProperties2 memory = {};
+			memory.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2;
+			memory.pNext = &feedback;
+			query(vk.physical_device, &memory);
+			hasBudget = feedback.heapBudget[selectedHeap] != 0;
+		}
+	}
+	const size_t limit = VK_TextureCacheBudget(budget->integer, sizeof(void *) == 8, deviceMemory,
+		hasBudget, feedback.heapBudget[selectedHeap], feedback.heapUsage[selectedHeap], residentPageBytes);
 	residentTextures.setLimit(residentTextureLimit ? limit : 0);
+	// Logical eviction can leave fragmented pages alive. Reclaim idle resources
+	// until physical residency also fits a reduced budget; current owners stay pinned.
+	while (residentPageBytes > residentTextures.limit() && residentTextures.evictIdle()) {}
 	residentTextures.hits = residentTextures.misses = residentTextures.evictions = 0;
+	if (ri.Cvar_VariableIntegerValue("cl_loadTimings"))
+		ri.Printf(PRINT_ALL, "LOADPROFILE Vulkan texture budget: %u MiB (%s), driver budget feedback %s\n",
+			(unsigned)(residentTextures.limit() / (1024 * 1024)), budget->integer < 0 ? "automatic" : "explicit",
+			hasBudget ? "available" : "unavailable");
 }
 
 void vk_clear_texture_cache() {
@@ -108,20 +144,35 @@ void vk_report_texture_cache() {
 			(unsigned)residentTextures.size(), residentTextures.bytes() / (1024.0 * 1024.0), (unsigned)residentTextureCount, (unsigned)residentPageCount);
 }
 
-static std::string R_ResidentTextureKey(const char *name, imgFlags_t flags) {
+static TexturePreparationContext R_CaptureTextureContext() {
+    TexturePreparationContext context = {};
+    context.roundDown = r_roundImagesDown->integer; context.picmip = r_picmip->integer;
+    context.nomip = r_nomip->integer; context.textureBits = r_texturebits->integer;
+    context.simpleMipMaps = r_simpleMipMaps->integer; context.colorMipLevels = r_colorMipLevels->integer;
+    context.smartPicmip = r_smartpicmip->integer; context.maxTextureSize = glConfig.maxTextureSize;
+    context.compressedFormat = vk.compressed_format; context.supportsGamma = glConfig.deviceSupportsGamma;
+    context.fboActive = vk.fboActive; context.mapLoading = tr.mapLoading;
+    context.mapGreyInteger = r_mapGreyScale->integer; context.mapGreyScale = r_mapGreyScale->value;
+    Com_Memcpy(context.gamma, s_gammatable, sizeof(context.gamma));
+    Com_Memcpy(context.intensity, s_intensitytable, sizeof(context.intensity));
+    return context;
+}
+
+static std::string R_ResidentTextureKey(const char *name, imgFlags_t flags, const TexturePreparationContext &context) {
 	std::string key(name);
 	for (char &ch : key) {
 		if (ch == '\\') ch = '/';
 		else if (ch >= 'A' && ch <= 'Z') ch += 'a' - 'A';
 	}
 	key.push_back('\0');
-	const int settings[] = {int(flags), r_roundImagesDown->integer, r_picmip->integer, r_nomip->integer,
-		r_texturebits->integer, int(vk.compressed_format), r_simpleMipMaps->integer, r_colorMipLevels->integer,
-		r_smartpicmip->integer, glConfig.maxTextureSize, glConfig.deviceSupportsGamma, vk.fboActive, tr.mapLoading};
-	key.append(reinterpret_cast<const char *>(settings), sizeof(settings));
-	key.append(reinterpret_cast<const char *>(&r_mapGreyScale->value), sizeof(r_mapGreyScale->value));
-	key.append(reinterpret_cast<const char *>(s_gammatable), sizeof(s_gammatable));
-	key.append(reinterpret_cast<const char *>(s_intensitytable), sizeof(s_intensitytable));
+    const int settings[] = {int(flags), context.roundDown, context.picmip, context.nomip,
+        context.textureBits, context.compressedFormat, context.simpleMipMaps, context.colorMipLevels,
+        context.smartPicmip, context.maxTextureSize, context.supportsGamma, context.fboActive, context.mapLoading,
+        context.mapGreyInteger};
+    key.append(reinterpret_cast<const char *>(settings), sizeof(settings));
+    key.append(reinterpret_cast<const char *>(&context.mapGreyScale), sizeof(context.mapGreyScale));
+    key.append(reinterpret_cast<const char *>(context.gamma), sizeof(context.gamma));
+    key.append(reinterpret_cast<const char *>(context.intensity), sizeof(context.intensity));
 	return key;
 }
 
@@ -678,8 +729,12 @@ static int R_CalcUploadSize(
 	return total;
 }
 
-void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data* upload_data)
+bool vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data* upload_data,
+    const TexturePreparationContext *context, TexturePreparationBuffers *scratch)
 {
+    uint64_t privateElapsed = 0;
+    ImagePhaseTimer profile(scratch ? privateElapsed : vkLoadStats.imagePrepareUs);
+    if (scratch && (!context || !data || (image->flags & (IMGFLAG_LIGHTMAP | IMGFLAG_COLORSHIFT)))) return false;
 	qboolean mipmap = (image->flags & IMGFLAG_MIPMAP) ? qtrue : qfalse;
 	qboolean picmip = (image->flags & IMGFLAG_PICMIP) ? qtrue : qfalse;
 
@@ -706,16 +761,16 @@ void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 		for (scaled_width = 1; scaled_width < width; scaled_width <<= 1);
 		for (scaled_height = 1; scaled_height < height; scaled_height <<= 1);
 
-		if (r_roundImagesDown->integer && scaled_width > width)
+		if ((context ? context->roundDown : r_roundImagesDown->integer) && scaled_width > width)
 			scaled_width >>= 1;
 
-		if (r_roundImagesDown->integer && scaled_height > height)
+		if ((context ? context->roundDown : r_roundImagesDown->integer) && scaled_height > height)
 			scaled_height >>= 1;
 	}
 
-	if (picmip && (tr.mapLoading || r_nomip->integer == 0)) {
-		scaled_width >>= r_picmip->integer;
-		scaled_height >>= r_picmip->integer;
+	if (picmip && ((context ? context->mapLoading : tr.mapLoading) || (context ? context->nomip : r_nomip->integer) == 0)) {
+		scaled_width >>= (context ? context->picmip : r_picmip->integer);
+		scaled_height >>= (context ? context->picmip : r_picmip->integer);
 	}
 
 	if (scaled_width < 1)
@@ -725,7 +780,7 @@ void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 		scaled_height = 1;
 
 	if (!(image->flags & IMGFLAG_LIGHTMAP)) {
-		while (scaled_width > glConfig.maxTextureSize || scaled_height > glConfig.maxTextureSize) {
+		while (scaled_width > (context ? context->maxTextureSize : glConfig.maxTextureSize) || scaled_height > (context ? context->maxTextureSize : glConfig.maxTextureSize)) {
 			scaled_width >>= 1;
 			scaled_height >>= 1;
 		}
@@ -734,12 +789,12 @@ void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 	upload_data->base_level_width = scaled_width;
 	upload_data->base_level_height = scaled_height;
 
-	if (r_texturebits->integer > 16 || r_texturebits->integer == 0 || (image->flags & IMGFLAG_LIGHTMAP)) {
-		if (!vk.compressed_format || (image->flags & IMGFLAG_NO_COMPRESSION)) {
+	if ((context ? context->textureBits : r_texturebits->integer) > 16 || (context ? context->textureBits : r_texturebits->integer) == 0 || (image->flags & IMGFLAG_LIGHTMAP)) {
+		if (!(context ? context->compressedFormat : vk.compressed_format) || (image->flags & IMGFLAG_NO_COMPRESSION)) {
 			image->internalFormat = VK_FORMAT_R8G8B8A8_UNORM;
 		}
 		else {
-			image->internalFormat = vk.compressed_format;
+			image->internalFormat = (context ? context->compressedFormat : vk.compressed_format);
 			compressed = qtrue;
 		}
 	}
@@ -761,33 +816,36 @@ void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 		compressed,
 		bytesPerPixel);
 
-	upload_data->buffer = R_ImageScratchAlloc(
+	upload_data->buffer = scratch ? scratch->allocate(TexturePreparationBuffers::Upload, upload_data->buffer_size) : R_ImageScratchAlloc(
 		&s_imageScratch.upload,
 		MAX(upload_data->buffer_size, IMAGE_UPLOAD_SCRATCH_MIN)
 	);
 
+	if (!upload_data->buffer) return false;
 	if (data == NULL) {
 		Com_Memset(upload_data->buffer, 0, upload_data->buffer_size);
 		upload_data->mip_levels = 1;
-		return;
+		return true;
 	}
 
 	if ((scaled_width != width || scaled_height != height) && data) {
-		resampled_buffer = R_ImageScratchAlloc(
+		resampled_buffer = scratch ? scratch->allocate(TexturePreparationBuffers::Pixels, size_t(scaled_width) * scaled_height * 4) : R_ImageScratchAlloc(
 			&s_imageScratch.resample,
 			MAX(scaled_width * scaled_height * 4, IMAGE_RESAMPLE_SCRATCH_MIN)
 		);
 
-		ResampleTexture((unsigned*)data, width, height, (unsigned*)resampled_buffer, scaled_width, scaled_height);
+        if (!resampled_buffer || !ResampleTexture((unsigned*)data, width, height,
+            (unsigned*)resampled_buffer, scaled_width, scaled_height, scratch)) return false;
 
 		mip_buffer = resampled_buffer;
 	}
 	else {
-		mip_buffer = R_ImageScratchAlloc(
+		mip_buffer = scratch ? scratch->allocate(TexturePreparationBuffers::Pixels, size_t(scaled_width) * scaled_height * 4) : R_ImageScratchAlloc(
 			&s_imageScratch.mip,
 			scaled_width * scaled_height * 4
 		);
 
+		if (!mip_buffer) return false;
 		Com_Memcpy(mip_buffer, data, scaled_width * scaled_height * 4);
 	}
 
@@ -803,7 +861,7 @@ void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 	}
 
 	while (width > scaled_width || height > scaled_height) {
-		R_MipMap(mip_buffer, mip_buffer, width, height);
+		if (!R_MipMap(mip_buffer, mip_buffer, width, height, context, scratch)) return false;
 
 		width >>= 1;
 		if (width < 1)
@@ -815,17 +873,18 @@ void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 	}
 
 	if (!(image->flags & IMGFLAG_NOLIGHTSCALE)) {
-		R_LightScaleTexture(mip_buffer, scaled_width, scaled_height, mipmap ? qfalse : qtrue);
+		R_LightScaleTexture(mip_buffer, scaled_width, scaled_height, mipmap ? qfalse : qtrue, context);
 	}
 
 	if (compressed) {
 		mip_level_size = rygCompressedSize(scaled_width, scaled_height);
 
-		compressed_buffer = R_ImageScratchAlloc(
+		compressed_buffer = scratch ? scratch->allocate(TexturePreparationBuffers::Compressed, mip_level_size) : R_ImageScratchAlloc(
 			&s_imageScratch.compress,
 			mip_level_size
 		);
 
+		if (!compressed_buffer) return false;
 		rygCompress(compressed_buffer, mip_buffer, scaled_width, scaled_height);
 
 		Com_Memcpy(&upload_data->buffer[write_offset], compressed_buffer, mip_level_size);
@@ -842,7 +901,7 @@ void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 
 	if (mipmap) {
 		while (scaled_width > 1 || scaled_height > 1) {
-			R_MipMap(mip_buffer, mip_buffer, scaled_width, scaled_height);
+			if (!R_MipMap(mip_buffer, mip_buffer, scaled_width, scaled_height, context, scratch)) return false;
 
 			scaled_width >>= 1;
 			if (scaled_width < 1)
@@ -854,7 +913,7 @@ void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 
 			miplevel++;
 
-			if (r_colorMipLevels->integer) {
+			if ((context ? context->colorMipLevels : r_colorMipLevels->integer)) {
 				R_BlendOverTexture(mip_buffer, scaled_width * scaled_height, miplevel);
 			}
 
@@ -880,6 +939,7 @@ void vk_generate_image_upload_data(image_t* image, byte* data, Image_Upload_Data
 
 	upload_data->buffer_size = write_offset;
 	upload_data->mip_levels = miplevel + 1;
+    return true;
 }
 
 static VkCommandBuffer staging_command_buffer = VK_NULL_HANDLE;
@@ -887,6 +947,7 @@ static VkCommandBuffer image_upload_commands = VK_NULL_HANDLE;
 static VkDeviceSize image_upload_used;
 
 void vk_flush_image_uploads(void) {
+	ImagePhaseTimer profile(vkLoadStats.imageTransferFlushUs);
 	if (image_upload_commands != VK_NULL_HANDLE) {
 		const VkCommandBuffer commands = image_upload_commands;
 		// Clear first: the common immediate-submit helper flushes pending images.
@@ -1147,6 +1208,7 @@ static byte *vk_resample_image_data( const int target_format, byte *data, const 
 void vk_upload_image_data( image_t *image, int x, int y, int width,
 	int height, int mipmaps, byte *pixels, int size, qboolean update )
 {
+	ImagePhaseTimer profile(vkLoadStats.imageUploadRecordUs, &vkLoadStats.imageTransferFlushUs);
 	if (update) R_InvalidateResidentTexture(image);
 	VkCommandBuffer command_buffer;
 	VkBufferImageCopy regions[16];
@@ -1475,6 +1537,7 @@ static void vk_assign_image_descriptor(image_t *image, int mip_levels) {
 }
 
 void vk_create_image( image_t *image, int width, int height, int mip_levels ) {
+	ImagePhaseTimer profile(vkLoadStats.imageGpuCreateUs);
 	VkFormat format = (VkFormat)image->internalFormat;
 	if (image->residentMemory) {
 		vk_wait_idle();
@@ -1573,6 +1636,7 @@ static void vk_destroy_image_resources( VkImage *image, VkImageView *imageView )
 
 
 void vk_delete_textures( void ) {
+	R_FlushTextureJobs(qtrue);
 	int i;
 
 	vk_wait_idle();
@@ -1600,7 +1664,8 @@ void vk_delete_textures( void ) {
 	Com_Memset(glState.currenttextures, 0, sizeof(glState.currenttextures));
 }
 
-static image_t *R_AllocImage( const char *name, int width, int height, imgFlags_t flags ){
+static image_t *R_AllocImage( const char *name, int width, int height, imgFlags_t flags,
+    const TexturePreparationContext *context = NULL ){
     image_t				*image;
     int					namelen;
     long				hash;
@@ -1648,7 +1713,7 @@ static image_t *R_AllocImage( const char *name, int width, int height, imgFlags_
     else
         image->wrapClampMode = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 
-	if (r_smartpicmip && r_smartpicmip->integer && Q_stricmpn(name, "textures/", 9)) {
+	if (r_smartpicmip && (context ? context->smartPicmip : r_smartpicmip->integer) && Q_stricmpn(name, "textures/", 9)) {
 		image->flags &= ~(IMGFLAG_PICMIP);
 	}
 
@@ -1671,6 +1736,359 @@ image_t *R_CreateImage(const char *name, byte *pic, int width, int height, imgFl
 	image->residentSourceBytes = residentSourceBytes;
 	vk_upload_image(image, pic);
 	return image;
+}
+
+static PreparedTextures::Cache preparedTextureCache;
+static TextureWorkers textureWorkers;
+static bool textureJobSettingsReady, textureDiskCacheEnabled, textureWorkerPreparation;
+static bool textureRegistrationActive, textureBackendExecuting;
+static unsigned textureWorkerCount;
+static uint64_t textureWorkerJobs;
+static int textureWorkerWaitMs;
+static std::atomic<uint64_t> textureWorkerDecodeUs{0}, textureWorkerCacheUs{0}, textureWorkerPrepareUs{0};
+static std::atomic<unsigned> texturePreparedCount{0}, texturePreparationFallbacks{0};
+static std::atomic<uint64_t> textureInlineDecodeUs{0}, textureInlineCacheUs{0};
+
+static void R_InitTextureJobs() {
+    if (textureJobSettingsReady) return;
+    textureJobSettingsReady = true;
+    textureWorkerDecodeUs.store(0); textureWorkerCacheUs.store(0); textureWorkerPrepareUs.store(0);
+    texturePreparedCount.store(0); texturePreparationFallbacks.store(0);
+    textureInlineDecodeUs.store(0); textureInlineCacheUs.store(0);
+    cvar_t *workers = ri.Cvar_Get("r_textureWorkers", "-1", CVAR_ARCHIVE, "Texture decode workers (-1 automatic, 0 synchronous)");
+    cvar_t *disk = ri.Cvar_Get("r_textureDiskCacheMegs", "0", CVAR_ARCHIVE, "Experimental prepared texture disk cache in MiB (0 disabled)");
+    cvar_t *preparation = ri.Cvar_Get("r_textureWorkerPrepare", "1", CVAR_ARCHIVE, "Prepare texture mip chains on decode workers");
+    ri.Cvar_CheckRange(preparation, 0, 1, qtrue);
+    textureWorkerPreparation = preparation->integer != 0;
+    // stb_dxt has lazy mutable lookup tables. Publish their completed main-thread
+    // initialization before creating workers; compression then only reads them.
+    static bool compressionReady = false;
+    if (!compressionReady) {
+        byte pixels[64] = {}, block[16];
+        stb_compress_dxt_block(block, pixels, 1, STB_DXT_NORMAL);
+        compressionReady = true;
+    }
+    ri.Cvar_CheckRange(workers, -1, 4, qtrue);
+    ri.Cvar_CheckRange(disk, 0, sizeof(void *) == 8 ? 4096 : 1024, qtrue);
+    textureWorkerCount = workers->integer < 0 ? std::min(4u, std::thread::hardware_concurrency() / 2) : unsigned(workers->integer);
+    textureDiskCacheEnabled = false;
+    if (!disk->integer || !ri.FS_GetWritePath) { preparedTextureCache.configure("", 0, 0); return; }
+    const char *marker = "cache/vulkan/textures-v1/index.dat";
+    char path[MAX_OSPATH];
+    if (!ri.FS_GetWritePath(marker, path, sizeof(path))) return;
+    fileHandle_t file = ri.FS_FOpenFileWrite(marker, qfalse);
+    if (!file) return;
+    ri.FS_FCloseFile(file);
+    char *slash = strrchr(path, '/'), *backslash = strrchr(path, '\\');
+    if (!slash || (backslash && backslash > slash)) slash = backslash;
+    if (!slash) return;
+    *slash = 0;
+    textureDiskCacheEnabled = preparedTextureCache.configure(path, size_t(disk->integer) * 1024 * 1024,
+        size_t(sizeof(void *) == 8 ? 64 : 16) * 1024 * 1024);
+}
+static VkFormat R_PreparedVkFormat(PreparedTextures::Format format) {
+    switch (format) {
+        case PreparedTextures::Format::RGBA8: return VK_FORMAT_R8G8B8A8_UNORM;
+        case PreparedTextures::Format::RGBA4444: return VK_FORMAT_B4G4R4A4_UNORM_PACK16;
+        case PreparedTextures::Format::RGB5551: return VK_FORMAT_A1R5G5B5_UNORM_PACK16;
+        case PreparedTextures::Format::BC3: return VK_FORMAT_BC3_UNORM_BLOCK;
+    }
+    return VK_FORMAT_UNDEFINED;
+}
+static PreparedTextures::Format R_PreparedFormat(int format) {
+    switch (format) {
+        case VK_FORMAT_B4G4R4A4_UNORM_PACK16: return PreparedTextures::Format::RGBA4444;
+        case VK_FORMAT_A1R5G5B5_UNORM_PACK16: return PreparedTextures::Format::RGB5551;
+        case VK_FORMAT_BC3_UNORM_BLOCK: return PreparedTextures::Format::BC3;
+        default: return PreparedTextures::Format::RGBA8;
+    }
+}
+struct TextureDecodeJob {
+    image_t *image;
+    EncodedImage encoded;
+    DecodedImage decoded = {};
+    byte *fallbackPixels = NULL; // Zone-owned; released explicitly on the main thread.
+    TexturePreparationContext context = {};
+    PreparedTextures::Texture prepared;
+    PreparedTextures::Key diskKey = {};
+    std::string diskSettings;
+    uint32_t allowedFormats = 0;
+    bool diskCache = false, preparedFromDisk = false, greyscaleApplied = false, prepareOnWorker = false;
+    size_t preparationBudget = 0;
+    imgFlags_t preparationFlags = imgFlags_t(0);
+    std::vector<byte> source;
+    std::string cacheKey;
+    size_t bytes;
+    std::mutex mutex;
+    std::condition_variable complete;
+    bool done = false;
+    char error[256] = {};
+    int decodeMs = 0;
+    ~TextureDecodeJob() { std::free(decoded.pixels); }
+};
+static std::deque<std::shared_ptr<TextureDecodeJob>> textureJobs;
+static size_t textureJobBytes;
+static thread_local size_t textureDecodeLimit;
+static void *R_AllocateDecodedTexture(size_t bytes) {
+    return bytes <= textureDecodeLimit ? std::malloc(bytes) : NULL;
+}
+
+static void R_GreyscaleFileImage(byte *pic, int width, int height, const TexturePreparationContext &context) {
+    if (!pic || !context.mapLoading || context.mapGreyScale <= 0) return;
+    for (int i = 0; i < width * height; ++i, pic += 4) {
+        if (context.mapGreyInteger) {
+            const byte luma = LUMA(pic[0], pic[1], pic[2]);
+            pic[0] = pic[1] = pic[2] = luma;
+        } else {
+            const float luma = LUMA(pic[0], pic[1], pic[2]);
+            pic[0] = LERP(pic[0], luma, context.mapGreyScale);
+            pic[1] = LERP(pic[1], luma, context.mapGreyScale);
+            pic[2] = LERP(pic[2], luma, context.mapGreyScale);
+        }
+    }
+}
+
+static void R_FinishFileImage(image_t *image, byte *pic, std::vector<byte> source,
+                             const std::string &cacheKey, const char *resolvedName,
+                             TextureDecodeJob *job = NULL) {
+    TexturePreparationContext immediate;
+    const TexturePreparationContext *context = job ? &job->context : NULL;
+    if (!context) { immediate = R_CaptureTextureContext(); context = &immediate; }
+    if (!job || !job->greyscaleApplied) { ImagePhaseTimer profile(vkLoadStats.imagePrepareUs); R_GreyscaleFileImage(pic, image->width, image->height, *context); }
+    const int createStarted = ri.Milliseconds();
+    image->residentSourceBytes = source.size();
+    if (job && !job->prepared.bytes.empty()) {
+        const auto &description = job->prepared.description;
+        if (job->diskCache && !job->preparedFromDisk) {
+            ImagePhaseTimer profile(vkLoadStats.imageCacheEnqueueUs);
+            preparedTextureCache.store(job->diskKey, description, job->prepared.bytes.data(), job->prepared.bytes.size());
+        }
+        image->internalFormat = R_PreparedVkFormat(description.format);
+        image->uploadWidth = description.uploadWidth; image->uploadHeight = description.uploadHeight;
+        vk_create_image(image, description.uploadWidth, description.uploadHeight, description.levels);
+        vk_upload_image_data(image, 0, 0, description.uploadWidth, description.uploadHeight, description.levels,
+            job->prepared.bytes.data(), static_cast<int>(job->prepared.bytes.size()), qfalse);
+    } else {
+        Image_Upload_Data upload;
+        vk_generate_image_upload_data(image, pic, &upload, context);
+        if (job && job->diskCache) {
+            const PreparedTextures::Description description = {image->width, image->height,
+                uint32_t(upload.base_level_width), uint32_t(upload.base_level_height), uint32_t(upload.mip_levels), R_PreparedFormat(image->internalFormat)};
+            ImagePhaseTimer profile(vkLoadStats.imageCacheEnqueueUs);
+            preparedTextureCache.store(job->diskKey, description, upload.buffer, upload.buffer_size);
+        }
+        image->uploadWidth = upload.base_level_width; image->uploadHeight = upload.base_level_height;
+        vk_create_image(image, image->uploadWidth, image->uploadHeight, upload.mip_levels);
+        vk_upload_image_data(image, 0, 0, image->uploadWidth, image->uploadHeight, upload.mip_levels, upload.buffer, upload.buffer_size, qfalse);
+    }
+		const auto resident = activeResidentTextures.find(image);
+		if (resident != activeResidentTextures.end()) {
+			resident->second->key = cacheKey;
+			resident->second->sourceName = resolvedName;
+			residentTextures.store(cacheKey, std::move(source), resident->second, resident->second->bytes);
+		}
+
+    vkLoadStats.imageCreateMs += ri.Milliseconds() - createStarted;
+}
+
+static void R_CommitTextureJob() {
+    // Keep ownership in the global queue until upload succeeds so shutdown can
+    // reclaim an interrupted commit through the renderer's error recovery path.
+    TextureDecodeJob *job = textureJobs.front().get();
+    {
+        std::unique_lock<std::mutex> lock(job->mutex);
+        const int started = ri.Milliseconds();
+        job->complete.wait(lock, [job]() { return job->done; });
+        textureWorkerWaitMs += ri.Milliseconds() - started;
+    }
+    ri.FS_FreeFile(job->encoded.data);
+    job->encoded.data = NULL;
+    vkLoadStats.imageDecodeMs += job->decodeMs;
+    byte *pic = job->decoded.pixels;
+    bool zonePixels = false;
+    char resolved[MAX_QPATH];
+    Q_strncpyz(resolved, job->encoded.resolvedName, sizeof(resolved));
+    int width = job->decoded.width, height = job->decoded.height;
+    if (!job->prepared.bytes.empty()) {
+        R_FinishFileImage(job->image, NULL, std::move(job->source), job->cacheKey, resolved, job);
+        textureJobBytes -= job->bytes;
+        textureJobs.pop_front();
+        return;
+    }
+    if (!pic) {
+        // A valid header can still contain corrupt pixels. Retry the ordinary
+        // loader so a valid alternate extension wins exactly as before.
+        R_LoadImage(job->image->imgName, &pic, &width, &height, resolved);
+        job->fallbackPixels = pic;
+        zonePixels = true;
+        job->source.clear();
+        job->diskCache = false;
+    }
+    byte missing[16] = {255,0,255,255, 0,0,0,255, 0,0,0,255, 255,0,255,255};
+    const bool validDimensions = width > 0 && height > 0 && width <= 65535 && height <= 65535 &&
+        !(width & (width - 1)) && !(height & (height - 1)) && size_t(width) * height <= size_t(INT_MAX) / 4;
+    if (!pic || !validDimensions || (!zonePixels &&
+        (width != job->encoded.width || height != job->encoded.height))) {
+        if (pic && zonePixels) { ri.Z_Free(pic); job->fallbackPixels = NULL; }
+        ri.Printf(PRINT_WARNING, "Texture decode failed: %s (%s)\n", job->image->imgName, job->error);
+        pic = missing; width = height = 2; zonePixels = false; job->source.clear(); job->diskCache = false;
+    }
+    job->image->width = width; job->image->height = height;
+    R_FinishFileImage(job->image, pic, std::move(job->source), job->cacheKey, resolved, job);
+    if (zonePixels) { ri.Z_Free(pic); job->fallbackPixels = NULL; }
+    textureJobBytes -= job->bytes;
+    textureJobs.pop_front();
+}
+
+static void R_CollectTextureProfile() {
+    if (!textureJobSettingsReady) return;
+    vkLoadStats.workerDecodeUs = textureWorkerDecodeUs.load(std::memory_order_relaxed);
+    vkLoadStats.workerPrepareUs = textureWorkerPrepareUs.load(std::memory_order_relaxed);
+    vkLoadStats.workerPreparedJobs = texturePreparedCount.load(std::memory_order_relaxed);
+    vkLoadStats.workerPreparationFallbacks = texturePreparationFallbacks.load(std::memory_order_relaxed);
+    vkLoadStats.workerCacheUs = textureWorkerCacheUs.load(std::memory_order_relaxed);
+    vkLoadStats.inlineDecodeUs = textureInlineDecodeUs.load(std::memory_order_relaxed);
+    vkLoadStats.inlineCacheUs = textureInlineCacheUs.load(std::memory_order_relaxed);
+}
+
+void R_FlushTextureJobs(qboolean cancel) {
+    if (cancel) {
+        textureRegistrationActive = textureBackendExecuting = false;
+        textureWorkers.shutdown();
+        R_CollectTextureProfile();
+        for (auto &job : textureJobs) {
+            if (job->encoded.data) ri.FS_FreeFile(job->encoded.data);
+            if (job->fallbackPixels) ri.Z_Free(job->fallbackPixels);
+        }
+        textureJobs.clear(); textureJobBytes = 0;
+        preparedTextureCache.shutdown();
+        if (ri.Cvar_VariableIntegerValue("cl_loadTimings") && textureWorkerJobs) {
+            const auto cache = preparedTextureCache.statistics();
+            ri.Printf(PRINT_ALL, "LOADPROFILE texture jobs: %llu jobs, %u decode workers, %d ms main-thread waits; prepared disk cache %llu hits, %llu misses, %llu writes, %llu skipped, %llu invalid\n",
+                static_cast<unsigned long long>(textureWorkerJobs), textureWorkerCount, textureWorkerWaitMs,
+                static_cast<unsigned long long>(cache.hits), static_cast<unsigned long long>(cache.misses), static_cast<unsigned long long>(cache.writes),
+                static_cast<unsigned long long>(cache.droppedWrites), static_cast<unsigned long long>(cache.invalid));
+        }
+        textureJobSettingsReady = textureDiskCacheEnabled = false;
+        textureWorkerJobs = 0; textureWorkerWaitMs = 0;
+        return;
+    }
+    while (!textureJobs.empty()) R_CommitTextureJob();
+    R_CollectTextureProfile();
+}
+
+void R_SetTextureRegistration(qboolean active) {
+    if (!active) R_FlushTextureJobs();
+    textureRegistrationActive = active != qfalse;
+}
+
+void R_TextureBackend(qboolean executing) {
+    if (executing) R_FlushTextureJobs();
+    textureBackendExecuting = executing != qfalse;
+}
+
+static bool R_CanDeferTexture(const char *name, imgFlags_t flags) {
+    return textureRegistrationActive && !textureBackendExecuting && !vk.frame_count && name[0] != '*' &&
+        !(flags & (IMGFLAG_LIGHTMAP | IMGFLAG_COLORSHIFT | IMGFLAG_TRANSFER_SRC));
+}
+
+static image_t *R_QueueFileImage(const char *name, imgFlags_t flags,
+                               const std::vector<byte> &source, const std::string &cacheKey,
+                               const TexturePreparationContext &context) {
+    // Defer only frontend registration. Runtime and backend-discovered images,
+    // procedural lightmaps, dynamic textures and transfer sources stay immediate.
+    if (!R_CanDeferTexture(name, flags)) return NULL;
+    R_InitTextureJobs();
+    if (!textureWorkerCount && !textureDiskCacheEnabled) return NULL;
+    if (textureWorkerCount && !textureWorkers.start(textureWorkerCount)) textureWorkerCount = 0;
+    if (!textureWorkerCount && !textureDiskCacheEnabled) return NULL;
+    EncodedImage encoded;
+    const uint64_t sourceStarted = ImageTimeUs();
+    const bool foundEncoded = R_ReadEncodedImage(name, encoded);
+    vkLoadStats.imageSourceUs += ImageTimeUs() - sourceStarted;
+    if (!foundEncoded) return NULL;
+    // A disk hit contains a full RGBA8 mip chain (also for 16-bit GPU formats).
+    // Bound that worst case rather than only the decoded base level.
+    const size_t pixels = size_t(encoded.width) * encoded.height;
+    const size_t budget = (sizeof(void *) == 8 ? 128 : 32) * size_t(1024 * 1024);
+    const bool prepareOnWorker = textureWorkerCount && textureWorkerPreparation;
+    // Encoded input + RGBA decode + worst-case RGBA mip output + filtering,
+    // compression and HQ temporary scratch. Rectangular mip chains need up to
+    // twice the base pixels; reserve the peak, not only the final upload bytes.
+    const size_t bytesPerPixel = prepareOnWorker ? 20 : textureDiskCacheEnabled ? 8 : 4;
+    if (encoded.length > budget - 65536 || pixels > (budget - 65536 - encoded.length) / bytesPerPixel) {
+        if (prepareOnWorker) ++vkLoadStats.workerPreparationOversized;
+        ri.FS_FreeFile(encoded.data);
+        R_FlushTextureJobs();
+        return NULL;
+    }
+    const size_t bytes = encoded.length + pixels * bytesPerPixel + 65536;
+    while (textureJobBytes > budget - bytes || textureJobs.size() >= 64) R_CommitTextureJob();
+    auto job = std::make_shared<TextureDecodeJob>();
+    job->image = R_AllocImage(name, encoded.width, encoded.height, flags, &context);
+    job->context = context;
+    job->encoded = encoded; job->source = source; job->cacheKey = cacheKey; job->bytes = bytes;
+    job->diskCache = textureDiskCacheEnabled;
+    job->prepareOnWorker = prepareOnWorker;
+    job->preparationBudget = pixels * 16 + 65536;
+    job->preparationFlags = job->image->flags;
+    if (job->diskCache) {
+        job->diskSettings = R_ResidentTextureKey(name, flags, context);
+        job->diskSettings.append(ARCH_STRING);
+        if (context.textureBits > 0 && context.textureBits <= 16)
+            job->allowedFormats = (1u << uint32_t(PreparedTextures::Format::RGBA4444)) | (1u << uint32_t(PreparedTextures::Format::RGB5551));
+        else job->allowedFormats = 1u << uint32_t(context.compressedFormat && !(job->image->flags & IMGFLAG_NO_COMPRESSION) ?
+            PreparedTextures::Format::BC3 : PreparedTextures::Format::RGBA8);
+    }
+    textureJobBytes += bytes;
+    textureJobs.push_back(job);
+    ++textureWorkerJobs;
+    ++vkLoadStats.imageLoads;
+    const bool onWorker = textureWorkerCount != 0;
+    const auto decode = [job, onWorker]() {
+        const auto started = std::chrono::steady_clock::now();
+        textureDecodeLimit = size_t(job->encoded.width) * job->encoded.height * 4;
+        const ImageAllocator allocator = {R_AllocateDecodedTexture, std::free};
+        bool prepared = false;
+        if (job->diskCache) {
+            const uint64_t cacheStarted = ImageTimeUs();
+            job->diskKey = PreparedTextures::ContentKey(job->encoded.data, job->encoded.length, job->diskSettings.data(), job->diskSettings.size());
+            prepared = preparedTextureCache.read(job->diskKey, job->encoded.width, job->encoded.height, job->allowedFormats, job->prepared);
+            job->preparedFromDisk = prepared;
+            (onWorker ? textureWorkerCacheUs : textureInlineCacheUs).fetch_add(ImageTimeUs() - cacheStarted, std::memory_order_relaxed);
+        }
+        const uint64_t decoderStarted = ImageTimeUs();
+        if (!prepared && job->encoded.format == EncodedImageFormat::JPG)
+            R_DecodeJPG(job->encoded.data, job->encoded.length, allocator, job->decoded, job->error, sizeof(job->error));
+        else if (!prepared) R_DecodePNG(job->encoded.data, job->encoded.length, allocator, job->decoded, job->error, sizeof(job->error));
+        if (!prepared) (onWorker ? textureWorkerDecodeUs : textureInlineDecodeUs).fetch_add(ImageTimeUs() - decoderStarted, std::memory_order_relaxed);
+        if (!prepared && job->prepareOnWorker && job->decoded.pixels &&
+            job->decoded.width == job->encoded.width && job->decoded.height == job->encoded.height) {
+            const uint64_t preparationStarted = ImageTimeUs();
+            TexturePreparationBuffers scratch(job->preparationBudget);
+            image_t image = {};
+            image.width = job->decoded.width; image.height = job->decoded.height;
+            image.flags = job->preparationFlags;
+            R_GreyscaleFileImage(job->decoded.pixels, image.width, image.height, job->context);
+            job->greyscaleApplied = true;
+            Image_Upload_Data upload = {};
+            if (vk_generate_image_upload_data(&image, job->decoded.pixels, &upload, &job->context, &scratch)) {
+                job->prepared.description = {image.width, image.height, uint32_t(upload.base_level_width),
+                    uint32_t(upload.base_level_height), uint32_t(upload.mip_levels), R_PreparedFormat(image.internalFormat)};
+                job->prepared.bytes = std::move(scratch.buffers[TexturePreparationBuffers::Upload]);
+                std::free(job->decoded.pixels); job->decoded.pixels = NULL;
+                texturePreparedCount.fetch_add(1, std::memory_order_relaxed);
+            } else texturePreparationFallbacks.fetch_add(1, std::memory_order_relaxed);
+            textureWorkerPrepareUs.fetch_add(ImageTimeUs() - preparationStarted, std::memory_order_relaxed);
+        }
+
+        job->decodeMs = int(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count());
+        { std::lock_guard<std::mutex> lock(job->mutex); job->done = true; }
+        job->complete.notify_one();
+    };
+    if (textureWorkerCount) textureWorkers.submit(decode);
+    else decode();
+    return job->image;
 }
 
 image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
@@ -1710,30 +2128,44 @@ image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
         // load the pic from disk
         //
         const int decodeStarted = ri.Milliseconds();
+        const uint64_t sourceStarted = ImageTimeUs();
+        const TexturePreparationContext context = R_CaptureTextureContext();
 		std::vector<byte> source;
 		std::string cacheKey;
 		const bool cacheable = residentTextures.limit() && name[0] != '*' &&
 			!(flags & (IMGFLAG_LIGHTMAP | IMGFLAG_COLORSHIFT)) && Q_stricmpn(name, "maps/", 5) &&
 			R_ImageSourceSignature(name, source, std::min<size_t>(residentTextures.limit(), 64 * 1024 * 1024));
 		if (cacheable) {
-			cacheKey = R_ResidentTextureKey(name, flags);
+			cacheKey = R_ResidentTextureKey(name, flags, context);
 			auto resource = residentTextures.find(cacheKey, source);
 			if (resource) {
 				fsReadFileIdentity_t identity;
 				ri.FS_GetReadFileIdentity(resource->sourceName.c_str(), &identity, qtrue);
-				image = R_AllocImage(name, resource->width, resource->height, flags);
+                vkLoadStats.imageSourceUs += ImageTimeUs() - sourceStarted;
+                const uint64_t reuseStarted = ImageTimeUs();
+                image = R_AllocImage(name, resource->width, resource->height, flags);
 				image->uploadWidth = resource->uploadWidth; image->uploadHeight = resource->uploadHeight;
 				image->internalFormat = resource->format; image->mipLevels = resource->mipLevels;
 				image->handle = resource->image; image->view = resource->view;
 				image->residentMemory = resource->page->memory;
 				activeResidentTextures.emplace(image, resource);
 				vk_assign_image_descriptor(image, resource->mipLevels);
+                vkLoadStats.imageGpuCreateUs += ImageTimeUs() - reuseStarted;
 				vkLoadStats.imageDecodeMs += ri.Milliseconds() - decodeStarted;
 				return image;
 			}
 		}
+        vkLoadStats.imageSourceUs += ImageTimeUs() - sourceStarted;
+        image = R_QueueFileImage(name, flags, source, cacheKey, context);
+        if (image) {
+            if (!textureWorkerCount) R_FlushTextureJobs();
+            vkLoadStats.imageDecodeMs += ri.Milliseconds() - decodeStarted;
+            return image;
+        }
 		char resolvedName[MAX_QPATH];
+        const uint64_t synchronousStarted = ImageTimeUs();
         R_LoadImage(name, &pic, &width, &height, resolvedName);
+        vkLoadStats.imageSyncReadDecodeUs += ImageTimeUs() - synchronousStarted;
         vkLoadStats.imageDecodeMs += ri.Milliseconds() - decodeStarted;
         ++vkLoadStats.imageLoads;
         if (pic == NULL) {
@@ -1749,34 +2181,8 @@ image_t *R_FindImageFile( const char *name, imgFlags_t flags ){
 			return NULL;
 		}
 
-        if (tr.mapLoading && r_mapGreyScale->value > 0) {
-            byte *img;
-            int i;
-            for (i = 0, img = pic; i < width * height; i++, img += 4) {
-                if (r_mapGreyScale->integer) {
-                    byte luma = LUMA(img[0], img[1], img[2]);
-                    img[0] = luma;
-                    img[1] = luma;
-                    img[2] = luma;
-                }
-                else {
-                    float luma = LUMA(img[0], img[1], img[2]);
-                    img[0] = LERP(img[0], luma, r_mapGreyScale->value);
-                    img[1] = LERP(img[1], luma, r_mapGreyScale->value);
-                    img[2] = LERP(img[2], luma, r_mapGreyScale->value);
-                }
-            }
-		}
-
-        const int createStarted = ri.Milliseconds();
-        image = R_CreateImage(name, pic, width, height, flags, cacheable ? source.size() : 0);
-		const auto resident = activeResidentTextures.find(image);
-		if (resident != activeResidentTextures.end()) {
-			resident->second->key = cacheKey;
-			resident->second->sourceName = resolvedName;
-			residentTextures.store(cacheKey, std::move(source), resident->second, resident->second->bytes);
-		}
-        vkLoadStats.imageCreateMs += ri.Milliseconds() - createStarted;
+        image = R_AllocImage(name, width, height, flags);
+        R_FinishFileImage(image, pic, std::move(source), cacheKey, resolvedName);
         ri.Z_Free(pic);
         return image;
 }

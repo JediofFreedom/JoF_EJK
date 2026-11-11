@@ -61,11 +61,11 @@ playerState_t *SV_GameClientNum( int num ) {
 
 svEntity_t	*SV_SvEntityForGentity( sharedEntity_t *gEnt ) {
 	if ( !gEnt || gEnt->s.number < 0 || gEnt->s.number >= MAX_GENTITIES ) {
-#ifdef DEDICATED
-		if ( svs.servermod != SVMOD_JAPRO )
-			Com_Error( ERR_DROP, "SV_SvEntityForGentity: bad gEnt\n" );
-#endif
-		Com_Printf( "%sSV_SvEntityForGentity: bad gEnt\n", S_COLOR_RED );
+		// The callers need a valid entity. Continuing after a diagnostic used
+		// to dereference NULL or index outside svEntities on listen servers and
+		// with the JAPro exception. Drop the invalid game state on every build.
+		Com_Error( ERR_DROP, "SV_SvEntityForGentity: bad gEnt\n" );
+		return NULL;
 	}
 	if (sv_legacyFixes->integer && !(sv_legacyFixes->integer & SVFIXES_ALLOW_GHOSTED_PLAYERS))
 		return &sv.svEntities[SV_NumForGentity(gEnt)];

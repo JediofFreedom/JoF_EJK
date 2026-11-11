@@ -3448,6 +3448,7 @@ void CL_InitRef( void ) {
 	ri.FS_Read = FS_Read;
 	ri.FS_ReadFile = FS_ReadFile;
 	ri.FS_GetReadFileIdentity = FS_GetReadFileIdentity;
+	ri.FS_GetWritePath = FS_GetWritePath;
 	ri.FS_FCloseFile = FS_FCloseFile;
 	ri.FS_FOpenFileRead = FS_FOpenFileRead;
 	ri.FS_FOpenFileWrite = FS_FOpenFileWrite;

@@ -51,6 +51,9 @@ void UI_LoadArenas( void );
 void UI_LoadForceConfig_List( void );
 void UI_UpdateCurrentServerInfo( void );
 void UI_BuildPlayerModel_List( qboolean inGameLoad );
+void UI_FreeAllSpecies(void);
+qboolean UI_EnsurePlayerSpecies(void);
+void UI_EnsureSpeciesOptions(itemDef_t *item);
 void UI_UpdateSaberHiltInfo( void );
 #define PROFILE_SKIN_SIZE 16384 //8192 //2048
 typedef struct uiQ3ModelBuild_s {

@@ -1,0 +1,232 @@
+{
+  "branch": "perf/loading-and-runtime",
+  "baseline": "6955dca2aba6ddc79ea3bf0cc22bb4d99612b7be",
+  "started": "2026-11-11",
+  "scope": "Project-wide speed and correctness audit; entries distinguish initial scans from verified changes.",
+  "priorities": [
+    "parallel texture processing",
+    "adaptive GPU residency",
+    "persistent prepared-texture cache"
+  ],
+  "areas": [
+    {
+      "area": "filesystem and archives",
+      "status": "focused review and tested changes",
+      "notes": "Source reads and pure package accounting remain on main thread. Cache resolves the actual writable game path through renderer API 11."
+    },
+    {
+      "area": "image decoders and preparation",
+      "status": "implemented; integration checks in progress",
+      "findings": [
+        "Bounded PNG/TGA reads and RGBA8 output; 16-bit PNG conversion and TGA orientations/packets tested",
+        "JPEG failure recovery and bounded encoder output",
+        "Captured texture context preserves queued processing after live setting changes",
+        "Pure decoder callbacks use private malloc buffers on worker threads"
+      ]
+    },
+    {
+      "area": "Vulkan resources",
+      "status": "implemented; performance checks in progress",
+      "findings": [
+        "Automatic residency scales with device memory and exact driver extension query",
+        "Budget reductions reclaim fragmented idle pages",
+        "Deferred registration decoding and immutable per-job settings",
+        "Prepared cache implemented but defaults off: world-only timing showed no complete-cycle benefit",
+        "Result checking no longer shadows an outer VkResult named result"
+      ]
+    },
+    {
+      "area": "vanilla and Rend2",
+      "status": "focused fixes and fixtures",
+      "notes": "Shared image safety fixes, HDR decode failure/null output handling, 32-light/shadow bit masks, skin parsers, split paths, and shader type declaration reviewed. Full renderer builds verify integration."
+    },
+    {
+      "area": "audio",
+      "status": "implemented and ASan-tested",
+      "findings": [
+        "Bounded memory/streamed WAV parsing and safe music read arithmetic",
+        "Removed unused sample scratch allocation",
+        "SFX long-phase wrap, low-rate replay, output overflow and negative-shift UB fixed",
+        "Common-rate PCM and volume match old output"
+      ]
+    },
+    {
+      "area": "client and networking",
+      "status": "focused fixes and fixtures",
+      "notes": "Safe wildcard matching, recording/snapshot cvar handling, console padding and entity-interface bounds; packet-parser candidates retained for review."
+    },
+    {
+      "area": "UI",
+      "status": "focused fixes and fixtures",
+      "notes": "Missing preview handles, map bounds/empty catalog, malformed cvarInt parameters and arena allocation failure covered by baseline-failing fixtures."
+    },
+    {
+      "area": "cgame and effects",
+      "status": "focused review",
+      "notes": "Snapshot display guards and renderer light masks fixed; populated-scene effects/animation performance still needs representative profiling."
+    },
+    {
+      "area": "server and game simulation",
+      "status": "focused fixes and fixtures",
+      "notes": "Navigation bounds/cleanup and bulk rank/edge reads; all 25 installed nav files round-trip unchanged. Pause recipients, BSP origin and shader parse failures fixed. Icarus helper failure propagation being tested."
+    },
+    {
+      "area": "platform, build and tests",
+      "status": "implemented; final integration in progress",
+      "notes": "MSVC flags preserve language settings and do not accumulate across reconfigure. Every standalone suite now discovered by local runner and three-platform CI. Last checkpoint: 24/24 suites passed before final added fixtures."
+    }
+  ],
+  "measurements": {
+    "residency": {
+      "method": "Three rotated-order rounds at each budget; fresh profiles, warm OS cache, identical local T1_Fatal/mp/ffa3/T1_Fatal cycle; no concurrent build or other game client.",
+      "median_cycle_seconds": {
+        "512": 13.221316,
+        "1024": 13.173784,
+        "2048": 11.966178
+      },
+      "median_map_milliseconds": {
+        "512": [
+          3496,
+          1854,
+          2306
+        ],
+        "1024": [
+          3495,
+          1833,
+          2270
+        ],
+        "2048": [
+          3483,
+          1791,
+          1147
+        ]
+      },
+      "limit": "Repeated loads improved; the first map was effectively unchanged. This is not a matched SJK comparison."
+    },
+    "worker_decode_world_scope": {
+      "method": "Same prototype binary, three alternating pairs, 2048 MiB GPU residency, disk cache off; fresh profiles, warm OS cache, no compilation/static analysis/other game client.",
+      "median_cycle_seconds": {
+        "synchronous": 12.2363618,
+        "workers": 12.0608271
+      },
+      "median_map_milliseconds": {
+        "synchronous": [
+          3601,
+          1836,
+          1196
+        ],
+        "workers": [
+          3249,
+          1684,
+          1247
+        ]
+      },
+      "limit": "First two loads improved; revisit did not. This measures world-scope prototype, not final broader registration."
+    },
+    "prepared_cache_world_scope": {
+      "method": "Three rotated-order rounds off/cold/warm, same binary/settings, 2048 MiB GPU residency, automatic workers. Pipeline cache seeded identically; warm textures copied before timer. No concurrent build/analysis/game.",
+      "median_cycle_seconds": {
+        "off": 11.750836,
+        "cold": 11.9408495,
+        "warm": 11.9797491
+      },
+      "median_map_milliseconds": {
+        "off": [
+          3038,
+          1565,
+          1138
+        ],
+        "cold": [
+          3164,
+          1666,
+          1121
+        ],
+        "warm": [
+          3019,
+          1488,
+          1148
+        ]
+      },
+      "decision": "No overall speed gain in this prototype; default disabled. Final broader registration requires separate measurements."
+    },
+    "navigation": {
+      "fixture_nodes": 128,
+      "baseline_read_calls": 17668,
+      "updated_read_calls": 1156,
+      "compatibility_files": 25,
+      "limit": "Filesystem call count and byte-identical roundtrip checks, not a wall-clock claim."
+    },
+    "registration_decode": {
+      "method": "Same binary, three alternating pairs, GPU cache2048MiB, diskoff, fresh profiles,warmOS cache, no concurrentlocalCPU work.",
+      "median_cycle_seconds": {
+        "synchronous": 12.308485,
+        "workers": 11.4079092
+      },
+      "median_map_milliseconds": {
+        "synchronous": [
+          3572,
+          1831,
+          1182
+        ],
+        "workers": [
+          2914,
+          1567,
+          1227
+        ]
+      }
+    },
+    "checkpoint_features": {
+      "method": "Three rotated-order rounds; one feature disabled at a time in same binary; cache2048MiB, decoderworkersauto,diskoff,freshprofiles,warmOS cache,quietmachine.",
+      "median_cycle_seconds": {
+        "all": 9.1758872,
+        "main_preparation": 9.3493897,
+        "linear_lookup": 9.3677837,
+        "eager_species": 10.6263871
+      },
+      "median_map_milliseconds": {
+        "all": [
+          2222,
+          954,
+          707
+        ],
+        "main_preparation": [
+          2347,
+          1054,
+          704
+        ],
+        "linear_lookup": [
+          2348,
+          1011,
+          763
+        ],
+        "eager_species": [
+          2572,
+          1340,
+          1089
+        ]
+      },
+      "median_map_ui_initialization_ms": {
+        "lazy": 112,
+        "eager": 514
+      }
+    }
+  },
+  "verification_state": "Checkpoint validated: Windows x86/x64,30 standalone suites, real normal/custom player menus and Vulkan core/sync validation. Broader runtime/audit work remains.",
+  "analysis": {
+    "initial_contexts": 560,
+    "excluded_vendor_contexts": [
+      "codemp/game/sqlite3.c"
+    ],
+    "first_party_contexts": 559,
+    "successfully_analyzed_including_retries": 559,
+    "contexts_with_diagnostics": 115,
+    "unique_diagnostics": 285,
+    "qualification": "Diagnostics require individual source review/fixtures. Initial scan preceded later changes; modified units receive targeted follow-up analysis.",
+    "compatibility": "Two bot contexts needed the recorded Clang MSVC-header narrowing switch; Rend2 shader type declaration was fixed.",
+    "triage": {
+      "confirmed_fixed": 41,
+      "provisional_contract": 59,
+      "unresolved_candidates": 185
+    }
+  }
+}

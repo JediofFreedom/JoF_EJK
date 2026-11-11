@@ -55,14 +55,18 @@ no OpenGL procedure/extension callbacks and never creates an OpenGL context.
 The complete client no longer links OpenGL on behalf of renderer modules.
 Legacy renderers remain explicit alternatives for compatibility/comparison.
 
-Renderer API 10 adds validated filesystem source identities for resident
-textures. Engines/renderers must match; the API is checked before copying the
+Renderer API 11 includes validated filesystem source identities for resident
+textures and the actual writable cache path (added after API 10).
+Engines/renderers must match; the API is checked before copying the
 larger import table, so old combinations are rejected safely. Game/cgame/UI
 and network protocol interfaces are unchanged.
 
 `r_textureCacheMegs` bounds GPU texture residency across map changes, including
-source identity metadata. The x64 default is 512 MiB (128 on x86), capped to a
-quarter of device-local memory and a bounded allocation count. Zero disables
+source identity metadata. The default `-1` automatically selects one eighth of
+device-local memory, up to 2 GiB on x64 (128 MiB on x86). Explicit values are
+capped to a quarter of device-local memory and a bounded allocation count.
+Available `VK_EXT_memory_budget` feedback further limits retained memory to
+leave headroom for new allocations. Zero disables
 it. Retained images share independently owned GPU memory pages with aligned,
 reusable ranges, separate from the map's image chunks;
 descriptors are rebuilt after each map's pool reset. Image flags, pixel-processing
@@ -127,3 +131,33 @@ pipeline types/keys and synchronization helpers; they cover unsupported devices,
 fallbacks, bounded buffer reuse, mip data, padding-independent keys and reset
 behavior. The local Vulkan SDK was extracted only for validation; the renderer
 still builds with its vendored headers and requires no SDK installation.
+
+EJK's registration texture loader decodes JPG/PNG data using up to four CPU workers
+(`r_textureWorkers -1`, or `0` for synchronous decoding). Original file reads,
+package accounting, image registration and Vulkan operations stay on the main
+thread. Pending input/results are bounded to 128 MiB on x64 and 32 MiB on x86;
+rendering, registration completion and teardown drain or join the workers.
+Model/UI registration is included after renderer initialization, while runtime
+and backend-discovered images stay immediate. Each job captures processing
+settings and color tables; forced cvar changes cannot alter its pixels or key.
+`r_textureWorkerPrepare 1` also moves greyscale, resampling, mip generation and
+compression onto those workers using private bounded scratch. `0` retains
+parallel decoding with main-thread preparation. Conservative reservations cover
+admitted encoded/decoded/prepared/scratch buffers; the next source read and
+codec internals are outside that pending-queue limit. Oversized jobs drain and
+fall back to the ordinary path, preserving texture quality.
+Shared JPG/PNG/TGA decoders validate file bounds and output sizes without
+worker access to the engine allocator or console. PNG color transforms retain
+the existing byte values without adding a gamma conversion.
+
+`r_textureDiskCacheMegs` enables the experimental persistent prepared-mip cache;
+it defaults to 0 pending measurements. It uses actual source bytes and all
+processing settings, not process-local archive identities, to invalidate data.
+Headers, complete mip sizes, formats and payload checksums are validated before
+upload. The bounded asynchronous writer publishes complete entries atomically;
+cache failures fall back to ordinary decoding. Prepared 16-bit entries store
+RGBA8 CPU data so the existing upload conversion still runs once.
+
+Stable content keys and corruption checks use the unmodified BSD-2-Clause
+[xxHash v0.8.3](../../lib/xxhash/UPSTREAM.md). Its license must accompany binary
+distributions. Source provenance for Sunny/Quake3e remains as documented above.

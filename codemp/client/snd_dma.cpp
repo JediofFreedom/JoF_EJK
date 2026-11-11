@@ -35,6 +35,9 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "client.h"
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
+#include <climits>
+#include <cstdint>
+#include <cstring>
 //New Includes
 #include <unordered_map>
 #include <string>
@@ -4094,46 +4097,75 @@ background music functions
 ===============================================================================
 */
 
-int	FGetLittleLong( fileHandle_t f ) {
-	int		v;
-
-	FS_Read( &v, sizeof(v), f );
-
-	return LittleLong( v);
+// Read only bounded headers; music stays streamed instead of allocating the
+// entire WAV. Unrecognized chunks and extended PCM fmt chunks are skipped.
+static qboolean S_ReadMusicWavHeader(fileHandle_t file, long fileLength, wavinfo_t &info) {
+    info = {};
+    if (fileLength < 12 || fileLength > INT_MAX) return qfalse;
+    const auto le16 = [](const byte *p) -> unsigned { return unsigned(p[0]) | (unsigned(p[1]) << 8); };
+    const auto le32 = [](const byte *p) -> unsigned {
+        return unsigned(p[0]) | (unsigned(p[1]) << 8) | (unsigned(p[2]) << 16) | (unsigned(p[3]) << 24);
+    };
+    const auto readAt = [file](size_t offset, void *buffer, int count) -> bool {
+        const int current = FS_FTell(file);
+        // Forward seeks remain relative, so PK3 streams do not restart for
+        // every chunk header. A data-before-fmt file needs only one rewind.
+        return current >= 0 && FS_Seek(file, static_cast<long>(offset) - current, FS_SEEK_CUR) >= 0 &&
+            FS_Read(buffer, count, file) == count;
+    };
+    byte header[12];
+    if (!readAt(0, header, sizeof(header)) || std::memcmp(header, "RIFF", 4) ||
+        std::memcmp(header + 8, "WAVE", 4)) return qfalse;
+    const size_t riffLength = le32(header + 4);
+    if (riffLength < 4 || riffLength > size_t(fileLength) - 8) return qfalse;
+    const size_t end = riffLength + 8;
+    byte format[16];
+    bool haveFormat = false, haveData = false;
+    size_t dataOffset = 0, dataLength = 0;
+    for (size_t offset = 12; offset < end;) {
+        byte chunk[8];
+        if (end - offset < sizeof(chunk) || !readAt(offset, chunk, sizeof(chunk))) return qfalse;
+        const size_t bytes = le32(chunk + 4);
+        if (bytes > end - offset - 8) return qfalse;
+        if (!haveFormat && !std::memcmp(chunk, "fmt ", 4)) {
+            if (bytes < sizeof(format) || !readAt(offset + 8, format, sizeof(format))) return qfalse;
+            haveFormat = true;
+        } else if (!haveData && !std::memcmp(chunk, "data", 4)) {
+            dataOffset = offset + 8;
+            dataLength = bytes;
+            haveData = true;
+        }
+        if (haveFormat && haveData) break;
+        offset += 8 + bytes;
+        if (bytes & 1) { if (offset == end) break; ++offset; }
+    }
+    if (!haveFormat || !haveData) return qfalse;
+    const unsigned channels = le16(format + 2), rate = le32(format + 4), bits = le16(format + 14);
+    if (le16(format) != WAV_FORMAT_PCM || (channels != 1 && channels != 2) ||
+        !rate || rate > INT_MAX || (bits != 8 && bits != 16)) return qfalse;
+    const unsigned frameBytes = channels * (bits / 8);
+    if (!dataLength || dataLength % frameBytes) return qfalse;
+    const int current = FS_FTell(file);
+    if (current < 0 || FS_Seek(file, static_cast<long>(dataOffset) - current, FS_SEEK_CUR) < 0) return qfalse;
+    info.format = WAV_FORMAT_PCM;
+    info.channels = channels;
+    info.rate = rate;
+    info.width = bits / 8;
+    info.samples = static_cast<int>(dataLength / frameBytes);
+    info.dataofs = static_cast<int>(dataOffset);
+    return qtrue;
 }
 
-int	FGetLittleShort( fileHandle_t f ) {
-	short	v;
-
-	FS_Read( &v, sizeof(v), f );
-
-	return LittleShort( v);
-}
-
-// returns the length of the data in the chunk, or 0 if not found
-int S_FindWavChunk( fileHandle_t f, char *chunk ) {
-	char	name[5];
-	int		len;
-	int		r;
-
-	name[4] = 0;
-	len = 0;
-	r = FS_Read( name, 4, f );
-	if ( r != 4 ) {
-		return 0;
-	}
-	len = FGetLittleLong( f );
-	if ( len < 0 || len > 0xfffffff ) {
-		len = 0;
-		return 0;
-	}
-	len = (len + 1 ) & ~1;		// pad to word boundary
-//	s_nextWavChunk += len + 8;
-
-	if ( strcmp( name, chunk ) ) {
-		return 0;
-	}
-	return len;
+// Limit source frames before multiplying rates or frame sizes. A WAV can
+// advertise any positive 32-bit rate, so the intermediate must be 64-bit.
+static int S_BackgroundReadSamples(int available, int rate, int outputRate,
+                                   int remaining, int frameBytes, size_t capacity) {
+    if (available <= 0 || rate <= 0 || outputRate <= 0 || remaining <= 0 || frameBytes <= 0) return 0;
+    uint64_t samples = uint64_t(available) * unsigned(rate) / unsigned(outputRate);
+    const size_t limit = capacity / unsigned(frameBytes);
+    if (samples > uint64_t(remaining)) samples = remaining;
+    if (samples > limit) samples = limit;
+    return static_cast<int>(samples);
 }
 
 // fixme: need to move this into qcommon sometime?, but too much stuff altered by other people and I won't be able
@@ -4235,8 +4267,6 @@ void S_UnCacheDynamicMusic( void )
 
 static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean qbDynamic, const char *intro, const char *loop )
 {
-	int		len;
-	char	dump[16];
 	char	name[MAX_QPATH];
 
 	Q_strncpyz( sMusic_BackgroundLoop, loop, sizeof( sMusic_BackgroundLoop ));
@@ -4264,7 +4294,7 @@ static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean
 		FreeMusic( pMusicInfo );
 	}
 
-	if (!Q_stricmpn(name+(strlen(name)-4),".mp3",4))
+	if (!Q_stricmp(COM_GetExtension(name), "mp3"))
 	{
 		if (pMusicInfo->pLoadedData)
 		{
@@ -4386,50 +4416,19 @@ static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean
 		//
 		// open up a wav file and get all the info
 		//
-		FS_FOpenFileRead( name, &pMusicInfo->s_backgroundFile, qtrue );
-		if ( !pMusicInfo->s_backgroundFile ) {
-			Com_Printf( S_COLOR_YELLOW "WARNING: couldn't open music file %s\n", name );
-			return qfalse;
-		}
-
-		// skip the riff wav header
-
-		FS_Read(dump, 12, pMusicInfo->s_backgroundFile);
-
-		if ( !S_FindWavChunk( pMusicInfo->s_backgroundFile, "fmt " ) ) {
-			Com_Printf( S_COLOR_YELLOW "WARNING: No fmt chunk in %s\n", name );
-			FS_FCloseFile( pMusicInfo->s_backgroundFile );
-			pMusicInfo->s_backgroundFile = 0;
-			return qfalse;
-		}
-
-		// save name for soundinfo
-		pMusicInfo->s_backgroundInfo.format = FGetLittleShort( pMusicInfo->s_backgroundFile );
-		pMusicInfo->s_backgroundInfo.channels = FGetLittleShort( pMusicInfo->s_backgroundFile );
-		pMusicInfo->s_backgroundInfo.rate = FGetLittleLong( pMusicInfo->s_backgroundFile );
-		FGetLittleLong(  pMusicInfo->s_backgroundFile );
-		FGetLittleShort(  pMusicInfo->s_backgroundFile );
-		pMusicInfo->s_backgroundInfo.width = FGetLittleShort( pMusicInfo->s_backgroundFile ) / 8;
-
-		if ( pMusicInfo->s_backgroundInfo.format != WAV_FORMAT_PCM ) {
-			FS_FCloseFile( pMusicInfo->s_backgroundFile );
-			pMusicInfo->s_backgroundFile = 0;
-			Com_Printf(S_COLOR_YELLOW "WARNING: Not a microsoft PCM format wav: %s\n", name);
-			return qfalse;
-		}
-
-		if ( pMusicInfo->s_backgroundInfo.channels != 2 || pMusicInfo->s_backgroundInfo.rate != 22050 ) {
-			Com_Printf(S_COLOR_YELLOW "WARNING: music file %s is not 22k stereo\n", name );
-		}
-
-		if ( ( len = S_FindWavChunk( pMusicInfo->s_backgroundFile, "data" ) ) == 0 ) {
-			FS_FCloseFile( pMusicInfo->s_backgroundFile );
-			pMusicInfo->s_backgroundFile = 0;
-			Com_Printf(S_COLOR_YELLOW "WARNING: No data chunk in %s\n", name);
-			return qfalse;
-		}
-
-		pMusicInfo->s_backgroundInfo.samples = len / (pMusicInfo->s_backgroundInfo.width * pMusicInfo->s_backgroundInfo.channels);
+        const long fileLength = FS_FOpenFileRead(name, &pMusicInfo->s_backgroundFile, qtrue);
+        if (!pMusicInfo->s_backgroundFile) {
+            Com_Printf(S_COLOR_YELLOW "WARNING: couldn't open music file %s\n", name);
+            return qfalse;
+        }
+        if (!S_ReadMusicWavHeader(pMusicInfo->s_backgroundFile, fileLength, pMusicInfo->s_backgroundInfo)) {
+            FS_FCloseFile(pMusicInfo->s_backgroundFile);
+            pMusicInfo->s_backgroundFile = 0;
+            Com_Printf(S_COLOR_YELLOW "WARNING: Invalid or unsupported PCM music WAV: %s\n", name);
+            return qfalse;
+        }
+        if (pMusicInfo->s_backgroundInfo.channels != 2 || pMusicInfo->s_backgroundInfo.rate != 22050)
+            Com_Printf(S_COLOR_YELLOW "WARNING: music file %s is not 22k stereo\n", name);
 
 		pMusicInfo->s_backgroundSamples = pMusicInfo->s_backgroundInfo.samples;
 	}
@@ -4867,24 +4866,11 @@ static qboolean S_UpdateBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolea
 		bufferSamples = MAX_RAW_SAMPLES - (s_rawend - s_soundtime);
 
 		// decide how much data needs to be read from the file
-		fileSamples = bufferSamples * pMusicInfo->s_backgroundInfo.rate / dma.speed;
-
-		// don't try to play if there are no more samples in the file
-		if (!fileSamples) {
-			return qfalse;
-		}
-
-		// don't try and read past the end of the file
-		if ( fileSamples > pMusicInfo->s_backgroundSamples ) {
-			fileSamples = pMusicInfo->s_backgroundSamples;
-		}
-
-		// our max buffer size
-		fileBytes = fileSamples * (pMusicInfo->s_backgroundInfo.width * pMusicInfo->s_backgroundInfo.channels);
-		if (fileBytes > (int)RAWSIZE ) {
-			fileBytes = RAWSIZE;
-			fileSamples = fileBytes / (pMusicInfo->s_backgroundInfo.width * pMusicInfo->s_backgroundInfo.channels);
-		}
+        const int frameBytes = pMusicInfo->s_backgroundInfo.width * pMusicInfo->s_backgroundInfo.channels;
+        fileSamples = S_BackgroundReadSamples(bufferSamples, pMusicInfo->s_backgroundInfo.rate,
+            dma.speed, pMusicInfo->s_backgroundSamples, frameBytes, RAWSIZE);
+        if (!fileSamples) return qfalse;
+        fileBytes = fileSamples * frameBytes;
 
 		qboolean qbForceFinish = qfalse;
 		if (pMusicInfo->bIsMP3)

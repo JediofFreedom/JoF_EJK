@@ -1003,6 +1003,15 @@ static void UI_BuildPlayerList() {
 }
 
 
+static qboolean uiSpeciesLoaded;
+static qboolean uiSpeciesBuilding;
+static unsigned int uiSpeciesGeneration = 1;
+
+static void UI_ProfileStage(const char *stage, int started) {
+    if (trap->Cvar_VariableValue("cl_loadTimings"))
+        trap->Print("LOADPROFILE %s: %d ms\n", stage, trap->Milliseconds() - started);
+}
+
 static void UI_FreeSpecies( playerSpeciesInfo_t *species )
 {
 	free(species->SkinHead);
@@ -1047,6 +1056,7 @@ static int UI_CompareSpeciesBrowserIndices(const void *left, const void *right)
 
 static int UI_SpeciesBrowserActualIndex(int index)
 {
+	UI_EnsurePlayerSpecies();
 	if (index < 0 || index >= uiSpeciesBrowserCount)
 	{
 		return -1;
@@ -1057,6 +1067,7 @@ static int UI_SpeciesBrowserActualIndex(int index)
 
 void UI_UpdateSpeciesBrowser(void)
 {
+	if (!uiSpeciesLoaded) return;
 	menuDef_t *menu;
 	int i;
 	int selectedIndex = -1;
@@ -1131,7 +1142,7 @@ void UI_UpdateSpeciesBrowser(void)
 UI_BuildPlayerModel_List
 =================
 */
-void UI_BuildPlayerModel_List( qboolean inGameLoad )
+static void UI_BuildPlayerSpeciesCatalog( qboolean inGameLoad )
 {
 	static const size_t DIR_LIST_SIZE = 65536;//16384; //65536 is 8 times PROFILE_SKIN_SIZE
 
@@ -1331,7 +1342,71 @@ void UI_BuildPlayerModel_List( qboolean inGameLoad )
 		free(dirlist);
 	}
 
-	UI_UpdateSpeciesBrowser();
+}
+
+qboolean UI_EnsurePlayerSpecies(void) {
+    int i;
+    char selected[MAX_QPATH];
+    int started;
+    if (uiSpeciesLoaded) return uiInfo.playerSpeciesCount > 0;
+    if (uiSpeciesBuilding) return qfalse;
+    uiSpeciesBuilding = qtrue;
+    Q_strncpyz(selected, UI_Cvar_VariableString("ui_char_model"), sizeof(selected));
+    {
+        char *slash = strchr(selected, '/');
+        if (slash) *slash = 0;
+    }
+    started = trap->Milliseconds();
+    UI_BuildPlayerSpeciesCatalog(uiInfo.inGameLoad);
+    uiSpeciesLoaded = qtrue;
+    uiSpeciesBuilding = qfalse;
+    for (i = 0; i < uiInfo.playerSpeciesCount; ++i) {
+        if (!Q_stricmp(selected, uiInfo.playerSpecies[i].Name)) {
+            uiInfo.playerSpeciesIndex = i;
+            break;
+        }
+    }
+    UI_UpdateSpeciesBrowser();
+    UI_ProfileStage("UI species catalogue", started);
+    return uiInfo.playerSpeciesCount > 0;
+}
+
+static const playerSpeciesInfo_t *UI_CurrentPlayerSpecies(void) {
+    static const playerSpeciesInfo_t emptySpecies = {0};
+    if (!UI_EnsurePlayerSpecies()) return &emptySpecies;
+    if (uiInfo.playerSpeciesIndex < 0 || uiInfo.playerSpeciesIndex >= uiInfo.playerSpeciesCount)
+        uiInfo.playerSpeciesIndex = 0;
+    return &uiInfo.playerSpecies[uiInfo.playerSpeciesIndex];
+}
+
+void UI_EnsureSpeciesOptions(itemDef_t *item) {
+    multiDef_t *options;
+    if (!item || item->special != FEEDER_PLAYER_SPECIES || !item->typeData.multi ||
+        !item->typeData.multi->speciesFeeder) return;
+    UI_EnsurePlayerSpecies();
+    options = item->typeData.multi;
+    if (options->speciesGeneration == uiSpeciesGeneration) return;
+    options->count = 0;
+    options->strDef = qtrue;
+    while (options->count < uiInfo.playerSpeciesCount && options->count < MAX_MULTI_CVARS) {
+        const int index = options->count++;
+        options->cvarList[index] = String_Alloc(Q_strupr(va("@MENUS_%s", uiInfo.playerSpecies[index].Name)));
+        options->cvarStr[index] = String_Alloc(uiInfo.playerSpecies[index].Name);
+    }
+    options->speciesGeneration = uiSpeciesGeneration;
+}
+
+void UI_BuildPlayerModel_List(qboolean inGameLoad) {
+    const qboolean rebuild = uiSpeciesLoaded;
+    UI_FreeAllSpecies();
+    // Cvar/pure changes refresh an already-used catalog. An unused picker
+    // stays lazy, including UI startup and the map-loading handoff.
+    if (rebuild) UI_EnsurePlayerSpecies();
+}
+
+static void UI_InitSpeciesCatalog(qboolean lazySpecies) {
+    UI_FreeAllSpecies();
+    if (!lazySpecies) UI_EnsurePlayerSpecies();
 }
 
 void UI_SetActiveMenu( uiMenuCommand_t menu ) {
@@ -1497,7 +1572,6 @@ _UI_Shutdown
 */
 uiQ3ModelBuild_t uiQ3ModelBuild;
 void UI_CleanupGhoul2(void);
-void UI_FreeAllSpecies(void);
 
 static void UI_CancelQ3ModelListBuild(void)
 {
@@ -2580,8 +2654,8 @@ static void UI_DrawTeamMember(rectDef_t *rect, float scale, vec4_t color, qboole
 
 static void UI_DrawMapPreview(rectDef_t *rect, float scale, vec4_t color, qboolean net) {
 	int map = (net) ? ui_currentNetMap.integer : ui_currentMap.integer;
-	qhandle_t levelShot;
-	if (map < 0 || map > uiInfo.mapCount) {
+	qhandle_t levelShot = 0;
+	if (map < 0 || map >= uiInfo.mapCount) {
 		if (net) {
 			trap->Cvar_Set("ui_currentNetMap", "0");
 			trap->Cvar_Update(&ui_currentNetMap);
@@ -2592,14 +2666,15 @@ static void UI_DrawMapPreview(rectDef_t *rect, float scale, vec4_t color, qboole
 		map = 0;
 	}
 
-	if (uiInfo.mapList[map].levelShot == -1) {
-		uiInfo.mapList[map].levelShot = trap->R_RegisterShaderNoMip(uiInfo.mapList[map].imageName);
+	if (uiInfo.mapCount > 0) {
+		if (uiInfo.mapList[map].levelShot == -1) {
+			uiInfo.mapList[map].levelShot = trap->R_RegisterShaderNoMip(uiInfo.mapList[map].imageName);
+		}
+		if (uiInfo.mapList[map].levelShot > 0) {
+			levelShot = uiInfo.mapList[map].levelShot;
+		}
 	}
-
-	if (uiInfo.mapList[map].levelShot > 0) {
-		levelShot = uiInfo.mapList[map].levelShot;
-	}
-	else if (uiInfo.uiDC.widthRatioCoef >= 0.74f && uiInfo.uiDC.widthRatioCoef <= 0.76f) {
+	if (!levelShot && uiInfo.uiDC.widthRatioCoef >= 0.74f && uiInfo.uiDC.widthRatioCoef <= 0.76f) {
 		levelShot = trap->R_RegisterShaderNoMip("menu/art/unknownmap_mp_16_9");
 	}
 
@@ -2929,7 +3004,7 @@ static void UI_DrawNetSource(rectDef_t *rect, float scale, vec4_t color, int tex
 }
 
 static void UI_DrawNetMapPreview(rectDef_t *rect, float scale, vec4_t color) {
-	qhandle_t previewImage;
+	qhandle_t previewImage = 0;
 	if (uiInfo.serverStatus.currentServerPreview > 0) {
 		previewImage = uiInfo.serverStatus.currentServerPreview;
 	}
@@ -7285,7 +7360,7 @@ static void UI_UpdateCharacterCvars( void )
 	trap->Cvar_Set( "ui_selectedModelIndex", "-1");
 }
 
-void UI_GetCharacterCvars( void )
+static void UI_ReadCharacterCvars(qboolean useCatalog)
 {
 	char *model = NULL;
 	char *skin = NULL;
@@ -7335,7 +7410,7 @@ void UI_GetCharacterCvars( void )
 		trap->Cvar_Set("ui_char_skin_torso", skintorso);
 		trap->Cvar_Set("ui_char_skin_legs", skinlower);
 
-		for (i = 0; i < uiInfo.playerSpeciesCount; i++)
+		for (i = 0; useCatalog && i < uiInfo.playerSpeciesCount; i++)
 		{
 			if ( !Q_stricmp(model, uiInfo.playerSpecies[i].Name) )
 			{
@@ -7383,8 +7458,9 @@ void UI_GetCharacterCvars( void )
 		}
 #endif
 
+		if (!useCatalog) return;
 		model = UI_Cvar_VariableString ( "ui_char_model" );
-		for (i = 0; i < uiInfo.playerSpeciesCount; i++)
+		for (i = 0; useCatalog && i < uiInfo.playerSpeciesCount; i++)
 		{
 			if ( !Q_stricmp(model, uiInfo.playerSpecies[i].Name) )
 			{
@@ -7394,7 +7470,7 @@ void UI_GetCharacterCvars( void )
 		}
 		//nope, didn't find it.
 		uiInfo.playerSpeciesIndex = 0;//jic
-		trap->Cvar_Set("ui_char_model", uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].Name);
+		trap->Cvar_Set("ui_char_model", UI_CurrentPlayerSpecies()->Name);
 		trap->Cvar_Set("ui_char_skin_head", "head_a1");
 		trap->Cvar_Set("ui_char_skin_torso","torso_a1");
 		trap->Cvar_Set("ui_char_skin_legs", "lower_a1");
@@ -7406,6 +7482,46 @@ void UI_GetCharacterCvars( void )
 			trap->Cvar_SetValue("ui_selectedModelIndex", (float)modelIndex);
 		}
 	}
+}
+
+static qboolean UI_MenuUsesPlayerSpecies(const menuDef_t *menu)
+{
+	int i;
+	for (i = 0; i < menu->itemCount; ++i)
+	{
+		const itemDef_t *item = menu->items[i];
+		if (!item) continue;
+		switch ((int)item->special)
+		{
+		case FEEDER_PLAYER_SPECIES:
+		case FEEDER_PLAYER_SPECIES_BROWSER:
+		case FEEDER_PLAYER_SKIN_HEAD:
+		case FEEDER_PLAYER_SKIN_TORSO:
+		case FEEDER_PLAYER_SKIN_LEGS:
+		case FEEDER_COLORCHOICES:
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
+void UI_GetCharacterCvars(void)
+{
+	const menuDef_t *menu = Menu_GetScriptMenu();
+	if (!menu) menu = Menu_GetFocused();
+	// The ordinary profile preview needs cvars, but no species metadata.
+	// Discover customization menus by their controls, including third-party UI.
+	if (!uiSpeciesLoaded && menu && !UI_MenuUsesPlayerSpecies(menu))
+	{
+		UI_ReadCharacterCvars(qfalse);
+		return;
+	}
+	UI_ReadCharacterCvars(UI_EnsurePlayerSpecies());
+}
+
+static void UI_InitCharacterSelection(qboolean lazySpecies) {
+    if (lazySpecies) UI_ReadCharacterCvars(qfalse);
+    else UI_GetCharacterCvars();
 }
 
 void UI_SetSiegeObjectiveGraphicPos(menuDef_t *menu,const char *itemName,const char *cvarName)
@@ -8546,6 +8662,7 @@ static void UI_RunMenuScript(char **args)
 		} else if (Q_stricmp(name, "clearModelSearch") == 0) {
 			trap->Cvar_Set("ui_modelSearch", "");
 		} else if (Q_stricmp(name, "prepareSpeciesBrowser") == 0) {
+			UI_EnsurePlayerSpecies();
 			trap->Cvar_Set("ui_speciesSearch", "");
 			trap->Cvar_Update(&ui_speciesSearch);
 			UI_UpdateSpeciesBrowser();
@@ -11391,22 +11508,24 @@ static int UI_FeederCount(float feederID)
 			return (MD_MOVE_TITLE_MAX);
 
 		case FEEDER_PLAYER_SPECIES:
+			UI_EnsurePlayerSpecies();
 			return uiInfo.playerSpeciesCount;
 
 		case FEEDER_PLAYER_SPECIES_BROWSER:
+			UI_EnsurePlayerSpecies();
 			return uiSpeciesBrowserCount;
 
 		case FEEDER_PLAYER_SKIN_HEAD:
-			return uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinHeadCount;
+			return UI_CurrentPlayerSpecies()->SkinHeadCount;
 
 		case FEEDER_PLAYER_SKIN_TORSO:
-			return uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinTorsoCount;
+			return UI_CurrentPlayerSpecies()->SkinTorsoCount;
 
 		case FEEDER_PLAYER_SKIN_LEGS:
-			return uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinLegCount;
+			return UI_CurrentPlayerSpecies()->SkinLegCount;
 
 		case FEEDER_COLORCHOICES:
-			return uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].ColorCount;
+			return UI_CurrentPlayerSpecies()->ColorCount;
 
 		case FEEDER_SIEGE_BASE_CLASS:
 			team = (int)trap->Cvar_VariableValue("ui_team");
@@ -11930,6 +12049,7 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 	}
 	else if (feederID == FEEDER_PLAYER_SPECIES)
 	{
+		UI_EnsurePlayerSpecies();
 		if (index >= 0 && index < uiInfo.playerSpeciesCount)
 		{
 			return uiInfo.playerSpecies[index].Name;
@@ -11958,34 +12078,34 @@ static const char *UI_FeederItemText(float feederID, int index, int column,
 	}
 	else if (feederID == FEEDER_COLORCHOICES)
 	{
-		if (index >= 0 && index < uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].ColorCount)
+		if (index >= 0 && index < UI_CurrentPlayerSpecies()->ColorCount)
 		{
-			*handle1 = trap->R_RegisterShaderNoMip( uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].Color[index].shader);
-			return uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].Color[index].shader;
+			*handle1 = trap->R_RegisterShaderNoMip( UI_CurrentPlayerSpecies()->Color[index].shader);
+			return UI_CurrentPlayerSpecies()->Color[index].shader;
 		}
 	}
 	else if (feederID == FEEDER_PLAYER_SKIN_HEAD)
 	{
-		if (index >= 0 && index < uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinHeadCount)
+		if (index >= 0 && index < UI_CurrentPlayerSpecies()->SkinHeadCount)
 		{
-			*handle1 = trap->R_RegisterShaderNoMip(va("models/players/%s/icon_%s", uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].Name, uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinHead[index].name));
-			return uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinHead[index].name;
+			*handle1 = trap->R_RegisterShaderNoMip(va("models/players/%s/icon_%s", UI_CurrentPlayerSpecies()->Name, UI_CurrentPlayerSpecies()->SkinHead[index].name));
+			return UI_CurrentPlayerSpecies()->SkinHead[index].name;
 		}
 	}
 	else if (feederID == FEEDER_PLAYER_SKIN_TORSO)
 	{
-		if (index >= 0 && index < uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinTorsoCount)
+		if (index >= 0 && index < UI_CurrentPlayerSpecies()->SkinTorsoCount)
 		{
-			*handle1 = trap->R_RegisterShaderNoMip(va("models/players/%s/icon_%s", uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].Name, uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinTorso[index].name));
-			return uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinTorso[index].name;
+			*handle1 = trap->R_RegisterShaderNoMip(va("models/players/%s/icon_%s", UI_CurrentPlayerSpecies()->Name, UI_CurrentPlayerSpecies()->SkinTorso[index].name));
+			return UI_CurrentPlayerSpecies()->SkinTorso[index].name;
 		}
 	}
 	else if (feederID == FEEDER_PLAYER_SKIN_LEGS)
 	{
-		if (index >= 0 && index < uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinLegCount)
+		if (index >= 0 && index < UI_CurrentPlayerSpecies()->SkinLegCount)
 		{
-			*handle1 = trap->R_RegisterShaderNoMip(va("models/players/%s/icon_%s", uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].Name, uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinLeg[index].name));
-			return uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinLeg[index].name;
+			*handle1 = trap->R_RegisterShaderNoMip(va("models/players/%s/icon_%s", UI_CurrentPlayerSpecies()->Name, UI_CurrentPlayerSpecies()->SkinLeg[index].name));
+			return UI_CurrentPlayerSpecies()->SkinLeg[index].name;
 		}
 	}
 	else if (feederID == FEEDER_SIEGE_BASE_CLASS)
@@ -12230,33 +12350,33 @@ static qhandle_t UI_FeederItemImage(float feederID, int index) {
 	}
 	else if (feederID == FEEDER_PLAYER_SKIN_HEAD)
 	{
-		if (index >= 0 && index < uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinHeadCount)
+		if (index >= 0 && index < UI_CurrentPlayerSpecies()->SkinHeadCount)
 		{
-			//return uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinHeadIcons[index];
-			return trap->R_RegisterShaderNoMip(va("models/players/%s/icon_%s", uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].Name, uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinHead[index].name));
+			//return UI_CurrentPlayerSpecies()->SkinHeadIcons[index];
+			return trap->R_RegisterShaderNoMip(va("models/players/%s/icon_%s", UI_CurrentPlayerSpecies()->Name, UI_CurrentPlayerSpecies()->SkinHead[index].name));
 		}
 	}
 	else if (feederID == FEEDER_PLAYER_SKIN_TORSO)
 	{
-		if (index >= 0 && index < uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinTorsoCount)
+		if (index >= 0 && index < UI_CurrentPlayerSpecies()->SkinTorsoCount)
 		{
-			//return uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinTorsoIcons[index];
-			return trap->R_RegisterShaderNoMip(va("models/players/%s/icon_%s", uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].Name, uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinTorso[index].name));
+			//return UI_CurrentPlayerSpecies()->SkinTorsoIcons[index];
+			return trap->R_RegisterShaderNoMip(va("models/players/%s/icon_%s", UI_CurrentPlayerSpecies()->Name, UI_CurrentPlayerSpecies()->SkinTorso[index].name));
 		}
 	}
 	else if (feederID == FEEDER_PLAYER_SKIN_LEGS)
 	{
-		if (index >= 0 && index < uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinLegCount)
+		if (index >= 0 && index < UI_CurrentPlayerSpecies()->SkinLegCount)
 		{
-			//return uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinLegIcons[index];
-			return trap->R_RegisterShaderNoMip(va("models/players/%s/icon_%s", uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].Name, uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinLeg[index].name));
+			//return UI_CurrentPlayerSpecies()->SkinLegIcons[index];
+			return trap->R_RegisterShaderNoMip(va("models/players/%s/icon_%s", UI_CurrentPlayerSpecies()->Name, UI_CurrentPlayerSpecies()->SkinLeg[index].name));
 		}
 	}
 	else if (feederID == FEEDER_COLORCHOICES)
 	{
-		if (index >= 0 && index < uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].ColorCount)
+		if (index >= 0 && index < UI_CurrentPlayerSpecies()->ColorCount)
 		{
-			return trap->R_RegisterShaderNoMip( uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].Color[index].shader);
+			return trap->R_RegisterShaderNoMip( UI_CurrentPlayerSpecies()->Color[index].shader);
 		}
 	}
 
@@ -12740,34 +12860,35 @@ qboolean UI_FeederSelection(float feederFloat, int index, itemDef_t *item)
 	}
 	else if (feederID == FEEDER_COLORCHOICES)
 	{
-		if (index >= 0 && index < uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].ColorCount)
+		if (index >= 0 && index < UI_CurrentPlayerSpecies()->ColorCount)
 		{
-			Item_RunScript(item, uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].Color[index].actionText);
+			Item_RunScript(item, UI_CurrentPlayerSpecies()->Color[index].actionText);
 		}
 	}
 	else if (feederID == FEEDER_PLAYER_SKIN_HEAD)
 	{
-		if (index >= 0 && index < uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinHeadCount)
+		if (index >= 0 && index < UI_CurrentPlayerSpecies()->SkinHeadCount)
 		{
-			trap->Cvar_Set("ui_char_skin_head", uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinHead[index].name);
+			trap->Cvar_Set("ui_char_skin_head", UI_CurrentPlayerSpecies()->SkinHead[index].name);
 		}
 	}
 	else if (feederID == FEEDER_PLAYER_SKIN_TORSO)
 	{
-		if (index >= 0 && index < uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinTorsoCount)
+		if (index >= 0 && index < UI_CurrentPlayerSpecies()->SkinTorsoCount)
 		{
-			trap->Cvar_Set("ui_char_skin_torso", uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinTorso[index].name);
+			trap->Cvar_Set("ui_char_skin_torso", UI_CurrentPlayerSpecies()->SkinTorso[index].name);
 		}
 	}
 	else if (feederID == FEEDER_PLAYER_SKIN_LEGS)
 	{
-		if (index >= 0 && index < uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinLegCount)
+		if (index >= 0 && index < UI_CurrentPlayerSpecies()->SkinLegCount)
 		{
-			trap->Cvar_Set("ui_char_skin_legs", uiInfo.playerSpecies[uiInfo.playerSpeciesIndex].SkinLeg[index].name);
+			trap->Cvar_Set("ui_char_skin_legs", UI_CurrentPlayerSpecies()->SkinLeg[index].name);
 		}
 	}
 	else if (feederID == FEEDER_PLAYER_SPECIES)
 	{
+		UI_EnsurePlayerSpecies();
 		if (index >= 0 && index < uiInfo.playerSpeciesCount)
 		{
 			uiInfo.playerSpeciesIndex = index;
@@ -13591,6 +13712,12 @@ void UI_FreeAllSpecies( void )
 		UI_FreeSpecies(&uiInfo.playerSpecies[i]);
 	}
 	free(uiInfo.playerSpecies);
+    uiInfo.playerSpecies = NULL;
+    uiInfo.playerSpeciesCount = uiInfo.playerSpeciesMax = uiInfo.playerSpeciesIndex = 0;
+    uiSpeciesLoaded = uiSpeciesBuilding = qfalse;
+    uiSpeciesBrowserCount = 0;
+    if (++uiSpeciesGeneration == 0) ++uiSpeciesGeneration;
+
 }
 
 static qhandle_t UI_RegisterShaderNoMip( const char *name ) {
@@ -13613,6 +13740,8 @@ UI_Init
 */
 void UI_Init( qboolean inGameLoad ) {
 	const char *menuSet;
+	int uiStage;
+	qboolean lazySpecies;
 
 	// Get the list of possible languages
 	uiInfo.languageCount = trap->SE_GetNumLanguages();	// this does a dir scan, so use carefully
@@ -13709,6 +13838,8 @@ void UI_Init( qboolean inGameLoad ) {
 	Init_Display(&uiInfo.uiDC);
 
 	UI_RegisterCvars();
+	trap->Cvar_Register(NULL, "ui_lazyPlayerSpecies", "1", CVAR_ARCHIVE);
+	lazySpecies = trap->Cvar_VariableValue("ui_lazyPlayerSpecies") != 0;
 	// A rank change belongs to the connection that sent it; the server resends
 	// it on every join. One left over from the last session would be applied on
 	// the main menu, where the free-saber rule is unknown, and trim the build.
@@ -13718,13 +13849,15 @@ void UI_Init( qboolean inGameLoad ) {
 
 	String_Init();
 
+	uiStage = trap->Milliseconds();
 	AssetCache();
+	UI_ProfileStage("UI asset registration", uiStage);
 	
 	// Each UI instance owns its catalogue. Restart the existing incremental
 	// build after a map/renderer reload instead of blocking the join while
 	// scanning every installed model because a previous UI set a cvar.
 	UI_BuildQ3Model_List_Async();
-	UI_BuildPlayerModel_List(inGameLoad);
+	UI_InitSpeciesCatalog(lazySpecies);
 
 	// Cosmetic meshes/textures are registered when their menu is first used.
 
@@ -13746,6 +13879,7 @@ void UI_Init( qboolean inGameLoad ) {
 	//UI_GetResolutions();
 	//UI_GetAspectRatios();
 
+	uiStage = trap->Milliseconds();
 #if 1
 	if (inGameLoad)
 	{
@@ -13759,6 +13893,7 @@ void UI_Init( qboolean inGameLoad ) {
 	UI_LoadMenus(menuSet, qtrue);
 	UI_LoadMenus("ui/jampingame.txt", qtrue);
 #endif
+	UI_ProfileStage("UI menu parsing", uiStage);
 
 	{
 		char buf[MAX_NETNAME] = {0};
@@ -13802,7 +13937,8 @@ void UI_Init( qboolean inGameLoad ) {
 	//uiInfo.uiDC.cursorx = SCREEN_WIDTH / 2;
 	//uiInfo.uiDC.cursory = (SCREEN_HEIGHT / 2);
 
-	UI_GetCharacterCvars();
+	// Current preview cvars do not need the full species picker catalog.
+	UI_InitCharacterSelection(lazySpecies);
 }
 
 #define	UI_FPS_FRAMES	4

@@ -22,6 +22,10 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include "vk_texture_context.h"
+#include "vk_texture_scratch.h"
+#include <cstdlib>
+#include <climits>
 
 void R_SetColorMappings( void)
 {
@@ -135,14 +139,18 @@ Scale up the pixel values in a texture to increase the
 lighting range
 ================
 */
-void R_LightScaleTexture( byte *in, int inwidth, int inheight, qboolean only_gamma )
+void R_LightScaleTexture( byte *in, int inwidth, int inheight, qboolean only_gamma,
+    const TexturePreparationContext *context)
 {
     if (in == NULL)
         return;
 
+    const bool hardwareGamma = context ? context->supportsGamma || context->fboActive : glConfig.deviceSupportsGamma || vk.fboActive;
+    const byte *gamma = context ? context->gamma : s_gammatable;
+    const byte *intensity = context ? context->intensity : s_intensitytable;
     if (only_gamma)
     {
-        if (!glConfig.deviceSupportsGamma && !vk.fboActive)
+        if (!hardwareGamma)
         {
             int		i, c;
             byte    *p;
@@ -152,9 +160,9 @@ void R_LightScaleTexture( byte *in, int inwidth, int inheight, qboolean only_gam
             c = inwidth * inheight;
             for (i = 0; i < c; i++, p += 4)
             {
-                p[0] = s_gammatable[p[0]];
-                p[1] = s_gammatable[p[1]];
-                p[2] = s_gammatable[p[2]];
+                p[0] = gamma[p[0]];
+                p[1] = gamma[p[1]];
+                p[2] = gamma[p[2]];
             }
         }
     }
@@ -167,22 +175,22 @@ void R_LightScaleTexture( byte *in, int inwidth, int inheight, qboolean only_gam
 
         c = inwidth * inheight;
 
-        if (glConfig.deviceSupportsGamma || vk.fboActive)
+        if (hardwareGamma)
         {
             for (i = 0; i < c; i++, p += 4)
             {
-                p[0] = s_intensitytable[p[0]];
-                p[1] = s_intensitytable[p[1]];
-                p[2] = s_intensitytable[p[2]];
+                p[0] = intensity[p[0]];
+                p[1] = intensity[p[1]];
+                p[2] = intensity[p[2]];
             }
         }
         else
         {
             for (i = 0; i < c; i++, p += 4)
             {
-                p[0] = s_gammatable[s_intensitytable[p[0]]];
-                p[1] = s_gammatable[s_intensitytable[p[1]]];
-                p[2] = s_gammatable[s_intensitytable[p[2]]];
+                p[0] = gamma[intensity[p[0]]];
+                p[1] = gamma[intensity[p[1]]];
+                p[2] = gamma[intensity[p[2]]];
             }
         }
     }
@@ -259,20 +267,20 @@ Mipmap textures are used in 3D scenes to decrease the time required to
 render a scene. They also improve the scene's realism.
 ================
 */
-void R_MipMap( byte *out, byte *in, int width, int height ) {
+bool R_MipMap( byte *out, byte *in, int width, int height,
+    const TexturePreparationContext *context, TexturePreparationBuffers *scratch) {
     int		i, j;
     int		row;
 
     if (in == NULL)
-        return;
+        return true;
 
-    if (!r_simpleMipMaps->integer) {
-        R_MipMap2((unsigned*)out, (unsigned*)in, width, height);
-        return;
+    if (!(context ? context->simpleMipMaps : r_simpleMipMaps->integer)) {
+        return R_MipMap2((unsigned*)out, (unsigned*)in, width, height, scratch);
     }
 
     if (width == 1 && height == 1) {
-        return;
+        return true;
     }
 
     row = width * 4;
@@ -287,7 +295,7 @@ void R_MipMap( byte *out, byte *in, int width, int height ) {
             out[2] = (in[2] + in[6]) >> 1;
             out[3] = (in[3] + in[7]) >> 1;
         }
-        return;
+        return true;
     }
 
     for (i = 0; i < height; i++, in += row) {
@@ -298,9 +306,10 @@ void R_MipMap( byte *out, byte *in, int width, int height ) {
             out[3] = (in[3] + in[7] + in[row + 3] + in[row + 7]) >> 2;
         }
     }
+    return true;
 }
 
-void R_MipMap2( unsigned * const out, unsigned * const in, int inWidth, int inHeight ) {
+bool R_MipMap2( unsigned * const out, unsigned * const in, int inWidth, int inHeight, TexturePreparationBuffers *scratch) {
     int			i, j, k;
     byte        *outpix;
     int			inWidthMask, inHeightMask;
@@ -310,9 +319,13 @@ void R_MipMap2( unsigned * const out, unsigned * const in, int inWidth, int inHe
 
     outWidth = inWidth >> 1;
     outHeight = inHeight >> 1;
+    if (!outWidth || !outHeight) return true; // Preserve the existing one-dimensional HQ no-op.
 
-    if (out == in)
-        temp = (unsigned int*)ri.Hunk_AllocateTempMemory(outWidth * outHeight * 4);
+    if (out == in) {
+        temp = scratch ? reinterpret_cast<unsigned *>(scratch->allocate(TexturePreparationBuffers::MipTemporary, size_t(outWidth) * outHeight * 4)) :
+            (unsigned int*)ri.Hunk_AllocateTempMemory(outWidth * outHeight * 4);
+        if (!temp) return false;
+    }
     else
         temp = out;
 
@@ -350,8 +363,9 @@ void R_MipMap2( unsigned * const out, unsigned * const in, int inWidth, int inHe
 
     if (out == in) {
         Com_Memcpy(out, temp, outWidth * outHeight * 4);
-        ri.Hunk_FreeTempMemory(temp);
+        if (!scratch) ri.Hunk_FreeTempMemory(temp);
     }
+    return true;
 }
 
 /*
@@ -365,27 +379,41 @@ is greater than half the original size.
 If a larger shrinking is needed, use the mipmap function before or after.
 ================
 */
-void ResampleTexture( unsigned *in, int inwidth, int inheight, unsigned *out,
-    int outwidth, int outheight ) {
+bool ResampleTexture( unsigned *in, int inwidth, int inheight, unsigned *out,
+    int outwidth, int outheight, TexturePreparationBuffers *scratch ) {
     int		i, j;
     unsigned* inrow, * inrow2;
-    unsigned	frac, fracstep;
-    unsigned	p1[2048], p2[2048];
+    uint64_t frac, fracstep;
+    unsigned stackIndices[4096];
+    unsigned *p1 = stackIndices, *p2 = stackIndices + 2048;
+    void *heapIndices = NULL;
     byte* pix1, * pix2, * pix3, * pix4;
 
-    if (outwidth > 2048)
-        ri.Error(ERR_DROP, "ResampleTexture: max width");
+    if (!in || !out || inwidth <= 0 || inheight <= 0 || outwidth <= 0 || outheight <= 0 ||
+        inwidth > 65536 || inheight > 65536 || outwidth > 65536 || outheight > 65536) return false;
+    if (size_t(inwidth) * inheight > size_t(INT_MAX) / 4 ||
+        size_t(outwidth) * outheight > size_t(INT_MAX) / 4) return false;
+    if (outwidth > 2048) {
+        const size_t bytes = size_t(outwidth) * sizeof(unsigned) * 2;
+        if (scratch) p1 = reinterpret_cast<unsigned *>(scratch->allocate(TexturePreparationBuffers::ResampleIndices, bytes));
+        else { heapIndices = std::malloc(bytes); p1 = static_cast<unsigned *>(heapIndices); }
+        if (!p1) {
+            if (!scratch) ri.Error(ERR_DROP, "ResampleTexture: insufficient index memory");
+            return false;
+        }
+        p2 = p1 + outwidth;
+    }
 
-    fracstep = inwidth * 0x10000 / outwidth;
+    fracstep = uint64_t(inwidth) * 0x10000 / outwidth;
 
     frac = fracstep >> 2;
     for (i = 0; i < outwidth; i++) {
-        p1[i] = 4 * (frac >> 16);
+        p1[i] = static_cast<unsigned>(4 * (frac >> 16));
         frac += fracstep;
     }
     frac = 3 * (fracstep >> 2);
     for (i = 0; i < outwidth; i++) {
-        p2[i] = 4 * (frac >> 16);
+        p2[i] = static_cast<unsigned>(4 * (frac >> 16));
         frac += fracstep;
     }
 
@@ -403,4 +431,6 @@ void ResampleTexture( unsigned *in, int inwidth, int inheight, unsigned *out,
             ((byte*)(out + j))[3] = (pix1[3] + pix2[3] + pix3[3] + pix4[3]) >> 2;
         }
     }
+    std::free(heapIndices);
+    return true;
 }

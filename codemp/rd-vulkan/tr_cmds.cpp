@@ -114,7 +114,9 @@ void R_IssueRenderCommands( qboolean runPerformanceCounters ) {
 	// actually start the commands going
 	if ( !r_skipBackEnd->integer ) {
 		// let it start on the new batch
+		R_TextureBackend(qtrue);
 		RB_ExecuteRenderCommands( cmdList->cmds );
+		R_TextureBackend(qfalse);
 	}
 
 	// at this point, the back end thread is idle, so it is ok
@@ -370,6 +372,7 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 	// texturemode stuff
 	//
 	if ( r_textureMode->modified ) {
+		R_FlushTextureJobs();
 		vk_texture_mode( r_textureMode->string, qfalse );
 		r_textureMode->modified = qfalse;
 		vk_update_post_process_pipelines();
@@ -379,6 +382,7 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 	// gamma stuff
 	//
 	if ( r_gamma->modified || r_greyscale->modified || r_dither->modified ) {
+		R_FlushTextureJobs();
 		r_gamma->modified = qfalse;
 		r_greyscale->modified = qfalse;
 		r_dither->modified = qfalse;

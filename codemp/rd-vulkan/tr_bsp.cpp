@@ -2337,6 +2337,7 @@ void RE_LoadWorldMap_Actual( const char *name, world_t &worldData, int index )
 		// clear tr.world so if the level fails to load, the next
 		// try will not look at the partially loaded version
 		tr.world = NULL;
+		R_FlushTextureJobs();
 		tr.mapLoading = qtrue;
 	}
 
@@ -2408,6 +2409,7 @@ void RE_LoadWorldMap_Actual( const char *name, world_t &worldData, int index )
 		// only set tr.world now that we know the entire level has loaded properly
 		tr.world = &worldData;
 
+		R_FlushTextureJobs();
 		tr.mapLoading = qfalse;
 	}
 

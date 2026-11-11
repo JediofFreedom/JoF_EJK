@@ -361,6 +361,7 @@ void vk_begin_frame( void )
 
 	if ( vk.frame_count++ ) // might happen during stereo rendering
 		return;
+	R_FlushTextureJobs();
 	vk_flush_image_uploads();
 
 #ifdef USE_UPLOAD_QUEUE

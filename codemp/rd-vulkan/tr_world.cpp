@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_local.h"
+#include "../../shared/qcommon/bit_mask.h"
 
 inline void Q_CastShort2Float( float *f, const short *s )
 {
@@ -1531,7 +1532,7 @@ void R_AddWorldSurfaces ( void ) {
 		tr.refdef.num_dlights = 32 ;
 	}
 
-	R_RecursiveWorldNode( tr.world->nodes, 15, ( 1 << tr.refdef.num_dlights ) - 1 );
+	R_RecursiveWorldNode( tr.world->nodes, 15, Q_BitMask32(tr.refdef.num_dlights) );
 
 #ifdef USE_PMLIGHT
 	// "transform" all the dlights so that dl->transformed is actually populated

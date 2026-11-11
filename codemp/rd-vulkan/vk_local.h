@@ -84,6 +84,11 @@ struct vkLoadStats_t {
 	uint64_t hostImageCopyBytes;
 	unsigned bufferUploads;
 	uint64_t bufferUploadBytes;
+	uint64_t imageSourceUs, imageSyncReadDecodeUs, imagePrepareUs, imageGpuCreateUs;
+	uint64_t imageUploadRecordUs, imageTransferFlushUs, imageCacheEnqueueUs;
+	uint64_t workerDecodeUs, workerCacheUs, inlineDecodeUs, inlineCacheUs;
+	uint64_t workerPrepareUs;
+	unsigned workerPreparedJobs, workerPreparationFallbacks, workerPreparationOversized;
 };
 extern vkLoadStats_t vkLoadStats;
 
@@ -1108,6 +1113,9 @@ void vk_upload_buffer_data(VkBuffer destination, VkDeviceSize destinationOffset,
 VkResult vk_queue_submit(VkQueue queue, uint32_t count, const VkSubmitInfo *submits, VkFence fence);
 void		vk_create_command_pool( void );
 void vk_flush_image_uploads(void);
+void R_FlushTextureJobs(qboolean cancel = qfalse);
+void R_SetTextureRegistration(qboolean active);
+void R_TextureBackend(qboolean executing);
 void		vk_create_command_buffer( void );
 void vk_record_image_layout_transition( VkCommandBuffer cmdBuf, VkImage image,
 	VkImageAspectFlags image_aspect_flags,
@@ -1165,11 +1173,15 @@ uint32_t	vk_append_uniform( const void *uniform, size_t size, uint32_t min_offse
 
 // image process
 void		R_SetColorMappings( void );
-void		R_LightScaleTexture( byte *in, int inwidth, int inheight, qboolean only_gamma );
-void		ResampleTexture( unsigned *in, int inwidth, int inheight, unsigned *out, int outwidth, int outheight );
+void		R_LightScaleTexture( byte *in, int inwidth, int inheight, qboolean only_gamma,
+    const struct TexturePreparationContext *context = NULL );
+bool		ResampleTexture( unsigned *in, int inwidth, int inheight, unsigned *out, int outwidth, int outheight,
+    struct TexturePreparationBuffers *scratch = NULL );
 void		R_BlendOverTexture( unsigned char *data, const uint32_t pixelCount, const uint32_t l );
-void		R_MipMap( byte *out, byte *in, int width, int height );
-void		R_MipMap2( unsigned* const out, unsigned* const in, int inWidth, int inHeight );
+bool		R_MipMap( byte *out, byte *in, int width, int height,
+    const struct TexturePreparationContext *context = NULL, struct TexturePreparationBuffers *scratch = NULL );
+bool		R_MipMap2( unsigned* const out, unsigned* const in, int inWidth, int inHeight,
+    struct TexturePreparationBuffers *scratch = NULL );
 
 // image
 void		vk_texture_mode( const char *string, const qboolean init );
@@ -1213,13 +1225,8 @@ void		GfxInfo_f( void );
 void		vk_set_object_name( uint64_t obj, const char *objName, VkDebugReportObjectTypeEXT objType );
 #define		VK_SET_OBJECT_NAME( obj, objName, objType) vk_set_object_name( (uint64_t)( obj ), ( objName ), ( objType ) );
 
-#define VK_CHECK( function_call ) { \
-	VkResult result = function_call; \
-	if ( result < 0 ) \
-		vk_debug( "Vulkan: error %s returned by %s \n", vk_result_string( result ), #function_call ); \
-}
-
 void		vk_debug( const char *msg, ... );
+#include "vk_result_check.h"
 void		R_DebugGraphics( void );
 
 #ifdef USE_VK_VALIDATION

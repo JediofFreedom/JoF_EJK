@@ -7,7 +7,12 @@ param(
     [ValidateSet(0,1)][int]$Synchronization2 = 1,
     [ValidateSet(0,1)][int]$UploadBatch = 1,
     [ValidateSet(0,16,32)][int]$TextureBits = 0,
-    [int]$TextureCacheMegs = 512
+    [int]$TextureCacheMegs = 512,
+    [int]$TextureWorkers = -1,
+    [int]$TextureDiskCacheMegs = 0,
+    [ValidateSet(0,1)][int]$WorkerPrepare = 1,
+    [ValidateSet(0,1)][int]$FilesystemIndex = 1,
+    [ValidateSet(0,1)][int]$LazyPlayerSpecies = 1
 )
 $ErrorActionPreference = 'Stop'
 $binary = (Resolve-Path -LiteralPath $BinaryDirectory).Path
@@ -24,12 +29,16 @@ Set-Content "$mod/autoexec.cfg" '' -Encoding ASCII
   'devmap T1_Fatal', 'wait 125', 'team free', 'set cg_thirdPerson 1', 'ui_openmenu none', 'wait 125',
   'screenshot_png audit-world', 'wait 10', 'cosmetics hats afro', 'wait 60',
   'ui_openmenu ingame_player', 'wait 500', 'screenshot_png audit-models', 'wait 10',
+  'echo AUDIT_CUSTOMIZATION_OPEN', 'ui_openmenu ingame_player2', 'wait 125',
+  'screenshot_png audit-species', 'wait 10', 'echo AUDIT_CUSTOMIZATION_READY',
   'ui_openmenu ingame_cosmetics', 'wait 125', 'screenshot_png audit-cosmetics', 'wait 10',
   'vid_restart', 'wait 125', 'ui_openmenu none', 'wait 125', 'screenshot_png audit-restart', 'wait 10',
   'devmap mp/ffa3', 'wait 125', 'echo AUDIT_GPU_COMPLETE', 'quit') |
     Set-Content "$mod/audit-gpu.cfg" -Encoding ASCII
 $arguments = "+safe +set fs_loadpakdlls 0 +set fs_basepath `"$gameData`" +set fs_homepath `"$runHome`" +set fs_portable 0 +set logfile 2 +set cl_loadTimings 1 +set r_hostImageCopy $HostImageCopy +set r_vulkanSynchronization2 $Synchronization2 +set r_imageUploadBatch $UploadBatch +set r_texturebits $TextureBits +set r_textureCacheMegs $TextureCacheMegs +set cl_rendererFallback 0 +set r_vbo 1 +set r_vbo_models 1 +set r_fullscreen 0 +set r_mode -1 +set r_customwidth 640 +set r_customheight 480 +set s_useOpenAL 0 +exec audit-gpu.cfg"
 $environment = @{}
+$arguments = "+set r_textureWorkers $TextureWorkers +set r_textureDiskCacheMegs $TextureDiskCacheMegs $arguments"
+$arguments = "+set r_textureWorkerPrepare $WorkerPrepare +set fs_lookupIndex $FilesystemIndex +set ui_lazyPlayerSpecies $LazyPlayerSpecies $arguments"
 try {
     if ($ValidationLayerDirectory) {
         $layer = (Resolve-Path -LiteralPath $ValidationLayerDirectory).Path
@@ -54,8 +63,16 @@ try {
         -not $log.Contains('resident cache shutdown: 0 textures, 0 pages') -or $log.Contains('fallback renderer')) {
         throw 'GPU smoke test failed; inspect the isolated qconsole.log.'
     }
-    foreach ($shot in @('audit-world', 'audit-models', 'audit-cosmetics', 'audit-restart')) {
+    foreach ($shot in @('audit-world', 'audit-models', 'audit-species', 'audit-cosmetics', 'audit-restart')) {
         if (-not (Test-Path "$mod/screenshots/$shot.png")) { throw "Missing screenshot: $shot" }
+    }
+    if ($LazyPlayerSpecies) {
+        $opened = $log.IndexOf('AUDIT_CUSTOMIZATION_OPEN')
+        $ready = $log.IndexOf('AUDIT_CUSTOMIZATION_READY')
+        $catalog = $log.IndexOf('LOADPROFILE UI species catalogue:')
+        if ($opened -lt 0 -or $ready -le $opened -or $catalog -lt $opened -or $catalog -ge $ready) {
+            throw 'Species catalogue must stay lazy until the actual customization menu opens.'
+        }
     }
     if ($ValidationLayerDirectory) {
         $validation = Get-Content "$runHome/validation.log" -Raw

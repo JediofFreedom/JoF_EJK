@@ -5871,6 +5871,7 @@ extern int commandTimeDelta;
 static float CG_DrawSnapshot( float y ) {
 	char		*s;
 	int			w, drawFont = cg_drawFPS.integer;
+	if (cg_drawSnapshot.integer <= 0) return y;
 	/*int			w, drawFont = cg_drawFPS.integer ? cg_drawFPS.integer : cg_drawSnapshot.integer;
 
 	s = va( "time:%i snap:%i cmd:%i", cg.snap->serverTime,
