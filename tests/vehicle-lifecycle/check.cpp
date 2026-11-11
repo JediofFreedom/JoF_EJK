@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cstdint>
 #include <string>
 #include <cassert>
 #ifdef VEHICLE_SEAT_CONSUMERS
@@ -276,7 +277,7 @@ static void consumers(const std::string &test) {
   CHECK(Eject(&vehicle,&g_entities[0],qtrue));CHECK(vehicle.m_pPilot==&g_entities[2]);consistent(1);
  } else if(test.find("capacity")!=std::string::npos) {
   info.maxPassengers=2;passenger(1,2);
-  vehicle.m_ppPassengers[VEH_MAX_PASSENGERS-1]=reinterpret_cast<Entity *>(uintptr_t(1));
+  vehicle.m_ppPassengers[VEH_MAX_PASSENGERS-1]=reinterpret_cast<Entity *>(std::uintptr_t(1));
  } else CHECK(test.find("empty")!=std::string::npos);
  Entity *slots[VEH_MAX_PASSENGERS];std::memcpy(slots,vehicle.m_ppPassengers,sizeof(slots));
  int generic[VEH_MAX_PASSENGERS];for(int i=0;i<info.maxPassengers;++i) generic[i]=slots[i]?slots[i]->client->ps.generic1:0;
