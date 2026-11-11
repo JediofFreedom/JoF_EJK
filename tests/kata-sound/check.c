@@ -2,6 +2,7 @@
 // Include client-only JA+ animation IDs without changing the harness imports.
 #define _CGAME
 #include "../../codemp/game/bg_public.h"
+#include "../../codemp/game/bg_anim_events.h"
 #include "../../codemp/game/anims.h"
 
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL %d: %s\n", __LINE__, #x); exit(1); } } while (0)

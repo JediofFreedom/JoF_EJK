@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // cg_players.c -- handle the media and animation for player entities
 #include "cg_local.h"
 #include "cg_runtime_profile.h"
+#include "game/bg_anim_events.h"
 #include "ghoul2/G2.h"
 #include "game/bg_saga.h"
 #include "cJSON.h"
@@ -3373,14 +3374,19 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 	qboolean	doEvent = qfalse, inSameAnim = qfalse, loopAnim = qfalse, match = qfalse, animBackward = qfalse;
 	qboolean grappleFrames = qfalse;
 	animevent_t *animEvents = NULL;
+	const bgAnimEventIndex_t *eventIndex;
+	bgAnimEventCandidates_t candidates;
+	qboolean indexed;
 
 	if ( torso )
 	{
 		animEvents = bgAllEvents[eventFileIndex].torsoAnimEvents;
+		eventIndex = &bgAllEvents[eventFileIndex].torsoIndex;
 	}
 	else
 	{
 		animEvents = bgAllEvents[eventFileIndex].legsAnimEvents;
+		eventIndex = &bgAllEvents[eventFileIndex].legsIndex;
 	}
 	if ( fabs((float)(oldFrame-frame)) > 1 )
 	{//given a range, see if keyFrame falls in that range
@@ -3458,8 +3464,16 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 		}
 	}
 
-	// Check for anim sound
-	for (i=0;i<MAX_ANIM_EVENTS;++i)
+	// Ordinary events can match only the exact frame or the existing +/-3
+	// proximity windows. Keep grapple's wider skipped-frame handling unchanged.
+	indexed = eventIndex->valid && !grappleFrames;
+	if (indexed)
+		BG_AnimEventCandidatesInit(&candidates,eventIndex,animEvents,oldFrame,frame,
+			inSameAnim && fabs((float)(oldFrame-frame)) > 1);
+
+	// Candidate slots retain source order, including the legacy doEvent carry.
+	for (i=indexed ? BG_AnimEventCandidateNext(&candidates) : 0;
+		i<MAX_ANIM_EVENTS;i=indexed ? BG_AnimEventCandidateNext(&candidates) : i+1)
 	{
 		if ( animEvents[i].eventType == AEV_NONE )	// No event, end of list
 		{
