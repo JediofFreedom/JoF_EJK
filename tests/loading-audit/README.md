@@ -71,8 +71,9 @@ its source validation, copies and churn did not justify its memory cost.
 
 SJK retains GPU assets and uses worker-based loading in its newer engine.
 EJK now retains bounded, independently owned immutable GPU textures across map
-changes and rebuilds descriptors; geometry and other map resources still rebuild.
-Parallel asset decoding and broader geometry lifetime changes remain separate
+changes and rebuilds descriptors. Its registration workers decode textures and
+prepare mip chains; geometry and other map resources still rebuild. Broader
+parallel world/material preparation and geometry lifetime changes remain
 architectural work. Network/download delays,
 player populations, map complexity and filesystem/GPU caches also affect joins.
 These checks do not establish that EJK loads faster than SJK.
@@ -498,3 +499,80 @@ from earlier branch comparisons; their percentages must not be added together.
 Recorded result files are `zlib-library-pairs-results.json`,
 `project-zlib-client-benchmark/results.json` and
 `project-remote-zlib-benchmark/results.json` in the local performance-run output.
+
+### Shader catalogue reuse, live metadata probes and PCM loading
+
+The `189456f` loading follow-up adds three defaults, each with an explicit `0`
+control for comparisons:
+
+- `fs_metadataProbe 1` uses a live native Windows missing-file query before CRT
+  stream setup for absent loose-file metadata candidates. It keeps existing
+  files and uncertain/path-sensitive cases on the ordinary path, without caching
+  directory contents or hiding subsequent loose overrides.
+- `r_shaderTextCache 1` retains one compressed shader-source catalogue and hash
+  offsets. Each reuse obtains the fresh ordered file list and validates its
+  winning immutable source identities before rebuilding pointers in the current
+  hunk. It preserves duplicate precedence and package reference rules. Loose
+  sources, unknown identities, journal modes and read failures reload normally;
+  full renderer shutdown frees retention.
+- `s_resampleFast 1` avoids phase arithmetic for exact equal-rate and twofold PCM
+  output conversion. Sample values, output lengths, volume ranges and other-rate
+  behavior match the ordinary resampler; audio quality and effects are unchanged.
+
+Five alternating same-binary pairs after one excluded warmup pair compared all
+three controls at `0` versus all three at `1`. Both sides used fresh profiles,
+the same pipeline seed, installed assets, 1230x690 viewport, quality settings,
+software sound (`s_useOpenAL 0`), 2048 MiB GPU texture retention and disabled
+prepared-texture disk cache. OS/driver caches were warm; no competing build,
+analyzer or game client ran during timing. The map order was T1_Fatal / mp/ffa3 /
+T1_Fatal. These settings compare the new work with the same previously optimized
+EJK engine, not with an unmodified retail client or SJK.
+
+| Measurement, median of five | All three off | All three on |
+| --- | ---: | ---: |
+| First T1_Fatal handoff | 1,891 ms | 1,725 ms |
+| mp/ffa3 handoff | 823 ms | 725 ms |
+| T1_Fatal revisit | 555 ms | 464 ms |
+| Complete three-map cycle | 7.699 s | 7.474 s |
+| Texture metadata, first / second / revisit | 97.008 / 99.573 / 107.203 ms | 62.729 / 63.853 / 68.764 ms |
+| Sound registration, first / second / revisit | 390 / 93 / 20 ms | 365 / 83 / 17 ms |
+| Renderer registration, startup / first / second / revisit | 596 / 78 / 75 / 80 ms | 580 / 25 / 26 / 25 ms |
+
+The map-handoff medians were about 8.8%, 11.9% and 16.4% shorter; the complete
+cycle median was about 2.9% shorter. All five first-map and revisit handoffs
+improved; four of five second-map handoffs and complete cycles improved. The
+fifth enabled cycle was slower overall (7.913 versus 7.699 s), despite its faster
+individual map handoffs. Complete cycles include startup, fixed waits and
+shutdown, so the map figures do not imply an equivalent whole-process gain.
+The reused shader catalogue covered 762 files / 3.28 MiB and took about 18–24 ms.
+Stage timings identify avoided work; they overlap the load and must not be added
+to the handoff savings or combined with earlier experiments' percentages.
+
+Three additional rotated rounds disabled one new control at a time. Their map
+medians were 1745/716/459 ms with all enabled, 1777/750/502 with the metadata probe
+off, 1792/760/506 with catalogue reuse off, and 1813/726/465 with the PCM path off.
+The first trial created the pipeline seed, so these rounds are exploratory
+component evidence, not a fully primed whole-cycle proof or independent effect
+sizes to add together. The five-pair comparison above is the primary result.
+
+Raw local evidence is `asset-loading-paired-1/results.json` and
+`asset-loading-knockouts-1/results.json` in the performance-run output. Focused
+fixtures exercise the production filesystem, resampler and catalogue paths;
+the new catalogue fixture preserves exact text, hash order and references across
+fresh hunk allocations on x64/x86 with AddressSanitizer. The final `189456f`
+Windows checkpoint passed normal full x64/x86 production builds and all 56 x64
+standalone suites, with no failures or skips. Native Vulkan core/synchronization
+validation passed visible world/models, basic/custom character and cosmetic
+menus, video restart, map changes and zero retained resources at teardown.
+The refreshed playtest preserved the user configuration; the packaged game/UI
+smoke reached an active frame and normal exit. CI run `42999586254` has passed
+the full native Linux client without OpenGL and Vulkan module builds on
+Windows/Linux/macOS. All 54 applicable Linux/macOS suites passed, with two
+explicit Windows-only skips on each; the Windows CI regression run is pending.
+This experiment establishes an EJK improvement on this workload; it does not
+establish loading parity with SJK, a faster SJK comparison or an FPS gain.
+
+A separate `local-sjk-ejk-reference-1` attempt stopped during warmup because the
+SJK content selection was unverified and the private harness could not complete
+cleanup. It produced no measured pairs or usable parity/winner result; all owned
+processes were subsequently cleaned up and original configurations preserved.
