@@ -9,7 +9,7 @@ bgLoadedAnim_t bgAllAnims[MAX_ANIM_FILES];
 bgLoadedEvents_t bgAllEvents[MAX_ANIM_FILES];
 static animation_t selectorAnimations[MAX_TOTALANIMATIONS];
 static int dispatches;
-int Q_irand(int low,int high) { abort(); } // MOVE-only fixture never requests RNG.
+int Q_irand(int low,int high) { abort(); } // All fixture probabilities are 100%.
 static void ProfileDispatch(centity_t *cent,animevent_t *event) {
     ++dispatches;
 }
@@ -19,6 +19,9 @@ static void ProfileDispatch(centity_t *cent,animevent_t *event) {
 int c_profile_selector_adapter(void) {
     bgLoadedEvents_t *events = &bgAllEvents[0];
     centity_t *cent = &cg_entities[0];
+    int i;
+    const animEventType_t types[] = { AEV_SOUND,AEV_SOUNDCHAN,AEV_FOOTSTEP,AEV_EFFECT,
+        AEV_SABER_SWING,AEV_SABER_SPIN,AEV_MOVE };
     memset(events,0,sizeof(*events)); memset(cent,0,sizeof(*cent));
     memset(selectorAnimations,0,sizeof(selectorAnimations));
     bgAllAnims[0].anims = selectorAnimations;
@@ -45,5 +48,13 @@ int c_profile_selector_adapter(void) {
     BG_BuildAnimEventIndexes(events);
     cent->currentState.torsoAnim = cent->nextState.torsoAnim = BOTH_STAND1;
     ProfileActualPlayerAnimEvents(0,0,qtrue,9,10,0); // Empty indexed catalogue.
-    return dispatches == 4;
+    if (dispatches != 4) return 0;
+    memset(events,0,sizeof(*events));
+    for (i = 0; i < (int)(sizeof(types)/sizeof(types[0])); ++i) {
+        events->torsoAnimEvents[i].eventType = types[i];
+        events->torsoAnimEvents[i].keyFrame = 10;
+    }
+    BG_BuildAnimEventIndexes(events);
+    ProfileActualPlayerAnimEvents(0,0,qtrue,9,10,0); // All five dispatch groups.
+    return dispatches == 11;
 }

@@ -2885,17 +2885,22 @@ static void _PlayerFootStep( const vec3_t origin,
 	qboolean	bMark = qfalse;
 	qhandle_t footMarkShader;
 	int			effectID = -1;
+	cgProfileMark_t profile;
 	//float		alpha;
 
 	// send a trace down from the player to the ground
 	VectorCopy( origin, end );
 	end[2] -= FOOTSTEP_DISTANCE;
 
+	profile = CG_ProfileFineBegin();
 	trap->CM_Trace(&trace, origin, end, mins, maxs, 0, MASK_WATER, 0); //check if we're standing in water first
+	CG_ProfileEnd(CGP_FOOTSTEP_WATER,profile);
 	if (trace.fraction < 1.0f)
 		return;
 
+	profile = CG_ProfileFineBegin();
 	trap->CM_Trace( &trace, origin, end, mins, maxs, 0, MASK_PLAYERSOLID, 0);
+	CG_ProfileEnd(CGP_FOOTSTEP_GROUND,profile);
 
 	// no shadow if too high
 	if ( trace.fraction >= 1.0f )
@@ -3019,7 +3024,9 @@ static void _PlayerFootStep( const vec3_t origin,
 
 	if (soundType < FOOTSTEP_TOTAL)
 	{
+		profile = CG_ProfileFineBegin();
 	 	trap->S_StartSound( NULL, cent->currentState.clientNum, CHAN_BODY, cgs.media.footsteps[soundType][rand()&3] );
+		CG_ProfileEnd(CGP_FOOTSTEP_SOUND,profile);
 	}
 
 	if ( cg_footsteps.integer < 4 )
@@ -3032,7 +3039,9 @@ static void _PlayerFootStep( const vec3_t origin,
 
 	if ( effectID != -1 )
 	{
+		profile = CG_ProfileFineBegin();
 		trap->FX_PlayEffectID( effectID, trace.endpos, trace.plane.normal, -1, -1, qfalse );
+		CG_ProfileEnd(CGP_FOOTSTEP_FX,profile);
 	}
 
 	if ( cg_footsteps.integer < 4 )
@@ -3067,8 +3076,10 @@ static void _PlayerFootStep( const vec3_t origin,
 	// without taking a spot in the cg_marks array
 	if (trace.plane.normal[0] || trace.plane.normal[1] || trace.plane.normal[2])
 	{
+		profile = CG_ProfileFineBegin();
 		CG_ImpactMark( footMarkShader, trace.endpos, trace.plane.normal,
 			orientation, 1,1,1, 1.0f, qfalse, radius, qfalse );
+		CG_ProfileEnd(CGP_FOOTSTEP_MARK,profile);
 	}
 }
 
@@ -3098,11 +3109,13 @@ static void CG_PlayerFootsteps( centity_t *cent, footstepType_t footStepType )
 		mdxaBone_t	boltMatrix;
 		vec3_t tempAngles, sideOrigin;
 		int footBolt = -1;
+		cgProfileMark_t profile;
 
 		tempAngles[PITCH]	= 0;
 		tempAngles[YAW]		= cent->pe.legs.yawAngle;
 		tempAngles[ROLL]	= 0;
 
+		profile = CG_ProfileFineBegin();
 		switch ( footStepType )
 		{
 		case FOOTSTEP_R:
@@ -3121,6 +3134,7 @@ static void CG_PlayerFootsteps( centity_t *cent, footstepType_t footStepType )
 		trap->G2API_GetBoltMatrix( cent->ghoul2, 0, footBolt, &boltMatrix, tempAngles, cent->lerpOrigin,
 				cg.time, cgs.gameModels, cent->modelScale);
 		BG_GiveMeVectorFromMatrix( &boltMatrix, ORIGIN, sideOrigin );
+		CG_ProfileEnd(CGP_FOOTSTEP_BOLT,profile);
 		sideOrigin[2] += 15;	//fudge up a bit for coplanar
 		_PlayerFootStep( sideOrigin, cent->pe.legs.yawAngle, 6, cent, footStepType );
 	}
@@ -3614,7 +3628,18 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 			if ( doEvent )
 			{
 				cgProfileMark_t dispatchProfile = CG_ProfileFineBegin();
+				cgProfileStage_t dispatchStage = CGP_ANIM_OTHER;
+				if (dispatchProfile.active) {
+					switch (animEvents[i].eventType) {
+					case AEV_SOUND: case AEV_SOUNDCHAN: dispatchStage = CGP_ANIM_SOUND; break;
+					case AEV_FOOTSTEP: dispatchStage = CGP_ANIM_FOOTSTEP; break;
+					case AEV_EFFECT: dispatchStage = CGP_ANIM_EFFECT; break;
+					case AEV_SABER_SWING: case AEV_SABER_SPIN: dispatchStage = CGP_ANIM_SABER; break;
+					default: break;
+					}
+				}
 				CG_PlayerAnimEventDo( &cg_entities[entNum], &animEvents[i] );
+				CG_ProfileEnd(dispatchStage,dispatchProfile);
 				CG_ProfileEnd(CGP_ANIM_DISPATCH,dispatchProfile);
 			}
 		}

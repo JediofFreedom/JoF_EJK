@@ -19,6 +19,21 @@ fixture compiles the actual selector and grapple predicates, covering a valid
 index, an invalid index, grapple fallback and an empty catalogue at coarse/fine
 profile levels. These diagnostics do not change index validity or event state.
 
+Dispatch is also grouped into sound (including sound-channel events), footsteps,
+effects, saber swing/spin and other events. The type switch runs only when the
+fine profiling mark is active. Groups reuse the dispatch start mark; the total
+also includes recording the group counter, so instrumentation overhead makes it
+slightly larger than the sum of group times. Event selection, RNG and actual
+dispatch behavior remain unchanged.
+
+Footstep substages measure bolt/matrix work, water and ground traces, sound,
+effects and footprint marks. The fixture compiles the actual two-function
+footstep chain and checks ordered service calls, foot selection, trace geometry,
+material sounds and mark parameters across disabled/class-excluded, water,
+missing-ground, dirt, metal, sound-only and debug-mark paths. Immediate scope
+ends keep early-return counters balanced; instrumentation adds no caches or
+changes to footprint/audio/effect behavior.
+
 The fixture exercises the actual player wrapper, actual sound-trigger function
 and actual animation call site with mocked bone/event/playback services. It
 checks normal frames, unchanged frames, the no-lumbar return and bone-query

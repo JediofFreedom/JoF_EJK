@@ -10,6 +10,7 @@ extern "C" int c_profile_fine_adapter_disabled(void);
 extern "C" int c_profile_player_wrapper(int exitAfter);
 extern "C" int c_profile_animation_adapter(void);
 extern "C" int c_profile_selector_adapter(void);
+extern "C" int c_profile_footstep_adapter(void);
 static uint64_t now,clocks;
 static uint64_t clockNs() { ++clocks; return now; }
 static std::vector<std::string> output;
@@ -71,6 +72,7 @@ int main() {
     CHECK(c_profile_player_wrapper(2) == 3); // Body behavior is unchanged with fine profiling off.
     CHECK(c_profile_animation_adapter());
     CHECK(c_profile_selector_adapter());
+    CHECK(c_profile_footstep_adapter());
     outer = CG_ProfileBegin(); CG_ProfileEnd(CGP_PREDICTION,outer);
     CG_RuntimeProfileFrameEnd(frame,1,24,48); CHECK(!cgRuntimeProfileActive);
     CG_RuntimeProfileReport(); CHECK(!output.empty() && output[0].find("1 completed frames") != std::string::npos);
@@ -88,10 +90,13 @@ int main() {
     CHECK(c_profile_player_wrapper(2) == 3); // Normal completion after two transitions.
     CHECK(c_profile_animation_adapter());
     CHECK(c_profile_selector_adapter());
+    CHECK(c_profile_footstep_adapter());
     CG_RuntimeProfileFrameEnd(frame,1,24,25); CG_RuntimeProfileReport();
     bool total = false,setup = false,model = false,tail = false;
     bool triggers = false,playback = false,bones = false,events = false;
     bool indexed = false,linear = false,dispatch = false;
+    bool sound = false,footstep = false,effect = false,saber = false,other = false;
+    bool footBolt = false,footWater = false,footGround = false,footSound = false,footFx = false,footMark = false;
     for (const auto &line : output) {
         total |= line.find("fine player inclusive: 3 calls") != std::string::npos;
         setup |= line.find("fine player transform/client setup: 7 calls") != std::string::npos;
@@ -101,13 +106,26 @@ int main() {
         playback |= line.find("fine animation playback: 4 calls") != std::string::npos;
         bones |= line.find("fine animation bone frame queries: 7 calls") != std::string::npos;
         events |= line.find("fine animation event scans/dispatch: 5 calls") != std::string::npos;
-        indexed |= line.find("fine animation indexed selector inclusive: 2 calls") != std::string::npos;
+        indexed |= line.find("fine animation indexed selector inclusive: 3 calls") != std::string::npos;
         linear |= line.find("fine animation linear selector inclusive: 2 calls") != std::string::npos;
-        dispatch |= line.find("fine animation event dispatch: 4 calls") != std::string::npos;
+        dispatch |= line.find("fine animation event dispatch: 11 calls") != std::string::npos;
+        sound |= line.find("fine animation sound dispatch: 2 calls") != std::string::npos;
+        footstep |= line.find("fine animation footstep dispatch: 1 calls") != std::string::npos;
+        effect |= line.find("fine animation effect dispatch: 1 calls") != std::string::npos;
+        saber |= line.find("fine animation saber dispatch: 2 calls") != std::string::npos;
+        other |= line.find("fine animation other dispatch: 5 calls") != std::string::npos;
+        footBolt |= line.find("fine footstep bolt/matrix: 6 calls") != std::string::npos;
+        footWater |= line.find("fine footstep water trace: 6 calls") != std::string::npos;
+        footGround |= line.find("fine footstep ground trace: 5 calls") != std::string::npos;
+        footSound |= line.find("fine footstep sound: 4 calls") != std::string::npos;
+        footFx |= line.find("fine footstep FX: 1 calls") != std::string::npos;
+        footMark |= line.find("fine footstep impact mark: 2 calls") != std::string::npos;
     }
     CHECK(total && setup && model && tail && !cgRuntimeProfileActive);
     CHECK(triggers && playback && bones && events);
     CHECK(indexed && linear && dispatch);
+    CHECK(sound && footstep && effect && saber && other);
+    CHECK(footBolt && footWater && footGround && footSound && footFx && footMark);
     // Shutdown may run on the joined load worker after the frame owner stops.
     std::thread shutdown([]() { CG_RuntimeProfileShutdown(); }); shutdown.join();
     CHECK(!cgRuntimeProfileActive && c_profile_adapter_disabled());

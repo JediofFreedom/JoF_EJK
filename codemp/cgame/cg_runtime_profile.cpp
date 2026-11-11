@@ -24,7 +24,11 @@ void report() {
         "fine animation trigger sounds inclusive","fine animation playback",
         "fine animation bone frame queries","fine animation event scans/dispatch",
         "fine animation indexed selector inclusive","fine animation linear selector inclusive",
-        "fine animation event dispatch"};
+        "fine animation event dispatch","fine animation sound dispatch",
+        "fine animation footstep dispatch","fine animation effect dispatch",
+        "fine animation saber dispatch","fine animation other dispatch",
+        "fine footstep bolt/matrix","fine footstep water trace","fine footstep ground trace",
+        "fine footstep sound","fine footstep FX","fine footstep impact mark"};
     static_assert(sizeof(names)/sizeof(names[0]) == CGP_COUNT,"Cgame stage names must match counters");
     print("CGPROFILE cgame: %llu completed frames, %llu early returns, %.3f ms sampled interval; owning-thread elapsed, nested totals overlap; instrumentation changes timing\n",
         static_cast<unsigned long long>(counters.frames()),static_cast<unsigned long long>(counters.early()),counters.interval()/1000000.0);
