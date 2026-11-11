@@ -214,14 +214,24 @@ static void Sys_ErrorDialog( const char *error )
 	time_t rawtime;
 	char timeStr[32] = {}; // should really only reach ~19 chars
 	char crashLogPath[MAX_OSPATH];
+	// Portable installs can intentionally have no default home directory.
+	const char *crashLogDirectory = Cvar_VariableString( "fs_homepath" );
+	if ( !crashLogDirectory || !*crashLogDirectory )
+		crashLogDirectory = Sys_DefaultHomePath();
+	if ( !crashLogDirectory || !*crashLogDirectory )
+		crashLogDirectory = Sys_DefaultInstallPath();
+	if ( !crashLogDirectory || !*crashLogDirectory )
+		crashLogDirectory = Sys_Cwd();
+	if ( !crashLogDirectory || !*crashLogDirectory )
+		crashLogDirectory = ".";
 
 	time( &rawtime );
 	strftime( timeStr, sizeof( timeStr ), "%Y-%m-%d_%H-%M-%S", localtime( &rawtime ) ); // or gmtime
 	Com_sprintf( crashLogPath, sizeof( crashLogPath ),
 					"%s%ccrashlog-%s.txt",
-					Sys_DefaultHomePath(), PATH_SEP, timeStr );
+					crashLogDirectory, PATH_SEP, timeStr );
 
-	Sys_Mkdir( Sys_DefaultHomePath() );
+	Sys_Mkdir( crashLogDirectory );
 
 	FILE *fp = fopen( crashLogPath, "w" );
 	if ( fp )

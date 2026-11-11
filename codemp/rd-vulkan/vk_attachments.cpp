@@ -37,7 +37,7 @@ typedef struct vk_attach_desc_s {
     VkFormat                image_format;
 } vk_attach_desc_t;
 
-static vk_attach_desc_t attachments[MAX_ATTACHMENTS_IN_POOL + 1]; // +1 for SSAA
+static vk_attach_desc_t attachments[MAX_ATTACHMENTS_IN_POOL];
 static uint32_t num_attachments = 0;
 
 static void vk_clear_attachment_pool( void )
@@ -62,7 +62,9 @@ static void vk_alloc_attachment_memory( void )
     }
 
     if (vk.image_memory_count >= ARRAY_LEN(vk.image_memory)) {
-        ri.Error(ERR_DROP, "vk.image_memory_count == %i", (int)ARRAY_LEN(vk.image_memory));
+        ri.Error(ERR_DROP, "Attachment memory array overflow: capacity %u, attempted allocation %u",
+            (unsigned)ARRAY_LEN(vk.image_memory), vk.image_memory_count + 1);
+        return;
     }
 
     memoryTypeBits = ~0U;
@@ -194,7 +196,8 @@ static void vk_add_attachment_desc( VkImage desc, VkImageView *image_view, VkIma
     VkFormat image_format, VkImageAspectFlags aspect_flags, VkImageLayout image_layout )
 {
     if (num_attachments >= ARRAY_LEN(attachments)) {
-        ri.Error(ERR_FATAL, "Attachments array overflow: max attachments: %d while %d given", (int)ARRAY_LEN(vk.image_memory), num_attachments);
+        ri.Error(ERR_FATAL, "Attachments array overflow: capacity %u, attempted attachment %u",
+            (unsigned)ARRAY_LEN(attachments), num_attachments + 1);
     }
     else {
         attachments[num_attachments].descriptor = desc;

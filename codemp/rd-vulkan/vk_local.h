@@ -32,7 +32,6 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 -	optimizations for surfacesprites
 -	glow & distortion?
 -	using USE_REVERSED_DEPTH results in missing decals
--	attachments[MAX_ATTACHMENTS_IN_POOL + 1]; // +1 for SSAA? Need to disable MSAA when SSAA enabled?
 -	SSAA enabled: console font scaling. need to change clientgame files. which is not an option rn
 -	look into empty descriptorset bindings: descriptorBindingPartiallyBound / VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT
 -	default tr.projectionShadowShader->sort results in artifacts with saber & shadow sort.
@@ -111,8 +110,11 @@ extern vkLoadStats_t vkLoadStats;
 #ifndef _DEBUG
 #define USE_DEDICATED_ALLOCATION
 #endif
-// depth + msaa + msaa-resolve + screenmap.msaa + screenmap.resolve + screenmap.depth + (bloom_extract + blur pairs + dglow_extract + blur pairs) + dglow-msaa
-#define MAX_ATTACHMENTS_IN_POOL			( 6 + ( ( 1 + VK_NUM_BLUR_PASSES * 2 ) * 2 ) + 1  )
+// Simultaneous maximum: main depth/MSAA/resolve (3), screen-map MSAA/resolve/
+// depth (3), refraction extract (1), SSAA capture (1), glow MSAA (1), plus
+// bloom and glow chains, each containing one extract and two images per blur.
+// This inclusive bound also covers one dedicated memory allocation per image.
+#define MAX_ATTACHMENTS_IN_POOL			( 9 + 2 * ( 1 + VK_NUM_BLUR_PASSES * 2 ) )
 
 #define GLOBAL_SHADER_C
 #include "shaders/glsl/global.h"
@@ -689,7 +691,7 @@ typedef struct {
 	VkImageView		swapchain_image_views[MAX_SWAPCHAIN_IMAGES];
 	VkSemaphore		swapchain_rendering_finished[MAX_SWAPCHAIN_IMAGES];
 
-	VkDeviceMemory	image_memory[MAX_ATTACHMENTS_IN_POOL + 1];
+	VkDeviceMemory	image_memory[MAX_ATTACHMENTS_IN_POOL];
 	uint32_t		image_memory_count;
 
 	VkCommandPool	command_pool;
