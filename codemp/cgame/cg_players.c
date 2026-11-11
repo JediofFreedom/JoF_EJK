@@ -3369,6 +3369,7 @@ This func is called once for legs and once for torso
 */
 void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso, int oldFrame, int frame, int entNum )
 {
+	cgProfileMark_t selectorProfile = CG_ProfileFineBegin();
 	int		i;
 	int		firstFrame = 0, lastFrame = 0;
 	qboolean	doEvent = qfalse, inSameAnim = qfalse, loopAnim = qfalse, match = qfalse, animBackward = qfalse;
@@ -3612,10 +3613,13 @@ void CG_PlayerAnimEvents( int animFileIndex, int eventFileIndex, qboolean torso,
 			// do event
 			if ( doEvent )
 			{
+				cgProfileMark_t dispatchProfile = CG_ProfileFineBegin();
 				CG_PlayerAnimEventDo( &cg_entities[entNum], &animEvents[i] );
+				CG_ProfileEnd(CGP_ANIM_DISPATCH,dispatchProfile);
 			}
 		}
 	}
+	CG_ProfileEnd(indexed ? CGP_ANIM_INDEXED : CGP_ANIM_LINEAR,selectorProfile);
 }
 
 void CG_TriggerAnimSounds( centity_t *cent )

@@ -3,9 +3,17 @@
 #define _CGAME
 #include "../../codemp/game/bg_public.h"
 #include "../../codemp/game/bg_anim_events.h"
+#include "../../codemp/cgame/cg_runtime_profile.h"
 #include "../../codemp/game/anims.h"
 
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL %d: %s\n", __LINE__, #x); exit(1); } } while (0)
+int cgRuntimeProfileActive;
+cgProfileMark_t CG_RuntimeProfileStageBegin(void) {
+    cgProfileMark_t inactive = {0,0,0};
+    CHECK(0); // Tests run with profiling disabled; no clock may be requested.
+    return inactive;
+}
+void CG_RuntimeProfileStageEnd(cgProfileStage_t stage,cgProfileMark_t mark) { CHECK(0); }
 
 static int randomChoice, customEntity, customCalls, registrations;
 static char customName[MAX_QPATH], registeredName[MAX_QPATH];

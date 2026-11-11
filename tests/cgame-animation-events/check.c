@@ -1,5 +1,6 @@
 #include "cgame/cg_local.h"
 #include "game/bg_anim_events.h"
+#include "cgame/cg_runtime_profile.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +16,13 @@ static int bg_animParseIncluding;
 static cgameImport_t imports;
 cgameImport_t *trap = &imports;
 static unsigned eventVisits;
+int cgRuntimeProfileActive;
+cgProfileMark_t CG_RuntimeProfileStageBegin(void) {
+    cgProfileMark_t inactive = {0,0,0};
+    CHECK(0); // Default-off selector instrumentation must not request a clock.
+    return inactive;
+}
+void CG_RuntimeProfileStageEnd(cgProfileStage_t stage,cgProfileMark_t mark) { CHECK(0); }
 static uint32_t randomState;
 static animevent_t *activeEvents;
 static char eventStrings[MAX_ANIM_EVENTS][8];

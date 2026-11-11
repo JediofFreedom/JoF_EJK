@@ -9,6 +9,7 @@ extern "C" int c_profile_adapter_disabled(void);
 extern "C" int c_profile_fine_adapter_disabled(void);
 extern "C" int c_profile_player_wrapper(int exitAfter);
 extern "C" int c_profile_animation_adapter(void);
+extern "C" int c_profile_selector_adapter(void);
 static uint64_t now,clocks;
 static uint64_t clockNs() { ++clocks; return now; }
 static std::vector<std::string> output;
@@ -69,6 +70,7 @@ int main() {
     CHECK(c_profile_fine_adapter_disabled()); // Coarse mode never enters fine clocks/scopes.
     CHECK(c_profile_player_wrapper(2) == 3); // Body behavior is unchanged with fine profiling off.
     CHECK(c_profile_animation_adapter());
+    CHECK(c_profile_selector_adapter());
     outer = CG_ProfileBegin(); CG_ProfileEnd(CGP_PREDICTION,outer);
     CG_RuntimeProfileFrameEnd(frame,1,24,48); CHECK(!cgRuntimeProfileActive);
     CG_RuntimeProfileReport(); CHECK(!output.empty() && output[0].find("1 completed frames") != std::string::npos);
@@ -85,9 +87,11 @@ int main() {
     CHECK(c_profile_player_wrapper(1) == 2); // Return after first transition.
     CHECK(c_profile_player_wrapper(2) == 3); // Normal completion after two transitions.
     CHECK(c_profile_animation_adapter());
+    CHECK(c_profile_selector_adapter());
     CG_RuntimeProfileFrameEnd(frame,1,24,25); CG_RuntimeProfileReport();
     bool total = false,setup = false,model = false,tail = false;
     bool triggers = false,playback = false,bones = false,events = false;
+    bool indexed = false,linear = false,dispatch = false;
     for (const auto &line : output) {
         total |= line.find("fine player inclusive: 3 calls") != std::string::npos;
         setup |= line.find("fine player transform/client setup: 7 calls") != std::string::npos;
@@ -97,9 +101,13 @@ int main() {
         playback |= line.find("fine animation playback: 4 calls") != std::string::npos;
         bones |= line.find("fine animation bone frame queries: 7 calls") != std::string::npos;
         events |= line.find("fine animation event scans/dispatch: 5 calls") != std::string::npos;
+        indexed |= line.find("fine animation indexed selector inclusive: 2 calls") != std::string::npos;
+        linear |= line.find("fine animation linear selector inclusive: 2 calls") != std::string::npos;
+        dispatch |= line.find("fine animation event dispatch: 4 calls") != std::string::npos;
     }
     CHECK(total && setup && model && tail && !cgRuntimeProfileActive);
     CHECK(triggers && playback && bones && events);
+    CHECK(indexed && linear && dispatch);
     // Shutdown may run on the joined load worker after the frame owner stops.
     std::thread shutdown([]() { CG_RuntimeProfileShutdown(); }); shutdown.join();
     CHECK(!cgRuntimeProfileActive && c_profile_adapter_disabled());

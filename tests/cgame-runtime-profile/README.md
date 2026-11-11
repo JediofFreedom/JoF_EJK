@@ -12,6 +12,13 @@ processing are nested inside the inclusive sound-trigger stage. Reports include
 call counts so unchanged sampled frames and models without a lumbar bone can be
 distinguished from timing changes.
 
+Indexed and linear selector stages report actual branch usage. The dispatch
+stage is nested inside either selector stage; comparing it with the inclusive
+totals separates catalogue lookup from sound/effect execution. The branch
+fixture compiles the actual selector and grapple predicates, covering a valid
+index, an invalid index, grapple fallback and an empty catalogue at coarse/fine
+profile levels. These diagnostics do not change index validity or event state.
+
 The fixture exercises the actual player wrapper, actual sound-trigger function
 and actual animation call site with mocked bone/event/playback services. It
 checks normal frames, unchanged frames, the no-lumbar return and bone-query
