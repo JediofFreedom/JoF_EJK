@@ -4,6 +4,10 @@ Compiles production normal/polygon drawing, screenshot/levelshot/video callers,
 readback alignment and gamma-table functions. Debug tests use the production
 capacity constants and compare every resulting triangle/line endpoint, color,
 closing edge and adjacent-array canary across batch boundaries.
+The stageVars declaration is extracted from `DEBUG_SOURCE_DIR/tr_local.h`;
+`DEBUG_LAYOUT_SOURCE` can explicitly select the matching header when a saved
+snapshot contains only the tested implementation files. This keeps normal and
+shadow-expanded color capacities consistent with the selected production code.
 
 Capture callers are checked with/without hardware gamma and with/without the
 already gamma-corrected SSAA target. The core lifecycle suite additionally

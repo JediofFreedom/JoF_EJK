@@ -34,3 +34,28 @@ helpers. The mock models Vulkan pipeline-layout compatibility and descriptor
 set disturbance: a fogged world draw, incompatible postFX descriptors, and a
 world draw requesting the same cached fog image must rebind fog set 4. Bloom
 and glow are both checked; a UI draw with a null unused fog set must stay valid.
+
+The suite now has 29 CTest groups. The follow-up adds fault injection for capture
+image creation/allocation/binding/mapping/noncoherent invalidation, required
+dedicated readback allocations and ownership retained across a failed one-shot
+submission. The pending-work fixture models the throwing fatal boundary; actual
+one-shot Vulkan command transitions remain covered by `vulkan-command-lifetime`.
+It does not simulate a functioning replacement device after device loss.
+
+The actual attachment creation/pooling functions are also compiled. Required
+dedicated color/depth images must be allocated alone with the image-specific
+allocation chain, while ordinary compatible images retain shared allocations.
+Creation/allocation/bind/view failures must stop before layout transitions.
+
+Actual initialization functions test command-pool/buffer, semaphore/fence and
+render-pass failures, plus shared/dedicated geometry/indirect teardown ordering
+and repeated cleanup. Instance tests inject extension count/list failures and
+failure of either allocation, checking that partial lists are freed. Swapchain
+tests reject mismatched/zero extents, excessive actual/requested image counts
+and driver errors before dependent work. Extent rejection is a controlled error,
+not new support for arbitrary window resizing; lists exceeding the renderer's
+fixed capacity are rejected rather than truncated.
+
+These fixtures preserve the production logging-only `VK_CHECK` and use the new
+production `VK_REQUIRE_SUCCESS` only where the implementation does. The service
+stubs do not prove every framebuffer, device-init, driver or shutdown path.

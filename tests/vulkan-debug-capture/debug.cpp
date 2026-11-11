@@ -20,6 +20,7 @@ static void CrossProduct(const float*a,const float*b,float*c){c[0]=a[1]*b[2]-a[2
 static float DotProduct(const float*a,const float*b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
 static float VectorLength(const float*a){return std::sqrt(DotProduct(a,a));}
 typedef float vec3_t[3];typedef unsigned char byte;typedef byte color4ub_t[4];
+typedef float vec2_t[2];
 typedef int qboolean;const qboolean qtrue=1,qfalse=0;
 #include "capacity.h"
 #define DEPTH_RANGE_NORMAL 0
@@ -31,7 +32,7 @@ typedef int qboolean;const qboolean qtrue=1,qfalse=0;
 #define USE_VBO
 struct shaderCommands_t {
  unsigned indexes[SHADER_MAX_INDEXES];float xyz[SHADER_MAX_VERTEXES*2][4];float normal[SHADER_MAX_VERTEXES][4];
- struct {color4ub_t colors[3][SHADER_MAX_VERTEXES];float texcoords[3][SHADER_MAX_VERTEXES][2];}svars;
+ stageVars_t svars;
  int numVertexes,numIndexes,vbo_world_index;
 }tess;
 static struct {void*whiteImage;byte identityLightByte;}tr;
@@ -44,7 +45,7 @@ static unsigned pipeline;
 static void vk_bind(void*){}
 static void vk_bind_pipeline(unsigned value){pipeline=value;}
 static void vk_bind_index(){CHECK(tess.numIndexes>=0&&tess.numIndexes<=SHADER_MAX_INDEXES);}
-static void vk_bind_geometry(unsigned){CHECK(tess.numVertexes>=0&&tess.numVertexes<=SHADER_MAX_VERTEXES);}
+static void vk_bind_geometry(unsigned){CHECK(tess.numVertexes>=0&&tess.numVertexes<=int(ARRAY_LEN(tess.xyz))&&tess.numVertexes<=int(ARRAY_LEN(tess.svars.colors[0])));}
 static void vk_draw_geometry(int,qboolean indexed){
  Primitive p;p.pipeline=pipeline;p.indexed=indexed!=0;
  int count=indexed?tess.numIndexes:tess.numVertexes;

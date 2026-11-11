@@ -32,6 +32,10 @@ const qboolean qfalse=0,qtrue=1;
 #define PRINT_ALL 0
 static int minimized, nativeBegin, transitions, passes, ends, submits, presents, resets, waits, restarts;
 static int heapResets, colorCalls, drawCalls, clockMs, resized, copies, mapped, invalidated;
+static int captureImagesDestroyed,captureMemoryFreed,captureUnmapped,captureRequirements;
+static VkResult captureCreateResult=VK_SUCCESS,captureAllocationResult=VK_SUCCESS,captureBindResult=VK_SUCCESS,captureMapResult=VK_SUCCESS,captureInvalidateResult=VK_SUCCESS;
+static bool captureCoherent=true,captureDedicatedRequired=false,captureDedicatedAllocation=false;
+static VkResult captureEndResult=VK_SUCCESS;
 static VkResult fenceResult=VK_SUCCESS, presentResult=VK_SUCCESS, beginResult=VK_SUCCESS, endResult=VK_SUCCESS, submitResult=VK_SUCCESS;
 static std::deque<VkResult> acquisitions;
 static bool minimizeDuringAcquire;
@@ -64,7 +68,8 @@ struct State {
  VkDevice device; VkPhysicalDevice physical_device; VkQueue queue; VkSwapchainKHR swapchain;
  VkImage swapchain_images[8]; qboolean swapchain_images_inited[8];
  VkSemaphore swapchain_rendering_finished[8]; VkImageLayout initSwapchainLayout;
- qboolean fboActive,bloomActive,msaaActive,synchronization2,blitEnabled,clearAttachment;
+ qboolean fboActive,bloomActive,msaaActive,synchronization2,blitEnabled,clearAttachment,dedicatedAllocation;
+ VkImage readback_image;VkDeviceMemory readback_memory;qboolean readback_mapped;
  uint32_t geometry_buffer_size_new; uint32_t renderWidth,renderHeight; float renderScaleX,renderScaleY;
  int renderPassIndex,screenMapSamples;
  struct { VkImage image; } capture;
@@ -124,21 +129,24 @@ static VkResult qvkQueuePresentKHR(VkQueue,const VkPresentInfoKHR*){++presents;r
 static byte pixels[256];
 static VkImageMemoryBarrier lastHostBarrier;
 static VkPipelineStageFlags captureSourceStage,captureDestinationStage;
-static VkResult qvkCreateImage(VkDevice,const VkImageCreateInfo*,const VkAllocationCallbacks*,VkImage *image){*image=(VkImage)42;return VK_SUCCESS;}
-static void qvkGetImageMemoryRequirements(VkDevice,VkImage,VkMemoryRequirements *req){*req={};req->size=256;req->memoryTypeBits=1;}
-static uint32_t vk_find_memory_type_lazy(uint32_t,VkMemoryPropertyFlags flags,VkMemoryPropertyFlags *found){*found=flags;return 0;}
-static VkResult qvkBindImageMemory(VkDevice,VkImage,VkDeviceMemory,VkDeviceSize){return VK_SUCCESS;}
-static void allocateMemory(VkDeviceMemory *memory){*memory=(VkDeviceMemory)43;}
-#define VK_ALLOCATE_MEMORY_CHECK(d,a,m,t) allocateMemory(m)
-#define VK_FREE_MEMORY(d,m) do {} while(0)
+static VkResult qvkCreateImage(VkDevice,const VkImageCreateInfo*,const VkAllocationCallbacks*,VkImage *image){if(captureCreateResult==VK_SUCCESS)*image=(VkImage)42;return captureCreateResult;}
+static void qvkGetImageMemoryRequirements(VkDevice,VkImage image,VkMemoryRequirements *req){++captureRequirements;CHECK(image==(VkImage)42);*req={};req->size=256;req->memoryTypeBits=1;}
+static uint32_t vk_find_memory_type_lazy(uint32_t,VkMemoryPropertyFlags flags,VkMemoryPropertyFlags *found){*found=captureCoherent?flags:(flags&~VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);return 0;}
+static void qvkGetImageMemoryRequirements2KHR(VkDevice device,const VkImageMemoryRequirementsInfo2KHR *info,VkMemoryRequirements2KHR *out){qvkGetImageMemoryRequirements(device,info->image,&out->memoryRequirements);auto *dedicated=(VkMemoryDedicatedRequirementsKHR*)out->pNext;dedicated->requiresDedicatedAllocation=captureDedicatedRequired?VK_TRUE:VK_FALSE;}
+static VkResult qvkBindImageMemory(VkDevice,VkImage,VkDeviceMemory,VkDeviceSize){return captureBindResult;}
+static VkResult allocateMemory(const VkMemoryAllocateInfo *info,VkDeviceMemory *memory){captureDedicatedAllocation=info->pNext!=nullptr;if(captureDedicatedAllocation){const auto *dedicated=(const VkMemoryDedicatedAllocateInfoKHR*)info->pNext;CHECK(dedicated->image==(VkImage)42&&info->allocationSize==256);}if(captureAllocationResult==VK_SUCCESS)*memory=(VkDeviceMemory)43;return captureAllocationResult;}
+#define VK_ALLOCATE_MEMORY_CHECK(d,a,m,t) allocateMemory(a,m)
+#define VK_ALLOCATE_MEMORY(d,a,m,t) allocateMemory(a,m)
+#define VK_FREE_MEMORY(d,m) do {CHECK((m)==(VkDeviceMemory)43);++captureMemoryFreed;} while(0)
 static VkCommandBuffer vk_begin_command_buffer(){return (VkCommandBuffer)44;}
-static void vk_end_command_buffer(VkCommandBuffer,const char*){}
+static void vk_end_command_buffer(VkCommandBuffer,const char*){VK_REQUIRE_SUCCESS(captureEndResult);}
 static void qvkCmdBlitImage(VkCommandBuffer,VkImage,VkImageLayout,VkImage,VkImageLayout,uint32_t,const VkImageBlit*,VkFilter){++copies;}
 static void qvkCmdCopyImage(VkCommandBuffer,VkImage,VkImageLayout,VkImage,VkImageLayout,uint32_t,const VkImageCopy*){++copies;}
 static void qvkGetImageSubresourceLayout(VkDevice,VkImage,const VkImageSubresource*,VkSubresourceLayout *layout){*layout={};layout->rowPitch=8;}
-static VkResult qvkMapMemory(VkDevice,VkDeviceMemory,VkDeviceSize,VkDeviceSize,VkMemoryMapFlags,void **data){++mapped;*data=pixels;return VK_SUCCESS;}
-static VkResult qvkInvalidateMappedMemoryRanges(VkDevice,uint32_t,const VkMappedMemoryRange*){++invalidated;return VK_SUCCESS;}
-static void qvkDestroyImage(VkDevice,VkImage,const VkAllocationCallbacks*){}
+static VkResult qvkMapMemory(VkDevice,VkDeviceMemory,VkDeviceSize,VkDeviceSize,VkMemoryMapFlags,void **data){++mapped;*data=pixels;return captureMapResult;}
+static void qvkUnmapMemory(VkDevice,VkDeviceMemory){++captureUnmapped;}
+static VkResult qvkInvalidateMappedMemoryRanges(VkDevice,uint32_t,const VkMappedMemoryRange*){++invalidated;return captureInvalidateResult;}
+static void qvkDestroyImage(VkDevice,VkImage image,const VkAllocationCallbacks*){CHECK(image==(VkImage)42);++captureImagesDestroyed;}
 static void VKAPI_CALL CaptureBarrier(VkCommandBuffer,VkPipelineStageFlags source,VkPipelineStageFlags destination,VkDependencyFlags,uint32_t,const VkMemoryBarrier*,uint32_t,const VkBufferMemoryBarrier*,uint32_t count,const VkImageMemoryBarrier *barriers){
  CHECK(count==1);lastHostBarrier=barriers[0];captureSourceStage=source;captureDestinationStage=destination;
 }
@@ -262,11 +270,59 @@ static void captureCases(){
  vk.capture.image=(VkImage)45;vk_read_pixels(out,2,2);CHECK(std::memcmp(out,expected,12)==0);
  vk.fboActive=0;vk.capture.image=VK_NULL_HANDLE;vk.cmd->swapchain_image_acquired=1;vk_read_pixels(out,2,2);CHECK(std::memcmp(out,expected,12)==0);
 }
+static void captureFailureCases(){
+ byte output[12];
+ for(int stage=0;stage<5;++stage){
+  reset();vk.cmd->waitForFence=1;vk.blitEnabled=1;
+  captureImagesDestroyed=captureMemoryFreed=captureUnmapped=captureRequirements=0;
+  captureCreateResult=captureAllocationResult=captureBindResult=captureMapResult=captureInvalidateResult=VK_SUCCESS;
+  captureCoherent=false;
+  VkResult *result[]={&captureCreateResult,&captureAllocationResult,&captureBindResult,&captureMapResult,&captureInvalidateResult};
+  *result[stage]=VK_ERROR_OUT_OF_DEVICE_MEMORY;
+  std::memset(output,0xAA,sizeof(output));
+  bool caught=false;try{vk_read_pixels(output,2,2);}catch(const std::runtime_error&){caught=true;}
+  CHECK(caught);
+  for(byte value:output)CHECK(value==0xAA);
+  CHECK(captureImagesDestroyed==(stage?1:0));
+  CHECK(captureMemoryFreed==(stage>=2?1:0));
+  CHECK(captureUnmapped==(stage==4?1:0));
+  CHECK(captureRequirements==(stage?1:0));
+ }
+ captureCreateResult=captureAllocationResult=captureBindResult=captureMapResult=captureInvalidateResult=VK_SUCCESS;
+ reset();vk.cmd->waitForFence=1;captureCoherent=false;
+ captureImagesDestroyed=captureMemoryFreed=captureUnmapped=0;
+ vk_read_pixels(output,2,2);
+ CHECK(captureImagesDestroyed==1&&captureMemoryFreed==1&&captureUnmapped==1);
+ captureCoherent=true;
+}
+static void captureDedicatedCase(){
+ reset();vk.cmd->waitForFence=1;vk.dedicatedAllocation=qtrue;captureDedicatedRequired=true;captureDedicatedAllocation=false;
+ byte output[12];vk_read_pixels(output,2,2);CHECK(captureDedicatedAllocation);CHECK(vk.readback_image==VK_NULL_HANDLE&&vk.readback_memory==VK_NULL_HANDLE);
+ captureDedicatedRequired=false;
+}
+static void capturePendingCase(){
+ reset();vk.cmd->waitForFence=1;captureEndResult=VK_ERROR_DEVICE_LOST;
+ captureImagesDestroyed=captureMemoryFreed=captureUnmapped=0;byte output[12];std::memset(output,0xAA,sizeof(output));
+ bool caught=false;try{vk_read_pixels(output,2,2);}catch(const std::runtime_error&){caught=true;}
+ CHECK(caught);CHECK(vk.readback_image==(VkImage)42&&vk.readback_memory==(VkDeviceMemory)43&&!vk.readback_mapped);
+ CHECK(captureImagesDestroyed==0&&captureMemoryFreed==0&&captureUnmapped==0);
+ for(byte value:output)CHECK(value==0xAA);
+ // Simulate shutdown after idle or confirmed device loss. No resource is freed
+ // while the failed one-shot submission can still reference it.
+ #ifdef HAS_READBACK_OWNERSHIP
+ vk_release_readback();
+ CHECK(captureImagesDestroyed==1&&captureMemoryFreed==1);
+ #endif
+ captureEndResult=VK_SUCCESS;
+}
 int main(int argc,char **argv){
  std::string part=argc>1?argv[1]:"all";
  if(part=="all"||part=="frame")frameCases();
  if(part=="all"||part=="backend")backendCase();
  if(part=="all"||part=="samples")sampleCases();
  if(part=="all"||part=="capture")captureCases();
+ if(part=="all"||part=="capture_failures")captureFailureCases();
+ if(part=="all"||part=="capture_dedicated")captureDedicatedCase();
+ if(part=="all"||part=="capture_pending")capturePendingCase();
  std::printf("%d actual core lifecycle checks passed (%s)\n",checks,part.c_str());
 }
