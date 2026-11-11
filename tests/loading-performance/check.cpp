@@ -88,6 +88,8 @@ static searchpath_t *fs_searchpaths;
 static int fs_numServerPaks, fs_checksumFeed = 0x12345678;
 static std::mutex fs_listMutex;
 static pack_t *excludedPak;
+static struct { int integer; } zipCatalogSetting = {1};
+static auto *fs_zipCatalogFast = &zipCatalogSetting;
 static qboolean FS_PakIsPure(pack_t *pack) { return pack != excludedPak; }
 static std::vector<std::string> looseFiles;
 static char *FS_BuildOSPath(const char *, const char *, const char *) { static char path[] = "fixture"; return path; }

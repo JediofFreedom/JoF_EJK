@@ -1,0 +1,38 @@
+#include "@CMAKE_CURRENT_BINARY_DIR@/instrumented_unzip.c"
+#cmakedefine CATALOG_REFERENCE_ITERATOR
+#ifdef CATALOG_REFERENCE_ITERATOR
+/* Original two-pass catalogue work, with the new API's documented error-state
+   rule. Output equivalence passes; the eliminated-parse assertion must fail. */
+static int catalog_reference(unzFile file,unz_file_info* info,char* name,uLong size,int first)
+{
+    int result = first ? unzGoToFirstFile(file) : unzGoToNextFile(file);
+    if (result == UNZ_OK)
+        result = unzGetCurrentFileInfo(file,info,name,size,NULL,0,NULL,0);
+    if (file != NULL && result != UNZ_OK && result != UNZ_END_OF_LIST_OF_FILE)
+        ((unz64_s*)file)->current_file_ok = 0;
+    return result;
+}
+int ZEXPORT unzGoToFirstFileInfo(unzFile file,unz_file_info* info,char* name,uLong size)
+{ return catalog_reference(file,info,name,size,1); }
+int ZEXPORT unzGoToNextFileInfo(unzFile file,unz_file_info* info,char* name,uLong size)
+{ return catalog_reference(file,info,name,size,0); }
+#endif
+void catalog_private_state(unzFile file,unsigned long long* state)
+{
+    const unz64_s* s = (const unz64_s*)file;
+    state[0] = s->pos_in_central_dir;
+    state[1] = s->num_file;
+    state[2] = s->current_file_ok;
+    state[3] = s->current_file_ok ? s->cur_file_info_internal.offset_curfile : 0;
+    state[4] = s->byte_before_the_zipfile;
+    state[5] = s->offset_central_dir;
+    state[6] = s->size_central_dir;
+    state[7] = s->current_file_ok ? s->cur_file_info.crc : 0;
+    state[8] = s->current_file_ok ? s->cur_file_info.uncompressed_size : 0;
+    state[9] = s->current_file_ok ? s->cur_file_info.compressed_size : 0;
+}
+unsigned long long catalog_stream_position(unzFile file)
+{
+    unz64_s* s = (unz64_s*)file;
+    return ZTELL64(s->z_filefunc,s->filestream);
+}

@@ -36,6 +36,7 @@ enum {CVAR_INIT=1,CVAR_PROTECTED=2,CVAR_ARCHIVE=4,CVAR_SYSTEMINFO=8,CVAR_NORESTA
 const int MAX_OSPATH=512,MAX_QPATH=64,MAX_ZPATH=256,MAX_FILEHASH_SIZE=1024,MAX_PAKFILES=1024,MAX_FILE_HANDLES=16;
 const char PATH_SEP='/';
 static int liveAllocations,closedFiles,centralReads,directoryScans;
+static int catalogMode;
 static void *Z_Malloc(size_t bytes,int,qboolean=qfalse) {void *p=std::calloc(1,bytes?bytes:1);CHECK(p);++liveAllocations;return p;}
 static void Z_Free(void *p) {if(p)--liveAllocations;std::free(p);}
 extern "C" void *openjk_minizip_malloc(int bytes) {return Z_Malloc(bytes,TAG_FILESYS);}
@@ -56,7 +57,7 @@ struct Cvar {std::string storage;char *string=nullptr;int integer=0;qboolean mod
 typedef Cvar cvar_t;
 static std::map<std::string,Cvar> cvars;
 static cvar_t *fs_debug,*fs_copyfiles,*fs_cdpath,*fs_basepath,*fs_basegame,*fs_homepath,*fs_gamedirvar,*fs_dirbeforepak;
-static cvar_t *fs_lookupIndex,*fs_restartCache,*fs_loadpakdlls,*fs_globalcfg,*fs_portable,*sv_skipServersideDownloads;
+static cvar_t *fs_lookupIndex,*fs_restartCache,*fs_zipCatalogFast,*fs_loadpakdlls,*fs_globalcfg,*fs_portable,*sv_skipServersideDownloads;
 static char fs_cmdlineGame[MAX_QPATH],fs_gamedir[MAX_OSPATH],lastValidBase[MAX_OSPATH],lastValidGame[MAX_OSPATH];
 static std::string fs_restartConfiguration;
 static int fs_checksumFeed=0x12345678,fs_packFiles,fs_fakeChkSum,fs_numServerPaks,fs_serverPaks[4096];
@@ -98,11 +99,21 @@ static void Sys_FreeFileList(char **list) {if(list){for(char **p=list;*p;++p)Z_F
 static int CountedInfo(unzFile file,unz_file_info *info,char *name,uLong size,void *extra,uLong extraSize,char *comment,uLong commentSize) {
     ++centralReads;return unzGetCurrentFileInfo(file,info,name,size,extra,extraSize,comment,commentSize);
 }
+static int CountedFirstInfo(unzFile file,unz_file_info *info,char *name,uLong size) {
+    int result=unzGoToFirstFileInfo(file,info,name,size);if(result==UNZ_OK)++centralReads;return result;
+}
+static int CountedNextInfo(unzFile file,unz_file_info *info,char *name,uLong size) {
+    int result=unzGoToNextFileInfo(file,info,name,size);if(result==UNZ_OK)++centralReads;return result;
+}
 static unzFile CountedOpen(const char *name) {unzFile result=unzOpen(name);if(afterOpen){auto action=std::move(afterOpen);afterOpen={};action(name);}return result;}
 #define unzGetCurrentFileInfo CountedInfo
+#define unzGoToFirstFileInfo CountedFirstInfo
+#define unzGoToNextFileInfo CountedNextInfo
 #define unzOpen CountedOpen
 #include "load.h"
 #undef unzGetCurrentFileInfo
+#undef unzGoToFirstFileInfo
+#undef unzGoToNextFileInfo
 #undef unzOpen
 static void FS_Path_f() {}
 static void FS_Dir_f() {}
@@ -173,6 +184,7 @@ static void start(int setting=1) {
     std::filesystem::create_directories(homeDirectory);
     Cvar_Set("fs_basepath",baseDirectory.c_str());Cvar_Set("fs_homepath",homeDirectory.c_str());
     if(setting>=0)Cvar_Set("fs_restartCache",setting?"1":"0");
+    Cvar_Set("fs_zipCatalogFast",catalogMode?"1":"0");
     FS_Startup(BASEGAME);Q_strncpyz(lastValidBase,baseDirectory.c_str(),sizeof(lastValidBase));Q_strncpyz(lastValidGame,fs_gamedirvar->string,sizeof(lastValidGame));
 }
 static int run(int argc,char **argv) {
@@ -243,7 +255,7 @@ static int run(int argc,char **argv) {
     return 0;
 }
 int main(int argc,char **argv) {
-    try {return run(argc,argv);}
+    try {for(catalogMode=0;catalogMode<2;++catalogMode){const int result=run(argc,argv);if(result)return result;}return 0;}
     catch(const std::exception &error){std::fprintf(stderr,"Unexpected fixture exception: %s\n",error.what());return 1;}
     catch(int code){std::fprintf(stderr,"Unexpected engine error: %d\n",code);return 1;}
 }

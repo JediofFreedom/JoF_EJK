@@ -1213,6 +1213,73 @@ extern int ZEXPORT unzGoToNextFile (unzFile  file)
     return err;
 }
 
+/* Engine-only catalogue navigation. Keep the ordinary API and its callback/
+   error behavior untouched. The same parser handles ZIP64 extras and SFX
+   offsets; supplying the filename here avoids GetInfo parsing it all again. */
+local void unz64local_ExportCatalogInfo(const unz_file_info64* source,
+                                      unz_file_info* target)
+{
+    if (target == NULL)
+        return;
+    target->version = source->version;
+    target->version_needed = source->version_needed;
+    target->flag = source->flag;
+    target->compression_method = source->compression_method;
+    target->dosDate = source->dosDate;
+    target->crc = source->crc;
+    target->compressed_size = (uLong)source->compressed_size;
+    target->uncompressed_size = (uLong)source->uncompressed_size;
+    target->size_filename = source->size_filename;
+    target->size_file_extra = source->size_file_extra;
+    target->size_file_comment = source->size_file_comment;
+    target->disk_num_start = source->disk_num_start;
+    target->internal_fa = source->internal_fa;
+    target->external_fa = source->external_fa;
+    target->tmu_date = source->tmu_date;
+}
+
+extern int ZEXPORT unzGoToFirstFileInfo(unzFile file, unz_file_info* info,
+                                      char* name, uLong nameSize)
+{
+    unz64_s* s;
+    int err;
+    if (file == NULL)
+        return UNZ_PARAMERROR;
+    s = (unz64_s*)file;
+    s->pos_in_central_dir = s->offset_central_dir;
+    s->num_file = 0;
+    err = unz64local_GetCurrentFileInfoInternal(file, &s->cur_file_info,
+        &s->cur_file_info_internal, name, nameSize, NULL, 0, NULL, 0);
+    s->current_file_ok = (err == UNZ_OK);
+    if (err == UNZ_OK)
+        unz64local_ExportCatalogInfo(&s->cur_file_info, info);
+    return err;
+}
+
+extern int ZEXPORT unzGoToNextFileInfo(unzFile file, unz_file_info* info,
+                                     char* name, uLong nameSize)
+{
+    unz64_s* s;
+    int err;
+    if (file == NULL)
+        return UNZ_PARAMERROR;
+    s = (unz64_s*)file;
+    if (!s->current_file_ok)
+        return UNZ_END_OF_LIST_OF_FILE;
+    if (s->gi.number_entry != 0xffff)
+        if (s->num_file + 1 == s->gi.number_entry)
+            return UNZ_END_OF_LIST_OF_FILE;
+    s->pos_in_central_dir += SIZECENTRALDIRITEM + s->cur_file_info.size_filename +
+        s->cur_file_info.size_file_extra + s->cur_file_info.size_file_comment;
+    s->num_file++;
+    err = unz64local_GetCurrentFileInfoInternal(file, &s->cur_file_info,
+        &s->cur_file_info_internal, name, nameSize, NULL, 0, NULL, 0);
+    s->current_file_ok = (err == UNZ_OK);
+    if (err == UNZ_OK)
+        unz64local_ExportCatalogInfo(&s->cur_file_info, info);
+    return err;
+}
+
 
 /*
   Try locate the file szFileName in the zipfile.

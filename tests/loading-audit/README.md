@@ -351,6 +351,47 @@ names, comments, extras, offsets and bytes match. Both versions also extracted
 14,451,732,062 bytes with matching sizes/CRCs and zero failures. This measures
 archive parsing, not complete startup or joining. See `tests/minizip-directory`.
 
+`fs_zipCatalogFast 1` additionally combines archive navigation and filename/info
+retrieval in one call to the existing MiniZip parser. Generic MiniZip APIs remain
+unchanged. The new engine-only iterator invalidates its current file on any
+combined parse error, including a filename read failure; FS rejects/closes that
+package without retrying from the failed iterator. Explicit `0` selects a fresh
+legacy scan. This changes no archive priority, purity, references or asset quality.
+
+The [catalogue fixture](../filesystem-catalog-iterator/README.md) passes 309 ZIP
+cases on x64 with AddressSanitizer and on x86 Release, including partial reads,
+EOF/errors, ZIP64/SFX, private state/cursor/offsets and payload CRCs. All 256
+installed packages / 75,658 members have equal names, sizes, CRCs, catalogue
+order, regular/pure checksums, duplicate winners and reference behavior.
+Catalogue parses fall from 151,572 to 75,914, read callbacks from 2,653,276 to
+1,375,934 and seeks from 269,197 to 126,876. These are work counts, separate
+from startup measurements.
+
+Five alternating whole-client pairs followed one excluded priming pair, using
+the same Release/LTO binary with only this cvar changed. Assets, quality,
+pipeline seeds, fresh profiles and warm OS caches matched; texture residency
+was 2048 MiB, `fs_restartCache 1` and `r_textureSignaturePrefix 1`. No compiler,
+analyzer or other game client ran during timing. The actual measured round
+order was:
+
+| Round | Initial FS, legacy ms | Initial FS, fused ms | Complete cycle, legacy s | Complete cycle, fused s |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 315 | 219 | 8.1650352 | 7.7436499 |
+| 2 | 319 | 227 | 8.0068440 | 7.5277146 |
+| 3 | 318 | 221 | 7.9175396 | 7.5329079 |
+| 4 | 320 | 225 | 7.9187953 | 7.5510236 |
+| 5 | 318 | 222 | 8.1457708 | 7.5266485 |
+| Median | 318 | 222 | 8.0068440 | 7.5329079 |
+
+The initial filesystem phase is about 30.2% shorter; the complete T1_Fatal /
+mp/ffa3 / T1_Fatal client cycle is about 5.92% shorter, with both improving in
+all five pairs. The latter includes startup, fixed waits and shutdown. This
+supports default `1`; it is not a 30% whole-game improvement or an FPS result,
+and must not be compounded with earlier percentages. `profile.ps1` accepts
+`-ZipCatalogFast 0/1`. Raw results are retained locally in
+`project-catalog-runtime-benchmark-v2/results.json`; the earlier run is excluded
+for a harness-label mismatch, not a game failure.
+
 `fs_restartCache 1`, set before initial startup, retains unchanged
 archive catalogs across checksum-feed-only restarts. Existing shutdown/startup,
 directory rescans, handle cleanup, package order and pure checks remain in use.

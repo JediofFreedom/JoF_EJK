@@ -338,6 +338,7 @@ static searchpath_t	*fs_searchpaths;
 static PakProviderIndex<searchpath_t> fs_pakLookupIndex;
 static cvar_t *fs_lookupIndex;
 static cvar_t *fs_restartCache;
+static cvar_t *fs_zipCatalogFast;
 static std::string fs_restartConfiguration;
 static int			fs_readCount;			// total bytes read
 static int			fs_loadCount;			// total files read
@@ -2517,6 +2518,7 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 		unsigned long pos, len, crc;
 	};
 	std::vector<zipEntry_t> entries;
+	const bool fastCatalog = fs_zipCatalogFast && fs_zipCatalogFast->integer;
 	MountedArchiveIdentities::Stamp before;
 	const bool stamped = FSRestartMetadataCache::recordCatalogs &&
 		MountedArchiveIdentities::snapshot(zipfile, 0, before);
@@ -2558,14 +2560,15 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 
 	len = 0;
 	entries.reserve(gi.number_entry);
-	err = unzGoToFirstFile(uf);
+	err = fastCatalog ? unzGoToFirstFileInfo(uf, &file_info, filename_inzip, sizeof(filename_inzip)) : unzGoToFirstFile(uf);
 	for (i = 0; i < gi.number_entry; i++)
 	{
 		if (err != UNZ_OK) {
 			unzClose(uf);
 			return NULL;
 		}
-		err = unzGetCurrentFileInfo(uf, &file_info, filename_inzip, sizeof(filename_inzip), NULL, 0, NULL, 0);
+		if (!fastCatalog)
+			err = unzGetCurrentFileInfo(uf, &file_info, filename_inzip, sizeof(filename_inzip), NULL, 0, NULL, 0);
 		if (err != UNZ_OK || file_info.size_filename >= sizeof(filename_inzip)) {
 			unzClose(uf);
 			return NULL;
@@ -2579,7 +2582,7 @@ static pack_t *FS_LoadZipFile( const char *zipfile, const char *basename )
 		// the entire central directory just to recover offsets and CRCs.
 		entries.push_back({filename_inzip, unzGetOffset(uf), file_info.uncompressed_size, file_info.crc});
 		len += nameBytes;
-		err = unzGoToNextFile(uf);
+		err = fastCatalog ? unzGoToNextFileInfo(uf, &file_info, filename_inzip, sizeof(filename_inzip)) : unzGoToNextFile(uf);
 	}
 
 	buildBuffer = (struct fileInPack_s *)Z_Malloc( (gi.number_entry * sizeof( fileInPack_t )) + len, TAG_FILESYS, qtrue );
@@ -4024,6 +4027,8 @@ void FS_Startup( const char *gameName ) {
 	fs_lookupIndex = Cvar_Get("fs_lookupIndex", "1", CVAR_ARCHIVE, "Index mounted archive providers for file lookups (0 uses the linear resolver)");
 	Cvar_CheckRange(fs_lookupIndex, 0, 1, qtrue);
 	fs_restartCache = Cvar_Get("fs_restartCache", "1", CVAR_ARCHIVE, "Reuse unchanged archive catalogues during checksum-feed-only filesystem restarts");
+	fs_zipCatalogFast = Cvar_Get("fs_zipCatalogFast", "1", CVAR_ARCHIVE, "Read archive catalogue names and metadata in one pass (0 uses legacy navigation/GetInfo)");
+	Cvar_CheckRange(fs_zipCatalogFast, 0, 1, qtrue);
 	Cvar_CheckRange(fs_restartCache, 0, 1, qtrue);
 	FSRestartMetadataCache::recordCatalogs = fs_restartCache->integer != 0;
 

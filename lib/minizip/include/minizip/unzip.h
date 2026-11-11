@@ -242,6 +242,20 @@ extern int ZEXPORT unzGoToNextFile OF((unzFile file));
   return UNZ_END_OF_LIST_OF_FILE if the actual file was the latest.
 */
 
+/* OpenJK filesystem catalogue extension. Navigate and return the filename and
+   legacy-width public metadata in one central-header parse. Existing generic
+   navigation/GetCurrentFileInfo APIs retain their original behavior.
+   Any combined parse error (including a filename read failure) invalidates
+   the current file; callers must reject/close that catalogue, not retry from
+   the failed iterator. END_OF_LIST leaves state and outputs unchanged.
+   Filename truncation/termination and 64-to-uLong conversion match GetInfo. */
+extern int ZEXPORT unzGoToFirstFileInfo OF((unzFile file,
+                         unz_file_info *pfile_info,
+                         char *szFileName, uLong fileNameBufferSize));
+extern int ZEXPORT unzGoToNextFileInfo OF((unzFile file,
+                         unz_file_info *pfile_info,
+                         char *szFileName, uLong fileNameBufferSize));
+
 extern int ZEXPORT unzLocateFile OF((unzFile file,
                      const char *szFileName,
                      int iCaseSensitivity));
