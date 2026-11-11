@@ -11,7 +11,7 @@
   "areas": [
     {
       "area": "filesystem and archives",
-      "status": "189456f live metadata probe measured and Windows56-suite/full-build checkpoint verified; Windows CI regression run pending;54/54 applicable Linux/macOS suites passed",
+      "status": "189456f live metadata probe measured and Windows56-suite/full-build checkpoint verified; green CI42999586254:56/56 Windows,54/54 applicable Linux/macOS suites passed",
       "notes": "One-pass package mounting, provider-index lookup and batched minizip scalar reads retain pure/reference/duplicate semantics. Checksum-feed-only restart metadata reuse defaults to fs_restartCache=1 after a real-server comparison; full shutdown/startup, rescans, identity checks and explicit-restart rebuilds remain. Engine filesystem work remains on the main thread. Writable cache paths use renderer API 11. New fs_metadataProbe=1 avoids CRT stream setup for definitely missing Windows loose metadata candidates using live native queries, with ordinary handling for present/uncertain/path-sensitive cases; no loose-directory cache."
     },
     {
@@ -29,7 +29,7 @@
     },
     {
       "area": "Vulkan resources",
-      "status": "189456f source-validated shader catalogue reuse measured and Windows full-build/GPU validation verified; Windows CI regression run pending;54/54 applicable Linux/macOS suites passed",
+      "status": "189456f source-validated shader catalogue reuse measured and Windows full-build/GPU validation verified; green CI42999586254:56/56 Windows,54/54 applicable Linux/macOS suites passed",
       "findings": [
         "Automatic residency scales with device memory and exact driver extension query",
         "Budget reductions reclaim fragmented idle pages",
@@ -49,7 +49,7 @@
     },
     {
       "area": "audio",
-      "status": "189456f exact common-rate PCM loading path measured and Windows56-suite/full-build checkpoint verified; Windows CI regression run pending;54/54 applicable Linux/macOS suites passed",
+      "status": "189456f exact common-rate PCM loading path measured and Windows56-suite/full-build checkpoint verified; green CI42999586254:56/56 Windows,54/54 applicable Linux/macOS suites passed",
       "findings": [
         "Bounded memory/streamed WAV parsing and safe music read arithmetic",
         "Removed unused sample scratch allocation",
@@ -80,8 +80,8 @@
     },
     {
       "area": "platform, build and tests",
-      "status": "189456f normal full x64/x86 builds and56/56 x64 suites verified; latest Windows CI regression run pending;54/54 applicable Linux/macOS suites passed",
-      "notes": "MSVC language-specific flags no longer accumulate. Release LTO defaults on when supported and preserves explicit CMake IPO settings. Historical42/42-suite checkpoint and CI42952953751 are preserved below; the newer4ba checkpoint passed55Windows/53applicable Linux+macOS suites and the full native Linux client. zlib-ng target IPO is explicitly OFF, including custom configurations; unsupported versions/compilers and mixed-architecture macOS universal builds retain classic zlib. The latest asset-loading code adds shader-text-cache as the56th discovered suite; final189456f Windows validation passed and is tracked separately from historical checkpoints; current54/54 applicable Linux/macOS suites passed with2explicit Windows-only skips each; the Windows CI regression run remains pending."
+      "status": "189456f normal full x64/x86 builds and56/56 x64 suites verified; green CI42999586254:56/56 Windows,54/54 applicable Linux/macOS suites passed",
+      "notes": "MSVC language-specific flags no longer accumulate. Release LTO defaults on when supported and preserves explicit CMake IPO settings. Historical42/42-suite checkpoint and CI42952953751 are preserved below; the newer4ba checkpoint passed55Windows/53applicable Linux+macOS suites and the full native Linux client. zlib-ng target IPO is explicitly OFF, including custom configurations; unsupported versions/compilers and mixed-architecture macOS universal builds retain classic zlib. The latest asset-loading code adds shader-text-cache as the56th discovered suite; final189456f Windows validation passed and is tracked separately from historical checkpoints; current54/54 applicable Linux/macOS suites passed with2explicit Windows-only skips each; Windows CI passed56/56 with0skips,completing green run42999586254."
     }
   ],
   "measurements": {
@@ -804,7 +804,7 @@
       "conclusion": "Excluded from loading-speed/parity claims; no result establishes EJK equal to or faster than SJK."
     }
   },
-  "verification_state": "Latest189456f passed normal full x64/x86 production builds,56/56 x64 standalone suites(no failures/skips),native Vulkan core/synchronization world/model/menu/restart/map-change checks and packaged game/UI active-frame/normal teardown; refreshed playtest preserves user configuration. Five alternating same-binary pairs measured shorter loading medians with explicit variability limits. CI42999586254 full native Linux client without OpenGL and Vulkan module builds on Windows/Linux/macOS passed; Linux/macOS54/54 applicable suites passed with2explicit Windows-only skips each; Windows CI regressions remain pending. Prior4ba cross-platform55/53-suite verification remains recorded. The broad project task remains incomplete; automatic-review-blocked regression work remains quarantined/unverified and no SJK loading lead is claimed.",
+  "verification_state": "Latest189456f passed normal full x64/x86 production builds,56/56 x64 standalone suites(no failures/skips),native Vulkan core/synchronization world/model/menu/restart/map-change checks and packaged game/UI active-frame/normal teardown; refreshed playtest preserves user configuration. Five alternating same-binary pairs measured shorter loading medians with explicit variability limits. CI42999586254 full native Linux client without OpenGL and Vulkan module builds on Windows/Linux/macOS passed; Linux/macOS54/54 applicable suites passed with2explicit Windows-only skips each; Windows CI passed56/56 with0skips,completing green run42999586254. Prior4ba cross-platform55/53-suite verification remains recorded. The broad project task remains incomplete; automatic-review-blocked regression work remains quarantined/unverified and no SJK loading lead is claimed.",
   "analysis": {
     "initial_contexts": 560,
     "excluded_vendor_contexts": [
@@ -899,11 +899,12 @@
         "sound-cache-clock",
         "shader-text-cache"
       ],
-      "status": "Latest189456f Windows checkpoint verified with normal full x64/x86 builds,56/56 x64 suites,native Vulkan/package smoke and preserved playtest configuration. CI42999586254 full native Linux client/all3 Vulkan module builds passed; Linux/macOS54/54 applicable suites passed(+2explicit Windows-only skips each); Windows CI regression run pending. Broad audit remains incomplete and blocked regression follow-ups remain quarantined.",
+      "status": "Latest189456f Windows checkpoint verified with normal full x64/x86 builds,56/56 x64 suites,native Vulkan/package smoke and preserved playtest configuration. CI42999586254 full native Linux client/all3 Vulkan module builds passed; Linux/macOS54/54 applicable suites passed(+2explicit Windows-only skips each); Windows56/56 passed(no skips),completing green CI42999586254. Broad audit remains incomplete and blocked regression follow-ups remain quarantined.",
       "windows_suites_passed": 56,
       "windows_results": "G:/code/JoF_EJK-performance-run/asset-loading-regressions-x64/results.json",
       "ci_run": 42999586254,
-      "last_complete_local_pass": 56
+      "last_complete_local_pass": 56,
+      "ci_conclusion": "success"
     },
     "zlib_ng_checkpoint": {
       "commit": "e495b4cc715a53ddb0df2ab70085037c455bba27",
@@ -1008,7 +1009,7 @@
     },
     "asset_loading_189": {
       "source": "189456f6aba385d6d9b72fc90cbdbb753947ea12",
-      "status": "Final Windows checkpoint verified: normal full x64/x86 builds,56/56 x64 standalone suites,no failures/skips,native Vulkan core/sync and packaged game/UI smoke passed. Full Linux native client,all3 Vulkan module builds and54/54 applicable Linux/macOS suites passed(+2explicit Windows-only skips each); only the Windows CI regression run remains pending.",
+      "status": "Final Windows checkpoint verified: normal full x64/x86 builds,56/56 x64 standalone suites,no failures/skips,native Vulkan core/sync and packaged game/UI smoke passed. Full Linux native client,all3 Vulkan module builds and54/54 applicable Linux/macOS suites passed(+2explicit Windows-only skips each); Windows CI also passed56/56 with0skips,completing successful run42999586254.",
       "discovered_suites": 56,
       "focused_shader_catalogue": {
         "x64_asan": "passed",
@@ -1035,11 +1036,16 @@
         "run": 42999586254,
         "full_native_linux_client_without_opengl": "passed",
         "vulkan_module_builds": "passed Windows/Linux/macOS",
-        "platform_regressions": "Linux54/54 applicable passed(+2explicit Windows-only skips);macOS54/54 applicable passed(+2explicit Windows-only skips);Windows CI running,pending final conclusion",
+        "platform_regressions": "Windows56/56 passed(no skips);Linux54/54 applicable passed(+2explicit Windows-only skips);macOS54/54 applicable passed(+2explicit Windows-only skips)",
         "linux_applicable_passed": 54,
         "macos_applicable_passed": 54,
         "explicit_nonwindows_skips_each": 2,
-        "windows_regressions": "running; final conclusion pending"
+        "windows_regressions": "passed56/56;platform-skipped0;discovered56",
+        "conclusion": "success",
+        "windows_passed": 56,
+        "windows_skipped": 0,
+        "windows_job": 130452111784,
+        "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/42999586254"
       },
       "qualification": "Does not change historical analyzer dispositions or blocked follow-up statuses; broad project audit remains incomplete.",
       "playtest": "G:/code/JoF_EJK-performance-playtest",

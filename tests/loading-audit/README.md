@@ -567,8 +567,9 @@ menus, video restart, map changes and zero retained resources at teardown.
 The refreshed playtest preserved the user configuration; the packaged game/UI
 smoke reached an active frame and normal exit. CI run `42999586254` has passed
 the full native Linux client without OpenGL and Vulkan module builds on
-Windows/Linux/macOS. All 54 applicable Linux/macOS suites passed, with two
-explicit Windows-only skips on each; the Windows CI regression run is pending.
+Windows/Linux/macOS. The complete run succeeded: Windows passed all 56 suites
+with no skips; Linux/macOS each passed all 54 applicable suites with two explicit
+Windows-only skips.
 This experiment establishes an EJK improvement on this workload; it does not
 establish loading parity with SJK, a faster SJK comparison or an FPS gain.
 
