@@ -5374,7 +5374,10 @@ void S_DisplayFreeMemory()
 
 void SND_TouchSFX(sfx_t *sfx)
 {
-	sfx->iLastTimeUsed		= Com_Milliseconds()+1;
+	// Cache timestamps need the system clock, not a console-input poll for each
+	// played sound. Journals must keep the legacy event/SE_NONE call sequence.
+	const int now = com_journal && !com_journal->integer ? Sys_Milliseconds() : Com_Milliseconds();
+	sfx->iLastTimeUsed		= now+1;
 	sfx->iLastLevelUsedOn	= re->RegisterMedia_GetLevel();
 }
 
