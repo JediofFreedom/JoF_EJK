@@ -38,6 +38,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include <climits>
 #include <cstdint>
 #include <cstring>
+#include <chrono>
 //New Includes
 #include <unordered_map>
 #include <string>
@@ -65,6 +66,58 @@ static int SND_FreeSFXMem(sfx_t *sfx);
 extern qboolean Sys_LowPhysicalMemory();
 
 static std::unordered_map<std::string, int> s_sfxPlayCounts;
+
+// Sound submission profiling. Frontend sound calls and console commands are
+// serialized, including the joined map-loading handoff; the mixer never enters
+// S_StartSound. This clock must not pump/journal events like Com_Milliseconds.
+namespace SoundStartProfile {
+enum Stage { Load,Touch,Limiter,Channel,Setup,Count };
+struct Counter { uint64_t calls = 0,nanoseconds = 0; };
+struct Mark { uint64_t started = 0,epoch = 0; bool active = false; };
+static cvar_t *enabled;
+static Counter counters[Count];
+static uint64_t epoch;
+static uint64_t Now() {
+    return uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+}
+static uint64_t (*clock)() = Now;
+static Mark Begin() {
+    Mark mark;
+    if (enabled && enabled->integer) {
+        mark.started = clock(); mark.epoch = epoch; mark.active = true;
+    }
+    return mark;
+}
+static void End(Stage stage,Mark mark) {
+    if (!mark.active || mark.epoch != epoch) return;
+    ++counters[stage].calls; counters[stage].nanoseconds += clock()-mark.started;
+}
+class Scope {
+    Stage stage;
+    Mark mark;
+public:
+    explicit Scope(Stage value) : stage(value),mark(Begin()) {}
+    ~Scope() { End(stage,mark); }
+    Scope(const Scope &) = delete;
+    Scope &operator=(const Scope &) = delete;
+};
+static void Reset() {
+    for (auto &counter : counters) counter = Counter();
+    ++epoch;
+}
+static void Report() {
+    static const char *names[Count] = {"sample load","cache touch/event clock","rate limiter","channel pick","channel setup"};
+    for (int i = 0; i < Count; ++i) {
+        const auto &counter = counters[i];
+        if (!counter.calls) continue;
+        Com_Printf("SOUNDPROFILE %s: %llu calls, %.3f ms total, %.6f ms/call (frontend elapsed; instrumentation changes timing)\n",
+            names[i],static_cast<unsigned long long>(counter.calls),counter.nanoseconds/1000000.0,
+            counter.nanoseconds/(1000000.0*counter.calls));
+    }
+}
+}
+// End sound submission profiling.
 															 
 //////////////////////////
 //
@@ -514,6 +567,8 @@ void S_Init( void ) {
 	qboolean	r;
 
 	Com_Printf("\n------- sound initialization -------\n");
+	SoundStartProfile::enabled = Cvar_Get("s_runtimeProfile", "0", 0, "Aggregate sound submission timings without pumping events");
+	SoundStartProfile::Reset();
 
 	volume = Cvar_Get("volume", "1.0", CVAR_ARCHIVE, "Volume");
 	s_volume = Cvar_Get ("s_volume", "0.5", CVAR_ARCHIVE, "Sound effects volume" );
@@ -561,6 +616,8 @@ void S_Init( void ) {
 	Cmd_AddCommand("soundstop", S_StopAllSounds, "Stops all sounds including music" );
 	Cmd_AddCommand("mp3_calcvols", S_MP3_CalcVols_f);
 	Cmd_AddCommand("s_dynamic", S_SetDynamicMusic_f, "Change dynamic music state" );
+	Cmd_AddCommand("s_runtimeProfileReset", SoundStartProfile::Reset);
+	Cmd_AddCommand("s_runtimeProfileReport", SoundStartProfile::Report);
 
 #ifdef USE_OPENAL
 	cv = Cvar_Get("s_UseOpenAL" , "0",CVAR_ARCHIVE|CVAR_LATCH);
@@ -744,6 +801,8 @@ void S_Shutdown( void )
 	if ( !s_soundStarted ) {
 		return;
 	}
+	SoundStartProfile::Report();
+	SoundStartProfile::Reset();
 
 	S_FreeAllSFXMem();
 	S_UnCacheDynamicMusic();
@@ -808,6 +867,8 @@ void S_Shutdown( void )
 	Cmd_RemoveCommand("soundstop");
 	Cmd_RemoveCommand("mp3_calcvols");
 	Cmd_RemoveCommand("s_dynamic");
+	Cmd_RemoveCommand("s_runtimeProfileReset");
+	Cmd_RemoveCommand("s_runtimeProfileReport");
 	AS_Free();
 }
 
@@ -1688,11 +1749,20 @@ void S_StartSound(const vec3_t origin, int entityNum, int entchannel, sfxHandle_
 
 	sfx = &s_knownSfx[ sfxHandle ];
 	if (sfx->bInMemory == qfalse){
+		SoundStartProfile::Scope profile(SoundStartProfile::Load);
 		S_memoryLoad(sfx);
 	}
-	SND_TouchSFX(sfx);
+	{
+		SoundStartProfile::Scope profile(SoundStartProfile::Touch);
+		SND_TouchSFX(sfx);
+	}
 
-	if (!S_CanPlaySound(sfx->sSoundName)) {
+	qboolean canPlay;
+	{
+		SoundStartProfile::Scope profile(SoundStartProfile::Limiter);
+		canPlay = S_CanPlaySound(sfx->sSoundName);
+	}
+	if (!canPlay) {
 		return;
 	}
 
@@ -1743,10 +1813,14 @@ void S_StartSound(const vec3_t origin, int entityNum, int entchannel, sfxHandle_
 
 	// pick a channel to play on
 
-	ch = S_PickChannel( entityNum, entchannel );
+	{
+		SoundStartProfile::Scope profile(SoundStartProfile::Channel);
+		ch = S_PickChannel( entityNum, entchannel );
+	}
 	if (!ch) {
 		return;
 	}
+	SoundStartProfile::Scope profile(SoundStartProfile::Setup);
 
 	if (origin) {
 		VectorCopy (origin, ch->origin);
