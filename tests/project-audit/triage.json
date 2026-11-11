@@ -21,14 +21,14 @@
       "message"
     ],
     "unique_findings_by_disposition": {
-      "unresolved-needs-fixture": 180,
-      "likely-contract-or-assert-false-positive": 59,
+      "unresolved-needs-fixture": 176,
+      "likely-contract-or-assert-false-positive": 63,
       "confirmed-fixed": 46
     },
     "contexts_by_overall_disposition": {
-      "unresolved-needs-fixture": 68,
-      "likely-contract-or-assert-false-positive": 31,
-      "confirmed-fixed": 16
+      "unresolved-needs-fixture": 67,
+      "likely-contract-or-assert-false-positive": 35,
+      "confirmed-fixed": 13
     }
   },
   "contexts": [
@@ -98,7 +98,7 @@
     {
       "context": "a0bb6824731d9180",
       "translation_unit": "codemp/qcommon/common.cpp",
-      "disposition": "confirmed-fixed",
+      "disposition": "likely-contract-or-assert-false-positive",
       "findings": [
         15,
         16,
@@ -245,7 +245,7 @@
     {
       "context": "e8f43eca5746ae5c",
       "translation_unit": "codemp/qcommon/common.cpp",
-      "disposition": "confirmed-fixed",
+      "disposition": "likely-contract-or-assert-false-positive",
       "findings": [
         15,
         16,
@@ -762,7 +762,7 @@
     {
       "context": "4a6d965053698de5",
       "translation_unit": "codemp/cgame/cg_event.c",
-      "disposition": "unresolved-needs-fixture",
+      "disposition": "likely-contract-or-assert-false-positive",
       "findings": [
         183,
         184,
@@ -878,7 +878,7 @@
     {
       "context": "7cf2b52bbf7c9afa",
       "translation_unit": "codemp/ui/ui_main.c",
-      "disposition": "confirmed-fixed",
+      "disposition": "likely-contract-or-assert-false-positive",
       "findings": [
         208,
         209,
@@ -5060,16 +5060,28 @@
       "contexts": [
         "4a6d965053698de5"
       ],
-      "disposition": "unresolved-needs-fixture",
-      "rationale": "Rendering/event/snapshot code usually requires cg.snap. Initial explicit error guards exist, but server-command or restart callbacks may alter globals between checks; exercise initial snapshot/map_restart/view transitions before dismissing all reports.",
+      "disposition": "likely-contract-or-assert-false-positive",
+      "rationale": "Current production callers dispatch EV_ROLL only after a non-null cg.snap has been published. CG_SetInitialSnapshot assigns cg.snap before its CG_CheckEvents loop; CG_TransitionSnapshot validates both snapshots and assigns nextSnap before entity/playerstate events; prediction is reached only after CG_DrawActiveFrame returns on missing/inactive snapshots. The local optional cg.snap check around a roll-animation update does not establish a supported null-snapshot event path. CG_MapRestart does not clear cg.snap, and engine disconnect commands throw rather than return into event dispatch. This is a reviewed current-caller contract, not a new guard or a proof about future/external callers.",
       "evidence": [
         "codemp/cgame/cg_snapshot.c:CG_TransitionSnapshot",
         "codemp/cgame/cg_event.c",
         "codemp/cgame/cg_players.c",
-        "codemp/cgame/cg_view.c"
+        "codemp/cgame/cg_view.c",
+        "codemp/cgame/cg_snapshot.c:CG_ReadNextSnapshot/CG_SetInitialSnapshot/CG_TransitionEntity/CG_TransitionSnapshot/CG_ProcessSnapshots",
+        "codemp/cgame/cg_event.c:CG_CheckEvents/CG_EntityEvent EV_ROLL/EV_ITEM_PICKUP/EV_GLOBAL_ITEM_PICKUP",
+        "codemp/cgame/cg_playerstate.c:CG_CheckExternalEvent/CG_CheckLegacyPickupEvents/CG_CheckPlayerstateEvents/CG_CheckChangedPredictableEvents/CG_TransitionPlayerState",
+        "codemp/cgame/cg_view.c:CG_DrawActiveFrame missing/inactive-snapshot return before CG_PredictPlayerState",
+        "codemp/cgame/cg_predict.c:CG_PredictPlayerState and commented CG_CheckChangedPredictableEvents call",
+        "codemp/cgame/cg_servercmds.c:CG_MapRestart/CG_ExecuteNewServerCommands",
+        "codemp/cgame/cg_main.c:CG_Init_CG/CG_Init/GetCGameAPI/vmMain",
+        "codemp/client/cl_cgame.cpp:CL_GetServerCommand disconnect/map_restart paths",
+        "codemp/client/cl_cgameapi.cpp:CGVM_DrawActiveFrame/CL_UnbindCGame/cgi.Error binding",
+        "codemp/client/cl_scrn.cpp:SCR_DrawScreenField connection-state dispatch",
+        "codemp/client/cl_main.cpp:CL_DownloadsComplete async worker join",
+        "codemp/qcommon/common.cpp:NORETURN Com_Error"
       ],
       "group": "client-snapshot-lifetime",
-      "confidence": "needs-fixture",
+      "confidence": "provisional",
       "reported_statement": "if (es->number == cg.snap->ps.clientNum && cg.snap->ps.fallingToDeath)"
     },
     {
@@ -5082,16 +5094,28 @@
       "contexts": [
         "4a6d965053698de5"
       ],
-      "disposition": "unresolved-needs-fixture",
-      "rationale": "Rendering/event/snapshot code usually requires cg.snap. Initial explicit error guards exist, but server-command or restart callbacks may alter globals between checks; exercise initial snapshot/map_restart/view transitions before dismissing all reports.",
+      "disposition": "likely-contract-or-assert-false-positive",
+      "rationale": "EV_ITEM_PICKUP's local cg.snap guard for duel filtering makes a null branch visible to the analyzer, but every current CG_EntityEvent caller requires a published snapshot. Initial/entity transitions publish before CG_CheckEvents, and authoritative/predicted playerstate events execute under non-null snapshot transition or the active-frame prediction gate. Event-only entities pass through the same CG_CheckEvents path and are not an independent early-init callback. Map restart retains cg.snap; disconnect aborts dispatch through NORETURN Com_Error. Provisional current-caller contract; no production fix is claimed.",
       "evidence": [
         "codemp/cgame/cg_snapshot.c:CG_TransitionSnapshot",
         "codemp/cgame/cg_event.c",
         "codemp/cgame/cg_players.c",
-        "codemp/cgame/cg_view.c"
+        "codemp/cgame/cg_view.c",
+        "codemp/cgame/cg_snapshot.c:CG_ReadNextSnapshot/CG_SetInitialSnapshot/CG_TransitionEntity/CG_TransitionSnapshot/CG_ProcessSnapshots",
+        "codemp/cgame/cg_event.c:CG_CheckEvents/CG_EntityEvent EV_ROLL/EV_ITEM_PICKUP/EV_GLOBAL_ITEM_PICKUP",
+        "codemp/cgame/cg_playerstate.c:CG_CheckExternalEvent/CG_CheckLegacyPickupEvents/CG_CheckPlayerstateEvents/CG_CheckChangedPredictableEvents/CG_TransitionPlayerState",
+        "codemp/cgame/cg_view.c:CG_DrawActiveFrame missing/inactive-snapshot return before CG_PredictPlayerState",
+        "codemp/cgame/cg_predict.c:CG_PredictPlayerState and commented CG_CheckChangedPredictableEvents call",
+        "codemp/cgame/cg_servercmds.c:CG_MapRestart/CG_ExecuteNewServerCommands",
+        "codemp/cgame/cg_main.c:CG_Init_CG/CG_Init/GetCGameAPI/vmMain",
+        "codemp/client/cl_cgame.cpp:CL_GetServerCommand disconnect/map_restart paths",
+        "codemp/client/cl_cgameapi.cpp:CGVM_DrawActiveFrame/CL_UnbindCGame/cgi.Error binding",
+        "codemp/client/cl_scrn.cpp:SCR_DrawScreenField connection-state dispatch",
+        "codemp/client/cl_main.cpp:CL_DownloadsComplete async worker join",
+        "codemp/qcommon/common.cpp:NORETURN Com_Error"
       ],
       "group": "client-snapshot-lifetime",
-      "confidence": "needs-fixture",
+      "confidence": "provisional",
       "reported_statement": "if ( es->number == cg.snap->ps.clientNum ) {"
     },
     {
@@ -5104,16 +5128,28 @@
       "contexts": [
         "4a6d965053698de5"
       ],
-      "disposition": "unresolved-needs-fixture",
-      "rationale": "Rendering/event/snapshot code usually requires cg.snap. Initial explicit error guards exist, but server-command or restart callbacks may alter globals between checks; exercise initial snapshot/map_restart/view transitions before dismissing all reports.",
+      "disposition": "likely-contract-or-assert-false-positive",
+      "rationale": "EV_GLOBAL_ITEM_PICKUP is dispatched through the same snapshot/entity or playerstate-event callers as other events. cg.snap is published before first-snapshot events, retained through map_restart, replaced with validated nextSnap before transition events, and required by the active-frame prediction gate. The event's defensive duel-filter cg.snap check does not make null-snapshot sound dispatch a supported call. Engine disconnect server commands throw before returning to the caller, and async initialization joins before main-frame event processing. Provisional source/caller review, not a new null fix.",
       "evidence": [
         "codemp/cgame/cg_snapshot.c:CG_TransitionSnapshot",
         "codemp/cgame/cg_event.c",
         "codemp/cgame/cg_players.c",
-        "codemp/cgame/cg_view.c"
+        "codemp/cgame/cg_view.c",
+        "codemp/cgame/cg_snapshot.c:CG_ReadNextSnapshot/CG_SetInitialSnapshot/CG_TransitionEntity/CG_TransitionSnapshot/CG_ProcessSnapshots",
+        "codemp/cgame/cg_event.c:CG_CheckEvents/CG_EntityEvent EV_ROLL/EV_ITEM_PICKUP/EV_GLOBAL_ITEM_PICKUP",
+        "codemp/cgame/cg_playerstate.c:CG_CheckExternalEvent/CG_CheckLegacyPickupEvents/CG_CheckPlayerstateEvents/CG_CheckChangedPredictableEvents/CG_TransitionPlayerState",
+        "codemp/cgame/cg_view.c:CG_DrawActiveFrame missing/inactive-snapshot return before CG_PredictPlayerState",
+        "codemp/cgame/cg_predict.c:CG_PredictPlayerState and commented CG_CheckChangedPredictableEvents call",
+        "codemp/cgame/cg_servercmds.c:CG_MapRestart/CG_ExecuteNewServerCommands",
+        "codemp/cgame/cg_main.c:CG_Init_CG/CG_Init/GetCGameAPI/vmMain",
+        "codemp/client/cl_cgame.cpp:CL_GetServerCommand disconnect/map_restart paths",
+        "codemp/client/cl_cgameapi.cpp:CGVM_DrawActiveFrame/CL_UnbindCGame/cgi.Error binding",
+        "codemp/client/cl_scrn.cpp:SCR_DrawScreenField connection-state dispatch",
+        "codemp/client/cl_main.cpp:CL_DownloadsComplete async worker join",
+        "codemp/qcommon/common.cpp:NORETURN Com_Error"
       ],
       "group": "client-snapshot-lifetime",
-      "confidence": "needs-fixture",
+      "confidence": "provisional",
       "reported_statement": "trap->S_StartSound (NULL, cg.snap->ps.clientNum, CHAN_AUTO, trap->S_RegisterSound( item->pickup_sound) );"
     },
     {
@@ -5126,16 +5162,28 @@
       "contexts": [
         "4a6d965053698de5"
       ],
-      "disposition": "unresolved-needs-fixture",
-      "rationale": "Rendering/event/snapshot code usually requires cg.snap. Initial explicit error guards exist, but server-command or restart callbacks may alter globals between checks; exercise initial snapshot/map_restart/view transitions before dismissing all reports.",
+      "disposition": "likely-contract-or-assert-false-positive",
+      "rationale": "The later EV_GLOBAL_ITEM_PICKUP client-number read shares the snapshot lifetime contract reviewed for finding 185. All active CG_EntityEvent entry paths follow initial/transition snapshot publication or guarded prediction; event-only entities use CG_CheckEvents rather than bypassing it. CG_CheckChangedPredictableEvents has no active current caller, while its sole historical prediction call is commented. Lifecycle CG_Init_CG is the only whole-cg reset and is called by CG_Init, not the event/server-command handlers. This is provisional caller evidence, not proof for arbitrary future calls.",
       "evidence": [
         "codemp/cgame/cg_snapshot.c:CG_TransitionSnapshot",
         "codemp/cgame/cg_event.c",
         "codemp/cgame/cg_players.c",
-        "codemp/cgame/cg_view.c"
+        "codemp/cgame/cg_view.c",
+        "codemp/cgame/cg_snapshot.c:CG_ReadNextSnapshot/CG_SetInitialSnapshot/CG_TransitionEntity/CG_TransitionSnapshot/CG_ProcessSnapshots",
+        "codemp/cgame/cg_event.c:CG_CheckEvents/CG_EntityEvent EV_ROLL/EV_ITEM_PICKUP/EV_GLOBAL_ITEM_PICKUP",
+        "codemp/cgame/cg_playerstate.c:CG_CheckExternalEvent/CG_CheckLegacyPickupEvents/CG_CheckPlayerstateEvents/CG_CheckChangedPredictableEvents/CG_TransitionPlayerState",
+        "codemp/cgame/cg_view.c:CG_DrawActiveFrame missing/inactive-snapshot return before CG_PredictPlayerState",
+        "codemp/cgame/cg_predict.c:CG_PredictPlayerState and commented CG_CheckChangedPredictableEvents call",
+        "codemp/cgame/cg_servercmds.c:CG_MapRestart/CG_ExecuteNewServerCommands",
+        "codemp/cgame/cg_main.c:CG_Init_CG/CG_Init/GetCGameAPI/vmMain",
+        "codemp/client/cl_cgame.cpp:CL_GetServerCommand disconnect/map_restart paths",
+        "codemp/client/cl_cgameapi.cpp:CGVM_DrawActiveFrame/CL_UnbindCGame/cgi.Error binding",
+        "codemp/client/cl_scrn.cpp:SCR_DrawScreenField connection-state dispatch",
+        "codemp/client/cl_main.cpp:CL_DownloadsComplete async worker join",
+        "codemp/qcommon/common.cpp:NORETURN Com_Error"
       ],
       "group": "client-snapshot-lifetime",
-      "confidence": "needs-fixture",
+      "confidence": "provisional",
       "reported_statement": "if ( es->number == cg.snap->ps.clientNum ) {"
     },
     {

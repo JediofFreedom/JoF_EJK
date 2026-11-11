@@ -63,6 +63,18 @@ AddressSanitizer on x64 and x86. Five checks fail against the saved pre-fix sour
 whose hash matches the fresh targeted analyzer input. Four valid draw-stream
 coordinate digests match the baseline exactly on both architectures. The
 submission-count assertions and projector output contract establish this defect;
-ASan is used for bounds/lifetime checking. Only these two finding dispositions
-change, leaving 46 confirmed fixes, 59 provisional contract explanations and 180
-unresolved candidates among the original 285 findings.
+ASan is used for bounds/lifetime checking. This step changes only those two finding dispositions. The subsequent snapshot-caller review below records four additional provisional explanations.
+
+Findings 183–186 now have a provisional snapshot-caller explanation, with no production change. The reviewed `CG_EntityEvent` callers dispatch
+from initial/entity snapshot transitions or playerstate events: initial and
+transition snapshots are published before event processing, and prediction
+follows the active-frame no-snapshot return. Event-only entities use the same
+`CG_CheckEvents` path. `CG_MapRestart` retains the snapshot; engine disconnect
+commands raise nonreturning `Com_Error` instead of resuming dispatch, and async
+initialization joins before main-frame processing. The optional local snapshot
+checks in those event cases do not establish an independent null-snapshot
+entry path. This source review covers current callers; no new runtime fixture,
+general event-parameter safety claim, performance gain or future-caller guarantee
+is implied.
+
+Current totals among the original 285 findings: 46 confirmed fixes, 63 provisional contract explanations and 176 unresolved candidates.
