@@ -14,6 +14,10 @@ typedef int fileHandle_t;
 enum { qfalse, qtrue, WAV_FORMAT_PCM = 1, FS_SEEK_CUR = 1 };
 struct sfx_t { int iSoundLengthInSamples; short *pSoundData; float fVolRange; };
 static struct { int speed; } dma;
+struct cvar_t { int integer; };
+static cvar_t resampleFast = {1};
+static auto *s_resampleFast = &resampleFast;
+#include "../../codemp/client/snd_load_profile.h"
 static int allocations;
 static byte *SND_malloc(int size, sfx_t *) {
     CHECK(size > 0); ++allocations; return static_cast<byte *>(std::malloc(size));
@@ -45,6 +49,36 @@ static int FS_Read(void *out, int length, int) {
 
 static void freeSound(sfx_t &sound) {
     if (sound.pSoundData) { --allocations; std::free(sound.pSoundData); sound.pSoundData = nullptr; }
+}
+static uint64_t profileClockCalls;
+static uint64_t profileClock() { return ++profileClockCalls * 1000; }
+static void loadProfile() {
+    auto &state = SoundLoadProfile::Get();
+    cvar_t enabled = {0};
+    state.enabled = &enabled; state.clock = profileClock;
+    SoundLoadProfile::Reset(); profileClockCalls = 0;
+    { SoundLoadProfile::Scope sample(SoundLoadProfile::Resample); }
+    CHECK(profileClockCalls == 0 && state.counters[SoundLoadProfile::Resample].calls == 0);
+    enabled.integer = 1;
+    for (int i = 0; i < SoundLoadProfile::Count; ++i) {
+        SoundLoadProfile::Scope sample(static_cast<SoundLoadProfile::Stage>(i));
+    }
+    CHECK(profileClockCalls == 2 * SoundLoadProfile::Count);
+    for (const auto &counter : state.counters) CHECK(counter.calls == 1 && counter.nanoseconds == 1000);
+    {
+        SoundLoadProfile::Scope total(SoundLoadProfile::Total);
+        SoundLoadProfile::Scope child(SoundLoadProfile::Source);
+    }
+    CHECK(state.counters[SoundLoadProfile::Total].calls == 2);
+    CHECK(state.counters[SoundLoadProfile::Total].nanoseconds == 4000);
+    CHECK(state.counters[SoundLoadProfile::Source].calls == 2);
+    CHECK(state.counters[SoundLoadProfile::Source].nanoseconds == 2000);
+    {
+        SoundLoadProfile::Scope oldEpoch(SoundLoadProfile::Resample);
+        SoundLoadProfile::Reset();
+    }
+    for (const auto &counter : state.counters) CHECK(counter.calls == 0 && counter.nanoseconds == 0);
+    state.enabled = nullptr; state.clock = nullptr;
 }
 static void resampling() {
     // Compare established 8-bit-fraction conversion for normal rates, including
@@ -97,6 +131,47 @@ static void resampling() {
     ResampleSfx(&sound, 22050, 1, slow); CHECK(!sound.pSoundData);
     sound.iSoundLengthInSamples = 2; dma.speed = 22050;
     ResampleSfx(&sound, 22050, 3, slow); CHECK(!sound.pSoundData);
+}
+static void differentialResampling() {
+    // Compare the production fallback and fast paths, including every PCM16
+    // value, unsigned PCM8 extremes, odd counts and deliberately unaligned data.
+    for (int rate : {8000, 11025, 16000, 22050, 24000, 32000, 44100, 48000})
+        for (int multiple : {1, 2}) for (int width : {1, 2})
+        for (int count : {1, 2, 3, 7, 127, 257, 65536, 65537})
+        for (int alignment : {0, 1, 3}) {
+            dma.speed = rate * multiple;
+            std::vector<byte> storage(size_t(count) * width + alignment);
+            byte *input = storage.data() + alignment;
+            for (int i = 0; i < count; ++i) {
+                const unsigned value = unsigned(i) * 32771u;
+                input[i * width] = byte(value);
+                if (width == 2) input[i * width + 1] = byte(value >> 8);
+            }
+            sfx_t reference = {count, nullptr, 0}, fast = {count, nullptr, 0};
+            resampleFast.integer = 0;
+            ResampleSfx(&reference, rate, width, input);
+            resampleFast.integer = 1;
+            ResampleSfx(&fast, rate, width, input);
+            CHECK(reference.iSoundLengthInSamples == fast.iSoundLengthInSamples);
+            CHECK(reference.fVolRange == fast.fVolRange);
+            CHECK(!std::memcmp(reference.pSoundData, fast.pSoundData,
+                               size_t(reference.iSoundLengthInSamples) * sizeof(short)));
+            freeSound(reference); freeSound(fast);
+        }
+    // A large odd count rounds in float; it must retain the fallback's exact
+    // output length and repeated/clamped final sample rather than copy past it.
+    const int count = (1 << 24) + 3;
+    std::vector<byte> storage(count, 231);
+    storage.back() = 17;
+    dma.speed = 22050;
+    sfx_t reference = {count, nullptr, 0}, fast = {count, nullptr, 0};
+    resampleFast.integer = 0; ResampleSfx(&reference, 22050, 1, storage.data());
+    resampleFast.integer = 1; ResampleSfx(&fast, 22050, 1, storage.data());
+    CHECK(reference.iSoundLengthInSamples == fast.iSoundLengthInSamples);
+    CHECK(reference.fVolRange == fast.fVolRange);
+    CHECK(!std::memcmp(reference.pSoundData, fast.pSoundData,
+                       size_t(reference.iSoundLengthInSamples) * sizeof(short)));
+    freeSound(reference); freeSound(fast);
 }
 static void put32(std::vector<byte> &out, size_t offset, unsigned value) {
     for (unsigned i = 0; i < 4; ++i) out[offset + i] = byte(value >> (i * 8));
@@ -152,6 +227,7 @@ static void streamedWaves() {
     CHECK(S_BackgroundReadSamples(16384, 22050, 22050, INT_MAX, 0, 30000) == 0);
 }
 int main() {
-    resampling(); streamedWaves(); CHECK(allocations == 0);
+    loadProfile(); resampling(); differentialResampling(); streamedWaves(); CHECK(allocations == 0);
     std::puts("Audio parsing and resampling regressions passed.");
+    return 0;
 }

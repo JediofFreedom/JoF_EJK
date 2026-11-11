@@ -41,6 +41,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 #include "qcommon/qcommon.h"
 #include "filesystem_archive_identity.h"
+#include "filesystem_loose_probe.h"
 #include "filesystem_pak_index.h"
 
 static std::mutex fs_listMutex;
@@ -339,6 +340,7 @@ static PakProviderIndex<searchpath_t> fs_pakLookupIndex;
 static cvar_t *fs_lookupIndex;
 static cvar_t *fs_restartCache;
 static cvar_t *fs_zipCatalogFast;
+static cvar_t *fs_metadataProbe;
 static std::string fs_restartConfiguration;
 static int			fs_readCount;			// total bytes read
 static int			fs_loadCount;			// total files read
@@ -1764,6 +1766,7 @@ static long FS_FOpenFileReadInternal( const char *filename, fileHandle_t *file, 
 
 				netpath = FS_BuildOSPath( dir->path, dir->gamedir, filename );
 				if (queryOnly) {
+					if (fs_metadataProbe && fs_metadataProbe->integer && FS_LooseFileDefinitelyMissing(netpath)) continue;
 					FILE *probe = fopen(netpath, "rb");
 					if (!probe) continue;
 					const long length = FS_fplength(probe);
@@ -4028,6 +4031,8 @@ void FS_Startup( const char *gameName ) {
 	Cvar_CheckRange(fs_lookupIndex, 0, 1, qtrue);
 	fs_restartCache = Cvar_Get("fs_restartCache", "1", CVAR_ARCHIVE, "Reuse unchanged archive catalogues during checksum-feed-only filesystem restarts");
 	fs_zipCatalogFast = Cvar_Get("fs_zipCatalogFast", "1", CVAR_ARCHIVE, "Read archive catalogue names and metadata in one pass (0 uses legacy navigation/GetInfo)");
+	fs_metadataProbe = Cvar_Get("fs_metadataProbe", "1", CVAR_ARCHIVE, "Use live native missing-file probes for Windows loose-file metadata lookups");
+	Cvar_CheckRange(fs_metadataProbe, 0, 1, qtrue);
 	Cvar_CheckRange(fs_zipCatalogFast, 0, 1, qtrue);
 	Cvar_CheckRange(fs_restartCache, 0, 1, qtrue);
 	FSRestartMetadataCache::recordCatalogs = fs_restartCache->integer != 0;

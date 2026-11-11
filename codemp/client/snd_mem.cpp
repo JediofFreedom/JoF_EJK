@@ -26,6 +26,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "snd_local.h"
 #include "snd_mp3.h"
 #include "snd_ambient.h"
+#include "snd_load_profile.h"
 
 #include <string>
 #include <climits>
@@ -107,6 +108,7 @@ resample / decimate to the current source rate
 */
 void ResampleSfx (sfx_t *sfx, int iInRate, int iInWidth, byte *pData)
 {
+	SoundLoadProfile::Scope profile(SoundLoadProfile::Resample);
 	const int inputCount = sfx->iSoundLengthInSamples;
 	sfx->iSoundLengthInSamples = 0;
 	sfx->pSoundData = NULL;
@@ -122,6 +124,38 @@ void ResampleSfx (sfx_t *sfx, int iInRate, int iInWidth, byte *pData)
 	sfx->iSoundLengthInSamples = static_cast<int>(outputCount);
 	sfx->pSoundData = reinterpret_cast<short *>(SND_malloc(sfx->iSoundLengthInSamples * 2, sfx));
 	if (!sfx->pSoundData) { sfx->iSoundLengthInSamples = 0; return; }
+
+	// These common PCM cases do not need a phase accumulator or a per-sample
+	// bounds clamp. Preserve the computed output length: very large sample counts
+	// can round during the legacy float calculation, so those keep the old loop.
+	const bool sameRate = iInRate == dma.speed && sfx->iSoundLengthInSamples == inputCount;
+	const bool doubleRate = int64_t(iInRate) * 2 == dma.speed &&
+		int64_t(inputCount) * 2 == sfx->iSoundLengthInSamples;
+	if (s_resampleFast && s_resampleFast->integer && (sameRate || doubleRate)) {
+		int magnitude = 0;
+		const int copies = doubleRate ? 2 : 1;
+		if (iInWidth == 2) {
+			for (int i = 0; i < inputCount; ++i) {
+				short value;
+				std::memcpy(&value, pData + size_t(i) * 2, sizeof(value));
+				const int sample = LittleShort(value);
+				sfx->pSoundData[i * copies] = static_cast<short>(sample);
+				if (doubleRate) sfx->pSoundData[i * copies + 1] = static_cast<short>(sample);
+				const int absolute = sample < 0 ? -sample : sample;
+				if (magnitude < absolute) magnitude = absolute;
+			}
+		} else {
+			for (int i = 0; i < inputCount; ++i) {
+				const int sample = (int(pData[i]) - 128) * 256;
+				sfx->pSoundData[i * copies] = static_cast<short>(sample);
+				if (doubleRate) sfx->pSoundData[i * copies + 1] = static_cast<short>(sample);
+				const int absolute = sample < 0 ? -sample : sample;
+				if (magnitude < absolute) magnitude = absolute;
+			}
+		}
+		sfx->fVolRange = magnitude >> 8;
+		return;
+	}
 
 	// A 32-bit 8-bit-fraction accumulator wrapped after 2^24 input samples,
 	// replaying the beginning of long sounds. Its step still determines normal
@@ -471,6 +505,7 @@ void S_MP3_CalcVols_f( void )
 extern	cvar_t	*com_buildScript;
 static qboolean S_LoadSound_FileLoadAndNameAdjuster(char *psFilename, byte **pData, int *piSize, int iNameStrlen)
 {
+	SoundLoadProfile::Scope profile(SoundLoadProfile::Source);
 	char *psVoice = strstr(psFilename,"chars");
 	if (psVoice)
 	{
@@ -677,6 +712,7 @@ static qboolean S_LoadSound_Actual( sfx_t *sfx )
 #ifdef USE_OPENAL
 				if (s_UseOpenAL)
 				{
+					SoundLoadProfile::Scope profile(SoundLoadProfile::OpenAL);
 					// Create space for lipsync data (4 lip sync values per streaming AL buffer)
 					if ((strstr(sfx->sSoundName, "chars")) || (strstr(sfx->sSoundName, "CHARS")))
 						sfx->lipSyncData = (char *)Z_Malloc(16, TAG_SND_RAWDATA, qfalse);
@@ -738,6 +774,7 @@ static qboolean S_LoadSound_Actual( sfx_t *sfx )
 #ifdef USE_OPENAL
 						if (s_UseOpenAL)
 						{
+							SoundLoadProfile::Scope profile(SoundLoadProfile::OpenAL);
 							if ((strstr(sfx->sSoundName, "chars")) || (strstr(sfx->sSoundName, "CHARS")))
 							{
 								sfx->lipSyncData = (char *)Z_Malloc((sfx->iSoundLengthInSamples / 1000) + 1, TAG_SND_RAWDATA, qfalse);
@@ -814,6 +851,7 @@ static qboolean S_LoadSound_Actual( sfx_t *sfx )
 #ifdef USE_OPENAL
 		if (s_UseOpenAL)
 		{
+			SoundLoadProfile::Scope profile(SoundLoadProfile::OpenAL);
 			if ((strstr(sfx->sSoundName, "chars")) || (strstr(sfx->sSoundName, "CHARS")))
 			{
 				sfx->lipSyncData = (char *)Z_Malloc((sfx->iSoundLengthInSamples / 1000) + 1, TAG_SND_RAWDATA, qfalse);
@@ -856,6 +894,7 @@ static qboolean S_LoadSound_Actual( sfx_t *sfx )
 //
 qboolean S_LoadSound( sfx_t *sfx )
 {
+	SoundLoadProfile::Scope profile(SoundLoadProfile::Total);
 	gbInsideLoadSound = qtrue;	// !!!!!!!!!!!!!
 
 		qboolean bReturn = S_LoadSound_Actual( sfx );

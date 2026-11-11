@@ -168,3 +168,19 @@ RGBA8 CPU data so the existing upload conversion still runs once.
 Stable content keys and corruption checks use the unmodified BSD-2-Clause
 [xxHash v0.8.3](../../lib/xxhash/UPSTREAM.md). Its license must accompany binary
 distributions. Source provenance for Sunny/Quake3e remains as documented above.
+
+`r_shaderTextCache` retains one compressed CPU shader-source catalogue plus hash
+offsets across map transitions and defaults to 1. Zero selects ordinary reloads.
+Every lookup starts with the normal ordered shader-file listing and resolves
+each winning source through the filesystem's pure/search-order rules. Only
+unchanged immutable package identities can reuse the catalogue; loose sources,
+missing identities, journal modes and read failures keep the ordinary path.
+Reuse recreates the text and hash pointers in the current hunk, preserving
+duplicate-definition precedence without retaining parsed shaders, lightmaps or
+GPU bindings. Retention is bounded to 32 MiB on x64 and 8 MiB on x86; full renderer
+shutdown releases it. `cl_loadTimings 1` reports catalogue rebuild/reuse time.
+In the local three-map loading comparison, the unchanged catalogue reused 762
+files / 3.28 MiB in about 18–24 ms. The combined filesystem, sound-registration
+and catalogue-cache experiment shortened median map handoffs from
+1891/823/555 ms to 1725/725/464 ms over five alternating pairs. Those combined
+results do not isolate this cache or compare EJK against SJK.

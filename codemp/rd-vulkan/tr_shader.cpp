@@ -21,6 +21,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #include "tr_local.h"
+#include <array>
+#include <chrono>
+#include <string>
+#include <utility>
+#include <vector>
 
 // tr_shader.c -- this file deals with the parsing and definition of shaders
 
@@ -2882,6 +2887,76 @@ a single large text block that can be scanned for shader names
 =====================
 */
 #define	MAX_SHADER_FILES	4096
+
+// Keep only immutable source text and offsets, never hunk pointers or parsed
+// shaders: those contain map-specific images, lightmaps and GPU resources.
+struct ShaderCatalogueSource {
+	std::string path;
+	fsReadFileIdentity_t identity;
+};
+
+struct ShaderCatalogueCache {
+	std::vector<ShaderCatalogueSource> sources;
+	std::vector<char> text;
+	std::array<unsigned, MAX_SHADERTEXT_HASH> counts = {};
+	std::vector<unsigned> offsets;
+};
+
+static ShaderCatalogueCache shaderCatalogueCache;
+
+void R_ClearShaderTextCache( void ) {
+	shaderCatalogueCache = ShaderCatalogueCache();
+}
+
+static bool ShaderCatalogueSourcesMatch( const std::vector<ShaderCatalogueSource> &sources ) {
+	if (shaderCatalogueCache.text.empty() || sources.size() != shaderCatalogueCache.sources.size()) return false;
+	for (size_t i = 0; i < sources.size(); ++i) {
+		const ShaderCatalogueSource &a = sources[i], &b = shaderCatalogueCache.sources[i];
+		if (a.path != b.path || a.identity.generation != b.identity.generation ||
+			a.identity.container != b.identity.container || a.identity.position != b.identity.position ||
+			a.identity.size != b.identity.size || a.identity.provider != 1 || b.identity.provider != 1) return false;
+	}
+	return true;
+}
+
+static void RestoreShaderCatalogue( void ) {
+	s_shaderText = (char *)ri.Hunk_Alloc(shaderCatalogueCache.text.size(), h_low);
+	memcpy(s_shaderText, shaderCatalogueCache.text.data(), shaderCatalogueCache.text.size());
+	const size_t pointers = shaderCatalogueCache.offsets.size() + MAX_SHADERTEXT_HASH;
+	const char **cursor = (const char **)ri.Hunk_Alloc(pointers * sizeof(char *), h_low);
+	size_t entry = 0;
+	for (size_t i = 0; i < MAX_SHADERTEXT_HASH; ++i) {
+		shaderTextHashTable[i] = cursor;
+		for (unsigned j = 0; j < shaderCatalogueCache.counts[i]; ++j)
+			*cursor++ = s_shaderText + shaderCatalogueCache.offsets[entry++];
+		*cursor++ = NULL;
+	}
+}
+
+static void RetainShaderCatalogue( std::vector<ShaderCatalogueSource> &sources, size_t entries ) {
+	const size_t textBytes = strlen(s_shaderText) + 1;
+	const size_t budget = (sizeof(void *) == 8 ? 32 : 8) * size_t(1024 * 1024);
+	// Include fixed bookkeeping and conservative storage for every bounded path.
+	const size_t sourceBytes = sizeof(ShaderCatalogueCache) +
+		sources.capacity() * (sizeof(ShaderCatalogueSource) + MAX_QPATH);
+	if (textBytes > budget || sourceBytes > budget - textBytes ||
+		entries > (budget - textBytes - sourceBytes) / sizeof(unsigned)) {
+		R_ClearShaderTextCache();
+		return;
+	}
+	ShaderCatalogueCache retained;
+	retained.sources.swap(sources);
+	retained.text.assign(s_shaderText, s_shaderText + textBytes);
+	retained.offsets.reserve(entries);
+	for (size_t i = 0; i < MAX_SHADERTEXT_HASH; ++i) {
+		for (const char **p = shaderTextHashTable[i]; *p; ++p) {
+			retained.offsets.push_back(unsigned(*p - s_shaderText));
+			++retained.counts[i];
+		}
+	}
+	shaderCatalogueCache = std::move(retained);
+}
+
 static void ScanAndLoadShaderFiles( void )
 {
 	char		**shaderFiles;
@@ -2895,6 +2970,17 @@ static void ScanAndLoadShaderFiles( void )
 	char		shaderName[MAX_QPATH];
 	int			shaderLine;
 	long		sum = 0, summand;
+	using Clock = std::chrono::steady_clock;
+	const bool profile = ri.Cvar_VariableIntegerValue("cl_loadTimings") != 0;
+	const auto started = Clock::now();
+	cvar_t *cacheSetting = ri.Cvar_Get("r_shaderTextCache", "1", CVAR_ARCHIVE_ND,
+		"Retain validated immutable shader source catalogues across map changes");
+	ri.Cvar_CheckRange(cacheSetting, 0, 1, qtrue);
+	// Config-named shader files can participate in engine journal reads too.
+	// Retain the ordinary read path for every journal mode.
+	bool cacheable = cacheSetting->integer && !ri.Cvar_VariableIntegerValue("journal") && ri.FS_GetReadFileIdentity;
+	std::vector<ShaderCatalogueSource> sources;
+	if (!cacheable) R_ClearShaderTextCache();
 
 	// scan for shader files
 	shaderFiles = ri.FS_ListFiles("shaders", ".shader", &numShaderFiles);
@@ -2908,6 +2994,33 @@ static void ScanAndLoadShaderFiles( void )
 	if (numShaderFiles > MAX_SHADER_FILES) {
 		numShaderFiles = MAX_SHADER_FILES;
 	}
+	if (cacheable) {
+		sources.reserve(numShaderFiles);
+		for (i = 0; i < numShaderFiles; ++i) {
+			char filename[MAX_QPATH];
+			Com_sprintf(filename, sizeof(filename), "shaders/%s", shaderFiles[i]);
+			ShaderCatalogueSource source;
+			source.path = filename;
+			if (!ri.FS_GetReadFileIdentity(filename, &source.identity, qtrue) || source.identity.provider != 1) {
+				cacheable = false;
+				R_ClearShaderTextCache();
+				break;
+			}
+			sources.push_back(std::move(source));
+		}
+		if (cacheable && ShaderCatalogueSourcesMatch(sources)) {
+			RestoreShaderCatalogue();
+			ri.FS_FreeFileList(shaderFiles);
+			if (profile) ri.Printf(PRINT_ALL, "LOADPROFILE shader catalogue: reuse, %d files, %.2f MiB, %.3f ms\n",
+				numShaderFiles, shaderCatalogueCache.text.size() / (1024.0 * 1024.0),
+				std::chrono::duration<double, std::milli>(Clock::now() - started).count());
+			return;
+		}
+		// A changed catalogue cannot be reused; release it before loading its
+		// replacement instead of retaining two full copies during publication.
+		R_ClearShaderTextCache();
+	}
+	const auto sourcesChecked = Clock::now();
 
 	// load and parse shader files
 	for (i = 0; i < numShaderFiles; i++)
@@ -2920,6 +3033,8 @@ static void ScanAndLoadShaderFiles( void )
 
 		if (!buffers[i]) {
 			vk_debug("Couldn't load %s", filename);
+			cacheable = false;
+			R_ClearShaderTextCache();
 		}
 
 		// Do a simple check on the shader structure in that file to make sure one bad shader file cannot fuck up all other shaders.
@@ -2991,6 +3106,7 @@ static void ScanAndLoadShaderFiles( void )
 	}
 
 	COM_CompressShader(s_shaderText);
+	const auto textLoaded = Clock::now();
 
 	// free up memory
 	ri.FS_FreeFileList(shaderFiles);
@@ -3049,6 +3165,13 @@ static void ScanAndLoadShaderFiles( void )
 
 		SkipBracedSection(&p, 0);
 	}
+	if (cacheable) RetainShaderCatalogue(sources, size - MAX_SHADERTEXT_HASH);
+	if (profile) ri.Printf(PRINT_ALL, "LOADPROFILE shader catalogue: rebuild, %d files, %.2f MiB, %.3f ms (list/identity %.3f, read/validate/compress %.3f, index/retain %.3f)\n",
+		numShaderFiles, (strlen(s_shaderText) + 1) / (1024.0 * 1024.0),
+		std::chrono::duration<double, std::milli>(Clock::now() - started).count(),
+		std::chrono::duration<double, std::milli>(sourcesChecked - started).count(),
+		std::chrono::duration<double, std::milli>(textLoaded - sourcesChecked).count(),
+		std::chrono::duration<double, std::milli>(Clock::now() - textLoaded).count());
 
 	return;
 }

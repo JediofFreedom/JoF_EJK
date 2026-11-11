@@ -17,6 +17,7 @@
 #include <minizip/unzip.h>
 #include "filesystem_archive_identity.h"
 #include "filesystem_pak_index.h"
+#include "filesystem_loose_probe.h"
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr,"line %d: %s\n",__LINE__,#x);std::exit(1); } } while(0)
 #define ARRAY_LEN(x) (sizeof(x)/sizeof((x)[0]))
 #define Com_Memset std::memset
@@ -57,7 +58,7 @@ struct Cvar {std::string storage;char *string=nullptr;int integer=0;qboolean mod
 typedef Cvar cvar_t;
 static std::map<std::string,Cvar> cvars;
 static cvar_t *fs_debug,*fs_copyfiles,*fs_cdpath,*fs_basepath,*fs_basegame,*fs_homepath,*fs_gamedirvar,*fs_dirbeforepak;
-static cvar_t *fs_lookupIndex,*fs_restartCache,*fs_zipCatalogFast,*fs_loadpakdlls,*fs_globalcfg,*fs_portable,*sv_skipServersideDownloads;
+static cvar_t *fs_lookupIndex,*fs_restartCache,*fs_zipCatalogFast,*fs_metadataProbe,*fs_loadpakdlls,*fs_globalcfg,*fs_portable,*sv_skipServersideDownloads;
 static char fs_cmdlineGame[MAX_QPATH],fs_gamedir[MAX_OSPATH],lastValidBase[MAX_OSPATH],lastValidGame[MAX_OSPATH];
 static std::string fs_restartConfiguration;
 static int fs_checksumFeed=0x12345678,fs_packFiles,fs_fakeChkSum,fs_numServerPaks,fs_serverPaks[4096];

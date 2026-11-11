@@ -32,6 +32,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "snd_local.h"
 #include "snd_mp3.h"
 #include "snd_music.h"
+#include "snd_load_profile.h"
 #include "client.h"
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -118,6 +119,17 @@ static void Report() {
 }
 }
 // End sound submission profiling.
+void SoundLoadProfile::Report() {
+    static const char *names[Count] = {"source lookup/read", "MP3 validation/size scan",
+        "MP3 stream setup", "MP3 PCM decode", "PCM conversion", "OpenAL lipsync/upload", "total asset load"};
+    for (int i = 0; i < Count; ++i) {
+        const auto &counter = Get().counters[i];
+        if (!counter.calls) continue;
+        Com_Printf("SOUNDLOADPROFILE %s: %llu calls, %.3f ms total, %.6f ms/call (frontend elapsed; total includes stages)\n",
+            names[i], static_cast<unsigned long long>(counter.calls), counter.nanoseconds / 1000000.0,
+            counter.nanoseconds / (1000000.0 * counter.calls));
+    }
+}
 															 
 //////////////////////////
 //
@@ -241,6 +253,7 @@ cvar_t		*s_volume;
 cvar_t		*s_volumeVoice;
 cvar_t		*s_testsound;
 cvar_t		*s_khz;
+cvar_t		*s_resampleFast;
 cvar_t		*s_allowDynamicMusic;
 cvar_t		*s_show;
 cvar_t		*s_mixahead;
@@ -569,6 +582,8 @@ void S_Init( void ) {
 	Com_Printf("\n------- sound initialization -------\n");
 	SoundStartProfile::enabled = Cvar_Get("s_runtimeProfile", "0", 0, "Aggregate sound submission timings without pumping events");
 	SoundStartProfile::Reset();
+	SoundLoadProfile::Get().enabled = Cvar_Get("s_loadProfile", "0", 0, "Aggregate sound asset-loading stages without pumping events");
+	SoundLoadProfile::Reset();
 
 	volume = Cvar_Get("volume", "1.0", CVAR_ARCHIVE, "Volume");
 	s_volume = Cvar_Get ("s_volume", "0.5", CVAR_ARCHIVE, "Sound effects volume" );
@@ -580,6 +595,7 @@ void S_Init( void ) {
 
 	s_separation = Cvar_Get ("s_separation", "0.5", CVAR_ARCHIVE);
 	s_khz = Cvar_Get ("s_khz", "44", CVAR_ARCHIVE|CVAR_LATCH);
+	s_resampleFast = Cvar_Get("s_resampleFast", "1", CVAR_ARCHIVE, "Use equivalent contiguous PCM conversion for equal or doubled sample rates");
 	s_allowDynamicMusic = Cvar_Get ("s_allowDynamicMusic", "1", CVAR_ARCHIVE_ND);
 	s_mixahead = Cvar_Get ("s_mixahead", "0.2", CVAR_ARCHIVE);
 
@@ -618,6 +634,8 @@ void S_Init( void ) {
 	Cmd_AddCommand("s_dynamic", S_SetDynamicMusic_f, "Change dynamic music state" );
 	Cmd_AddCommand("s_runtimeProfileReset", SoundStartProfile::Reset);
 	Cmd_AddCommand("s_runtimeProfileReport", SoundStartProfile::Report);
+	Cmd_AddCommand("s_loadProfileReset", SoundLoadProfile::Reset);
+	Cmd_AddCommand("s_loadProfileReport", SoundLoadProfile::Report);
 
 #ifdef USE_OPENAL
 	cv = Cvar_Get("s_UseOpenAL" , "0",CVAR_ARCHIVE|CVAR_LATCH);
@@ -803,6 +821,8 @@ void S_Shutdown( void )
 	}
 	SoundStartProfile::Report();
 	SoundStartProfile::Reset();
+	SoundLoadProfile::Report();
+	SoundLoadProfile::Reset();
 
 	S_FreeAllSFXMem();
 	S_UnCacheDynamicMusic();
@@ -869,6 +889,8 @@ void S_Shutdown( void )
 	Cmd_RemoveCommand("s_dynamic");
 	Cmd_RemoveCommand("s_runtimeProfileReset");
 	Cmd_RemoveCommand("s_runtimeProfileReport");
+	Cmd_RemoveCommand("s_loadProfileReset");
+	Cmd_RemoveCommand("s_loadProfileReport");
 	AS_Free();
 }
 

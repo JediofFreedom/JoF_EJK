@@ -73,7 +73,8 @@ static void write(const std::string &name, const char *text) {
     CHECK(std::fwrite(text, 1, std::strlen(text), file) == std::strlen(text)); std::fclose(file);
 }
 static void providers(const char *root) {
-    for (int indexed : {0, 1}) {
+    for (int probe : {0, 1}) for (int indexed : {0, 1}) {
+        metadataProbeSetting.integer = probe;
         Mount high(3, 10), low(2, 20);
         high.name(0, "same.jpg", 9); high.name(1, "dir/file.jpg", 11); high.name(2, "autoexec.cfg", 99);
         low.name(0, "same.jpg", 7); low.name(1, "low.jpg", 12); high.link(); low.link();
@@ -109,6 +110,45 @@ static void providers(const char *root) {
         CHECK(!std::remove(missing.c_str())); query("live.dat", -1);
         CHECK(!std::remove(middleLoose.c_str()) && !std::remove(behindHighPak.c_str()));
         fs_numServerPaks = 0; fs_pakLookupIndex.reset(); fs_searchpaths = nullptr;
+    }
+}
+static void metadataProbes(const char *root) {
+    const std::string live = std::string(root) + "/metadata-probe.jpg";
+    const std::string missingParent = std::string(root) + "/missing-parent/metadata-probe.jpg";
+    for (int probe : {0, 1}) for (int indexed : {0, 1}) {
+        metadataProbeSetting.integer = probe;
+        Mount mount(1, 10); mount.name(0, "metadata-probe.jpg", 9); mount.link();
+        Directory directory = {}; Q_strncpyz(directory.path, root, sizeof(directory.path));
+        Search loose = {&mount.path, nullptr, &directory}; install(&loose, indexed);
+        looseReadOpens = 0;
+        CHECK(query("metadata-probe.jpg", 9, true).provider == 1);
+#ifdef _WIN32
+        CHECK(looseReadOpens == (probe ? 0u : 1u));
+        CHECK(FS_LooseFileDefinitelyMissing(live.c_str()));
+        CHECK(FS_LooseFileDefinitelyMissing(missingParent.c_str()));
+        CHECK(!FS_LooseFileDefinitelyMissing((std::string(root) + "/NUL.jpg").c_str()));
+        CHECK(!FS_LooseFileDefinitelyMissing((std::string(root) + "/lpt1.txt").c_str()));
+        CHECK(!FS_LooseFileDefinitelyMissing((std::string(root) + "/missing-\xc3\xa9.jpg").c_str()));
+        // Invalid names are uncertain errors, not negative-cache evidence.
+        CHECK(!FS_LooseFileDefinitelyMissing((std::string(root) + "/invalid|name.jpg").c_str()));
+#else
+        CHECK(looseReadOpens == 1u);
+#endif
+        CHECK(mount.pack.referenced == FS_GENERAL_REF);
+        write(live, "live override"); looseReadOpens = 0;
+        CHECK(!FS_LooseFileDefinitelyMissing(live.c_str()));
+        CHECK(query("metadata-probe.jpg", 13).provider == 2 && looseReadOpens == 1);
+        write(live, ""); CHECK(query("metadata-probe.jpg", 0).provider == 2);
+#ifdef _WIN32
+        HANDLE blocked = CreateFileA(live.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        CHECK(blocked != INVALID_HANDLE_VALUE);
+        looseReadOpens = 0;
+        CHECK(query("metadata-probe.jpg", 9).provider == 1 && looseReadOpens == 1);
+        CloseHandle(blocked);
+        CHECK(query("metadata-probe.jpg", 0).provider == 2);
+#endif
+        CHECK(!std::remove(live.c_str())); CHECK(query("metadata-probe.jpg", 9).provider == 1);
+        fs_pakLookupIndex.reset(); fs_searchpaths = nullptr;
     }
 }
 static void reorder() {
@@ -207,6 +247,7 @@ int main(int argc, char **argv) {
     CHECK(argc == 2);
     filesystemTest::check(argv[1]);
     filesystemTest::providers(argv[1]); filesystemTest::reorder();
+    filesystemTest::metadataProbes(argv[1]);
     filesystemTest::duplicateOpen(argv[1]); filesystemTest::replacement(); filesystemTest::cursorSnapshot(); filesystemTest::benchmark();
     return 0;
 }

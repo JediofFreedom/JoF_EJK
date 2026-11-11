@@ -1170,7 +1170,10 @@ void RE_Shutdown( qboolean destroyWindow, qboolean restarting ) {
 		}
 
 		vk_delete_textures();
-		if (destroyWindow) vk_clear_texture_cache();
+		if (destroyWindow) {
+			vk_clear_texture_cache();
+			R_ClearShaderTextCache();
+		}
 		vk_release_resources();
 	//}
 

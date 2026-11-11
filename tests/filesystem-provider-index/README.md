@@ -36,3 +36,19 @@ accelerator allocation is capped at 64 MiB on x64 or 32 MiB on x86; unavailable
 or oversized indexes fall back to linear lookup until the next invalidation.
 `cl_loadTimings 1` prints member count, allocated index bytes and construction
 time on each successful rebuild.
+
+`fs_metadataProbe 1` additionally uses a live Windows attribute query to skip CRT
+stream creation for definitely missing loose metadata candidates. It defaults to
+1; use 0 for the ordinary metadata path. Existing files, uncertain errors, non-ASCII
+paths and DOS device aliases keep the ordinary open/length/close path; other
+platforms keep ordinary opens. This does not retain directory contents or negative
+results. The suite runs both probe settings and checks avoided stream opens,
+fresh overrides, edits/deletions, empty files and Windows sharing failures.
+
+A combined full-game comparison enabled this probe, shader-text reuse and fast
+equivalent PCM conversion together in one binary, with five alternating pairs.
+Median map handoffs for T1_Fatal / mp/ffa3 / T1_Fatal revisit changed from
+1,891 / 823 / 555 ms with all three disabled to 1,725 / 725 / 464 ms enabled.
+Texture source metadata/signature medians changed from 97.008 / 99.573 / 107.203 ms
+to 62.729 / 63.853 / 68.764 ms. These are combined results for the three changes;
+the whole map-loading gain cannot be attributed to this probe alone.

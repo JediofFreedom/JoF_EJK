@@ -1,5 +1,6 @@
 // Compile the real resolver, including its pure/loose and private-key rules.
 #include "filesystem_pak_index.h"
+#include "filesystem_loose_probe.h"
 namespace filesystemTest {
 typedef int fileHandle_t;
 enum fsMode_t { FS_READ, FS_WRITE, FS_APPEND, FS_APPEND_SYNC };
@@ -19,6 +20,7 @@ typedef Directory directory_t;
 static Search *fs_searchpaths;
 static PakProviderIndex<searchpath_t> fs_pakLookupIndex;
 static struct { int integer; } lookupSetting = {1}, *fs_lookupIndex = &lookupSetting;
+static struct { int integer; } metadataProbeSetting = {0}, *fs_metadataProbe = &metadataProbeSetting;
 static int Cvar_VariableIntegerValue(const char *) { return 0; }
 static std::mutex fs_listMutex;
 static int handleAllocations, fs_numServerPaks, fs_fakeChkSum;
@@ -58,6 +60,11 @@ static char *FS_BuildOSPath(const char *base, const char *, const char *path) {
     static char full[1024]; std::snprintf(full, sizeof(full), "%s/%s", base, path); return full;
 }
 static long FS_fplength(FILE *file) { std::fseek(file, 0, SEEK_END); return std::ftell(file); }
+static size_t looseReadOpens;
+static FILE *FS_FixtureLooseOpen(const char *path, const char *mode) {
+    ++looseReadOpens;
+    return std::fopen(path, mode);
+}
 static int FS_FOpenFileWrite(const char *) { return 0; }
 static int FS_FOpenFileAppend(const char *) { return 0; }
 // The platform-specific network-drive copy policy is irrelevant to queries.
@@ -66,7 +73,9 @@ static int FS_FOpenFileAppend(const char *) { return 0; }
 #undef _WIN32
 #endif
 #define DEDICATED
+#define fopen FS_FixtureLooseOpen
 #include "filesystem.h"
+#undef fopen
 #undef DEDICATED
 #ifdef AUDIT_WINDOWS
 #define _WIN32
@@ -114,7 +123,10 @@ static void checkMode(const char *root, int indexed) {
     fs_searchpaths = nullptr;
 }
 static void check(const char *root) {
-    checkMode(root, 0);
-    checkMode(root, 1);
+    for (int probe : {0, 1}) {
+        metadataProbeSetting.integer = probe;
+        checkMode(root, 0);
+        checkMode(root, 1);
+    }
 }
 }

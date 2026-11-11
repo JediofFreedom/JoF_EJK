@@ -2076,6 +2076,7 @@ shader_t	*R_FindShaderByName( const char *name );
 shader_t	*FinishShader( void );
 
 void		R_InitShaders( qboolean server );
+void		R_ClearShaderTextCache( void );
 void		R_ShaderList_f( void );
 void		R_RemapShader( const char *oldShader, const char *newShader, const char *timeOffset );
 void		R_CreateDefaultShadingCmds( image_t *image );
