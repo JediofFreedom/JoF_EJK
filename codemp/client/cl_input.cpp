@@ -1937,6 +1937,7 @@ usercmd_t CL_CreateCmd( void ) {
 
 	// store out the final values
 	CL_FinishMove(&cmd);
+	CL_DuelPartnerMove(&cmd);
 
 	// draw debug graphs of turning for mouse testing
 	if ( cl_debugMove->integer ) {
@@ -2387,6 +2388,7 @@ CL_InitInput
 */
 void CL_InitInput( void ) {
 	Cmd_AddCommandList( inputCmds );
+	CL_InitDuelPartner();
 
 	cl_nodelta = Cvar_Get ("cl_nodelta", "0", 0);
 	cl_debugMove = Cvar_Get ("cl_debugMove", "0", 0);
@@ -2402,4 +2404,5 @@ CL_ShutdownInput
 */
 void CL_ShutdownInput( void ) {
 	Cmd_RemoveCommandList( inputCmds );
+	CL_ShutdownDuelPartner();
 }

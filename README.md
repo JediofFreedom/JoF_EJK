@@ -18,6 +18,9 @@ PRs opened against **master** may be closed and re-opened against beta.
 
 ## For players
 
+For an experimental client-side sparring partner with target tracking, see
+[Client-side duel partner](docs/duel-partner.md).
+
 Installing and running EternalJK:
 
 1. [Download the latest release](https://github.com/Milamber0/JoF_EJK/releases).
