@@ -53,10 +53,13 @@ char		*Cmd_ArgsFrom( int arg );
 void		Com_Printf( const char *fmt, ... );
 qboolean	CL_SJK_ToChatBox( const sjkChatLine_t *line );
 qboolean	CL_SJK_ServerSession( char *serverId, int serverIdSize, char *mapname, int mapnameSize );
+typedef enum { SJK_PLACE_NONE, SJK_PLACE_LOADING, SJK_PLACE_HERE } sjkPlaceKind_t;
+sjkPlaceKind_t	CL_SJK_Place( char *server, int serverSize, int *slot, char *name, int nameSize );
 void		CL_SayToServer( const char *text );
 int			Sys_Milliseconds( bool baseTime = false );
 
 #define MAX_SAY_TEXT		150
+#define MAX_STRING_CHARS	1024
 typedef enum { CON_ICON_NONE, CON_ICON_SJK, CON_ICON_EJK } conIcon_t;
 inline void	Con_SetPrintIcon( conIcon_t ) {}
 void		Q_StripColor( char *text );

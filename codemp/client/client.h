@@ -616,6 +616,10 @@ qboolean CL_SJK_ChatLine(int index, char *who, int whoSize, char *text, int text
 void CL_SJK_SaidInAll(const char *id);	// the cgame saw a message's copy in All chat
 qboolean CL_SJK_ToChatBox(const sjkChatLine_t *line);	// cl_cgameapi.cpp
 qboolean CL_SJK_ServerSession(char *serverId, int serverIdSize, char *mapname, int mapnameSize);	// cl_parse.cpp
+// Where the player is, for SJK's slot claims (cl_sjk.cpp): in no game server's match,
+// connected but not in the match yet, or in it.
+typedef enum { SJK_PLACE_NONE, SJK_PLACE_LOADING, SJK_PLACE_HERE } sjkPlaceKind_t;
+sjkPlaceKind_t CL_SJK_Place(char *server, int serverSize, int *slot, char *name, int nameSize);	// cl_parse.cpp
 void CL_SayToServer(const char *text);	// cl_keys.cpp
 
 qboolean CL_CheckPaused(void);
