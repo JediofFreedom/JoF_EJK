@@ -4370,7 +4370,8 @@ void CL_Shutdown( void ) {
 	Cmd_RemoveCommand("fps_max");
 
 #if defined(DISCORD) && defined(FINAL_BUILD)
-	if (cl_discordRichPresence->integer || cls.discordInitialized)
+	// Startup errors can reach shutdown before CL_Init registers this cvar.
+	if ((cl_discordRichPresence && cl_discordRichPresence->integer) || cls.discordInitialized)
 		CL_DiscordShutdown();
 #endif
 
