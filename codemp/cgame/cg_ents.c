@@ -3681,8 +3681,8 @@ void CG_CalcEntityLerpPositions(centity_t* cent) {
 
 		if (veh->currentState.owner == cg.predictedPlayerState.clientNum) {
 			// only do this if the vehicle is pilotted by this client and predicting properly
-			BG_EvaluateTrajectory(&cent->currentState.pos, cg.time, &cent->lerpOrigin);
-			BG_EvaluateTrajectory(&cent->currentState.apos, cg.time, &cent->lerpAngles);
+			BG_EvaluateTrajectory(&cent->currentState.pos, cg.time, cent->lerpOrigin);
+			BG_EvaluateTrajectory(&cent->currentState.apos, cg.time, cent->lerpAngles);
 			return;
 		}
 	}
@@ -3712,8 +3712,8 @@ void CG_CalcEntityLerpPositions(centity_t* cent) {
 	}
 	else {
 		// just use the current frame and evaluate as best we can
-		BG_EvaluateTrajectory(&cent->currentState.pos, cg.time, &cent->lerpOrigin);
-		BG_EvaluateTrajectory(&cent->currentState.apos, cg.time, &cent->lerpAngles);
+		BG_EvaluateTrajectory(&cent->currentState.pos, cg.time, cent->lerpOrigin);
+		BG_EvaluateTrajectory(&cent->currentState.apos, cg.time, cent->lerpAngles);
 	}
 	if (cent->currentState.number == cg.clientNum) {
 		VectorCopy(cg.predictedPlayerState.origin, cent->lerpOrigin);
@@ -3723,11 +3723,11 @@ void CG_CalcEntityLerpPositions(centity_t* cent) {
 	// adjust for riding a mover if it wasn't rolled into the predicted player state
 	if (cent->currentState.number != cg.predictedPlayerState.clientNum) {
 		CG_AdjustPositionForMover(
-			&cent->lerpOrigin,
+			cent->lerpOrigin,
 			cent->currentState.groundEntityNum,
 			cg.snap->serverTime,
 			cg.time,
-			&cent->lerpOrigin
+			cent->lerpOrigin
 		);
 	}
 }

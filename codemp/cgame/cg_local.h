@@ -1068,6 +1068,14 @@ typedef struct chatBoxItem_s
 	int				lines;
 	qboolean		isPrivate;
 	chatBoxEmoji_t emoji[MAX_CHATBOX_ITEM_EMOJIS];
+	qhandle_t		icon;		// drawn before the text, which moves over for it; 0 for none
+	qboolean		indented;	// the text after an icon's room
+	// An SJK chat message (CG_SJKChatLine): its sender's name and label before the text,
+	// rows of it in string, all drawn in SJK's golds.
+	qboolean		sjk;
+	qboolean		sjkInAll;	// the label reads ALL/SJK: said in All chat too
+	char			sjkWho[64];	// who said it, with colours
+	char			sjkId[10];	// its id in the feed
 } chatBoxItem_t;
 
 #define	MAX_CLIENT_SPEEDPOINTS		32
@@ -1812,6 +1820,8 @@ typedef struct cgMedia_s {
 	sfxHandle_t	teleOutSound;
 	sfxHandle_t	respawnSound;
 	sfxHandle_t talkSound;
+	qhandle_t	sjkClientIcon;	// before an SJK chat message from SJK's client (CG_SJKChatLine)
+	qhandle_t	ejkClientIcon;	// before one from JoF's
 	sfxHandle_t	teamChatSound;
 	sfxHandle_t	privateChatSound;
 	sfxHandle_t landSound;
@@ -2321,6 +2331,8 @@ typedef struct cgs_s {
 
 	int				numClients;
 
+	qboolean		sjkChat;	// the engine hands this cgame SJK chat (cg_main.c, SJK_SetChatSink)
+
 } cgs_t;
 
 typedef struct siegeExtended_s
@@ -2431,7 +2443,7 @@ void CG_DrawRotatePic2( float x, float y, float width, float height,float angle,
 void CG_DrawString( float x, float y, const char *string,
 				   float charWidth, float charHeight, const float *modulate );
 
-void CG_DrawNumField (float x, float y, int width, int value, float charWidth, float charHeight, int style, qboolean zeroFill);
+void CG_DrawNumField (float x, float y, int width, int value, float charWidth, float charHeight, int style, qboolean zeroFill, const float *color);
 
 void CG_DrawStringExt( float x, float y, const char *string, const float *setColor,
 		qboolean forceColor, qboolean shadow, float charWidth, float charHeight, int maxChars );
@@ -2472,6 +2484,9 @@ void CG_AddLagometerSnapshotInfo( snapshot_t *snap );
 void CG_CenterPrint( const char *str, int y, int charWidth );
 void CG_CenterPrintMultiKill(const char *str, int y, int charWidth);
 void CG_ChatBox_AddString(char *chatStr, qboolean isPrivate);
+void CG_SJKChatLine(const sjkChatLine_t *line);
+qboolean CG_SJKServerLine(const char *text, qboolean isPrivate, int sender);
+void CG_SJKServerLinesFrame(void);
 void CG_DrawHead( float x, float y, float w, float h, int clientNum, vec3_t headAngles );
 void CG_DrawActive( stereoFrame_t stereoView );
 void CG_DrawFlagModel( float x, float y, float w, float h, int team, qboolean force2D );
@@ -2516,6 +2531,7 @@ void CG_ResetPlayerEntity( centity_t *cent, qboolean preserveAnimations );
 qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound );
 qboolean CG_StaffSwapShutdownSounded( int clientNum );
 qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound );
+qboolean CG_SaberToggleThrottled( int clientNum );
 void CG_AddRefEntityWithPowerups( refEntity_t *ent, entityState_t *state, int team );
 void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized );
 void CG_CleanHolsteredSabers( clientInfo_t *ci );

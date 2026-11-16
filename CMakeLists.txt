@@ -321,6 +321,7 @@ elseif (("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU") OR ("${CMAKE_C_COMPILER_ID}" S
 	elseif("${CMAKE_C_COMPILER_ID}" MATCHES "Clang")
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-comment")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcommon")
 	elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Intel")
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w")
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -unroll")
@@ -441,6 +442,10 @@ add_subdirectory(lib/minizip)
 # Always use bundled cJSON (sets CJSON_{LIBRARIES,INCLUDE_DIRS}) - cgame reads the
 # per-model cosmetic offset files with it
 add_subdirectory(lib/cJSON)
+
+# Always use bundled Monocypher (sets MONOCYPHER_{LIBRARIES,INCLUDE_DIRS}) - the
+# client's updater checks release signatures with it
+add_subdirectory(lib/monocypher)
 
 # Add projects
 add_subdirectory(${MPDir})

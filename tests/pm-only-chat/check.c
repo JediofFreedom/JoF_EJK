@@ -25,6 +25,7 @@
 #define COLOR_GREEN '2'
 #define COLOR_CYAN '5'
 #define COLOR_MAGENTA '6'
+#define COLOR_WHITE '7'
 #define Q_COLOR_ESCAPE '^'
 #define EC "\x19"
 #define Q_strncmp strncmp
@@ -38,10 +39,12 @@ typedef struct {
     char string[MAX_STRING_CHARS];
     int time, lines;
     qboolean isPrivate;
+    qboolean indented, sjk;
+    int icon;
     chatBoxEmoji_t emoji[MAX_CHATBOX_ITEM_EMOJIS];
 } chatBoxItem_t;
 static struct {
-    int time, chatItemActive, scoreBoardShowing, pressingScoreBoard;
+    int time, chatItemActive, scoreBoardShowing, pressingScoreBoard, numScores;
     qboolean pmOnlyChat;
     char lastChatMsg[MAX_NETNAME + MAX_SAY_TEXT + 32];
     chatBoxItem_t chatItems[MAX_CHATBOX_ITEMS];
@@ -57,6 +60,7 @@ static cvar_t cg_teamChatsOnly, cg_cleanChatbox, cg_chatSounds = {2},
     cg_chatBoxX, cg_chatBoxHeight, cg_chatBoxFontSize = {1, 1},
     cg_chatBoxShowHistory, cg_chatBoxEmojis, cg_newFont, cg_noFakeTells = {1};
 static float colorWhite[4];
+static struct { char string[2]; } cg_chatBoxShowCutoffColor = { "7" };
 static const char *args[6];
 static int argc, printed, logged, sounds, lastSound, catcher, drawn;
 static char lastPrinted[MAX_STRING_CHARS], drawnText[MAX_CHATBOX_ITEMS][MAX_STRING_CHARS];
@@ -100,6 +104,10 @@ static struct {
     void (*R_SetColor)(const float *);
 } imports = {Argv, Argc, Print, Sound, Localize, Error, KeyCatcher, SetColor}, *trap = &imports;
 static void CG_DrawPic(float x, float y, float w, float h, int shader) {}
+static qboolean CG_CompactScoreboard(void) { return qfalse; }
+// This suite exercises ordinary server chat; SJK interception/layout has its own suite.
+static qboolean CG_SJKServerLine(const char *text, qboolean isPrivate, int sender) { return qfalse; }
+static void CG_SJKChatBoxPaint(const chatBoxItem_t *item, float x, float y, float scale) { CHECK(0); }
 static void CG_Text_Paint(float x, float y, float scale, const float *color,
     const char *text, float adjust, int limit, int style, int font) {
     CHECK(drawn < MAX_CHATBOX_ITEMS);

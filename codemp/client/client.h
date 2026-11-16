@@ -420,6 +420,7 @@ typedef struct clientStatic_s {
 	qhandle_t	charSetShader;
 	qhandle_t	whiteShader;
 	qhandle_t	consoleShader;
+	qhandle_t	conIconShaders[3];	// by conIcon_t, for Con_SetPrintIcon
 
 	// Cursor
 	qboolean	cursorActive;
@@ -613,6 +614,27 @@ void CL_DiscordShutdown(void);
 void CL_DiscordUpdatePresence(void);
 #endif
 
+// cl_update.cpp
+void CL_Update_Init(void);
+void CL_Update_Frame(void);
+void CL_Update_Shutdown(void);
+
+// cl_sjk.cpp
+void CL_SJK_Init(void);
+void CL_SJK_Frame(void);
+void CL_SJK_Shutdown(void);
+qboolean CL_SJK_SayText(const char *text);
+int CL_SJK_ChatLineCount(int *revision);	// the SJK chat menu's history (ui)
+qboolean CL_SJK_ChatLine(int index, char *who, int whoSize, char *text, int textSize, char *client, int clientSize, qboolean *inAll);
+void CL_SJK_SaidInAll(const char *id);	// the cgame saw a message's copy in All chat
+qboolean CL_SJK_ToChatBox(const sjkChatLine_t *line);	// cl_cgameapi.cpp
+qboolean CL_SJK_ServerSession(char *serverId, int serverIdSize, char *mapname, int mapnameSize);	// cl_parse.cpp
+// Where the player is, for SJK's slot claims (cl_sjk.cpp): in no game server's match,
+// connected but not in the match yet, or in it.
+typedef enum { SJK_PLACE_NONE, SJK_PLACE_LOADING, SJK_PLACE_HERE } sjkPlaceKind_t;
+sjkPlaceKind_t CL_SJK_Place(char *server, int serverSize, int *slot, char *name, int nameSize);	// cl_parse.cpp
+void CL_SayToServer(const char *text);	// cl_keys.cpp
+
 qboolean CL_CheckPaused(void);
 
 extern int		cl_nameModifiedTime;
@@ -689,6 +711,14 @@ void Con_Close( void );
 void Con_SetFrac(const float conFrac);
 void Con_Copy(void);
 void Con_CopyLink(void);
+
+// The icon the next console print starts with: an SJK chat message's client.
+typedef enum {
+	CON_ICON_NONE,
+	CON_ICON_SJK,	// gfx/sjk/sjk
+	CON_ICON_EJK,	// gfx/sjk/ejk
+} conIcon_t;
+void Con_SetPrintIcon( conIcon_t icon );
 
 #ifdef _WIN32
 extern qboolean con_alert;

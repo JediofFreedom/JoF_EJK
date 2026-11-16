@@ -517,6 +517,42 @@ void CL_SystemInfoChanged( void ) {
 	cl_connectedToPureServer = Cvar_VariableValue( "sv_pure" );
 }
 
+// The game server's sv_serverid (system info) and mapname (server info) while in a
+// match on it, not a demo, for SJK chat's server tag (cl_sjk.cpp). qfalse otherwise.
+qboolean CL_SJK_ServerSession( char *serverId, int serverIdSize, char *mapname, int mapnameSize ) {
+	if ( cls.state != CA_ACTIVE || clc.demoplaying )
+		return qfalse;
+	const char *systemInfo = cl.gameState.stringData + cl.gameState.stringOffsets[ CS_SYSTEMINFO ];
+	const char *serverInfo = cl.gameState.stringData + cl.gameState.stringOffsets[ CS_SERVERINFO ];
+	Q_strncpyz( serverId, Info_ValueForKey( systemInfo, "sv_serverid" ), serverIdSize );
+	Q_strncpyz( mapname, Info_ValueForKey( serverInfo, "mapname" ), mapnameSize );
+	return (qboolean)( serverId[0] && mapname[0] );
+}
+
+// Where the player is, for SJK's slot claims (cl_sjk.cpp, SJK_FollowPlace), as SJK's
+// client decides it (its docs/identity.md, "What happens"):
+// - SJK_PLACE_NONE out of a game server of someone else's: the menus, a demo, a listen
+//   server or a local game, or an address that is not IPv4;
+// - SJK_PLACE_LOADING connected to one but not in its match yet (a map change), with
+//   *server set, so the claim on that server holds while the new map loads;
+// - SJK_PLACE_HERE in the match: the server's address as the hub takes it (a literal
+//   ip:port), the player's slot and the name the game shows in that slot (its
+//   configstring's n, colours kept).
+sjkPlaceKind_t CL_SJK_Place( char *server, int serverSize, int *slot, char *name, int nameSize ) {
+	if ( cls.state < CA_CONNECTED || clc.demoplaying || ( com_sv_running && com_sv_running->integer )
+			|| clc.serverAddress.type != NA_IP )
+		return SJK_PLACE_NONE;
+	Q_strncpyz( server, NET_AdrToString( clc.serverAddress ), serverSize );
+	if ( cls.state != CA_ACTIVE || clc.clientNum < 0 || clc.clientNum >= MAX_CLIENTS )
+		return SJK_PLACE_LOADING;
+	const char *info = cl.gameState.stringData + cl.gameState.stringOffsets[ CS_PLAYERS + clc.clientNum ];
+	Q_strncpyz( name, Info_ValueForKey( info, "n" ), nameSize );
+	if ( !name[0] )
+		return SJK_PLACE_LOADING;
+	*slot = clc.clientNum;
+	return SJK_PLACE_HERE;
+}
+
 /*
 ==================
 CL_ParseGamestate

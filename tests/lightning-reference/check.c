@@ -24,7 +24,7 @@ typedef struct {
 static struct { int time, frametime; } cg;
 static struct { float value; } cg_lightningEnvironmentAngle = { 360.0f };
 static struct {
-	struct { int forceLightning, forceLightningWide, forceLightningBranch, forceLightningEnvironmentImpact;
+	struct { int forceLightning, forceLightningWide, forceLightningBranch, demp2WallImpactEffectSmall;
 		int forceLightningReference, forceLightningReferenceWide, forceLightningReferenceArc; } effects;
 	struct { int forceLightningEnvironmentArcSounds[3]; } media;
 } cgs = { { 40, 41, 42, 43 }, { { 11, 12, 13 } } };

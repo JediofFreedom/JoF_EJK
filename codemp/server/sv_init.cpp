@@ -618,6 +618,16 @@ Ghoul2 Insert End
 	// load and spawn all other entities
 	SV_InitGameProgs();
 
+	// fs_globalcfg keeps fs_game out of the systeminfo. When this server runs the game module
+	// of a +set fs_game mod (FS_CmdlineGameModule), tell clients, so those who have it load it too.
+	if ( FS_CmdlineGameModule() ) {
+		Cvar_Get( "fs_game", "", CVAR_SYSTEMINFO );
+		Cvar_Set( "fs_game", FS_CmdlineGame() );
+	} else if ( FS_CmdlineGame()[0] ) {
+		Com_Printf( S_COLOR_YELLOW "%s has no server game module for this build, so the default one runs and players aren't told to load %s\n",
+			FS_CmdlineGame(), FS_CmdlineGame() );
+	}
+
 	// don't allow a map_restart if game is modified
 	sv_gametype->modified = qfalse;
 

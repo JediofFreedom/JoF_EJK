@@ -94,6 +94,12 @@ static void (*captureFunc) (void *p) = NULL;
 static void *captureData = NULL;
 static itemDef_t *itemCapture = NULL;   // item that has the mouse captured ( if any )
 
+static void Item_ClearCapture(void) {
+	itemCapture = NULL;
+	captureFunc = NULL;
+	captureData = NULL;
+}
+
 displayContextDef_t *DC = NULL;
 
 static qboolean g_waitingForKey = qfalse;
@@ -1489,6 +1495,9 @@ void Menus_CloseByName ( const char *p )
 	}
 
 	Menu_ClearHoverState(menu);
+	if (itemCapture && itemCapture->parent == menu) {
+		Item_ClearCapture();
+	}
 
 	// Run the close script for the menu
 	Menu_RunCloseScript(menu);
@@ -1522,6 +1531,7 @@ void Menus_CloseAll()
 {
 	int i;
 
+	Item_ClearCapture();
 	g_waitingForKey = qfalse;
 
 	for (i = 0; i < menuCount; i++)
@@ -3558,6 +3568,28 @@ void Leaving_EditField(itemDef_t *item)
 	}
 }
 
+// Starts editing an edit field as a click on it would, with the cursor after its text: for
+// a menu that opens ready to type in (the SJK chat menu).
+void Item_TextField_Begin( itemDef_t *item )
+{
+	char buff[2048];
+	editFieldDef_t *editPtr;
+	int len;
+
+	if ( !item || item->type != ITEM_TYPE_EDITFIELD || !item->cvar || !item->typeData.edit )
+		return;
+	editPtr = item->typeData.edit;
+	buff[0] = 0;
+	DC->getCVarString( item->cvar, buff, sizeof( buff ) );
+	len = (int)strlen( buff );
+	if ( editPtr->maxChars && len > editPtr->maxChars )
+		len = editPtr->maxChars;
+	item->cursorPos = len;
+	editPtr->paintOffset = editPtr->maxPaintChars && len > editPtr->maxPaintChars ? len - editPtr->maxPaintChars : 0;
+	g_editingField = qtrue;
+	g_editItem = item;
+}
+
 #ifdef UI_BUILD
 qboolean Item_TextField_HandleKey( itemDef_t *item, int key );
 void Item_TextField_Paste( itemDef_t *item ) {
@@ -4024,7 +4056,9 @@ void Item_StartCapture(itemDef_t *item, int key)
 }
 
 void Item_StopCapture(itemDef_t *item) {
-
+	if (itemCapture == item) {
+		Item_ClearCapture();
+	}
 }
 
 qboolean Item_Slider_HandleKey(itemDef_t *item, int key, qboolean down) {
@@ -4071,9 +4105,6 @@ qboolean Item_Slider_HandleKey(itemDef_t *item, int key, qboolean down) {
 qboolean Item_HandleKey(itemDef_t *item, int key, qboolean down) {
 	if (itemCapture) {
 		Item_StopCapture(itemCapture);
-		itemCapture = NULL;
-		captureFunc = 0;
-		captureData = NULL;
 	} else {
 		if ( down && ( key == A_MOUSE1 || key == A_MOUSE2 || key == A_MOUSE3 ) ) {
 			Item_StartCapture(item, key);
@@ -4254,6 +4285,7 @@ static void Display_CloseCinematics() {
 }
 
 void  Menus_Activate(menuDef_t *menu) {
+	Item_ClearCapture();
 	menu->window.flags |= (WINDOW_HASFOCUS | WINDOW_VISIBLE);
 	if (menu->onOpen) {
 		itemDef_t item;
@@ -4317,6 +4349,13 @@ void Menus_HandleOOBClick(menuDef_t *menu, int key, qboolean down) {
 void Menu_HandleKey(menuDef_t *menu, int key, qboolean down) {
 	int i;
 	itemDef_t *item = NULL;
+
+	// End a drag before focus, visibility or disabled-item checks can swallow
+	// the release. Mouse movement is suppressed for as long as capture exists.
+	if (itemCapture) {
+		Item_ClearCapture();
+		Menu_HandleMouseMove(menu, DC->cursorx, DC->cursory);
+	}
 
 	if (g_waitingForKey && down) {
 		Item_Bind_HandleKey(g_bindItem, key, down);
@@ -4845,10 +4884,34 @@ void Item_Text_Paint(itemDef_t *item) {
 	}
 }
 
+// Fields that draw their own box (a fill or border you can see) keep their text and cursor in it.
+static qboolean Item_TextField_Boxed( const itemDef_t *item ) {
+	return ( item->window.style == WINDOW_STYLE_FILLED && item->window.backColor[3] > 0.0f )
+		|| ( item->window.border && item->window.borderColor[3] > 0.0f );
+}
+
+// How many characters of text fit in maxWidth.
+static int Item_TextField_Fit( const char *text, float scale, int iMenuFont, float maxWidth ) {
+	char temp[1024];
+	int fit = 0, over = (int)strlen( text ) + 1;
+
+	while ( over - fit > 1 ) {
+		int mid = ( fit + over ) / 2;
+		Q_strncpyz( temp, text, Q_min( mid + 1, (int)sizeof( temp ) ) );
+		if ( DC->textWidth( temp, scale, iMenuFont ) <= maxWidth )
+			fit = mid;
+		else
+			over = mid;
+	}
+	return fit;
+}
+
 void Item_TextField_Paint(itemDef_t *item) {
 	char buff[1024];
 	vec4_t newColor, lowLight;
-	int offset;
+	int offset, limit;
+	float x;
+	char cursor;
 	menuDef_t *parent = (menuDef_t*)item->parent;
 	editFieldDef_t *editPtr = item->typeData.edit;
 
@@ -4877,11 +4940,36 @@ void Item_TextField_Paint(itemDef_t *item) {
 	}
 
 	offset = (item->text && *item->text) ? 8 : 0;
+	x = item->textRect.x + item->textRect.w + offset;
+	limit = item->window.rect.w;
+	cursor = DC->getOverstrikeMode() ? '_' : '|';
+	if ( Item_TextField_Boxed( item ) ) {
+		// the room after the label, leaving a left-aligned label's inset free on the right too
+		float pad = ( item->window.border ? item->window.borderSize : 0.0f ) + ( offset && item->textalignment == ITEM_ALIGN_LEFT ? Q_max( item->textalignx, 0.0f ) : 0.0f );
+		float maxWidth = item->window.rect.x + item->window.rect.w - pad - x;
+		float cursorWidth = DC->textWidth( va( "%c", cursor ), item->textscale, item->iMenuFont );
+		int len = (int)strlen( buff );
+
+		if ( editPtr->paintOffset > len )
+			editPtr->paintOffset = len;
+		// bring earlier text back as the line gets shorter
+		while ( editPtr->paintOffset > 0
+			&& Item_TextField_Fit( buff + editPtr->paintOffset - 1, item->textscale, item->iMenuFont, maxWidth - cursorWidth ) > len - editPtr->paintOffset )
+			editPtr->paintOffset--;
+		if ( item->window.flags & WINDOW_HASFOCUS && g_editingField ) {
+			int cursorPos = Q_min( item->cursorPos, len );
+
+			while ( editPtr->paintOffset < cursorPos
+				&& Item_TextField_Fit( buff + editPtr->paintOffset, item->textscale, item->iMenuFont, maxWidth - cursorWidth ) < cursorPos - editPtr->paintOffset )
+				editPtr->paintOffset++;
+		}
+		buff[editPtr->paintOffset + Item_TextField_Fit( buff + editPtr->paintOffset, item->textscale, item->iMenuFont, maxWidth )] = '\0';
+		limit = 0;
+	}
 	if (item->window.flags & WINDOW_HASFOCUS && g_editingField) {
-		char cursor = DC->getOverstrikeMode() ? '_' : '|';
-		DC->drawTextWithCursor(item->textRect.x + item->textRect.w + offset, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, item->cursorPos - editPtr->paintOffset , cursor, item->window.rect.w, item->textStyle, item->iMenuFont);
+		DC->drawTextWithCursor(x, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, item->cursorPos - editPtr->paintOffset , cursor, limit, item->textStyle, item->iMenuFont);
 	} else {
-		DC->drawText(item->textRect.x + item->textRect.w + offset, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, 0, item->window.rect.w, item->textStyle,item->iMenuFont);
+		DC->drawText(x, item->textRect.y, item->textscale, newColor, buff + editPtr->paintOffset, 0, limit, item->textStyle,item->iMenuFont);
 	}
 }
 
@@ -6135,7 +6223,8 @@ void Item_ListBox_Paint(itemDef_t *item) {
 							textyOffset = 0;
 //							DC->drawText(x + 4 + listPtr->columnInfo[j].pos, y + listPtr->elementHeight, item->textscale, item->window.foreColor, text, 0, listPtr->columnInfo[j].maxChars, item->textStyle);
 	//WAS LAST						DC->drawText(x + 4 + listPtr->columnInfo[j].pos, y, item->textscale, item->window.foreColor, text, 0, listPtr->columnInfo[j].maxChars, item->textStyle, item->iMenuFont);
-							DC->drawText(x + 4 + listPtr->columnInfo[j].pos, y + listPtr->elementHeight+ textyOffset + item->textaligny, item->textscale, item->window.foreColor, text, 0,listPtr->columnInfo[j].maxChars, item->textStyle, item->iMenuFont);
+							if ( !DC->feederItemPaint || !DC->feederItemPaint( item->special, i, j, x + 4 + listPtr->columnInfo[j].pos, y + listPtr->elementHeight + textyOffset + item->textaligny, item->textscale, item->window.foreColor, item->textStyle, item->iMenuFont ) )
+								DC->drawText(x + 4 + listPtr->columnInfo[j].pos, y + listPtr->elementHeight+ textyOffset + item->textaligny, item->textscale, item->window.foreColor, text, 0,listPtr->columnInfo[j].maxChars, item->textStyle, item->iMenuFont);
 
 
 //JLF END
@@ -9877,6 +9966,7 @@ void Menu_PaintAll() {
 }
 
 void Menu_Reset(void) {
+	Item_ClearCapture();
 	menuCount = 0;
 }
 

@@ -41,6 +41,9 @@ XCVAR_DEF( g_forceRegenTime,		"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cl_currentServerAddress,	"0",	NULL,					CVAR_ROM )
 
 //JAPRO HUD / DISPLAY
+// Render numeric HUD fields (health/armor/force/ammo) and the FPS/timer text with the
+// scalable font instead of the legacy low-res bitmap glyphs, so they stay sharp at high res.
+XCVAR_DEF( cg_sharpHud,				"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_movementKeys,			"0",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_movementKeysX,		"465",	NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_movementKeysY,		"432",	NULL,					CVAR_ARCHIVE )
@@ -113,6 +116,7 @@ XCVAR_DEF( cg_chatSounds,						"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_hitsounds,						"0",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_raceSounds,						"1",	NULL,								CVAR_ARCHIVE ) //Bitvalue, but so far we just have RS_TIMER_START set up
 XCVAR_DEF( cg_tauntAntiSpam,					"1",	NULL,								CVAR_ARCHIVE ) //Throttle repeated model voice lines per player
+XCVAR_DEF( cg_saberAntiSpam,					"1",	NULL,								CVAR_ARCHIVE ) //Throttle saber on/off sound spam per player
 XCVAR_DEF( cg_duelSounds,						"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_duelMusic,						"1",	NULL,								CVAR_ARCHIVE )
 XCVAR_DEF( cg_saberHum,							"0",	NULL,								CVAR_ARCHIVE ) // 0 per-player, 1-5 fixed, 6 hilt; non-stock hilt loops always win

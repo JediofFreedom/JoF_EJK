@@ -38,7 +38,7 @@ extract(shared.h codemp/game/bg_panimate.c "qboolean BG_SuperBreakLoseAnim(" "qb
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/server.h" "")
 extract(server.h codemp/game/w_force.c "#define LIGHTNING_DEFLECT_MIN_DOT" "void ForceShootLightning(")
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/visuals.h" "")
-extract(visuals.h codemp/cgame/fx_force.c "static void FX_LightningSaberShock(" "// Traces the main beam")
+extract(visuals.h codemp/cgame/fx_force.c "static void FX_LightningSaberShock(" "// cg_lightningEnvironment 1 (contained)")
 add_executable(lightning_visuals_check visuals.c ../../shared/qcommon/q_math.c)
 target_include_directories(lightning_visuals_check PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" ../../codemp ../../shared)
 target_compile_definitions(lightning_visuals_check PRIVATE _CGAME)

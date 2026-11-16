@@ -11215,6 +11215,9 @@ static void CG_StaffSwapShutdownSound( centity_t *cent, clientInfo_t *ci, staffS
 	held->offAnimTime = cent->pe.torso.animationTime;
 	held->offTime = cg.time;
 
+	if (CG_SaberToggleThrottled( cl ))
+		return;	//marked as sounded all the same, so the weapon change's copy stays quiet too
+
 	trap->S_StartSound( cent->lerpOrigin, cl, CHAN_AUTO, ci->saber[0].soundOff );
 }
 
@@ -12509,17 +12512,23 @@ void CG_Player( centity_t *cent ) {
 					&& cent->weapon != cent->currentState.weapon
 					&& !cent->currentState.saberHolstered)
 				{ //switching away from the saber
-					//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberoffquick.wav" ));
-					if (ci->saber[0].soundOff
+					//a staff going onto a JA+ back was shut down as the blade went in, not here
+					qboolean first = (qboolean)(ci->saber[0].soundOff
 						&& !cent->currentState.saberHolstered
-						&& !CG_StaffSwapShutdownSounded( cent->currentState.number ))
-					{ //a staff going onto a JA+ back was shut down as the blade went in, not here
+						&& !CG_StaffSwapShutdownSounded( cent->currentState.number ));
+					qboolean second = (qboolean)(ci->saber[1].soundOff
+						&& ci->saber[1].model[0]
+						&& !cent->currentState.saberHolstered);
+					//a weapon switch loop past this player's saber sound budget stays quiet; a
+					//shutdown already sounded on the back has nothing left to pay for
+					qboolean quiet = (qboolean)(!(first || second) || CG_SaberToggleThrottled( cent->currentState.number ));
+					//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberoffquick.wav" ));
+					if (!quiet && first)
+					{
 						trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, ci->saber[0].soundOff);
 					}
 
-					if (ci->saber[1].soundOff &&
-						ci->saber[1].model[0] &&
-						!cent->currentState.saberHolstered)
+					if (!quiet && second)
 					{
 						trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, ci->saber[1].soundOff);
 					}
@@ -12529,14 +12538,15 @@ void CG_Player( centity_t *cent ) {
 					&& cent->weapon != cent->currentState.weapon
 					&& !cent->saberWasInFlight)
 				{ //switching to the saber
+					qboolean quiet = CG_SaberToggleThrottled( cent->currentState.number );
 					//trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, trap->S_RegisterSound( "sound/weapons/saber/saberon.wav" ));
-					if (ci->saber[0].soundOn
+					if (!quiet && ci->saber[0].soundOn
 						&& !CG_StaffSwapHoldIgnitionSound( cent->currentState.number, ci->saber[0].soundOn ))
 					{ //a staff coming off a JA+ back lights when his hand gets to it, not before
 						trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, ci->saber[0].soundOn);
 					}
 
-					if (ci->saber[1].soundOn)
+					if (!quiet && ci->saber[1].soundOn)
 					{
 						trap->S_StartSound(cent->lerpOrigin, cent->currentState.number, CHAN_AUTO, ci->saber[1].soundOn);
 					}

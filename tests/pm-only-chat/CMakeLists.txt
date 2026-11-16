@@ -16,6 +16,7 @@ endfunction()
 
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "")
 extract(codemp/cgame/cg_servercmds.c "static void CG_RemoveChatEscapeChar(" "#define MAX_STRINGED_SV_STRING")
+extract(codemp/cgame/cg_draw.c "static void CG_ChatBox_Unescape(" "void CG_ChatBox_AddString(")
 # Exercise the real admission, console/log output and metadata assignment;
 # text wrapping and emoji layout are outside this filter regression.
 extract(codemp/cgame/cg_draw.c "void CG_ChatBox_AddString(" "\n\tif (strlen(chatStr)")

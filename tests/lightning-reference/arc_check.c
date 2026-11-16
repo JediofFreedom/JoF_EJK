@@ -26,7 +26,7 @@ static struct { int time, frametime; } cg = { 1000, 16 };
 static struct { float value; } cg_lightningEnvironmentAngle;
 static struct {
 	struct { int forceLightningReference, forceLightningReferenceWide, forceLightningReferenceArc;
-		int forceLightning, forceLightningWide, forceLightningBranch, forceLightningEnvironmentImpact; } effects;
+		int forceLightning, forceLightningWide, forceLightningBranch, demp2WallImpactEffectSmall; } effects;
 	struct { int forceLightningEnvironmentArcSounds[3]; } media;
 } cgs = { { 40, 41, 42 }, { { 11, 12, 13 } } };
 

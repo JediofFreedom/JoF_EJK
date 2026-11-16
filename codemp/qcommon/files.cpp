@@ -261,7 +261,9 @@ cvar_t				*fs_loadpakdlls;
 #endif
 #if !defined(DEDICATED) && !defined(TOURNAMENT_CLIENT)
 static cvar_t		*fs_globalcfg;
+static char			fs_cmdlineGame[MAX_QPATH];	// +set fs_game from the command line, still mounted with fs_globalcfg 1
 #endif
+static char			fs_gameModuleDir[MAX_QPATH];	// game folder the server game module was last loaded from
 static searchpath_t	*fs_searchpaths;
 static int			fs_readCount;			// total bytes read
 static int			fs_loadCount;			// total files read
@@ -2066,7 +2068,7 @@ int	FS_FileIsInPAK(const char *filename, int *pChecksum ) {
 
 long FS_ReadDLLInPAK(const char *filename, void **buffer) {
 	searchpath_t	*search;
-	pack_t			*pak;
+	pack_t			*pak = NULL;
 	fileInPack_t	*pakFile;
 	long			hash = 0;
 	fileHandle_t	file;
@@ -2098,8 +2100,16 @@ long FS_ReadDLLInPAK(const char *filename, void **buffer) {
 	file = FS_HandleForFile();
 	fsh[file].handleFiles.unique = qfalse;
 
+	// A +set fs_game mod ranks below the client's own paks (FS_CmdlineGame), but a local
+	// server should still run the mod's game module, so look in the mod's paks first.
+	const char *modGame = Q_stricmpn(filename, "jampgame", 8) ? "" : FS_CmdlineGame();
+
+	for (int pass = modGame[0] ? 0 : 1; pass < 2 && !len; pass++)
 	for (search = fs_searchpaths; search; search = search->next) {
 		qboolean breakSearch = qfalse;
+		if (pass == 0 && (!search->pack || Q_stricmp(search->pack->pakGamename, modGame))) {
+			continue;
+		}
 		if (search->pack) {
 			hash = FS_HashFileName(filename, search->pack->hashSize);
 		}
@@ -2142,6 +2152,10 @@ long FS_ReadDLLInPAK(const char *filename, void **buffer) {
 			} while (pakFile != NULL);
 		}
 		if (breakSearch) break;
+	}
+
+	if (len) {
+		FS_NoteGameModule(filename, pak->pakGamename);
 	}
 
 	if (file == 0) {
@@ -3632,6 +3646,46 @@ static void FS_ReorderPurePaks()
 	}
 }
 
+/*
+================
+FS_CmdlineGame
+
+The mod folder given with +set fs_game while fs_globalcfg 1 keeps the game folder at
+fs_basegame, or "". It is mounted below base, and a local server runs its game module.
+================
+*/
+const char *FS_CmdlineGame( void ) {
+#if !defined(DEDICATED) && !defined(TOURNAMENT_CLIENT)
+	if ( fs_globalcfg && fs_globalcfg->integer && Q_stricmp( fs_cmdlineGame, fs_basegame->string ) )
+		return fs_cmdlineGame;
+#endif
+	return "";
+}
+
+/*
+================
+FS_NoteGameModule
+
+Remembers the game folder the server game module (jampgame) was loaded from, out of a
+pk3 (FS_ReadDLLInPAK) or as a loose file (Sys_LoadDllFromPaths).
+================
+*/
+void FS_NoteGameModule( const char *filename, const char *gameDir ) {
+	if ( !Q_stricmpn( filename, "jampgame", 8 ) )
+		Q_strncpyz( fs_gameModuleDir, gameDir, sizeof( fs_gameModuleDir ) );
+}
+
+/*
+================
+FS_CmdlineGameModule
+
+Whether the server game module came from the FS_CmdlineGame mod, so the server runs its code.
+================
+*/
+qboolean FS_CmdlineGameModule( void ) {
+	return (qboolean)( FS_CmdlineGame()[0] && !Q_stricmp( fs_gameModuleDir, FS_CmdlineGame() ) );
+}
+
 /**
 	@brief Mount the asset archives (.pk3) and register commands.
 
@@ -3647,6 +3701,9 @@ static void FS_ReorderPurePaks()
 	8.  <fs_cdpath>/<fs_game>/
 	9.  <fs_basepath>/<fs_game>/
 	10. <fs_homepath>/<fs_game>/
+
+	Later entries take priority. With fs_globalcfg 1, 8-10 are <fs_basegame> again, and a
+	fs_game folder from the command line (FS_CmdlineGame) is mounted before 1 instead.
 
 	@param gameName Name of the default folder (i.e. always BASEGAME = "base" in OpenJK)
 */
@@ -3675,7 +3732,7 @@ void FS_Startup( const char *gameName ) {
 #ifndef DEDICATED
 	//cancer?
 #ifndef TOURNAMENT_CLIENT
-	fs_globalcfg = Cvar_Get("fs_globalcfg", "1", CVAR_ARCHIVE/* | CVAR_LATCH*/ | CVAR_NORESTART | CVAR_PROTECTED, "Only read/write files from base and EternalJK folders (requires filesystem restart)");
+	fs_globalcfg = Cvar_Get("fs_globalcfg", "1", CVAR_ARCHIVE/* | CVAR_LATCH*/ | CVAR_NORESTART | CVAR_PROTECTED, "Only read/write files from base and EternalJK folders; a +set fs_game folder is only read, below base (requires filesystem restart)");
 
 	if (fs_globalcfg->integer)
 		fs_gamedirvar = fs_basegame;
@@ -3695,6 +3752,22 @@ void FS_Startup( const char *gameName ) {
 #endif
 
 	// add search path elements in reverse priority order (lowest priority first)
+#if !defined(DEDICATED) && !defined(TOURNAMENT_CLIENT)
+	// fs_globalcfg ignores fs_game, but still mount a mod folder given on the command line.
+	// It goes below base, so the client keeps its own menus, effects and configs and the
+	// mod only adds files of its own, such as its server game module (FS_ReadDLLInPAK).
+	if ( FS_CmdlineGame()[0] ) {
+		if (fs_cdpath->string[0]) {
+			FS_AddGameDirectory(fs_cdpath->string, fs_cmdlineGame);
+		}
+		if (fs_basepath->string[0]) {
+			FS_AddGameDirectory(fs_basepath->string, fs_cmdlineGame);
+		}
+		if (fs_homepath->string[0] && !Sys_PathCmp(fs_homepath->string, fs_basepath->string)) {
+			FS_AddGameDirectory(fs_homepath->string, fs_cmdlineGame);
+		}
+	}
+#endif
 	if (fs_cdpath->string[0]) {
 		FS_AddGameDirectory( fs_cdpath->string, gameName );
 	}
@@ -4163,6 +4236,12 @@ void FS_InitFilesystem( void ) {
 	if(!FS_FilenameCompare(Cvar_VariableString("fs_game"), BASEGAME))
 		Cvar_Set("fs_game", "");
 
+#if !defined(DEDICATED) && !defined(TOURNAMENT_CLIENT)
+	Q_strncpyz( fs_cmdlineGame, Cvar_VariableString( "fs_game" ), sizeof( fs_cmdlineGame ) );
+	if ( FS_CheckDirTraversal( fs_cmdlineGame ) )
+		fs_cmdlineGame[0] = '\0';
+#endif
+
 	Cmd_AddCommand("fs_restart", FS_Restart_f, "Restarts the filesystem loading any new paks to search paths");
 
 	// try to start up normally
@@ -4293,6 +4372,19 @@ int		FS_FOpenFileByMode( const char *qpath, fileHandle_t *f, fsMode_t mode ) {
 	qboolean	sync;
 
 	sync = qfalse;
+
+	// An SJK identity key is a player's private key (client/cl_sjk.cpp). No module,
+	// least of all one a server sent, may open one, wherever a copy of it sits.
+	const char *name = qpath;
+	for ( const char *p = qpath; p && *p; p++ ) {
+		if ( *p == '/' || *p == '\\' )
+			name = p + 1;
+	}
+	if ( name && !Q_stricmp( name, "identity.key" ) ) {
+		Com_Printf( S_COLOR_YELLOW "FS_FOpenFileByMode: refused to open %s, a private key\n", qpath );
+		*f = 0;
+		return -1;
+	}
 
 	switch( mode ) {
 	case FS_READ:
