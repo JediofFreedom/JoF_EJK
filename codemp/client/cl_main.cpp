@@ -3402,11 +3402,7 @@ static void CL_UpdateVulkanAvailability(void)
 #endif
 }
 
-#ifdef EJK_DEFAULT_VULKAN
-#define DEFAULT_RENDER_LIBRARY "rd-vulkan"
-#else
 #define DEFAULT_RENDER_LIBRARY "rd-eternaljk"
-#endif
 #define FALLBACK_RENDER_LIBRARY "rd-eternaljk"
 
 static void *CL_LoadRendererLibrary(void) {

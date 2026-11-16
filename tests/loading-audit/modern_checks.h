@@ -33,7 +33,6 @@ static void check() {
 }
 
 namespace rendererLoaderTest {
-#define DEFAULT_RENDER_LIBRARY "rd-vulkan"
 #define FALLBACK_RENDER_LIBRARY "rd-eternaljk"
 #define ARCH_STRING "test"
 #define DLL_EXT ".module"
@@ -59,16 +58,20 @@ static void *Sys_LoadDll(const char *name, qboolean) {
 #include "renderer_loader.h"
 static void reset() { selected.clear(); loads.clear(); fallback.integer = 0; supported.integer = 1; vulkanPresent = true; }
 static void check() {
-    reset(); CHECK(CL_LoadRendererLibrary()); CHECK(loads == std::vector<std::string>{"rd-vulkan_test.module"});
-    reset(); supported.integer = 0; bool failed = false;
+    reset(); CHECK(CL_LoadRendererLibrary()); CHECK(loads == std::vector<std::string>{"rd-eternaljk_test.module"});
+    reset(); supported.integer = 0; vulkanPresent = false;
+    CHECK(CL_LoadRendererLibrary() && selected == "rd-eternaljk");
+    reset(); selected = "rd-vulkan";
+    CHECK(CL_LoadRendererLibrary() && loads == std::vector<std::string>{"rd-vulkan_test.module"});
+    reset(); selected = "rd-vulkan"; supported.integer = 0; bool failed = false;
     try { CL_LoadRendererLibrary(); } catch (...) { failed = true; }
     CHECK(failed && loads.empty());
-    reset(); vulkanPresent = false; failed = false;
+    reset(); selected = "rd-vulkan"; vulkanPresent = false; failed = false;
     try { CL_LoadRendererLibrary(); } catch (...) { failed = true; }
     CHECK(failed && loads.size() == 1 && selected == "rd-vulkan");
-    reset(); vulkanPresent = false; fallback.integer = 1;
+    reset(); selected = "rd-vulkan"; vulkanPresent = false; fallback.integer = 1;
     CHECK(CL_LoadRendererLibrary() && loads.size() == 2 && selected == "rd-eternaljk");
-    reset(); supported.integer = 0; fallback.integer = 1;
+    reset(); selected = "rd-vulkan"; supported.integer = 0; fallback.integer = 1;
     CHECK(CL_LoadRendererLibrary() && loads == std::vector<std::string>{"rd-eternaljk_test.module"});
     reset(); selected = "rd-eternaljk"; CHECK(CL_LoadRendererLibrary() && loads.size() == 1);
 }

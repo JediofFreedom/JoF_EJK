@@ -475,9 +475,6 @@ if(BuildMPEngine)
 	set(MPEngineIncludeDirectories ${MPEngineAndDedIncludeDirectories})
 	set(MPEngineFiles ${MPEngineAndDedFiles})
 	set(MPEngineDefines ${MPSharedDefines})
-	if(BuildMPRdVulkan OR DEFINED EXTERNAL_RD_VULKAN_MODULE)
-		list(APPEND MPEngineDefines EJK_DEFAULT_VULKAN)
-	endif()
 
 	list(APPEND MPEngineIncludeDirectories ${CMAKE_CURRENT_BINARY_DIR}/versionfile) # Make sure the generated jofversion.h is found by all subsequent includes
 

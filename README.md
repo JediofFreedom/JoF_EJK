@@ -24,7 +24,8 @@ Installing and running EternalJK:
 2. Extract the file into the Jedi Academy `GameData` folder. For Steam users, this will be in `<Steam Folder>/steamapps/common/Jedi Academy/GameData/`.
 3. Run eternaljk.x86.exe (Rename to jamp.exe for better steam support)
 
-The native Vulkan renderer is built from source by default (`BuildMPRdVulkan=ON`).
+OpenGL (`rd-eternaljk`) is the default renderer. The native Vulkan renderer is
+also built from source by default (`BuildMPRdVulkan=ON`) and is opt-in.
 Select it with `+set cl_renderer rd-vulkan`; add `+set cl_rendererFallback 0`
 when testing to require that renderer. It uses Vulkan directly, without an
 OpenGL rendering layer. See [backend provenance and build details](codemp/rd-vulkan/UPSTREAM.md)

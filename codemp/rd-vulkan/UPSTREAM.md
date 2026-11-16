@@ -49,11 +49,12 @@ negotiates up to Vulkan 1.4 through vkEnumerateInstanceVersion, with a 1.0
 loader fallback. The API version does not by itself add rendering features or
 establish a performance gain.
 
-Native Vulkan is the default when built/shipped. OpenGL fallback requires an
+OpenGL (`rd-eternaljk`) is the default renderer. Native Vulkan is opt-in via
+`+set cl_renderer rd-vulkan`. Falling back from a selected renderer requires an
 explicit `cl_rendererFallback 1`; the default is 0. The Vulkan module receives
 no OpenGL procedure/extension callbacks and never creates an OpenGL context.
 The complete client no longer links OpenGL on behalf of renderer modules.
-Legacy renderers remain explicit alternatives for compatibility/comparison.
+Other renderer modules remain selectable for compatibility/comparison.
 
 Renderer API 11 includes validated filesystem source identities for resident
 textures and the actual writable cache path (added after API 10).

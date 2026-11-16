@@ -108,7 +108,7 @@ No resolution, texture-quality or sound reduction is used for these gains.
 
 ### GPU residency follow-up
 
-The native Vulkan default now retains independently owned immutable textures
+The opt-in native Vulkan renderer now retains independently owned immutable textures
 across map changes. On the same machine, settings and three-map cycle above,
 three alternating pairs used the same new binary with `r_textureCacheMegs`
 set to 0 or 512 before renderer startup. Pair order was 0/512, 512/0, 0/512;
