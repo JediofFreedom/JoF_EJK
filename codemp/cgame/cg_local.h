@@ -1076,7 +1076,10 @@ typedef struct chatBoxItem_s
 	qboolean		sjkInAll;	// the label reads ALL/SJK: said in All chat too
 	char			sjkWho[64];	// who said it, with colours
 	char			sjkId[10];	// its id in the feed
+	char			sjkGif[48];	// its GIF's GIPHY id, drawn in the last CHATBOX_GIF_ROWS of its lines; "" for none
 } chatBoxItem_t;
+
+#define CHATBOX_GIF_ROWS		3	// an SJK chat message's GIF is three rows high, as in SJK's chat box
 
 #define	MAX_CLIENT_SPEEDPOINTS		32
 typedef struct clientSpeedpoint_s
@@ -2332,6 +2335,7 @@ typedef struct cgs_s {
 	int				numClients;
 
 	qboolean		sjkChat;	// the engine hands this cgame SJK chat (cg_main.c, SJK_SetChatSink)
+	qboolean		sjkGifs;	// and its lines' GIFs, which it draws (cl_sjkChatGifDraw, SJK_DrawGif)
 
 } cgs_t;
 

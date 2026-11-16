@@ -489,7 +489,19 @@ typedef struct sjkChatLine_s {
 	const char		*words;
 	const char		*client;
 	const char		*id;
+	// The GIPHY id of the GIF to show under the text ("" for none; its link reads GIF in the
+	// text). Only there when the "cl_sjkChatGifDraw" cvar is non-zero: older engines end
+	// the struct before it.
+	const char		*gif;
 } sjkChatLine_t;
+
+// What SJK_DrawGif did (client/cl_sjk_gif.cpp).
+typedef enum {
+	SJK_GIF_OFF = -2,			// cl_sjkChatGifs 0: nothing drawn, nothing fetched
+	SJK_GIF_UNAVAILABLE = -1,	// it could not be had
+	SJK_GIF_LOADING = 0,
+	SJK_GIF_DRAWN = 1,
+} sjkGifStatus_t;
 
 typedef struct cgameImport_s {
 	// common
@@ -749,6 +761,10 @@ typedef struct cgameImport_s {
 	void			(*SJK_SetChatSink)						( void (*sink)( const sjkChatLine_t *line ) );
 	// The cgame saw the game server's copy of message id: it was said in All chat too.
 	void			(*SJK_SaidInAll)						( const char *id );
+	// Only valid when the "cl_sjkChatGifDraw" cvar is non-zero. Draws GIPHY GIF id (a
+	// line's gif) fitted into x, y, w, h of the 640x480 screen, at its left, at once, and
+	// says how it went (sjkGifStatus_t): the first call asks for it.
+	int				(*SJK_DrawGif)							( const char *id, float x, float y, float w, float h );
 
 } cgameImport_t;
 

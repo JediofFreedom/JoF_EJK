@@ -493,10 +493,11 @@ struct sjkAnswer_t {
 // chat's own notice (who empty). A line of the backlog, what was said before this client
 // came, goes only to the SJK chat menu's history.
 struct sjkLine_t {
-	std::string		text;		// a notice, or the message without colour codes, GIFs as <GIF>
+	std::string		text;		// a notice, or the message without colour codes, GIFs as <GIF> (GIF for gif's)
 	std::string		client;		// the client it came from, "sjk" or "ejk" (SJK_MessageClient)
 	std::string		id;			// its id in the feed, empty for a notice
 	std::string		who;		// the sender's name with its colours and verified mark
+	std::string		gif;		// the GIPHY id of the GIF to show under the text, or empty
 	std::string		nameWords;	// the sender's name's letters and digits (SJK_Words) and
 	std::string		words;		// the message's, to tell the server's copy of it
 	bool			backlog = false;
@@ -803,7 +804,8 @@ static bool SJK_GifId( const std::string &id ) {
 // user or port, and one of `giphy.com/gifs|stickers/<slug>-<id>`, `giphy.com/embed/<id>`
 // (also www.), `media[0-4].giphy.com/media/[v1.<token>/]<id>/<file>`, `i.giphy.com/<id>.gif`
 // (.webp) or `i.giphy.com/media/[v1.<token>/]<id>/<file>`; query and fragment ignored.
-static bool SJK_GiphyLink( const std::string &word ) {
+// Its GIF's id goes to *id when given.
+static bool SJK_GiphyLink( const std::string &word, std::string *id = NULL ) {
 	std::string rest;
 	if ( !Q_stricmpn( word.c_str(), "https://", 8 ) )
 		rest = word.substr( 8 );
@@ -834,19 +836,26 @@ static bool SJK_GiphyLink( const std::string &word ) {
 		if ( segment.empty() )
 			return false;
 	}
-	auto media = [&segments]( void ) {
+	auto found = [id]( const std::string &gif ) {
+		if ( !SJK_GifId( gif ) )
+			return false;
+		if ( id )
+			*id = gif;
+		return true;
+	};
+	auto media = [&segments, &found]( void ) {
 		if ( segments.size() == 3 && segments[0] == "media" )
-			return SJK_GifFileName( segments[2] ) && SJK_GifId( segments[1] );
+			return SJK_GifFileName( segments[2] ) && found( segments[1] );
 		if ( segments.size() == 4 && segments[0] == "media" )
-			return SJK_GifShareToken( segments[1] ) && SJK_GifFileName( segments[3] ) && SJK_GifId( segments[2] );
+			return SJK_GifShareToken( segments[1] ) && SJK_GifFileName( segments[3] ) && found( segments[2] );
 		return false;
 	};
 	if ( host == "giphy.com" || host == "www.giphy.com" ) {
 		if ( segments.size() == 2 && ( segments[0] == "gifs" || segments[0] == "stickers" ) ) {
 			const size_t dash = segments[1].rfind( '-' );
-			return SJK_GifId( dash == std::string::npos ? segments[1] : segments[1].substr( dash + 1 ) );
+			return found( dash == std::string::npos ? segments[1] : segments[1].substr( dash + 1 ) );
 		}
-		return segments.size() == 2 && segments[0] == "embed" && SJK_GifId( segments[1] );
+		return segments.size() == 2 && segments[0] == "embed" && found( segments[1] );
 	}
 	if ( host == "media.giphy.com" || ( host.size() == 16 && !host.compare( 0, 5, "media" ) && host[5] >= '0' && host[5] <= '4' && !host.compare( 6, 10, ".giphy.com" ) ) )
 		return media();
@@ -856,7 +865,7 @@ static bool SJK_GiphyLink( const std::string &word ) {
 			for ( const char *extension : { ".gif", ".webp" } ) {
 				const size_t length = strlen( extension );
 				if ( file.size() > length && !file.compare( file.size() - length, length, extension ) )
-					return SJK_GifId( file.substr( 0, file.size() - length ) );
+					return found( file.substr( 0, file.size() - length ) );
 			}
 			return false;
 		}
@@ -865,9 +874,11 @@ static bool SJK_GiphyLink( const std::string &word ) {
 	return false;
 }
 
-// text (UTF-8) with each GIPHY link as <GIF>: JoF EJK shows no GIFs. Words split on
-// spaces, as SJK's chat tidies them; the punctuation ending a sentence after a link stays.
-static std::string SJK_GifText( const std::string &text ) {
+// text (UTF-8) with each GIPHY link as <GIF>. With gif, the first link reads GIF and its
+// GIF's id goes to *gif, for the chat box to show under the text (cl_sjk_gif.cpp), as SJK
+// shows a message's first GIF. Words split on spaces, as SJK's chat tidies them; the
+// punctuation ending a sentence after a link stays.
+static std::string SJK_GifText( const std::string &text, std::string *gif = NULL ) {
 	std::string out;
 	size_t at = 0;
 	for ( ;; ) {
@@ -875,8 +886,13 @@ static std::string SJK_GifText( const std::string &text ) {
 		const std::string word = text.substr( at, end == std::string::npos ? std::string::npos : end - at );
 		size_t length = word.find_last_not_of( ".,!?;:)]>'\"" );
 		length = length == std::string::npos ? 0 : length + 1;
-		if ( length && SJK_GiphyLink( word.substr( 0, length ) ) )
-			out += "<GIF>" + word.substr( length );
+		std::string id;
+		if ( length && SJK_GiphyLink( word.substr( 0, length ), &id ) ) {
+			const bool shown = gif && gif->empty();
+			if ( shown )
+				*gif = id;
+			out += ( shown ? "GIF" : "<GIF>" ) + word.substr( length );
+		}
 		else
 			out += word;
 		if ( end == std::string::npos )
@@ -904,16 +920,29 @@ static std::string SJK_Words( const std::string &text ) {
 	return words;
 }
 
+// cl_sjkChatGifs, for the feed's worker (CL_SJK_Frame follows it).
+static std::atomic<bool>	s_gifsOn{ true };
+
+// Whether a sender's GIFs play, as SJK has it (its chat_gifs::plays_from, Sol's decision
+// of 10/11/2026): only from players the SJK team verified, staff and the creator.
+static bool SJK_GifsPlayFrom( const cJSON *message ) {
+	return cJSON_IsTrue( cJSON_GetObjectItemCaseSensitive( message, "verified" ) )
+		|| cJSON_IsTrue( cJSON_GetObjectItemCaseSensitive( message, "staff" ) )
+		|| cJSON_IsTrue( cJSON_GetObjectItemCaseSensitive( message, "creator" ) );
+}
+
 // One chat message of the feed in its parts (sjkLine_t; text empty when it has none):
 // the name with its colours and a green + for a verified sender, the text without the
-// colours its sender put in and with GIFs as <GIF>, and what tells its server's copy.
+// colours its sender put in and with GIFs as <GIF>, the first one's id when it shows
+// (GIFs on, a sender whose GIFs play), and what tells its server's copy.
 static sjkLine_t SJK_MessageParts( const cJSON *message ) {
 	sjkLine_t line;
 	const cJSON *name = cJSON_GetObjectItemCaseSensitive( message, "name" );
 	const cJSON *text = cJSON_GetObjectItemCaseSensitive( message, "text" );
 	if ( !cJSON_IsString( text ) )
 		return line;
-	std::string shown = SJK_FromUTF8( SJK_GifText( text->valuestring ) );
+	const bool gifs = s_gifsOn && SJK_GifsPlayFrom( message );
+	std::string shown = SJK_FromUTF8( SJK_GifText( text->valuestring, gifs ? &line.gif : NULL ) );
 	Q_StripColor( &shown[0] );
 	line.text = shown.c_str();
 	line.who = cJSON_IsString( name ) ? SJK_FromUTF8( name->valuestring ) : "?";
@@ -1505,6 +1534,7 @@ CLIENT (main thread)
 static cvar_t			*cl_sjkChat;
 static cvar_t			*cl_hubUrl;
 static cvar_t			*cl_sjkClaims;
+cvar_t					*cl_sjkChatGifs;	// cl_sjk_gif.cpp reads it too
 static sjkSession_t		*s_session;
 static std::string		s_identityWhere, s_identityError, s_identityKeyId, s_agent;
 // The SJK chat menu's history (ui's FEEDER_SJK_CHAT): the last lines, the backlog the
@@ -1790,6 +1820,8 @@ static void SJK_UpdateStatus( void ) {
 void CL_SJK_Init( void ) {
 	Cvar_Get( "cl_sjkChatStatus", "", CVAR_ROM, "How SJK chat is doing, as its menu shows it" );
 	cl_sjkChat = Cvar_Get( "cl_sjkChat", "1", CVAR_ARCHIVE_ND, "SJK chat: talk with SJK players on any server (messagemode6, sjksay)" );
+	cl_sjkChatGifs = Cvar_Get( "cl_sjkChatGifs", "1", CVAR_ARCHIVE_ND, "SJK chat: show the GIF of a GIPHY link in the chat box, fetched from GIPHY (0 = links read <GIF>, nothing fetched)" );
+	s_gifsOn = cl_sjkChatGifs->integer != 0;
 	cl_hubUrl = Cvar_Get( "cl_hubUrl", SJK_DEFAULT_HUB, CVAR_ARCHIVE_ND | CVAR_PROTECTED, "The SJK hub SJK chat goes through" );
 	cl_sjkClaims = Cvar_Get( "cl_sjkClaims", "1", CVAR_ARCHIVE_ND, "SJK chat: tell the hub which server and slot are yours, so SJK players see who you are (0 keeps it to chat)" );
 	Cmd_AddCommand( "sjksay", CL_SJK_Say_f, "Say something on SJK chat" );
@@ -1806,6 +1838,7 @@ void CL_SJK_Frame( void ) {
 		SJK_Start();
 	}
 	SJK_FollowPlace();
+	s_gifsOn = cl_sjkChatGifs->integer != 0;
 
 	std::deque<sjkLine_t> lines;
 	std::deque<sjkServerCopy_t> copies;
@@ -1842,7 +1875,7 @@ void CL_SJK_Frame( void ) {
 		SJK_Remember( line );
 		// The console copy, the chat box's or this one, starts with the icon too.
 		Con_SetPrintIcon( line.client == "sjk" ? CON_ICON_SJK : line.client == "ejk" ? CON_ICON_EJK : CON_ICON_NONE );
-		const sjkChatLine_t parts = { line.who.c_str(), line.text.c_str(), line.nameWords.c_str(), line.words.c_str(), line.client.c_str(), line.id.c_str() };
+		const sjkChatLine_t parts = { line.who.c_str(), line.text.c_str(), line.nameWords.c_str(), line.words.c_str(), line.client.c_str(), line.id.c_str(), line.gif.c_str() };
 		if ( !CL_SJK_ToChatBox( &parts ) )
 			Com_Printf( "%s\n", SJK_ConsoleLine( line ).c_str() );
 		Con_SetPrintIcon( CON_ICON_NONE );

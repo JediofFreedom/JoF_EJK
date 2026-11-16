@@ -615,6 +615,8 @@ int CL_SJK_ChatLineCount(int *revision);	// the SJK chat menu's history (ui)
 qboolean CL_SJK_ChatLine(int index, char *who, int whoSize, char *text, int textSize, char *client, int clientSize, qboolean *inAll);
 void CL_SJK_SaidInAll(const char *id);	// the cgame saw a message's copy in All chat
 qboolean CL_SJK_ToChatBox(const sjkChatLine_t *line);	// cl_cgameapi.cpp
+extern cvar_t *cl_sjkChatGifs;	// GIPHY links in SJK chat show their GIF (cl_sjk.cpp)
+int CL_SJK_DrawGif(const char *id, float x, float y, float w, float h);	// cl_sjk_gif.cpp, sjkGifStatus_t
 qboolean CL_SJK_ServerSession(char *serverId, int serverIdSize, char *mapname, int mapnameSize);	// cl_parse.cpp
 // Where the player is, for SJK's slot claims (cl_sjk.cpp): in no game server's match,
 // connected but not in the match yet, or in it.

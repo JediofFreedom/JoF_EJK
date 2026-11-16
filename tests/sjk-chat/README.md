@@ -18,7 +18,9 @@ The standalone harness compiles the production SJK chat code,
 - how a feed message reads in the game: in its parts, its colours left out, the
   verified mark, the label (`SJK`, or `ALL/SJK`) as the console shows it, and the
   client it came from, only `sjk` or `ejk`, for its icon;
-- GIPHY links as SJK reads them, each shown as `<GIF>`, and links that are not;
+- GIPHY links as SJK reads them, each shown as `<GIF>`, and links that are not; the
+  first one's id, its link reading `GIF`, only for a verified sender, staff or the
+  creator, and only with `cl_sjkChatGifs` on;
 - the words that tell a message's copy on a server: letters and digits, lower case,
   without colour codes or other scripts;
 - a feed read's answer: only an object with a numeric `next` and a `chat` list moves
