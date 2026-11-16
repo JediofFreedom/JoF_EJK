@@ -585,7 +585,7 @@ jobs:
   # ALPHA
   # =========================
   alpha-version:
-    if: github.ref == 'refs/heads/alpha' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/alpha' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     name: Reserve Alpha Version
     runs-on: ubuntu-latest
     outputs:
@@ -659,7 +659,7 @@ jobs:
           exit 1
 
   windows-alpha:
-    if: github.ref == 'refs/heads/alpha' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/alpha' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     name: Windows ${{ matrix.arch }} Release (Alpha)
     needs: alpha-version
     runs-on: windows-2022
@@ -760,7 +760,7 @@ jobs:
           if-no-files-found: warn
 
   linux-alpha:
-    if: github.ref == 'refs/heads/alpha' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/alpha' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     name: Linux ${{ matrix.arch }} Release (Alpha)
     needs: alpha-version
     runs-on: ubuntu-22.04
@@ -860,7 +860,7 @@ jobs:
           if-no-files-found: error
 
   macos-alpha:
-    if: github.ref == 'refs/heads/alpha' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/alpha' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     name: macOS ${{ matrix.arch }} Release (Alpha)
     needs: alpha-version
     runs-on: ${{ matrix.runner }}
@@ -984,7 +984,7 @@ jobs:
           if-no-files-found: error
 
   publish-alpha:
-    if: github.ref == 'refs/heads/alpha' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/alpha' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     name: Publish Alpha Release
     needs: [alpha-version, windows-alpha, linux-alpha, macos-alpha]
     runs-on: ubuntu-22.04
