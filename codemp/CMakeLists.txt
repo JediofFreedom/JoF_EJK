@@ -589,6 +589,7 @@ if(BuildMPEngine)
 		"${MPDir}/client/cl_uiapi.cpp"
 		"${MPDir}/client/cl_uiapi.h"
 		"${MPDir}/client/cl_sjk.cpp"
+		"${MPDir}/client/cl_sjk_gif.cpp"
 		"${MPDir}/client/cl_update.cpp"
 		"${MPDir}/client/FXExport.cpp"
 		"${MPDir}/client/FXExport.h"

@@ -156,7 +156,19 @@ static void CheckMessageLine( void ) {
 	line = SJK_MessageParts( message );
 	require( line.text == "look <GIF>!", "a GIF shows as <GIF>: " + line.text );
 	require( line.words == "lookhttpsgiphycomgifs3oehmhmwp3y9wqxoli", "its words are what was said, the link too: " + line.words );
+	require( line.gif.empty(), "an unverified sender's GIF never plays" );
 	cJSON_Delete( message );
+	// Only verified senders', staff's and the creator's GIFs play, as in SJK.
+	for ( const char *mark : { "\"verified\":true", "\"staff\":true", "\"creator\":true" } ) {
+		message = cJSON_Parse( ( std::string( "{\"id\":16,\"name\":\"Fox\"," ) + mark + ",\"text\":\"look https://giphy.com/gifs/3oEhmHmWP3Y9wQxoli!\"}" ).c_str() );
+		line = SJK_MessageParts( message );
+		require( line.text == "look GIF!" && line.gif == "3oEhmHmWP3Y9wQxoli", std::string( "a GIF that plays: " ) + mark + " " + line.text );
+		s_gifsOn = false;
+		line = SJK_MessageParts( message );
+		s_gifsOn = true;
+		require( line.text == "look <GIF>!" && line.gif.empty(), std::string( "cl_sjkChatGifs 0: <GIF>, nothing fetched: " ) + mark );
+		cJSON_Delete( message );
+	}
 	const sjkLine_t notice = { S_COLOR_YELLOW "SJK chat: not sent" };
 	require( SJK_ConsoleLine( notice ) == notice.text, "a notice as it is" );
 
@@ -193,6 +205,21 @@ static void CheckGifs( void ) {
 	require( SJK_GifText( "look https://giphy.com/gifs/3oEhmHmWP3Y9wQxoli!! and https://giphy.com/embed/W3QKEujo8vztC." )
 		== "look <GIF>!! and <GIF>.", "links in a line, the punctuation after each kept" );
 	require( SJK_GifText( " a  b " ) == " a  b ", "spaces as they were" );
+
+	// The GIF the chat box shows: the first link's id, that link reading GIF, the rest <GIF>.
+	for ( const char *link : { "https://giphy.com/gifs/happy-birthday-cake-3oEhmHmWP3Y9wQxoli",
+			"https://giphy.com/embed/3oEhmHmWP3Y9wQxoli", "https://media.giphy.com/media/3oEhmHmWP3Y9wQxoli/giphy.gif",
+			"https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/3oEhmHmWP3Y9wQxoli/200w.webp",
+			"https://i.giphy.com/3oEhmHmWP3Y9wQxoli.gif", "https://i.giphy.com/media/3oEhmHmWP3Y9wQxoli/giphy-downsized.gif" } ) {
+		std::string gif;
+		require( SJK_GifText( link, &gif ) == "GIF" && gif == "3oEhmHmWP3Y9wQxoli", std::string( "its GIF's id: " ) + link + " -> " + gif );
+	}
+	std::string gif;
+	require( SJK_GifText( "look https://giphy.com/gifs/3oEhmHmWP3Y9wQxoli!! and https://giphy.com/embed/W3QKEujo8vztC.", &gif )
+		== "look GIF!! and <GIF>." && gif == "3oEhmHmWP3Y9wQxoli", "only the first link's GIF shows" );
+	gif.clear();
+	require( SJK_GifText( "https://giphy.com/gifs/happy-birthday", &gif ) == "https://giphy.com/gifs/happy-birthday" && gif.empty(),
+		"no GIF, no id" );
 }
 
 // What of a line survives a game server's old code pages, to know its copy there.

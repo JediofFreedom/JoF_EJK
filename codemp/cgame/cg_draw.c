@@ -10995,16 +10995,37 @@ static void CG_SJKAddMessage(const sjkChatLine_t *line, qhandle_t icon, qboolean
 	chat->string[w] = '\0';
 	if (!chat->lines)
 		chat->lines = 1;
+	// Its GIF under the text, in rows of its own (CG_SJKChatBoxPaint).
+	if (cgs.sjkGifs && line->gif && line->gif[0]) {
+		Q_strncpyz(chat->sjkGif, line->gif, sizeof(chat->sjkGif));
+		chat->lines += CHATBOX_GIF_ROWS;
+	}
 
 	cg.chatItemActive++;
 	if (cg.chatItemActive >= cg_chatBoxLines.integer)
 		cg.chatItemActive = 0;
 }
 
+// An SJK chat message's GIF in its rows from y (the engine draws it, client/cl_sjk_gif.cpp),
+// within the box's width; while it loads, or when it could not be had, a quiet line says so.
+static void CG_SJKChatBoxGif(const chatBoxItem_t *item, float x, float y, float scale)
+{
+	static vec4_t quiet = { 0.9608f, 0.7804f, 0.3373f, 0.55f };
+	const float rowHeight = CHATBOX_FONT_HEIGHT * scale;
+	const float pad = 2 * scale;
+	const int status = trap->SJK_DrawGif(item->sjkGif, x, y + pad, cg_chatBoxCutOffLength.value,
+		CHATBOX_GIF_ROWS * rowHeight - 2 * pad);
+
+	if (status == SJK_GIF_LOADING || status == SJK_GIF_UNAVAILABLE) {
+		CG_Text_Paint(x, y + pad, scale, quiet, status == SJK_GIF_LOADING ? "Loading GIF" : "GIF unavailable",
+			0, 0, ITEM_TEXTSTYLE_OUTLINED, CG_ChatBoxFont());
+	}
+}
+
 // An SJK chat message's item (CG_SJKAddMessage) at x, y: its sender's name in its own
-// colours, the label, then its rows of text, in SJK's golds. The font draws at whole
-// units, so a part after a space goes at the one after where the space ends, which
-// would be lost otherwise.
+// colours, the label, then its rows of text, in SJK's golds, and its GIF under them. The
+// font draws at whole units, so a part after a space goes at the one after where the
+// space ends, which would be lost otherwise.
 static void CG_SJKChatBoxPaint(const chatBoxItem_t *item, float x, float y, float scale)
 {
 	const int font = CG_ChatBoxFont();
@@ -11031,6 +11052,8 @@ static void CG_SJKChatBoxPaint(const chatBoxItem_t *item, float x, float y, floa
 		rowX = x;
 		y += CHATBOX_FONT_HEIGHT * scale;
 	}
+	if (item->sjkGif[0])
+		CG_SJKChatBoxGif(item, x, y + CHATBOX_FONT_HEIGHT * scale, scale);
 }
 
 // A line of SJK chat from the engine (client/cl_sjk.cpp, SJK_SetChatSink) into the chat
