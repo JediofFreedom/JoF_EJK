@@ -448,10 +448,12 @@ void RE_RenderScene( const refdef_t *fd ) {
 
 	memcpy(tr.refdef.text, fd->text, sizeof(tr.refdef.text));
 
-	tr.refdef.x = fd->x;
-	tr.refdef.y = fd->y;
-	tr.refdef.width = fd->width;
-	tr.refdef.height = fd->height;
+	// Convert client window coordinates at the renderer boundary. Scale edges
+	// together so adjacent/reduced viewports retain their shared boundaries.
+	tr.refdef.x = int(int64_t(fd->x) * glConfig.vidWidth / gls.windowWidth);
+	tr.refdef.y = int(int64_t(fd->y) * glConfig.vidHeight / gls.windowHeight);
+	tr.refdef.width = int((int64_t(fd->x) + fd->width) * glConfig.vidWidth / gls.windowWidth) - tr.refdef.x;
+	tr.refdef.height = int((int64_t(fd->y) + fd->height) * glConfig.vidHeight / gls.windowHeight) - tr.refdef.y;
 	tr.refdef.fov_x = fd->fov_x;
 	tr.refdef.fov_y = fd->fov_y;
 

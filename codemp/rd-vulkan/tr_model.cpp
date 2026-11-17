@@ -1129,6 +1129,9 @@ void RE_BeginRegistration( glconfig_t *glconfigOut ) {
 	R_SetTextureRegistration(qtrue);
 
 	*glconfigOut = glConfig;
+	// Client/UI coordinates describe the displayed window, never the SSAA target.
+	glconfigOut->vidWidth = gls.windowWidth;
+	glconfigOut->vidHeight = gls.windowHeight;
 
 	tr.viewCluster = -1;		// force markleafs to regenerate
 

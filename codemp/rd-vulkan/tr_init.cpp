@@ -1279,8 +1279,9 @@ static void SetRefractionProperties( float distortionAlpha, float distortionStre
 static float GetDistanceCull( void ) { return tr.distanceCull; }
 
 static void GetRealRes( int *w, int *h ) {
-	*w = glConfig.vidWidth;
-	*h = glConfig.vidHeight;
+	// Keep cgame resolution queries consistent with the exported client config.
+	*w = gls.windowWidth;
+	*h = gls.windowHeight;
 }
 
 extern void R_SVModelInit( void ); //tr_model.cpp
