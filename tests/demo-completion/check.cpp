@@ -20,6 +20,7 @@ static struct Connection {
 } clc;
 static struct { int state; bool uiStarted; int JKVersion; } cls;
 static qboolean cl_connectedToPureServer = qtrue;
+static qboolean clLoadProfilePending;
 static std::map<std::string, std::string> cvars;
 static std::vector<std::string> events, output;
 static std::vector<int> closed;
@@ -74,6 +75,7 @@ static void CL_UpdateGUID(const char *prefix, int size) { CHECK(!prefix && !size
 
 static void initialize(bool ui = true) {
   cls.state = CA_ACTIVE; cls.uiStarted = ui;
+  clLoadProfilePending = qtrue;
   clc.demoplaying = 1; clc.demofile = 42; clc.timeDemoStart = 1000; clc.timeDemoFrames = 5005;
   cvars["ui_singlePlayerActive"] = "1";
 }
@@ -83,6 +85,7 @@ static void complete() {
   CHECK(cls.state == CA_DISCONNECTED && !clc.demofile && !clc.demoplaying);
   CHECK(closed.size() == 1 && closed[0] == 42);
   CHECK(cl_connectedToPureServer == qfalse);
+  CHECK(clLoadProfilePending == qfalse);
   CHECK(cvars["ui_singlePlayerActive"] == "0");
   CHECK(std::count(events.begin(), events.end(), "stop cinematic") == 1);
   CHECK(std::count(events.begin(), events.end(), "stop sounds") == 1);
