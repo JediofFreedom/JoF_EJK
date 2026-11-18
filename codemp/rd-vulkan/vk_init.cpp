@@ -595,7 +595,7 @@ void vk_initialize( void )
 
 	if ( r_vbo_models->integer ) {
 		vk.vboGhoul2Active = qtrue;
-		vk.vboMdvActive = qtrue;
+		vk.vboMdvActive = qfalse;
 	}
 #endif
 
