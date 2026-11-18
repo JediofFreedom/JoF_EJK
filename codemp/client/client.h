@@ -749,6 +749,7 @@ void CIN_DrawCinematic (int handle);
 void CIN_SetExtents (int handle, int x, int y, int w, int h);
 void CIN_SetLooping (int handle, qboolean loop);
 void CIN_UploadCinematic(int handle);
+bool CIN_IsHandleInUse(int handle);
 void CIN_CloseAllVideos(void);
 
 //

@@ -270,7 +270,7 @@ hub's protocol, as SJK's client implements it (Sol-Vulpes/SJK,
   the renderers' raw-pixel upload path uses RGB scratch textures.
   The bundled OpenGL renderers draw the GIF through a separate scratch image and
   skip the GPU wait used by cinematics. Older renderers use the cinematic draw
-  path with scratch image 15. Decoded GIFs stay in memory only, by id, so every
+  path when scratch image 15 is free. Decoded GIFs stay in memory only, by id, so every
   copy of a GIF loads once and plays in step: at most 32 GIFs and 96 MiB, those used
   least recently dropped first, never one drawn in the last 2 seconds. A GIF that
   could not be had is asked for again after five minutes.

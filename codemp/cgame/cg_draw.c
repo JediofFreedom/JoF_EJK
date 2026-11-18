@@ -11008,12 +11008,12 @@ static void CG_SJKAddMessage(const sjkChatLine_t *line, qhandle_t icon, qboolean
 
 // An SJK chat message's GIF in its rows from y (the engine draws it, client/cl_sjk_gif.cpp),
 // within the box's width; while it loads, or when it could not be had, a quiet line says so.
-static void CG_SJKChatBoxGif(const chatBoxItem_t *item, float x, float y, float scale)
+static void CG_SJKChatBoxGif(const chatBoxItem_t *item, float x, float y, float width, float scale)
 {
 	static vec4_t quiet = { 0.9608f, 0.7804f, 0.3373f, 0.55f };
 	const float rowHeight = CHATBOX_FONT_HEIGHT * scale;
 	const float pad = 2 * scale;
-	const int status = trap->SJK_DrawGif(item->sjkGif, x, y + pad, cg_chatBoxCutOffLength.value,
+	const int status = trap->SJK_DrawGif(item->sjkGif, x, y + pad, width,
 		CHATBOX_GIF_ROWS * rowHeight - 2 * pad);
 
 	if (status == SJK_GIF_LOADING || status == SJK_GIF_UNAVAILABLE) {
@@ -11026,7 +11026,7 @@ static void CG_SJKChatBoxGif(const chatBoxItem_t *item, float x, float y, float 
 // colours, the label, then its rows of text, in SJK's golds, and its GIF under them. The
 // font draws at whole units, so a part after a space goes at the one after where the
 // space ends, which would be lost otherwise.
-static void CG_SJKChatBoxPaint(const chatBoxItem_t *item, float x, float y, float scale)
+static void CG_SJKChatBoxPaint(const chatBoxItem_t *item, float x, float y, float width, float scale)
 {
 	const int font = CG_ChatBoxFont();
 	const char *label = item->sjkInAll ? "ALL/SJK" : "SJK";
@@ -11053,7 +11053,7 @@ static void CG_SJKChatBoxPaint(const chatBoxItem_t *item, float x, float y, floa
 		y += CHATBOX_FONT_HEIGHT * scale;
 	}
 	if (item->sjkGif[0])
-		CG_SJKChatBoxGif(item, x, y, scale);
+		CG_SJKChatBoxGif(item, x, y, width, scale);
 }
 
 // A line of SJK chat from the engine (client/cl_sjk.cpp, SJK_SetChatSink) into the chat
@@ -11222,7 +11222,7 @@ static QINLINE void CG_ChatBox_DrawStrings(void)
 		}
 
 		if (drawThese[i]->sjk)
-			CG_SJKChatBoxPaint(drawThese[i], textX, y, fontScale);
+			CG_SJKChatBoxPaint(drawThese[i], textX, y, cg_chatBoxCutOffLength.value - (textX - x), fontScale);
 		else switch (cg_newFont.integer) {
 			case 0:
 				CG_Text_Paint(textX, y, fontScale, colorWhite, drawThese[i]->string, 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_SMALL);

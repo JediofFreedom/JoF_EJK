@@ -364,6 +364,8 @@ DRAW
 int CL_SJK_DrawGif( const char *id, float x, float y, float w, float h ) {
 	if ( !cl_sjkChatGifs || !cl_sjkChatGifs->integer )
 		return SJK_GIF_OFF;
+	if ( !cl_drawChatGif && CIN_IsHandleInUse( SJK_GIF_SLOT ) )
+		return SJK_GIF_UNAVAILABLE;
 	if ( !id || !SJK_GifIdOk( id ) || w <= 0 || h <= 0 )
 		return SJK_GIF_UNAVAILABLE;
 
