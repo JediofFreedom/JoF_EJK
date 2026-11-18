@@ -1270,7 +1270,7 @@ Stretches a raw 32 bit power of 2 bitmap image over the given screen rectangle.
 Used for cinematics.
 =============
 */
-void RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *data, int client, qboolean dirty)
+static void R_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *data, int client, qboolean dirty, bool waitForGpu)
 {
 	int			start, end;
 
@@ -1283,8 +1283,9 @@ void RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *
 		RB_EndSurface();
 	}
 
-	// we definately want to sync every frame for the cinematics
-	qglFinish();
+	// Keep the explicit synchronization used by cinematics.
+	if ( waitForGpu )
+		qglFinish();
 
 	start = end = 0;
 	if ( r_speeds->integer ) {
@@ -1336,6 +1337,15 @@ void RE_StretchRaw (int x, int y, int w, int h, int cols, int rows, const byte *
 	qglVertex2f (x, y+h);
 	qglEnd ();
 }
+void RE_StretchRaw ( int x, int y, int w, int h, int cols, int rows, const byte *data, int client, qboolean dirty ) {
+	R_StretchRaw( x, y, w, h, cols, rows, data, client, dirty, true );
+}
+
+extern "C" Q_EXPORT void QDECL DrawChatGif( int x, int y, int w, int h, int cols, int rows, const byte *data ) {
+	// Cinematics use slots 0 through 15. GL orders the upload and draw.
+	R_StretchRaw( x, y, w, h, cols, rows, data, 16, qtrue, false );
+}
+
 
 void RE_UploadCinematic (int cols, int rows, const byte *data, int client, qboolean dirty) {
 

@@ -419,8 +419,12 @@ int CL_SJK_DrawGif( const char *id, float x, float y, float w, float h ) {
 		drawH *= w / drawW;
 		drawW = w;
 	}
-	re->DrawStretchRaw( (int)x, (int)y, (int)( drawW + 0.5f ), (int)( drawH + 0.5f ), gif->cols, gif->rows,
-		gif->pixels.data() + frame * gif->Stride(), SJK_GIF_SLOT, qtrue );
+	const int width = (int)( drawW + 0.5f ), height = (int)( drawH + 0.5f );
+	const byte *pixels = gif->pixels.data() + frame * gif->Stride();
+	if ( cl_drawChatGif )
+		cl_drawChatGif( (int)x, (int)y, width, height, gif->cols, gif->rows, pixels );
+	else
+		re->DrawStretchRaw( (int)x, (int)y, width, height, gif->cols, gif->rows, pixels, SJK_GIF_SLOT, qtrue );
 	return SJK_GIF_DRAWN;
 }
 

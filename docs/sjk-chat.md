@@ -267,9 +267,10 @@ hub's protocol, as SJK's client implements it (Sol-Vulpes/SJK,
   over 240 frames or 32 MiB of frames the GIF keeps its first frame, still. Delays
   under 20 ms count as 100 ms. Each frame is scaled into a texture of at most 256 x
   128 pixels whose sides are powers of two, over a dark background (no alpha), since
-  the renderers take raw pixels only through `DrawStretchRaw`, the cinematics' path.
-  The GIF is stretched back to its shape when drawn, through scratch image 15
-  (cinematics take the first ones). Decoded GIFs stay in memory only, by id, so every
+  the renderers' raw-pixel upload path uses RGB scratch textures.
+  The bundled OpenGL renderers draw the GIF through a separate scratch image and
+  skip the GPU wait used by cinematics. Older renderers use the cinematic draw
+  path with scratch image 15. Decoded GIFs stay in memory only, by id, so every
   copy of a GIF loads once and plays in step: at most 32 GIFs and 96 MiB, those used
   least recently dropped first, never one drawn in the last 2 seconds. A GIF that
   could not be had is asked for again after five minutes.

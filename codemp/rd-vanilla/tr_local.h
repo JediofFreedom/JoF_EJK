@@ -980,7 +980,7 @@ typedef struct backEndState_s {
 ** by the frontend.
 */
 
-#define NUM_SCRATCH_IMAGES 16
+#define NUM_SCRATCH_IMAGES 17
 
 typedef struct trGlobals_s {
 	qboolean				registered;		// cleared at shutdown, set at beginRegistration
