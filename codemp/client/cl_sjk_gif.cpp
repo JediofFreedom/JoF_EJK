@@ -68,6 +68,7 @@ static const size_t	SJK_GIF_FILE_MAX	= 8 << 20;			// bytes read at most
 static const int	SJK_GIF_CANVAS_MAX	= 2048;				// a side, else refused
 static const int	SJK_GIF_FRAMES_MAX	= 240;				// more: the first frame only
 static const size_t	SJK_GIF_BYTES_MAX	= 32 << 20;			// a GIF's frames; more: the first only
+static const size_t	SJK_GIF_TRACKED_MAX = 256;				// includes pending and failed requests
 static const size_t	SJK_GIF_ENTRIES		= 32;				// GIFs kept decoded
 static const size_t	SJK_GIF_BUDGET		= 96 << 20;			// bytes for all of them
 static const int	SJK_GIF_IN_USE_MS	= 2000;				// drawn this recently: never dropped
@@ -278,7 +279,8 @@ static std::shared_ptr<sjkGif_t> SJK_GifDecode( const std::string &file ) {
 	if ( !frames )
 		return nullptr;
 	if ( still ) {
-		gif->pixels.resize( gif->Stride() );
+		std::vector<byte> firstFrame( gif->pixels.begin(), gif->pixels.begin() + gif->Stride() );
+		gif->pixels.swap( firstFrame );
 		gif->ends.assign( 1, 100 );
 	}
 	return gif;
@@ -292,22 +294,23 @@ WORKER
 ===============================================================================
 */
 
-// Room for a new GIF: while over SJK_GIF_ENTRIES or SJK_GIF_BUDGET, the GIF used least
-// recently goes, never one drawn in the last SJK_GIF_IN_USE_MS. Under the lock.
-static void SJK_GifMakeRoom( int now ) {
+// Admit a decoded GIF only if it fits after evicting older, unused entries. Under the lock.
+static bool SJK_GifMakeRoom( int now, size_t incomingBytes ) {
 	for ( ;; ) {
-		size_t count = 0, bytes = 0;
+		size_t count = 1, bytes = incomingBytes;
 		std::map<std::string, sjkGifEntry_t>::iterator oldest = s_gifs->entries.end();
 		for ( auto it = s_gifs->entries.begin(); it != s_gifs->entries.end(); ++it ) {
 			if ( !it->second.gif )
 				continue;
 			count++;
-			bytes += it->second.gif->pixels.size();
+			bytes += it->second.gif->pixels.capacity();
 			if ( now - it->second.lastUsed > SJK_GIF_IN_USE_MS && ( oldest == s_gifs->entries.end() || it->second.lastUsed < oldest->second.lastUsed ) )
 				oldest = it;
 		}
-		if ( ( count <= SJK_GIF_ENTRIES && bytes <= SJK_GIF_BUDGET ) || oldest == s_gifs->entries.end() )
-			return;
+		if ( count <= SJK_GIF_ENTRIES && bytes <= SJK_GIF_BUDGET )
+			return true;
+		if ( oldest == s_gifs->entries.end() )
+			return false;
 		s_gifs->entries.erase( oldest );
 	}
 }
@@ -337,11 +340,10 @@ static void SJK_GifWorker( void ) {
 		if ( it == s_gifs->entries.end() )
 			continue;
 		const int now = Sys_Milliseconds();
-		if ( gif ) {
+		if ( gif && SJK_GifMakeRoom( now, gif->pixels.capacity() ) ) {
 			it->second.state = SJK_GIF_DRAWN;
 			it->second.gif = gif;
 			it->second.lastUsed = now;
-			SJK_GifMakeRoom( now );
 		} else {
 			it->second.state = SJK_GIF_UNAVAILABLE;
 			it->second.failedAt = now;
@@ -377,7 +379,7 @@ int CL_SJK_DrawGif( const char *id, float x, float y, float w, float h ) {
 		bool ask = false;
 		if ( it == s_gifs->entries.end() ) {
 			// Ids that could not be had would pile up otherwise.
-			if ( s_gifs->entries.size() >= 256 ) {
+			if ( s_gifs->entries.size() >= SJK_GIF_TRACKED_MAX ) {
 				for ( auto old = s_gifs->entries.begin(); old != s_gifs->entries.end(); ) {
 					if ( old->second.state == SJK_GIF_UNAVAILABLE )
 						old = s_gifs->entries.erase( old );
@@ -385,6 +387,8 @@ int CL_SJK_DrawGif( const char *id, float x, float y, float w, float h ) {
 						++old;
 				}
 			}
+			if ( s_gifs->entries.size() >= SJK_GIF_TRACKED_MAX )
+				return SJK_GIF_UNAVAILABLE;
 			it = s_gifs->entries.emplace( id, sjkGifEntry_t() ).first;
 			ask = true;
 		} else if ( it->second.state == SJK_GIF_UNAVAILABLE && now - it->second.failedAt > SJK_GIF_RETRY_MS ) {

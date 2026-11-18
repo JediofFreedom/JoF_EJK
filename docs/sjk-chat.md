@@ -272,7 +272,8 @@ hub's protocol, as SJK's client implements it (Sol-Vulpes/SJK,
   skip the GPU wait used by cinematics. Older renderers use the cinematic draw
   path when scratch image 15 is free. Decoded GIFs stay in memory only, by id, so every
   copy of a GIF loads once and plays in step: at most 32 GIFs and 96 MiB, those used
-  least recently dropped first, never one drawn in the last 2 seconds. A GIF that
+  least recently dropped first, never one drawn in the last 2 seconds. Up to 256
+  IDs may be tracked, including requests waiting to load. A GIF that
   could not be had is asked for again after five minutes.
 - **What SJK does that this does not.** No GIF picker or search, no favourites or
   hidden GIFs, no other sources than GIPHY, no video, no GIFs in the SJK chat menu or
