@@ -199,9 +199,9 @@ void CG_SetInitialSnapshot( snapshot_t *snap ) {
 	}
 //JAPRO - Clientside - Autorecord Demo - End
 
-	if (cg_adminPers.value) {
-
-		trap->SendConsoleCommand("say_team_mod admin");
+	if (cg_adminPers.value && !cg.demoPlayback) {
+		// Restore directly so other queued console commands cannot alter it.
+		trap->SendClientCommand("say_team_mod admin");
 	}
 }
 
