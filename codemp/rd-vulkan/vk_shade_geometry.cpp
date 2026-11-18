@@ -926,7 +926,11 @@ void vk_draw_geometry( Vk_Depth_Range depth_range, qboolean indexed )
 	vk_update_depth_range( depth_range );
 
 	if ( tess.shader->polygonOffset ) {
+#ifdef USE_REVERSED_DEPTH
+		qvkCmdSetDepthBias( vk.cmd->command_buffer, -r_offsetUnits->value, 0.0f, -r_offsetFactor->value );
+#else
 		qvkCmdSetDepthBias( vk.cmd->command_buffer, r_offsetUnits->value, 0.0f, r_offsetFactor->value );
+#endif
 	}
 
 	// issue draw call(s)

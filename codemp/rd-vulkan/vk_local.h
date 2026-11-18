@@ -71,7 +71,7 @@ typedef unsigned int uvec4_t[4];
 #define MIN(x,y) ((x)<(y)?(x):(y))
 #endif
 
-//#define USE_REVERSED_DEPTH
+#define USE_REVERSED_DEPTH
 //#define USE_UPLOAD_QUEUE
 
 struct vkLoadStats_t {
