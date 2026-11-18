@@ -64,6 +64,12 @@ void CL_LoadProfileEvent(clLoadProfileEvent_t event) {
 		"load elapsed to gamestate received", "load elapsed to cgame ready (CA_PRIMED)",
 		"load elapsed to first active snapshot", "load elapsed to CA_ACTIVE"
 	};
+	if (event == CL_LOAD_GAMESTATE && !clLoadProfilePending && Cvar_VariableIntegerValue("cl_loadTimings")) {
+		clLoadProfileStarted = Sys_Milliseconds();
+		clLoadProfilePending = qtrue;
+		clLoadProfileEvents = 0;
+		clLoadProfileLabel = "map-handoff-to-first-frame";
+	}
 	const unsigned int bit = 1u << event;
 	if (clLoadProfilePending && !(clLoadProfileEvents & bit)) {
 		clLoadProfileEvents |= bit;
@@ -1643,12 +1649,6 @@ void CL_DownloadsComplete( void ) {
 	}
 
 	// let the client game init and load data
-	if (!clLoadProfilePending && Cvar_VariableIntegerValue("cl_loadTimings")) {
-		clLoadProfileStarted = Sys_Milliseconds();
-		clLoadProfilePending = qtrue;
-		clLoadProfileEvents = 0;
-		clLoadProfileLabel = "map-handoff-to-first-frame";
-	}
 	cls.state = CA_LOADING;
 
 	// Pump the loop, this may change gamestate!
