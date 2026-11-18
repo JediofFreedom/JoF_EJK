@@ -659,7 +659,7 @@ void vk_initialize( void )
 	vk.indirect_buffer_size_new = sizeof(VkDrawIndexedIndirectCommand) * 1024 * 1024;
 	vk_create_vertex_buffer( vk.geometry_buffer_size_new );
 	vk_create_indirect_buffer( vk.indirect_buffer_size_new );
-	vk_create_storage_buffer( &vk.storage, MAX_FLARES * vk.storage_alignment, "storage (flares)" );
+	vk_create_storage_buffer( &vk.storage, MAX_FLARES * vk.storage_alignment * NUM_COMMAND_BUFFERS, "storage (flares)" );
 	vk_create_shader_modules();
 
 	vk_create_pipeline_cache();

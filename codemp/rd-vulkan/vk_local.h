@@ -1161,7 +1161,7 @@ void		vk_bind_index( void );
 void		vk_bind_index_ext( const int numIndexes, const uint32_t *indexes );
 void		vk_bind_pipeline( uint32_t pipeline );
 void		vk_draw_geometry( Vk_Depth_Range depth_range, qboolean indexed );
-void		vk_draw_dot( uint32_t storage_offset );
+qboolean	vk_draw_dot( uint32_t storage_offset );
 void		vk_bind_geometry( uint32_t flags );
 void		vk_bind_lighting( int stage, int bundle );
 void		vk_reset_descriptor( int index);
