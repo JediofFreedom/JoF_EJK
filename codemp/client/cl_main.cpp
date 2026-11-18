@@ -1007,6 +1007,8 @@ This is also called on Com_Error and Com_Quit, so it shouldn't cause any errors
 =====================
 */
 void CL_Disconnect( qboolean showMainMenu ) {
+	clLoadProfilePending = qfalse;
+
 	if ( !com_cl_running || !com_cl_running->integer ) {
 		return;
 	}
@@ -1263,10 +1265,7 @@ void CL_Connect_f( void ) {
 		Com_Printf( "usage: connect [server]\n");
 		return;
 	}
-	clLoadProfileStarted = Sys_Milliseconds();
-	clLoadProfilePending = Cvar_VariableIntegerValue("cl_loadTimings") ? qtrue : qfalse;
-	clLoadProfileEvents = 0;
-	clLoadProfileLabel = "connect-to-first-frame";
+	const int connectStarted = Sys_Milliseconds();
 
 	// save arguments for reconnect
 	Q_strncpyz( cl_reconnectArgs, Cmd_Args(), sizeof( cl_reconnectArgs ) );
@@ -1341,6 +1340,10 @@ void CL_Connect_f( void ) {
 	// server connection string
 	Cvar_Set( "cl_currentServerAddress", server );
 	Cvar_Set( "cl_currentServerIP", serverString );
+	clLoadProfileStarted = connectStarted;
+	clLoadProfilePending = Cvar_VariableIntegerValue("cl_loadTimings") ? qtrue : qfalse;
+	clLoadProfileEvents = 0;
+	clLoadProfileLabel = "connect-to-first-frame";
 	CL_LoadProfileEvent(CL_LOAD_CONNECT_SETUP);
 }
 
