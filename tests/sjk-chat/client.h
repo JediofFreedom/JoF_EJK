@@ -25,6 +25,7 @@ typedef struct sjkChatLine_s {
 	const char		*words;
 	const char		*client;
 	const char		*id;
+	const char		*gif;
 } sjkChatLine_t;
 
 #define JOF_RELEASE_TAG		"1.0.0-beta.1"

@@ -3483,6 +3483,9 @@ Ghoul2 Insert End
 			cgs.media.ejkClientIcon = trap->R_RegisterShaderNoMip("gfx/sjk/ejk");
 			trap->SJK_SetChatSink(CG_SJKChatLine);
 			cgs.sjkChat = qtrue;
+			// The lines' GIFs, with an engine that has them (cl_sjkChatGifDraw).
+			trap->Cvar_VariableStringBuffer("cl_sjkChatGifDraw", sink, sizeof(sink));
+			cgs.sjkGifs = (qboolean)(atoi(sink) && trap->SJK_DrawGif);
 		}
 	}
 

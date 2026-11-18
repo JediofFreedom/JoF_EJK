@@ -216,6 +216,7 @@ char cl_reconnectArgs[MAX_OSPATH] = {0};
 // Structure containing functions exported from refresh DLL
 refexport_t	*re = NULL;
 static void	*rendererLib = NULL;
+drawChatGif_t cl_drawChatGif;
 static char	activeRendererName[MAX_QPATH] = { 0 };
 
 ping_t	cl_pinglist[MAX_PINGREQUESTS];
@@ -3203,6 +3204,7 @@ static void CL_ShutdownRef( qboolean restarting ) {
 	re = NULL;
 
 	if ( rendererLib != NULL ) {
+		cl_drawChatGif = NULL;
 		Sys_UnloadDll (rendererLib);
 		rendererLib = NULL;
 	}
@@ -3446,6 +3448,7 @@ void CL_InitRef( void ) {
 	memset( &ri, 0, sizeof( ri ) );
 
 	GetRefAPI = (GetRefAPI_t)Sys_LoadFunction( rendererLib, "GetRefAPI" );
+	cl_drawChatGif = (drawChatGif_t)Sys_LoadFunction( rendererLib, "DrawChatGif" );
 	if ( !GetRefAPI )
 		Com_Error( ERR_FATAL, "Can't load symbol GetRefAPI: '%s'", Sys_LibraryError() );
 

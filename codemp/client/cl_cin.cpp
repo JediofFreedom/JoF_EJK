@@ -156,6 +156,10 @@ void CIN_CloseAllVideos(void) {
 }
 
 
+bool CIN_IsHandleInUse(int handle) {
+	return handle >= 0 && handle < MAX_VIDEO_HANDLES && cinTable[handle].fileName[0] != '\0';
+}
+
 static int CIN_HandleForVideo(void) {
 	int		i;
 

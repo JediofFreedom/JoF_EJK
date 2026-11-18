@@ -35,9 +35,17 @@ players on SJK's own client. Players on other clients never see it.
   too, which SJK chat players there read once. The chat box and the SJK chat menu draw
   the label and the text in SJK's golds (`#E8B84A` and `#F5C756`); the console, the
   notify lines and the log, which only have the game's colours, in the nearest, `^8`
-  and `^3`. A GIPHY link, which SJK's client plays as a GIF, shows as `<GIF>`. In a
+  and `^3`. A GIPHY link shows as `<GIF>`, except the GIF the chat box plays (below). In a
   match the line goes into the chat box, and into the console as chat does. In the
   menus it goes to the console. A long message takes several chat-box rows.
+- **GIFs in the chat box**, as SJK shows them: when a message from a player the SJK
+  team verified (or staff, or SJK's creator) links to a GIPHY GIF, its first link
+  reads `GIF` and the GIF plays under the text, three of the box's rows high and
+  within its width. While it loads the rows say "Loading GIF", and "GIF unavailable"
+  when it could not be had. Anyone else's links stay `<GIF>` and nothing is fetched
+  for them, as in SJK. The console, the log and the SJK chat menu keep the text
+  only. `cl_sjkChatGifs 0` turns this off (on by default): links read `<GIF>` and
+  nothing is fetched.
   What was said before the player came is not replayed, except in the SJK chat menu.
 - **CHAT** in the main menu, on the bar under the ring to the left, opens the SJK chat
   menu. Its list holds the last 100
@@ -244,6 +252,33 @@ hub's protocol, as SJK's client implements it (Sol-Vulpes/SJK,
   `i.giphy.com/<id>.gif` or `.webp`, or `i.giphy.com/media/...`, with any query and
   the punctuation that ends a sentence after it. Other sites' links stay as they are:
   SJK's client shows those only to players who ask for them.
+- **Playing a GIF** ([cl_sjk_gif.cpp](../codemp/client/cl_sjk_gif.cpp)). With
+  `cl_sjkChatGifs 1` and a sender whose GIFs play in SJK (the feed's `verified`,
+  `staff` or `creator`), `SJK_MessageParts` keeps the first link's GIPHY id in the
+  line's `gif` (`sjkChatLine_t`, read by a cgame only with the engine's read-only
+  `cl_sjkChatGifDraw`), and that link reads `GIF`. The cgame adds three rows to the
+  message's item and calls `SJK_DrawGif` for them each frame. The first call asks a
+  worker thread for it. The worker never fetches the pasted address: as SJK does, it
+  asks `https://media.giphy.com/media/<id>/200.gif`, then `giphy.gif` when GIPHY
+  answers 404 or marks its "not found" picture (`x-retry-not-found-metric`). HTTPS
+  only, no redirect, no cookie, 10 seconds, at most 8 MiB, `Accept: image/gif`, user
+  agent `EJK`: nothing about the player. It decodes with the stb_image the rend2
+  renderer ships, a frame at a time: a canvas over 2048 pixels a side is refused, and
+  over 240 frames or 32 MiB of frames the GIF keeps its first frame, still. Delays
+  under 20 ms count as 100 ms. Each frame is scaled into a texture of at most 256 x
+  128 pixels whose sides are powers of two, over a dark background (no alpha), since
+  the renderers' raw-pixel upload path uses RGB scratch textures.
+  The bundled OpenGL renderers draw the GIF through a separate scratch image and
+  skip the GPU wait used by cinematics. Older renderers use the cinematic draw
+  path when scratch image 15 is free. Decoded GIFs stay in memory only, by id, so every
+  copy of a GIF loads once and plays in step: at most 32 GIFs and 96 MiB, those used
+  least recently dropped first, never one drawn in the last 2 seconds. Up to 256
+  IDs may be tracked, including requests waiting to load. A GIF that
+  could not be had is asked for again after five minutes.
+- **What SJK does that this does not.** No GIF picker or search, no favourites or
+  hidden GIFs, no other sources than GIPHY, no video, no GIFs in the SJK chat menu or
+  the console, and switching `cl_sjkChatGifs` changes only new lines (an old line's
+  rows stay, empty, with the switch off). Windows only, as SJK chat is.
 - **Showing.** The main thread hands a message to the cgame in parts
   (`sjkChatLine_t` and `SJK_SetChatSink` in [cg_public.h](../codemp/cgame/cg_public.h),
   `CG_SJKChatLine` in [cg_draw.c](../codemp/cgame/cg_draw.c)): who said it, its text,
@@ -307,8 +342,14 @@ hub's protocol, as SJK's client implements it (Sol-Vulpes/SJK,
 
 [tests/sjk-chat](../tests/sjk-chat/README.md) checks the signing against the
 protocol's test vector, the key file, the text rules, the charset, hub addresses,
-the User-Agent, how a message reads, GIPHY links and the server's copy, without the
-engine or a hub.
+the User-Agent, how a message reads, GIPHY links (the GIF's id, and whose GIFs play)
+and the server's copy, without the engine or a hub.
+
+A GIF needs a verified sender: on a local hub, verify the sending key as SJK's hub
+repository describes, then say a GIPHY link such as
+`https://giphy.com/gifs/3oEhmHmWP3Y9wQxoli` in a match. "Loading GIF", then the GIF
+playing, shows under the line in the chat box of every client with
+`cl_sjkChatGifs 1`; with `cl_sjkChatGifs 0` the line reads `<GIF>`.
 
 To talk across clients, run a local SJK hub as SJK's hub repository describes, on
 `http://127.0.0.1:8787`, and start each client with

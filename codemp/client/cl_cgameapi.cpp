@@ -1962,7 +1962,9 @@ void CL_BindCGame( void ) {
 		Cvar_Get( "cl_soundLength", "1", CVAR_ROM, "Sound length query supported by this client (0 = none)" );
 		cgi.SJK_SetChatSink						= CL_SJK_SetChatSink;
 		cgi.SJK_SaidInAll						= CL_SJK_SaidInAll;
+		cgi.SJK_DrawGif							= CL_SJK_DrawGif;
 		Cvar_Get( "cl_sjkChatSink", "1", CVAR_ROM, "SJK chat into the chat box supported by this client (0 = none)" );
+		Cvar_Get( "cl_sjkChatGifDraw", "1", CVAR_ROM, "SJK chat lines carry their GIF and the cgame can draw it (0 = no)" );
 
 		GetCGameAPI = (GetCGameAPI_t)cgvm->GetModuleAPI;
 		ret = GetCGameAPI( CGAME_API_VERSION, &cgi );
