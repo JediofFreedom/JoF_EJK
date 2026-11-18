@@ -1715,6 +1715,9 @@ void RB_SurfaceGridEstimate( srfGridMesh_t *cv, int *numVertexes, int *numIndexe
 	int		nIndexes = 0;
 	int		irows, vrows;
 
+	tess.numVertexes = 0;
+	tess.numIndexes = 0;
+
 	lodError = r_lodCurveError->value; // fixed quality for VBO
 
 	lodWidth = 1;

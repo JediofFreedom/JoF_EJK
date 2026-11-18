@@ -42,7 +42,7 @@ void RB_BeginSurface( shader_t *shader, int fogNum ) {
 	shader_t *state = (shader->remappedShader) ? shader->remappedShader : shader;
 
 #ifdef USE_VBO
-	if (shader->isStaticShader && !shader->remappedShader) {
+	if (shader->isStaticShader && !shader->remappedShader && !tr.vboRemapped) {
 		tess.allowVBO = qtrue;
 	}
 	else {
