@@ -784,6 +784,8 @@ typedef struct trRefdef_s {
 
 	qboolean			switchRenderPass;
 	qboolean			needScreenMap;
+
+	int					g2Time;
 } trRefdef_t;
 
 

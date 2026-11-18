@@ -463,6 +463,7 @@ void RE_RenderScene( const refdef_t *fd ) {
 	VectorCopy(fd->viewaxis[2], tr.refdef.viewaxis[2]);
 
 	tr.refdef.time = fd->time;
+	tr.refdef.g2Time = G2API_GetTime( fd->time );
 	tr.refdef.frametime = fd->time - lastTime;
 
 	if (fd->rdflags & RDF_SKYBOXPORTAL)
