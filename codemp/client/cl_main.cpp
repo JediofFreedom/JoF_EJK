@@ -70,6 +70,9 @@ void CL_LoadProfileEvent(clLoadProfileEvent_t event) {
 		clLoadProfileEvents = 0;
 		clLoadProfileLabel = "map-handoff-to-first-frame";
 	}
+	// A map handoff starts at gamestate receipt. Later packets are not its first.
+	if (event == CL_LOAD_SERVER_PACKET && (clLoadProfileEvents & (1u << CL_LOAD_GAMESTATE)))
+		return;
 	const unsigned int bit = 1u << event;
 	if (clLoadProfilePending && !(clLoadProfileEvents & bit)) {
 		clLoadProfileEvents |= bit;
