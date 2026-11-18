@@ -747,8 +747,13 @@ void CL_InitCGame( void ) {
 	// use the lastExecutedServerCommand instead of the serverCommandSequence
 	// otherwise server commands sent just before a gamestate are dropped
 	CGVM_Init( clc.serverMessageSequence, clc.lastExecutedServerCommand, clc.clientNum );
+	CL_LoadProfileStage("cgame initialization", t1);
+	int loadStage = Sys_Milliseconds();
 	re->EndRegistration();
+	CL_LoadProfileStage("renderer end registration", loadStage);
+	loadStage = Sys_Milliseconds();
 	Com_TouchMemory();
+	CL_LoadProfileStage("memory pre-touch", loadStage);
 
 	int clRate = Cvar_VariableIntegerValue( "rate" );
 	if ( clRate == 4000 ) {

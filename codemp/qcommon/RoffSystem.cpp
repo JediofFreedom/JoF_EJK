@@ -71,7 +71,7 @@ CROFFSystem::CROFF::~CROFF()
 
 	if (mNoteTrackIndexes)
 	{
-		delete mNoteTrackIndexes[0];
+		delete [] mNoteTrackIndexes[0];
 		delete [] mNoteTrackIndexes;
 	}
 }
@@ -89,6 +89,14 @@ CROFFSystem::CROFF::~CROFF()
 //---------------------------------------------------------------------------
 qboolean CROFFSystem::Restart()
 {
+	// Restart also runs during destruction, when VM/entity state may be gone.
+	// Release owned playback records without calling back into those systems.
+	for ( TROFFEntList::iterator ent = mROFFEntList.begin(); ent != mROFFEntList.end(); ++ent )
+	{
+		delete *ent;
+	}
+	mROFFEntList.clear();
+
 	TROFFList::iterator itr = mROFFList.begin();
 
 	// remove everything from the list
@@ -656,6 +664,10 @@ qboolean CROFFSystem::Play( int entID, int id, qboolean doTranslation, qboolean 
 
 	if ( !isClient )
 		VectorCopy(ent->s.apos.trBase, roffing_ent->mStartAngles);
+#ifndef DEDICATED
+	else if (doTranslation)
+		CGVM_GetAngles( entID, roffing_ent->mStartAngles );
+#endif
 
 	mROFFEntList.push_back( roffing_ent );
 
@@ -859,6 +871,10 @@ void CROFFSystem::UpdateEntities(qboolean isClient)
 qboolean CROFFSystem::ApplyROFF( SROFFEntity *roff_ent, CROFFSystem::CROFF *roff )
 {
 	vec3_t			f, r, u, result;
+#ifndef DEDICATED
+	// The client VM copies into these buffers; keep them alive through SetLerp.
+	vec3_t			originTemp, angleTemp;
+#endif
 	sharedEntity_t	*ent = NULL;
 	trajectory_t	*originTrajectory = NULL, *angleTrajectory = NULL;
 	float			*origin = NULL, *angle = NULL;
@@ -872,13 +888,14 @@ qboolean CROFFSystem::ApplyROFF( SROFFEntity *roff_ent, CROFFSystem::CROFF *roff
 	if (roff_ent->mIsClient)
 	{
 #ifndef DEDICATED
-		vec3_t		originTemp, angleTemp;
 		originTrajectory = CGVM_GetOriginTrajectory( roff_ent->mEntID );
 		angleTrajectory = CGVM_GetAngleTrajectory( roff_ent->mEntID );
 		CGVM_GetOrigin( roff_ent->mEntID, originTemp );
 		origin = originTemp;
 		CGVM_GetAngles( roff_ent->mEntID, angleTemp );
 		angle = angleTemp;
+#else
+		return qfalse;
 #endif
 	}
 	else
@@ -967,12 +984,13 @@ qboolean CROFFSystem::ApplyROFF( SROFFEntity *roff_ent, CROFFSystem::CROFF *roff
 void CROFFSystem::ProcessNote(SROFFEntity *roff_ent, char *note)
 {
 	char	temp[1024];
-	int		pos, size;
+	size_t	pos, size;
 
 	pos = 0;
 	while(note[pos])
 	{
 		size = 0;
+		qboolean oversized = qfalse;
 		while(note[pos] && note[pos] < ' ')
 		{
 			pos++;
@@ -980,7 +998,17 @@ void CROFFSystem::ProcessNote(SROFFEntity *roff_ent, char *note)
 
 		while(note[pos] && note[pos] >= ' ')
 		{
-			temp[size++] = note[pos++];
+			if (size + 1 < sizeof(temp))
+				temp[size++] = note[pos];
+			else
+				oversized = qtrue;
+			++pos;
+		}
+		if (oversized)
+		{
+			// Skip the complete line so a truncated command cannot be executed.
+			Com_Printf( S_COLOR_YELLOW"ROFF note line exceeds %u bytes; skipped\n", (unsigned)(sizeof(temp) - 1) );
+			continue;
 		}
 		temp[size] = 0;
 
@@ -1012,6 +1040,9 @@ void CROFFSystem::ProcessNote(SROFFEntity *roff_ent, char *note)
 //---------------------------------------------------------------------------
 qboolean CROFFSystem::ClearLerp( SROFFEntity *roff_ent )
 {
+#ifndef DEDICATED
+	vec3_t			originTemp, angleTemp;
+#endif
 	sharedEntity_t	*ent = NULL;
 	trajectory_t	*originTrajectory = NULL, *angleTrajectory = NULL;
 	float			*origin = NULL, *angle = NULL;
@@ -1019,13 +1050,14 @@ qboolean CROFFSystem::ClearLerp( SROFFEntity *roff_ent )
 	if (roff_ent->mIsClient)
 	{
 #ifndef DEDICATED
-		vec3_t		originTemp, angleTemp;
 		originTrajectory = CGVM_GetOriginTrajectory( roff_ent->mEntID );
 		angleTrajectory = CGVM_GetAngleTrajectory( roff_ent->mEntID );
 		CGVM_GetOrigin( roff_ent->mEntID, originTemp );
 		origin = originTemp;
 		CGVM_GetAngles( roff_ent->mEntID, angleTemp );
 		angle = angleTemp;
+#else
+		return qfalse;
 #endif
 	}
 	else

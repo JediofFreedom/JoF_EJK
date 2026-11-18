@@ -201,6 +201,8 @@ typedef enum {
 typedef struct cosmeticItem_s {
 	char		name[MAX_COSMETIC_LENGTH];
 	qhandle_t	handle;
+	char modelPath[MAX_QPATH], fallbackPath[MAX_QPATH];
+	qboolean attempted;
 } cosmeticItem_t;
 
 typedef struct cosmetics_s {
@@ -211,6 +213,7 @@ typedef struct cosmetics_s {
 } cosmetics_t;
 
 extern cosmetics_t localCosmetics;
+qhandle_t CG_CosmeticModel(cosmeticItem_t *item);
 
 //#define JAPRO_CINFO_UNLAGGEDPUSHPULL (1<<19)	//push pull unlagged
 
@@ -1049,7 +1052,10 @@ typedef struct loadableEmoji_s
 {
 	char		name[MAX_EMOJI_LENGTH];
 	qhandle_t	emoji;
+	char shaderPath[MAX_QPATH];
+	qboolean attempted;
 } loadableEmoji_t;
+qhandle_t CG_EmojiShader(int index);
 
 loadableEmoji_t emojis[MAX_LOADABLE_EMOJIS];
 

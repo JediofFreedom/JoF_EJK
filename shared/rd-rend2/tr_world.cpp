@@ -20,6 +20,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
 #include "tr_local.h"
+#include "../qcommon/bit_mask.h"
 
 
 world_t *R_GetWorld(int worldIndex)
@@ -341,7 +342,7 @@ static void R_AddWorldSurface(
 	// TODO: implement dlight culling for non worldspawn surfaces
 	if ( dlightBits ) {
 		if (entityNum != REFENTITYNUM_WORLD)
-			dlightBits = (1 << tr.refdef.num_dlights) - 1;
+			dlightBits = Q_BitMask32(tr.refdef.num_dlights);
 		else
 			dlightBits = R_DlightSurface( surf, dlightBits );
 	}
@@ -893,9 +894,9 @@ void R_AddWorldSurfaces( viewParms_t *viewParms, trRefdef_t *refdef ) {
 	}
 	else
 	{
-		dlightBits = (1 << refdef->num_dlights) - 1;
+		dlightBits = Q_BitMask32(refdef->num_dlights);
 		if (r_shadows->integer == 4)
-			pshadowBits = (1 << refdef->num_pshadows) - 1;
+			pshadowBits = Q_BitMask32(refdef->num_pshadows);
 		else
 			pshadowBits = 0;
 	}

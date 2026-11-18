@@ -1,0 +1,124 @@
+{
+  "checkpoint": "9f7878140701c5a6af6b54d6373ab4cb7367f1f2",
+  "baseline": "750ff044a1d9f90a623a73d5e674dae43a38e21e",
+  "scope": "Targeted combined-quality attachment capacity and portable crash-log path fixes; no new loading/FPS claim.",
+  "attachment_fix": "The complete combination needs 27 targets. The old 26-slot budget omitted refraction after its SSAA allowance. The pool and allocation tracker now share an inclusive 27-slot capacity; diagnostics distinguish capacity from attempted count, with rejection before writes.",
+  "crashlog_fix": "Sys_ErrorDialog selects effective fs_homepath, default home, install path, working directory, then dot. NULL/empty portable paths no longer reach formatting or mkdir; native FILE writing remains available after engine filesystem shutdown.",
+  "attachment_tests": {
+    "groups": 6,
+    "x64_release": "6/6 passed",
+    "x86_release": "6/6 passed",
+    "x64_asan": "6/6 passed",
+    "baseline": "Actual 750 attachment source/header fail both full combined cases (pooled and all-dedicated), with four controls passing.",
+    "coverage": "Actual full construction retains SSAA/MSAA8/bloom/glow/refraction; all 27 images are created/bound/viewed/transitioned. Exact capacity is accepted; overflow leaves pool bytes/count and tracker bytes/canary/allocations unchanged.",
+    "evidence": "E:/Codex-EJK-audit/attachment-capacity/evidence.json",
+    "full_core_x64_release": {
+      "passed": 35,
+      "failed": 0,
+      "exit_code": 0,
+      "log": "E:\\Codex-EJK-audit\\attachment-capacity\\all-core-x64.log",
+      "log_sha256": "3a6f7eb02b3ee68817005a68b975c3e4db4aef2ca690bc70dc0a8406b4227c3a"
+    }
+  },
+  "crashlog_tests": {
+    "groups": 6,
+    "x64_release": "6/6 passed",
+    "x86_release": "6/6 passed",
+    "baseline": "Five portable/NULL path cases fail, one normal-home control passes.",
+    "suite": "tests/crashlog-path",
+    "coverage": "Actual production dialog body, deterministic path precedence and native crashlog write/readback; dialog is stubbed, no game launched."
+  },
+  "integration": {
+    "builds": {
+      "status": "passed",
+      "summary": "Both pinned Windows x64/x86 engine and Vulkan builds passed with explicit BUILD_EXIT=0.",
+      "logs": [
+        "E:/Codex-EJK-audit/build-max-attachments-9f78781-x64.log",
+        "E:/Codex-EJK-audit/build-max-attachments-9f78781-x86.log"
+      ]
+    },
+    "ci": {
+      "run_id": 43111493897,
+      "status": "passed",
+      "summary": "CI run 43111493897 passed all four jobs: full native Linux client and native Vulkan on Windows/macOS/Ubuntu. Windows passed 69/69 suites without skips; macOS/Ubuntu each passed 67/67 applicable suites plus two explicit Windows-only skips.",
+      "windows_suites": 69,
+      "macos_applicable": 67,
+      "ubuntu_applicable": 67,
+      "platform_skips": [
+        "sjk-chat",
+        "updater"
+      ]
+    },
+    "gpu": {
+      "status": "passed",
+      "summary": "The installed 9f engine/Vulkan plus unchanged 750 game/support combination passed three local maps and nine valid 2560x1440 PNG captures, with actual 8x MSAA, SSAA rendering at 5120x2880, HDR, bloom, dynamic glow and all 41 requested settings verified. Exit, core/synchronization validation, resources and configuration/runtime guards were clean. Root visually spot-checked maps 1 and 2 only.",
+      "receipt": "E:\\Codex-EJK-audit\\runtime\\gpu-max-combined-9f78781-receipt.json",
+      "receipt_sha256": "3fdabc23922bcc6440be4c64d1bbcc793def98d7317a0274b1e1d514f3356160",
+      "maps": 3,
+      "pngs": 9,
+      "capture_dimensions": [
+        2560,
+        1440
+      ],
+      "render_dimensions": [
+        5120,
+        2880
+      ],
+      "actual_msaa": 8,
+      "settings_verified": 41,
+      "exit_code": 0,
+      "forced_termination": false,
+      "config_runtime_preserved": true,
+      "installed_clone_files_matched": 16,
+      "module_bindings_verified": 5,
+      "runtime_composition": "Fixed 9f engine/Vulkan; unchanged current installed 750 game/UI/support/assets. Exact owned-temp-root payload hashes and VM namespaces verify OJK temporary modules.",
+      "invalid_harness_attempts": [
+        {
+          "attempt": 1,
+          "classification": "invalid; not renderer failure/pass",
+          "reason": "82 startup segments exceeded limit 64; trailing exec segment 82 dropped. Actual 8x initialized, but no scripted map/capture proof; exit 0/no forced termination."
+        },
+        {
+          "attempt": 2,
+          "classification": "invalid/incomplete; not renderer failure/pass",
+          "reason": "First map reached without attachment error, but guard excluded legitimate owned OJK temporary module naming. No payload mismatch proven; owned cleanup was forced."
+        }
+      ],
+      "qualification": "One targeted maximum-quality profile on one GPU/driver, not a repeated 9f 12-profile matrix or universal visual/hardware guarantee."
+    },
+    "deployment": {
+      "status": "installed-and-verified",
+      "summary": "Seven 9f runtime files and seven backups were verified; 46 other manifest files and eight fresh user-config guards stayed unchanged. Two authorized quality files restore MSAA 8/SSAA 1 while preserving all other 29 quality settings and the main config. Deployment preceded successful full-map validation; the later run verified the same installed combination.",
+      "target": "E:/Games/testClient/GameData",
+      "runtime_files_verified": 7,
+      "backups_verified": 7,
+      "other_manifest_files_unchanged": 46,
+      "user_configs_unchanged": 8,
+      "authorized_quality_files": 2,
+      "main_config_unchanged": true,
+      "msaa": 8,
+      "ssaa": 1,
+      "launcher_startup_segments": 55,
+      "engine_startup_limit": 64,
+      "deployment_preceded_successful_map_validation": true,
+      "receipt": "E:/Codex-EJK-audit/deployments/vulkan-runtime-fix-20261111-222020/deployment-receipt.json",
+      "verification": "E:/Codex-EJK-audit/deployments/vulkan-runtime-fix-20261111-222020/post-deploy-verification.json",
+      "backup": "E:/Codex-EJK-audit/deployments/vulkan-runtime-fix-20261111-222020/backup-20261111-224143",
+      "quality_receipt": "E:/Codex-EJK-audit/config-backups/vulkan-max-quality-restored-msaa-20261111-234224-367139/receipt.json"
+    }
+  },
+  "prior_750_evidence": {
+    "scope": "Historical evidence for 750, not a new 9f full-matrix claim.",
+    "local_suites": 68,
+    "gpu_profiles": 12,
+    "maps": 41,
+    "pngs": 123,
+    "ledger": "tests/vulkan-audit/followup-750ff04.json"
+  },
+  "source_sha256": {
+    "codemp/rd-vulkan/vk_attachments.cpp": "1030beb89a09b9d9a0470d0c187b42e8a989988faaae2f541f912b9bd2ba4d60",
+    "codemp/rd-vulkan/vk_local.h": "d3b44b6f22955f6ffc78f54fbbd0d1971529ccbb48a5e25caee83f040e1c27ac",
+    "shared/sys/sys_main.cpp": "82d017dd50dc3c2c340f2078fd4338d16d28767aa7242ff9fd78977e1cc84528"
+  },
+  "limits": "Tests use Vulkan/engine service stubs. The targeted installed-runtime result is recorded above; broader 9f GPU coverage is not inferred. No universal renderer/hardware/driver/recovery guarantee; earlier blocked SDL/VBO and restricted work remain untouched."
+}

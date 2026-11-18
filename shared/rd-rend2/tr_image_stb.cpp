@@ -66,16 +66,16 @@ static void R_LocalFree(void *ptr)
 // Loads a HDR image from file.
 void R_LoadHDRImage( const char *filename, byte **data, int *width, int *height )
 {
+	if (!data) return;
+	*data = NULL;
+	if (width) *width = 0;
+	if (height) *height = 0;
 	byte *buf = NULL;
-	int x, y, n;
+	int x = 0, y = 0, n = 0;
 	int len = ri.FS_ReadFile (filename, (void **)&buf);
 	if ( len <= 0 || buf == NULL )
 	{
-		// reset output varialbes
-		*data = NULL;
-		*width = 0;
-		*height = 0;
-
+		if (buf) ri.FS_FreeFile(buf);
 		return;
 	}
 	stbi_set_flip_vertically_on_load(0);
@@ -83,17 +83,15 @@ void R_LoadHDRImage( const char *filename, byte **data, int *width, int *height 
 
 	ri.FS_FreeFile(buf);
 
-	if (!data)
+	if (!*data) {
 		ri.Printf(PRINT_DEVELOPER, "R_LoadHDRImage(%s) failed: %s\n", filename, stbi_failure_reason());
+		return;
+	}
 
 	if (width)
 		*width = x;
-	else
-		*width = 0;
 
 	if (height)
 		*height = y;
-	else
-		*height = 0;
 
 }

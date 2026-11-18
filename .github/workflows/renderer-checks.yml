@@ -1,0 +1,87 @@
+name: Renderer source checks
+on:
+  pull_request:
+    paths:
+      - CMakeLists.txt
+      - CMakeModules/**
+      - cmake/**
+      - codemp/**
+      - shared/**
+      - lib/**
+      - tests/**
+      - .github/workflows/renderer-checks.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: renderer-checks-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native-client-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install client build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev nasm ripgrep
+      - name: Configure the complete native Vulkan client without OpenGL
+        run: >-
+          cmake -S . -B build-client -DCMAKE_BUILD_TYPE=Release
+          -DUseInternalLibs=ON -DUseInternalSDL2=OFF
+          -DBuildMPEngine=ON -DBuildMPDed=OFF -DBuildMPGame=OFF
+          -DBuildMPCGame=OFF -DBuildMPUI=OFF -DBuildDiscordRichPresence=OFF
+          -DBuildMPRdVanilla=OFF -DBuildMPRend2=OFF -DBuildMPRdVulkan=ON
+          -DCMAKE_DISABLE_FIND_PACKAGE_OpenGL=TRUE
+      - name: Build native client
+        run: cmake --build build-client --parallel 4
+      - name: Check direct binary dependencies
+        shell: bash
+        run: |
+          for binary in build-client/eternaljk.x86_64 build-client/codemp/rd-vulkan/rd-vulkan_x86_64.so; do
+            dependencies="$(readelf -d "$binary")"
+            if printf '%s\n' "$dependencies" | rg -i 'NEEDED.*lib(GL|GLX|OpenGL)\.'; then
+              echo "Unexpected OpenGL dependency: $binary"
+              exit 1
+            fi
+          done
+  native-vulkan:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install x86 SIMD assembler
+        if: runner.os == 'Windows'
+        run: choco install nasm --yes --no-progress
+      - name: Add Windows assembler to PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '"C:\Program Files\NASM" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append'
+      - name: Install Linux assembler
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y nasm
+      - name: Configure native Vulkan without OpenGL renderers
+        shell: bash
+        run: >-
+          cmake -S . -B build-vulkan -DCMAKE_BUILD_TYPE=Release
+          -DUseInternalLibs=ON -DBuildMPEngine=OFF -DBuildMPDed=OFF
+          -DBuildMPGame=OFF -DBuildMPCGame=OFF -DBuildMPUI=OFF
+          -DBuildMPRdVanilla=OFF -DBuildMPRend2=OFF -DBuildMPRdVulkan=ON
+          -DBuildDiscordRichPresence=OFF
+      - name: Build native Vulkan
+        run: cmake --build build-vulkan --config Release --parallel 4
+      - name: Run every applicable standalone regression suite
+        shell: bash
+        run: python tests/project-audit/regressions.py --output checks --jobs 4
+      - name: Upload regression logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-logs-${{ matrix.os }}
+          path: |
+            checks/*.log
+            checks/results.json

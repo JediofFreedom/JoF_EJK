@@ -36,6 +36,7 @@ option(BuildPortableVersion "Build portable version (does not read or write file
 
 option(BuildMPEngine "Whether to create projects for the MP client (eternaljk.x86.exe)" ON)
 option(BuildMPRdVanilla "Whether to create projects for the MP default renderer (rd-eternaljk_x86.dll)" ON)
+option(BuildMPRdVulkan "Whether to build the native Vulkan renderer from source" ON)
 option(BuildMPDed "Whether to create projects for the MP dedicated server (eternaljkded.exe)" ON)
 option(BuildMPGame "Whether to create projects for the MP server-side gamecode (jampgamex86.dll)" ON)
 option(BuildMPCGame "Whether to create projects for the MP clientside gamecode (cgamex86.dll)" ON)
@@ -82,8 +83,10 @@ endif()
 
 option(UseInternalOpenAL "If set, use bundled OpenAL."  ${UseInternalOpenALDefault})
 option(UseInternalZlib   "If set, use bundled zlib."    ${UseInternalZlibDefault})
+option(UseZlibNG "Use the bundled zlib-ng backend when UseInternalZlib is enabled and the toolchain supports it." ON)
 option(UseInternalPNG    "If set, use bundled libpng."  ${UseInternalPNGDefault})
 option(UseInternalJPEG   "If set, use bundled libjpeg." ${UseInternalJPEGDefault})
+option(UseTurboJPEG "Use the bundled SIMD-capable JPEG decoder when UseInternalJPEG is enabled." ON)
 option(UseInternalSDL2   "If set, use bundled SDL2."    ${UseInternalSDL2Default})
 
 # This option won't appear on non-Apple platforms.
@@ -153,6 +156,7 @@ message(STATUS "Git revision is ${GIT_SHA1}")
 # Binary names
 set(MPEngine "eternaljk.${Architecture}")
 set(MPVanillaRenderer "rd-eternaljk_${Architecture}")
+set(MPVulkanRenderer "rd-vulkan_${Architecture}")
 set(MPDed "eternaljkded.${Architecture}")
 set(MPGame "jampgame${Architecture}")
 set(MPCGame "cgame${Architecture}")
@@ -199,7 +203,9 @@ if(MSVC)
 	set(SharedDefines ${SharedDefines} "_CRT_NONSTDC_NO_DEPRECATE")
 	#set(SharedDefines ${SharedDefines} "WINDOWS_IGNORE_PACKING_MISMATCH")
 
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /EHsc /arch:SSE2 /we4013 /we4431")
+	foreach(language C CXX)
+		set(CMAKE_${language}_FLAGS "${CMAKE_${language}_FLAGS} /EHsc /arch:SSE2 /we4013 /we4431")
+	endforeach()
 
 	#hax flags
 	set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELEASE} /Zi /DRELWITHDEBINFO")
@@ -399,6 +405,10 @@ endif()
 
 
 
+# Check Release LTO before targets are created, including bundled static libs.
+include(ReleaseLTO)
+configure_release_lto()
+
 # Files shared across all projects
 set(SharedCommonFiles
 	"${SharedDir}/qcommon/q_color.h"
@@ -419,7 +429,11 @@ set(SharedCommonSafeFiles
 
 
 if(UseInternalJPEG)
-  add_subdirectory(lib/jpeg-9a)
+  if(UseTurboJPEG)
+    include(cmake/BuildTurboJPEG.cmake)
+  else()
+    add_subdirectory(lib/jpeg-9a)
+  endif()
 else()
   find_package(JPEG REQUIRED)
 endif()

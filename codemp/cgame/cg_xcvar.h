@@ -437,6 +437,7 @@ XCVAR_DEF( cg_smoothClients,					"0",					NULL,					CVAR_ARCHIVE )
 //XCVAR_DEF( cg_snapshotTimeout,					"10",					NULL,					CVAR_ARCHIVE ) //unused
 XCVAR_DEF( cg_speedTrail,						"1",					NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_stats,							"0",					NULL,					CVAR_NONE )
+XCVAR_DEF( cg_runtimeProfile,					"0",					NULL,					CVAR_NONE )
 XCVAR_DEF( cg_teamChatsOnly,					"0",					NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_thirdPerson,						"0",					NULL,					CVAR_ARCHIVE )
 XCVAR_DEF( cg_thirdPersonAlpha,					"1.0",					NULL,					CVAR_ARCHIVE )

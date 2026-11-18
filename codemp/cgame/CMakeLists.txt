@@ -30,6 +30,8 @@ set(MPCGameIncludeDirectories
 if(WIN32)
 	set(MPCGameLibraries "odbc32" "odbccp32") # what are these even?
 endif(WIN32)
+find_package(Threads REQUIRED)
+list(APPEND MPCGameLibraries Threads::Threads)
 list(APPEND MPCGameIncludeDirectories ${CJSON_INCLUDE_DIRS})
 list(APPEND MPCGameLibraries          ${CJSON_LIBRARIES})
 set(MPCGameDefines ${MPSharedDefines} "_CGAME" )
@@ -61,6 +63,9 @@ set(MPCGameFiles ${MPCGameFiles} ${MPCGameGameFiles})
 set(MPCGameCgameFiles
 	"${MPDir}/cgame/cg_consolecmds.c"
 	"${MPDir}/cgame/cg_cvar.c"
+	"${MPDir}/cgame/cg_runtime_profile.cpp"
+	"${MPDir}/cgame/cg_runtime_profile.h"
+	"${MPDir}/cgame/cg_runtime_profile_state.h"
 	"${MPDir}/cgame/cg_dialogue.c"
 	"${MPDir}/cgame/cg_dialogue.h"
 	"${MPDir}/cgame/cg_draw.c"

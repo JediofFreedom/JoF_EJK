@@ -403,11 +403,19 @@ typedef struct bgLoadedAnim_s {
 //	qboolean		soundsCached;
 } bgLoadedAnim_t;
 
+typedef struct bgAnimEventIndex_s {
+	unsigned short count;
+	unsigned short byFrame[MAX_ANIM_EVENTS];
+	qboolean valid;
+} bgAnimEventIndex_t;
+
 typedef struct bgLoadedEvents_s {
 	char			filename[MAX_QPATH];
 	animevent_t		torsoAnimEvents[MAX_ANIM_EVENTS];
 	animevent_t		legsAnimEvents[MAX_ANIM_EVENTS];
 	qboolean		eventsParsed;
+	// Cgame-local lookup metadata; event storage/order and the wire are unchanged.
+	bgAnimEventIndex_t torsoIndex,legsIndex;
 } bgLoadedEvents_t;
 
 

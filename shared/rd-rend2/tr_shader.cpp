@@ -3693,9 +3693,16 @@ static void FixRenderCommandList( int newShader ) {
 
 		if( cmdList ) {
 			const void *curCmd = cmdList->cmds;
+			const byte *endCmd = cmdList->cmds + cmdList->used;
 
-			while ( 1 ) {
+			// The terminator is written only when the batch is submitted.
+			// Bytes beyond used still contain older commands, possibly pointing
+			// at the same surfaces. Updating those shifts shader indices twice.
+			while ( (const byte *)curCmd < endCmd ) {
 				curCmd = PADP(curCmd, sizeof(void *));
+				if ( (const byte *)curCmd + sizeof(int) > endCmd ) {
+					return;
+				}
 
 				switch ( *(const int *)curCmd ) {
 				case RC_SET_COLOR:
@@ -4381,6 +4388,9 @@ static const char *FindShaderInShaderText( const char *shadername ) {
 			if(!Q_stricmp(token, shadername))
 				return p;
 		}
+		// Every definition is indexed, including empty buckets. A miss here
+		// is an implicit image shader; scanning all scripts again is redundant.
+		return NULL;
 	}
 
 	p = s_shaderText;

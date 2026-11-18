@@ -24,6 +24,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 // cg_main.c -- initialization and primary entry point for cgame
 #include "cg_local.h"
+#include "cg_runtime_profile.h"
 #include "cg_dialogue.h"
 
 #include "ui/ui_shared.h"
@@ -2928,7 +2929,7 @@ cosmetics_t localCosmetics;
 =================
 CG_LoadCosmetics
 
-Scans a cosmetics folder for .md3 files and registers each one as a wearable item.
+Scans a cosmetics folder for .md3 files; models are registered when used.
 There is no list to maintain: dropping a model in the folder is all it takes to add a
 hat, and any pk3 a player has can extend the set. Names longer than MAX_COSMETIC_LENGTH
 can't survive the trip through the saber colour userinfo key, and names starting with a
@@ -2985,7 +2986,10 @@ static void CG_LoadCosmetics(const char *path, size_t pathLen, int *totalCosmeti
 		}
 
 		Q_strncpyz(cosmeticsPtr[j].name, cosmetic, sizeof(cosmeticsPtr[j].name));
-		cosmeticsPtr[j].handle = trap->R_RegisterModel(va("%s%s.md3", path, cosmetic));
+		cosmeticsPtr[j].handle = 0;
+		cosmeticsPtr[j].attempted = qfalse;
+		Com_sprintf(cosmeticsPtr[j].modelPath, sizeof(cosmeticsPtr[j].modelPath), "%s%s.md3", path, cosmetic);
+		cosmeticsPtr[j].fallbackPath[0] = '\0';
 		j++;
 	}
 
@@ -3005,6 +3009,17 @@ static void CG_LoadCosmetics(const char *path, size_t pathLen, int *totalCosmeti
 
 	*storePtr = cosmeticsPtr;
 	*totalCosmetics = j;
+}
+
+qhandle_t CG_CosmeticModel(cosmeticItem_t *item) {
+	if (!item) return 0;
+	if (!item->attempted) {
+		item->attempted = qtrue;
+		item->handle = trap->R_RegisterModel(item->modelPath);
+		if (!item->handle && item->fallbackPath[0])
+			item->handle = trap->R_RegisterModel(item->fallbackPath);
+	}
+	return item->handle;
 }
 
 void CG_LoadAllCosmetics(void)
@@ -3028,8 +3043,10 @@ void CG_LoadAllCosmetics(void)
 				for ( j = 0; j < localCosmetics.totalHats; j++ ) if ( !Q_stricmp( items[j].name, knownHats[i] ) ) { found = qtrue; break; }
 				if ( found ) continue;
 				Q_strncpyz( items[localCosmetics.totalHats].name, knownHats[i], sizeof( items[localCosmetics.totalHats].name ) );
-				items[localCosmetics.totalHats].handle = trap->R_RegisterModel( va( "%s%s.md3", COSMETIC_HATS_PATH, knownHats[i] ) );
-				if ( !items[localCosmetics.totalHats].handle ) items[localCosmetics.totalHats].handle = trap->R_RegisterModel( va( "%s%s.md3", COSMETIC_HATS_LEGACY_PATH, knownHats[i] ) );
+				items[localCosmetics.totalHats].handle = 0;
+				items[localCosmetics.totalHats].attempted = qfalse;
+				Com_sprintf(items[localCosmetics.totalHats].modelPath, MAX_QPATH, "%s%s.md3", COSMETIC_HATS_PATH, knownHats[i]);
+				Com_sprintf(items[localCosmetics.totalHats].fallbackPath, MAX_QPATH, "%s%s.md3", COSMETIC_HATS_LEGACY_PATH, knownHats[i]);
 				localCosmetics.totalHats++;
 			}
 		}
@@ -3041,8 +3058,10 @@ void CG_LoadAllCosmetics(void)
 				for ( j = 0; j < localCosmetics.totalCapes; j++ ) if ( !Q_stricmp( items[j].name, knownCapes[i] ) ) { found = qtrue; break; }
 				if ( found ) continue;
 				Q_strncpyz( items[localCosmetics.totalCapes].name, knownCapes[i], sizeof( items[localCosmetics.totalCapes].name ) );
-				items[localCosmetics.totalCapes].handle = trap->R_RegisterModel( va( "%s%s.md3", COSMETIC_CAPES_PATH, knownCapes[i] ) );
-				if ( !items[localCosmetics.totalCapes].handle ) items[localCosmetics.totalCapes].handle = trap->R_RegisterModel( va( "%s%s.md3", COSMETIC_CAPES_LEGACY_PATH, knownCapes[i] ) );
+				items[localCosmetics.totalCapes].handle = 0;
+				items[localCosmetics.totalCapes].attempted = qfalse;
+				Com_sprintf(items[localCosmetics.totalCapes].modelPath, MAX_QPATH, "%s%s.md3", COSMETIC_CAPES_PATH, knownCapes[i]);
+				Com_sprintf(items[localCosmetics.totalCapes].fallbackPath, MAX_QPATH, "%s%s.md3", COSMETIC_CAPES_LEGACY_PATH, knownCapes[i]);
 				localCosmetics.totalCapes++;
 			}
 		}
@@ -3060,7 +3079,7 @@ void CG_FreeCosmetics(void)
 =================
 CG_LoadEmojis
 
-Method that registers all the avaialable emojis
+Build the emoji catalogue; shaders are registered when used.
 =================
 */
 static void CG_LoadEmojis(void) {
@@ -3071,11 +3090,8 @@ static void CG_LoadEmojis(void) {
 	//get a list of all the available png files in the emoji folder
 	fileCnt = trap->FS_GetFileList("gfx/emoji", ".png", emojiExtensionListBuf, sizeof(emojiExtensionListBuf));
 
-	if (!fileCnt < 1 && cg_chatBoxEmojis.integer) {
-		trap->Cvar_Set("cg_chatBoxEmojis", "0");
-		trap->Cvar_Update(&cg_chatBoxEmojis);
-		return;
-	}
+	memset(emojis, 0, sizeof(emojis));
+	if (fileCnt < 1) return;
 
 	holdChar = emojiExtensionListBuf;
 	for (i = 0; i < fileCnt; i++, holdChar += emojiExtFNLen + 1) {
@@ -3119,7 +3135,7 @@ static void CG_LoadEmojis(void) {
 
 		//Add emoji name to the list
 		Com_sprintf(emojis[inserted].name, sizeof(emojis[inserted].name), "%s", emoji); //get rid of the the escape chars here and just have it set by the filename for more flexibility
-		emojis[inserted].emoji = trap->R_RegisterShaderNoMip(va("gfx/emoji/%s", holdChar));
+		Com_sprintf(emojis[inserted].shaderPath, sizeof(emojis[inserted].shaderPath), "gfx/emoji/%s", holdChar);
 
 		inserted++;
 	}
@@ -3133,12 +3149,36 @@ Called after every level change or subsystem restart
 Will perform callbacks to make the loading info screen update.
 =================
 */
+qhandle_t CG_EmojiShader(int index) {
+	if (index < 0 || index >= MAX_LOADABLE_EMOJIS || !emojis[index].name[0]) return 0;
+	if (!emojis[index].attempted) {
+		emojis[index].attempted = qtrue;
+		emojis[index].emoji = trap->R_RegisterShaderNoMip(emojis[index].shaderPath);
+	}
+	return emojis[index].emoji;
+}
+
+static qboolean cgLoadProfileEnabled;
+static int CG_LoadProfileStage(const char *stage, int started) {
+	if (cgLoadProfileEnabled) {
+		int now = trap->Milliseconds();
+		trap->Print("LOADPROFILE %s: %d ms\n", stage, now - started);
+		return now;
+	}
+	return started;
+}
+
 void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum )
 {
 	static gitem_t *item;
 	char buf[64];
 	const char	*s;
 	int i = 0;
+	int loadStage = trap->Milliseconds();
+	char loadTimingValue[16];
+	trap->Cvar_VariableStringBuffer("cl_loadTimings", loadTimingValue, sizeof(loadTimingValue));
+	cgLoadProfileEnabled = atoi(loadTimingValue) ? qtrue : qfalse;
+	CG_RuntimeProfileInit(trap->Print);
 
 	BG_InitAnimsets(); //clear it out
 
@@ -3146,6 +3186,7 @@ void CG_Init( int serverMessageNum, int serverCommandSequence, int clientNum )
 
 	//Load external vehicle data
 	BG_VehicleLoadParms();
+	loadStage = CG_LoadProfileStage("vehicle definitions", loadStage);
 
 	// clear everything
 /*
@@ -3161,6 +3202,7 @@ Ghoul2 Insert Start
 
 	//create the global jetpack instance
 	CG_InitJetpackGhoul2();
+	loadStage = CG_LoadProfileStage("cgame state and jetpack", loadStage);
 
 	CG_PmoveClientPointerUpdate();
 
@@ -3170,12 +3212,15 @@ Ghoul2 Insert End
 
 	//Load emojis
 	CG_LoadEmojis();
+	loadStage = CG_LoadProfileStage("emoji catalogue", loadStage);
 
 	//Scan the cosmetics folders for wearable hats and capes
 	CG_LoadAllCosmetics();
+	loadStage = CG_LoadProfileStage("cosmetic catalogue", loadStage);
 
 	//Load sabers.cfg data
 	WP_SaberLoadParms();
+	loadStage = CG_LoadProfileStage("saber definitions", loadStage);
 
 	// this is kinda dumb as well, but I need to pre-load some fonts in order to have the text available
 	//	to say I'm loading the assets.... which includes loading the fonts. So I'll set these up as reasonable
@@ -3369,23 +3414,31 @@ Ghoul2 Insert End
 	CG_ParseServerinfo();
 
 	// load the new map
+	loadStage = CG_LoadProfileStage("cgame setup", loadStage);
 	trap->CM_LoadMap( cgs.mapname, qfalse );
+	loadStage = CG_LoadProfileStage("collision map", loadStage);
 
 	String_Init();
 
 	//make sure saber data is loaded before this! (so we can precache the appropriate hilts)
 	CG_InitSiegeMode();
+	loadStage = CG_LoadProfileStage("strings and siege data", loadStage);
 
 	cg.coldBreathEffects = qfalse;
 	CG_RegisterSounds();
+	loadStage = CG_LoadProfileStage("sounds", loadStage);
 
 	CG_RegisterGraphics();
+	loadStage = CG_LoadProfileStage("graphics", loadStage);
 
 	CG_RegisterClients();		// if low on memory, some clients will be deferred
+	loadStage = CG_LoadProfileStage("player models", loadStage);
 
 	CG_AssetCache();
+	loadStage = CG_LoadProfileStage("cgame extra assets", loadStage);
 
 	CG_LoadHudMenu();      // load new hud stuff
+	loadStage = CG_LoadProfileStage("HUD", loadStage);
 
 	cg.loading = qfalse;	// future players will be deferred
 
@@ -3446,6 +3499,7 @@ Ghoul2 Insert End
 		}
 	}
 #endif
+	CG_RuntimeProfileReady();
 }
 
 //makes sure returned string is in localized format
@@ -3508,6 +3562,7 @@ Called before every level change or subsystem restart
 */
 void CG_Shutdown( void )
 {
+	CG_RuntimeProfileShutdown();
 	trap->Cvar_Set("cl_destructionSelected", "0");
 	// Userinfo is handled by the engine even when game commands are flood
 	// filtered. Do not leave readiness behind for a subsequently loaded mod.

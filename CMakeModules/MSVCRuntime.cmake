@@ -35,14 +35,8 @@ macro(configure_msvc_runtime)
 			endforeach()
 		endif()
 
-		set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS}")
-		set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
-		set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
-		set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL}")
-		set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
-
-		foreach(variable ${variables})
-			set(${variable} "${${variable}}" CACHE STRING "MSVC_${variable}" FORCE)
-		endforeach()
+		# Keep language-specific/toolchain flags intact. These are directory
+		# overrides, not cache defaults: persisting the augmented flags caused
+		# every configure to append the project's options again.
 	endif()
 endmacro(configure_msvc_runtime)

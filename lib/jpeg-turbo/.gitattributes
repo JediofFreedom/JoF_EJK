@@ -1,0 +1,2 @@
+# Preserve the upstream distribution byte-for-byte, including test images.
+* -text

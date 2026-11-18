@@ -25,6 +25,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // active (after loading) gameplay
 
 #include "cg_local.h"
+#include "cg_runtime_profile.h"
 #include "cg_dialogue.h"
 
 #include "game/bg_saga.h"
@@ -5871,6 +5872,7 @@ extern int commandTimeDelta;
 static float CG_DrawSnapshot( float y ) {
 	char		*s;
 	int			w, drawFont = cg_drawFPS.integer;
+	if (cg_drawSnapshot.integer <= 0) return y;
 	/*int			w, drawFont = cg_drawFPS.integer ? cg_drawFPS.integer : cg_drawSnapshot.integer;
 
 	s = va( "time:%i snap:%i cmd:%i", cg.snap->serverTime,
@@ -8233,9 +8235,7 @@ void CG_BracketEntity( centity_t *cent, float radius )
 									return;
 								}
 								if ( !CG_WorldCoordToScreenCoord(vehLeadPos, &leadX, &leadY) )
-								{//off-screen, don't draw it
-									//just draw the line
-									CG_DottedLine( x, y, leadX, leadY, 1, 10, g_color_table[ColorIndex(COLOR_RED)], 0.5f );
+								{//behind the view plane; projection did not assign leadX/leadY
 									return;
 								}
 								//draw a line from the ship's cur pos to the lead pos
@@ -10586,7 +10586,7 @@ void CG_ChatBox_AddString(char *chatStr, qboolean isPrivate)
 					strcpy(&emojiStr[w], replaceChar);
 
 					//set the pointer to the emoji graphic
-					chat->emoji[emojiIndex].emoji = emojis[k].emoji;
+					chat->emoji[emojiIndex].emoji = CG_EmojiShader(k);
 
 					//calculate the offsets
 					char *b = emojiStr + bpoint;
@@ -12223,7 +12223,11 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 	CG_DrawMiscStaticModels();
 
 	// draw 3D view
-	trap->R_RenderScene( &cg.refdef );
+	{
+		cgProfileMark_t profile = CG_ProfileBegin();
+		trap->R_RenderScene( &cg.refdef );
+		CG_ProfileEnd(CGP_RENDER_SCENE,profile);
+	}
 
 	// restore original viewpoint if running stereo
 	if ( separation != 0 ) {
@@ -12231,7 +12235,11 @@ void CG_DrawActive( stereoFrame_t stereoView ) {
 	}
 
 	// draw status bar and other floating elements
- 	CG_Draw2D();
+	{
+		cgProfileMark_t profile = CG_ProfileBegin();
+		CG_Draw2D();
+		CG_ProfileEnd(CGP_HUD,profile);
+	}
 
 	//
 	if (cg_drawPartnerView.integer)
@@ -12875,8 +12883,7 @@ static void CG_LeadIndicator(void)
 					if ( !CG_WorldCoordToScreenCoord(cent->lerpOrigin, &x, &y) ) {//off-screen, don't draw it
 						continue;
 					}
-					if ( !CG_WorldCoordToScreenCoord(LeadPos, &leadX, &leadY) ) {//off-screen, don't draw it
-						CG_DottedLine( x, y, leadX, leadY, 1, 10, g_color_table[ColorIndex(COLOR_RED)], 0.5f ); //just draw the line
+					if ( !CG_WorldCoordToScreenCoord(LeadPos, &leadX, &leadY) ) {//behind the view plane; coordinates are undefined
 						continue;
 					}
 					CG_DottedLine( x, y, leadX, leadY, 1, 10, g_color_table[ColorIndex(COLOR_RED)], 0.5f ); //draw a line from the ship's cur pos to the lead pos

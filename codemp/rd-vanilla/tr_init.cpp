@@ -2074,14 +2074,15 @@ Q_EXPORT refexport_t* QDECL GetRefAPI( int apiVersion, refimport_t *rimp ) {
 	static refexport_t re;
 
 	assert( rimp );
+	if (apiVersion != REF_API_VERSION) {
+		rimp->Printf(PRINT_ALL, "Mismatched renderer API: expected %i, got %i\n", REF_API_VERSION, apiVersion);
+		return NULL;
+	}
 	ri = *rimp;
 
 	memset( &re, 0, sizeof( re ) );
 
-	if ( apiVersion != REF_API_VERSION ) {
-		ri.Printf( PRINT_ALL,  "Mismatched REF_API_VERSION: expected %i, got %i\n", REF_API_VERSION, apiVersion );
-		return NULL;
-	}
+
 
 	// the RE_ functions are Renderer Entry points
 

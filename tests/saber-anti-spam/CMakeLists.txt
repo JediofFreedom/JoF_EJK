@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(saber_anti_spam C)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../TestPlatform.cmake")
 
 get_filename_component(repo "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 configure_file("${repo}/codemp/versionfile/jofversion.h.in"
@@ -30,6 +31,7 @@ extract(codemp/cgame/cg_weapons.c "void CG_CheckPlayerG2Weapons(" "Ghoul2 Insert
 file(APPEND "${CMAKE_CURRENT_BINARY_DIR}/actual.h" "*/\n")
 
 add_executable(saber_anti_spam check.c)
+ejk_test_platform(saber_anti_spam)
 target_compile_definitions(saber_anti_spam PRIVATE _CGAME)
 target_include_directories(saber_anti_spam PRIVATE
   "${CMAKE_CURRENT_BINARY_DIR}" "${repo}/codemp" "${repo}/shared")

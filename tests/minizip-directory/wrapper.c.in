@@ -1,0 +1,67 @@
+/* Compile the actual production C translation unit and expose its private
+ * scalar readers only to this standalone compatibility fixture. */
+#include "@UNZIP_SOURCE@"
+
+typedef struct {
+    unsigned char data[8];
+    unsigned int length, position, chunk;
+    int error;
+} scalar_stream;
+
+static uLong ZCALLBACK scalar_read(voidpf opaque, voidpf stream, void* buffer, uLong length)
+{
+    scalar_stream* s = (scalar_stream*)stream;
+    uLong remaining = s->length - s->position;
+    (void)opaque;
+    if (length > s->chunk) length = s->chunk;
+    if (length > remaining) length = remaining;
+    memcpy(buffer, s->data + s->position, length);
+    s->position += length;
+    return length;
+}
+
+static int ZCALLBACK scalar_error(voidpf opaque, voidpf stream)
+{
+    scalar_stream* s = (scalar_stream*)stream;
+    (void)opaque;
+    return s->error && s->position == s->length;
+}
+
+static unsigned long long mix_scalar(unsigned long long hash, unsigned long long value)
+{
+    int i;
+    for (i=0; i<8; ++i) {
+        hash = (hash ^ (value & 255)) * 1099511628211ULL;
+        value >>= 8;
+    }
+    return hash;
+}
+
+unsigned long long scalar_fingerprint(void)
+{
+    unsigned int width, length, chunk, error, i;
+    unsigned long long hash = 1469598103934665603ULL;
+    zlib_filefunc64_32_def functions;
+    memset(&functions, 0, sizeof(functions));
+    functions.zfile_func64.zread_file = scalar_read;
+    functions.zfile_func64.zerror_file = scalar_error;
+    for (width=2; width<=8; width*=2)
+      for (length=0; length<=8; ++length)
+        for (chunk=1; chunk<=width; ++chunk)
+          for (error=0; error<=1; ++error) {
+            scalar_stream s;
+            uLong small = 0xdeadbeef;
+            ZPOS64_T large = 0xdeadbeef;
+            int result;
+            memset(&s, 0, sizeof(s));
+            s.length=length; s.chunk=chunk; s.error=error;
+            for (i=0; i<8; ++i) s.data[i]=(unsigned char)(0xf1 - 23*i);
+            if (width==2) result=unz64local_getShort(&functions, &s, &small);
+            else if (width==4) result=unz64local_getLong(&functions, &s, &small);
+            else result=unz64local_getLong64(&functions, &s, &large);
+            hash=mix_scalar(hash, result);
+            hash=mix_scalar(hash, width==8 ? large : small);
+            hash=mix_scalar(hash, s.position);
+          }
+    return hash;
+}

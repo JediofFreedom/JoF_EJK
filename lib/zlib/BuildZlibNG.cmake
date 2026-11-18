@@ -1,0 +1,73 @@
+# Keep upstream's options, compiler settings and project variables local to the
+# dependency. The engine and its other libraries retain their own LTO policy.
+function(ejk_zlib_ng_support result reason)
+  set(target_architectures ${CMAKE_OSX_ARCHITECTURES})
+  list(REMOVE_ITEM target_architectures "")
+  list(REMOVE_DUPLICATES target_architectures)
+  list(LENGTH target_architectures target_architecture_count)
+  if(CMAKE_VERSION VERSION_LESS 3.14)
+    set(${result} FALSE PARENT_SCOPE)
+    set(${reason} "CMake 3.14 or newer is required (EJK still supports CMake 3.10)" PARENT_SCOPE)
+  elseif(APPLE AND target_architecture_count GREATER 1)
+    # Upstream detect-arch.cmake selects only the first architecture, then
+    # chooses ISA-specific sources for it. Keep mixed-architecture builds on
+    # the classic backend rather than compiling one ISA family for all slices.
+    set(${result} FALSE PARENT_SCOPE)
+    set(${reason} "macOS universal builds with multiple target architectures require classic zlib" PARENT_SCOPE)
+  elseif(NOT CMAKE_C_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|MSVC|Intel|IntelLLVM)$")
+    set(${result} FALSE PARENT_SCOPE)
+    set(${reason} "unverified C compiler ${CMAKE_C_COMPILER_ID}" PARENT_SCOPE)
+  elseif(MSVC AND MSVC_VERSION LESS 1800)
+    set(${result} FALSE PARENT_SCOPE)
+    set(${reason} "MSVC 2013 or newer is required" PARENT_SCOPE)
+  else()
+    set(${result} TRUE PARENT_SCOPE)
+    set(${reason} "" PARENT_SCOPE)
+  endif()
+endfunction()
+
+function(ejk_add_zlib_ng source binary)
+  # Upstream uses option(); ensure these normal variables win without changing
+  # unrelated cache choices such as BUILD_SHARED_LIBS or BUILD_TESTING.
+  cmake_policy(SET CMP0077 NEW)
+  set(BUILD_SHARED_LIBS OFF)
+  set(BUILD_TESTING OFF)
+  set(ZLIB_COMPAT ON)
+  set(ZLIB_ALIASES OFF)
+  set(ZLIB_SYMBOL_PREFIX "")
+  set(WITH_GTEST OFF)
+  set(WITH_FUZZERS OFF)
+  set(WITH_BENCHMARKS OFF)
+  set(WITH_BENCHMARK_APPS OFF)
+  set(WITH_NATIVE_INSTRUCTIONS OFF)
+  set(WITH_RUNTIME_CPU_DETECTION ON)
+  set(WITH_INFLATE_ALLOW_INVALID_DIST OFF)
+  set(SKIP_INSTALL_ALL ON)
+  set(INSTALL_UTILS OFF)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+  # LTO can let the compiler move ISA-specific instructions into generic
+  # dispatch/fallback code. A parent Release/custom-config IPO setting also
+  # overrides the generic OFF flag, so shadow and clear every configuration.
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
+  set(configurations Debug Release RelWithDebInfo MinSizeRel ${CMAKE_CONFIGURATION_TYPES} ${CMAKE_BUILD_TYPE})
+  get_cmake_property(variables VARIABLES)
+  foreach(variable IN LISTS variables)
+    if(variable MATCHES "^CMAKE_INTERPROCEDURAL_OPTIMIZATION_(.+)$")
+      list(APPEND configurations "${CMAKE_MATCH_1}")
+    endif()
+  endforeach()
+  list(REMOVE_DUPLICATES configurations)
+  foreach(configuration IN LISTS configurations)
+    string(TOUPPER "${configuration}" upper)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_${upper} OFF)
+  endforeach()
+
+  add_subdirectory("${source}" "${binary}")
+  set_property(TARGET zlib-ng PROPERTY INTERPROCEDURAL_OPTIMIZATION OFF)
+  foreach(configuration IN LISTS configurations)
+    string(TOUPPER "${configuration}" upper)
+    set_property(TARGET zlib-ng PROPERTY INTERPROCEDURAL_OPTIMIZATION_${upper} OFF)
+  endforeach()
+  add_library(bundled_zlib ALIAS zlib-ng)
+endfunction()

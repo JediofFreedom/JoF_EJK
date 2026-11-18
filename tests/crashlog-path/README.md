@@ -1,0 +1,5 @@
+The fixture compiles the actual production `Sys_ErrorDialog` extracted from `shared/sys/sys_main.cpp`. Six cases cover a portable installation whose default home is NULL, an explicit effective home override, the normal default home, a NULL default with install fallback, empty paths with working-directory fallback, and all NULL paths with `.` as the final fallback.
+
+Each case requires the expected path precedence and a nonempty mkdir argument, writes and rereads a real crashlog using native `FILE` operations in its private build directory, and verifies the original fatal message. No engine filesystem API is supplied, so the native write remains available after filesystem shutdown. The dialog is stubbed; no game or window is launched.
+
+Configure this directory directly with CMake, build and run CTest. `SYS_MAIN_SOURCE` can select an unchanged pre-fix source snapshot. The old portable/NULL paths fail deterministically rather than relying on undefined CRT formatting; the normal default-home case remains a positive control.

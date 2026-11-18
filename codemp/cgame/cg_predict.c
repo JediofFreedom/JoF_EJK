@@ -280,9 +280,22 @@ static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const
 	entityState_t	*ent;
 	clipHandle_t 	cmodel;
 	vec3_t		bmins, bmaxs;
+	vec3_t		traceMins, traceMaxs;
 	vec3_t		origin, angles;
 	centity_t	*cent;
 	centity_t	*ignored = NULL;
+	qboolean	validTraceBounds = qtrue;
+
+	// Like SV_Trace, bound the entire sweep with a one-unit margin. Encoded
+	// entity boxes do not rotate, so disjoint bounds cannot affect this trace.
+	for (i = 0; i < 3; ++i)
+	{
+		const float traceMin = mins ? mins[i] : 0.0f;
+		const float traceMax = maxs ? maxs[i] : 0.0f;
+		if (traceMin > traceMax) validTraceBounds = qfalse;
+		traceMins[i] = (start[i] < end[i] ? start[i] : end[i]) + traceMin - 1.0f;
+		traceMaxs[i] = (start[i] > end[i] ? start[i] : end[i]) + traceMax + 1.0f;
+	}
 
 	if (skipNumber != -1 && skipNumber != ENTITYNUM_NONE)
 	{
@@ -375,6 +388,20 @@ static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const
 				BG_VehicleAdjustBBoxForOrientation(cent->m_pVehicle, cent->lerpOrigin, bmins, bmaxs,
 											cent->currentState.number, MASK_PLAYERSOLID, NULL);
 				cent->m_pVehicle->m_vOrientation = old;
+			}
+
+			// Vehicle bounds must be adjusted before this check. Keep unusual
+			// inverted boxes on the original path rather than assuming validity.
+			if (validTraceBounds && bmins[0] <= bmaxs[0] &&
+				bmins[1] <= bmaxs[1] && bmins[2] <= bmaxs[2] &&
+				(traceMins[0] > cent->lerpOrigin[0] + bmaxs[0] ||
+				 traceMins[1] > cent->lerpOrigin[1] + bmaxs[1] ||
+				 traceMins[2] > cent->lerpOrigin[2] + bmaxs[2] ||
+				 traceMaxs[0] < cent->lerpOrigin[0] + bmins[0] ||
+				 traceMaxs[1] < cent->lerpOrigin[1] + bmins[1] ||
+				 traceMaxs[2] < cent->lerpOrigin[2] + bmins[2]))
+			{
+				continue;
 			}
 
 			cmodel = trap->CM_TempModel( bmins, bmaxs, 0 );

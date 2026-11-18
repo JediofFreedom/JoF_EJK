@@ -150,13 +150,14 @@ qhandle_t RE_RegisterIndividualSkin( const char *name , qhandle_t hSkin)
 		token = CommaParse( &text_p );
 
 #ifndef JK2_MODE
-		if ( !strcmp( &surfName[strlen(surfName)-4], "_off") )
+		const size_t surfaceLength = strlen(surfName);
+		if ( surfaceLength >= 4 && !strcmp(surfName + surfaceLength - 4, "_off") )
 		{
 			if ( !strcmp( token ,"*off" ) )
 			{
 				continue;	//don't need these double offs
 			}
-			surfName[strlen(surfName)-4] = 0;	//remove the "_off"
+			surfName[surfaceLength - 4] = 0;	//remove the "_off"
 		}
 #endif
 		if ( (unsigned)skin->numSurfaces >= ARRAY_LEN( skin->surfaces ) )
@@ -195,7 +196,8 @@ qhandle_t RE_RegisterSkin( const char *name ) {
 		return 0;
 	}
 
-	if ( strlen( name ) >= MAX_QPATH ) {
+	const size_t nameLength = strlen(name);
+	if ( nameLength >= MAX_QPATH ) {
 		Com_Printf( "Skin name exceeds MAX_QPATH\n" );
 		return 0;
 	}
@@ -226,9 +228,9 @@ qhandle_t RE_RegisterSkin( const char *name ) {
 	R_IssuePendingRenderCommands();
 #ifdef JK2_MODE
 	// If not a .skin file, load as a single shader
-	if ( strcmp( name + strlen( name ) - 5, ".skin" ) ) {
+	if ( nameLength < 5 || strcmp(name + nameLength - 5, ".skin") ) {
 		skin->numSurfaces = 1;
-		skin->surfaces[0] = (skinSurface_t *)Hunk_Alloc( sizeof(skin->surfaces[0]), h_low );
+		skin->surfaces[0] = (skinSurface_t *)Hunk_Alloc( sizeof(*skin->surfaces[0]), h_low );
 		skin->surfaces[0]->shader = R_FindShader( name, lightmapsNone, stylesDefault, qtrue );
 		return hSkin;
 
@@ -327,7 +329,8 @@ static char *CommaParse( char **data_p ) {
 		data++;
 		while (1)
 		{
-			c = *data++;
+			c = *data;
+			if (c) data++; // Keep truncated quoted strings at their terminator.
 			if (c=='\"' || !c)
 			{
 				com_token[len] = 0;

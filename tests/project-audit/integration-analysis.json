@@ -1,0 +1,599 @@
+{
+  "scope": "Targeted follow-up of filesystem, connection, startup storage, BSP/VBO, cgame profiling and spine changes.",
+  "qualification": "Per-file hashes describe the sampled sources. These 21 contexts were checked before later lead-HUD, event-index and mark-surface follow-ups; those require their own checks. Analyzer candidates are not automatically reachable defects or fixed bugs.",
+  "tool": "clang-tidy 19.1.5 in the MSVC 17.14 compiler environment",
+  "database_sha256": "3f22413c6d06c0c4a8d12d72b8f0de47c9c8047c0730992e7a617ff0f437d5d4",
+  "summary": {
+    "contexts": 21,
+    "translation_units": 17,
+    "statuses": {
+      "analyzed": 21
+    },
+    "diagnostic_contexts": 10,
+    "warning_appearances": 35
+  },
+  "results": [
+    {
+      "file": "codemp/qcommon/common.cpp",
+      "context": "471c02b442d36046",
+      "source_sha256": "5f425c048a34c2fedd8afbb7d9b4e4e34c2e257990c98858f776e0233e79a4ce",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/qcommon/common.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\471c02b442d36046",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [
+        "G:\\code\\JoF_EJK-performance\\codemp\\qcommon\\common.cpp:550:17: warning: The left operand of '!=' is a garbage value [clang-analyzer-core.UndefinedBinaryOperatorResult]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\qcommon\\common.cpp:555:9: warning: 1st function call argument is an uninitialized value [clang-analyzer-core.CallAndMessage]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\qcommon\\common.cpp:597:8: warning: Branch condition evaluates to a garbage value [clang-analyzer-core.uninitialized.Branch]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\qcommon\\common.cpp:605:8: warning: Branch condition evaluates to a garbage value [clang-analyzer-core.uninitialized.Branch]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\qcommon\\common.cpp:644:44: warning: 1st function call argument is an uninitialized value [clang-analyzer-core.CallAndMessage]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\qcommon\\common.cpp:1069:25: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+      ],
+      "seconds": 2.89
+    },
+    {
+      "file": "codemp/qcommon/files.cpp",
+      "context": "04fe828c09d2cef0",
+      "source_sha256": "44fc0549d9e12102f2e35080f1b2115443a3ae71d7ef08cbb6c006e911004aef",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/qcommon/files.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\04fe828c09d2cef0",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [],
+      "seconds": 18.43
+    },
+    {
+      "file": "codemp/client/cl_main.cpp",
+      "context": "db79f78909fc68e3",
+      "source_sha256": "df254e334d82c517da9a520eff4557004c557438139435ab46cc95ecbf23cfca",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/client/cl_main.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\db79f78909fc68e3",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [],
+      "seconds": 6.55
+    },
+    {
+      "file": "codemp/client/cl_parse.cpp",
+      "context": "171d5fd6d402a843",
+      "source_sha256": "4cdd9b199c36210941290c1fee05a9aa6e4fbc01bd763f47f5c019d1267dbcf6",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/client/cl_parse.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\171d5fd6d402a843",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [
+        "G:\\code\\JoF_EJK-performance\\codemp\\client\\cl_parse.cpp:85:3: warning: Forming reference to null pointer [clang-analyzer-core.NonNullParamChecker]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\client\\cl_parse.cpp:166:21: warning: Access to field 'numEntities' results in a dereference of a null pointer (loaded from variable 'oldframe') [clang-analyzer-core.NullDereference]"
+      ],
+      "seconds": 1.61
+    },
+    {
+      "file": "shared/sys/sys_main.cpp",
+      "context": "18bda4aa1dd026d7",
+      "source_sha256": "3c05c7010bcaf423f775516c994c375c81b122d0eb87e8b13496accff3a707a4",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/shared/sys/sys_main.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\18bda4aa1dd026d7",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [],
+      "seconds": 0.4
+    },
+    {
+      "file": "codemp/qcommon/common.cpp",
+      "context": "5b1f5f62fb2aec29",
+      "source_sha256": "5f425c048a34c2fedd8afbb7d9b4e4e34c2e257990c98858f776e0233e79a4ce",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/qcommon/common.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\5b1f5f62fb2aec29",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [
+        "G:\\code\\JoF_EJK-performance\\codemp\\qcommon\\common.cpp:550:17: warning: The left operand of '!=' is a garbage value [clang-analyzer-core.UndefinedBinaryOperatorResult]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\qcommon\\common.cpp:555:9: warning: 1st function call argument is an uninitialized value [clang-analyzer-core.CallAndMessage]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\qcommon\\common.cpp:597:8: warning: Branch condition evaluates to a garbage value [clang-analyzer-core.uninitialized.Branch]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\qcommon\\common.cpp:605:8: warning: Branch condition evaluates to a garbage value [clang-analyzer-core.uninitialized.Branch]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\qcommon\\common.cpp:644:44: warning: 1st function call argument is an uninitialized value [clang-analyzer-core.CallAndMessage]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\qcommon\\common.cpp:1069:25: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+      ],
+      "seconds": 2.7
+    },
+    {
+      "file": "codemp/qcommon/files.cpp",
+      "context": "c075e7c37155dbec",
+      "source_sha256": "44fc0549d9e12102f2e35080f1b2115443a3ae71d7ef08cbb6c006e911004aef",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/qcommon/files.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\c075e7c37155dbec",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [],
+      "seconds": 18.23
+    },
+    {
+      "file": "shared/sys/sys_main.cpp",
+      "context": "cfea1d2a95be2295",
+      "source_sha256": "3c05c7010bcaf423f775516c994c375c81b122d0eb87e8b13496accff3a707a4",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/shared/sys/sys_main.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\cfea1d2a95be2295",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [],
+      "seconds": 0.64
+    },
+    {
+      "file": "codemp/game/bg_pmove.c",
+      "context": "fe630fb842d9322c",
+      "source_sha256": "c51f3b52063230ef8e117cf6bfc8bad1f839d7f0e0a89a8cbc59421cc4e64a0a",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/game/bg_pmove.c",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\fe630fb842d9322c",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [
+        "G:\\code\\JoF_EJK-performance\\codemp\\game\\bg_pmove.c:2845:64: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\game\\bg_pmove.c:3005:64: warning: Access to field 'lastKickTime' results in a dereference of a null pointer (loaded from variable 'client') [clang-analyzer-core.NullDereference]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\game\\bg_pmove.c:3050:64: warning: Access to field 'lastKickTime' results in a dereference of a null pointer (loaded from variable 'client') [clang-analyzer-core.NullDereference]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\game\\bg_pmove.c:8763:6: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\game\\bg_pmove.c:9506:8: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\game\\bg_pmove.c:9548:6: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\game\\bg_pmove.c:13165:11: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+      ],
+      "seconds": 8.26
+    },
+    {
+      "file": "codemp/game/bg_pmove.c",
+      "context": "1a882f9f5f9a336d",
+      "source_sha256": "c51f3b52063230ef8e117cf6bfc8bad1f839d7f0e0a89a8cbc59421cc4e64a0a",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/game/bg_pmove.c",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\1a882f9f5f9a336d",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [
+        "G:\\code\\JoF_EJK-performance\\codemp\\game\\bg_pmove.c:5695:16: warning: Access to field 'm_pVehicleInfo' results in a dereference of a null pointer (loaded from field 'm_pVehicle') [clang-analyzer-core.NullDereference]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\game\\bg_pmove.c:9506:8: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\game\\bg_pmove.c:9548:6: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\game\\bg_pmove.c:13165:11: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+      ],
+      "seconds": 8.82
+    },
+    {
+      "file": "codemp/cgame/cg_consolecmds.c",
+      "context": "78ac6a89eb45b4fd",
+      "source_sha256": "032e1fcdce9315e7570cb37031d9ca9e3b3d0637a502fa2f84bf4f8ad7c7a2d5",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/cgame/cg_consolecmds.c",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\78ac6a89eb45b4fd",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [],
+      "seconds": 3.85
+    },
+    {
+      "file": "codemp/cgame/cg_runtime_profile.cpp",
+      "context": "8e3ce652bb1a3764",
+      "source_sha256": "d067d06a63e89c92b88327ad07c1b2593d95dad263550b703524fdabe2e4ec57",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/cgame/cg_runtime_profile.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\8e3ce652bb1a3764",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [],
+      "seconds": 0.27
+    },
+    {
+      "file": "codemp/cgame/cg_draw.c",
+      "context": "0cd3da86d17a401e",
+      "source_sha256": "aa8a08b3dfb3911ccdb9dba0cc72651aed73141edd04db72cebfd02bf9ae16bf",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/cgame/cg_draw.c",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\0cd3da86d17a401e",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [
+        "G:\\code\\JoF_EJK-performance\\codemp\\cgame\\cg_draw.c:8240:10: warning: 3rd function call argument is an uninitialized value [clang-analyzer-core.CallAndMessage]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\cgame\\cg_draw.c:10290:11: warning: The left operand of '==' is a garbage value [clang-analyzer-core.UndefinedBinaryOperatorResult]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\cgame\\cg_draw.c:10668:1: warning: Address of stack memory associated with local variable 'name' is still referred to by the static variable 'tok' upon returning to the caller.  This will be a dangling reference [clang-analyzer-core.StackAddressEscape]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\cgame\\cg_draw.c:12889:7: warning: 3rd function call argument is an uninitialized value [clang-analyzer-core.CallAndMessage]"
+      ],
+      "seconds": 11.22
+    },
+    {
+      "file": "codemp/cgame/cg_ents.c",
+      "context": "0e5280ac24927a1a",
+      "source_sha256": "7546b3457782f208303b629c26432d9f8de6d68f14b05b876e41b95005233ae5",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/cgame/cg_ents.c",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\0e5280ac24927a1a",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [],
+      "seconds": 3.6
+    },
+    {
+      "file": "codemp/cgame/cg_main.c",
+      "context": "a04a22b2ba8b12f4",
+      "source_sha256": "9674f0a97e5272a804ff41e1c2dbcec633c2d31983357ce3323e4a40c6f73e02",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/cgame/cg_main.c",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\a04a22b2ba8b12f4",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [
+        "G:\\code\\JoF_EJK-performance\\codemp\\cgame\\cg_main.c:2989:26: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+      ],
+      "seconds": 3.73
+    },
+    {
+      "file": "codemp/cgame/cg_view.c",
+      "context": "6103730791b21409",
+      "source_sha256": "7feaf117b7461489bea6a2defb9abcf98319e46fc9136dca5cf9ce83a38336b4",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/cgame/cg_view.c",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\6103730791b21409",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [
+        "G:\\code\\JoF_EJK-performance\\codemp\\cgame\\cg_view.c:868:12: warning: Array access (via field 'stats') results in a null pointer dereference [clang-analyzer-core.NullDereference]"
+      ],
+      "seconds": 1.38
+    },
+    {
+      "file": "codemp/rd-vanilla/tr_model.cpp",
+      "context": "6cb5820f6487882a",
+      "source_sha256": "2f264c9114e3c784c60f12ed251aa9ad6df6920d73a3cf4733808c071d89fd8e",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/rd-vanilla/tr_model.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\6cb5820f6487882a",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [],
+      "seconds": 3.42
+    },
+    {
+      "file": "codemp/rd-vulkan/tr_bsp.cpp",
+      "context": "a0efc14a59cd707a",
+      "source_sha256": "8637e366f2b248df7af86a1078dbff117432b13d6686d36b8c704dfa3ce3315c",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/rd-vulkan/tr_bsp.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\a0efc14a59cd707a",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [
+        "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_bsp.cpp:1360:9: warning: Access to field 'height' results in a dereference of a null pointer (loaded from variable 'grid2') [clang-analyzer-core.NullDereference]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_bsp.cpp:1417:10: warning: Access to field 'width' results in a dereference of a null pointer (loaded from variable 'grid2') [clang-analyzer-core.NullDereference]",
+        "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\tr_bsp.cpp:1723:15: warning: Access to field 'type' results in a dereference of a null pointer (loaded from variable 'model') [clang-analyzer-core.NullDereference]"
+      ],
+      "seconds": 5.22
+    },
+    {
+      "file": "codemp/rd-vulkan/tr_model.cpp",
+      "context": "5e7fe15277aa0787",
+      "source_sha256": "b498f3d17c2878868bf2b308be69c8bf5d8f011b11b782d4704e5a1c6b8fea0c",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/rd-vulkan/tr_model.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\5e7fe15277aa0787",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [],
+      "seconds": 3.1
+    },
+    {
+      "file": "codemp/rd-vulkan/vk_image.cpp",
+      "context": "2280502ef4798f4d",
+      "source_sha256": "3555d3ecc42466c2bdb5c968f2ab8b7ed52c30ae6d57830a3d1b47d365d15ea3",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/rd-vulkan/vk_image.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\2280502ef4798f4d",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [],
+      "seconds": 8.48
+    },
+    {
+      "file": "codemp/rd-vulkan/vk_vbo.cpp",
+      "context": "bbb725e2a0fe4d6c",
+      "source_sha256": "fd108d650aa3f77e87f0cd84079382fffa4d8a5fb7aca0946ebaf3d9086ad25f",
+      "analyzer_args": [
+        "G:/code/JoF_EJK-performance/codemp/rd-vulkan/vk_vbo.cpp",
+        "-p",
+        "G:\\code\\JoF_EJK-project-analysis\\integration-followup\\bbb725e2a0fe4d6c",
+        "--quiet",
+        "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+      ],
+      "status": "analyzed",
+      "diagnostics": [
+        "G:\\code\\JoF_EJK-performance\\codemp\\rd-vulkan\\vk_vbo.cpp:1264:27: warning: Access to field 'numVerts' results in a dereference of a null pointer (loaded from variable 'goreSurface') [clang-analyzer-core.NullDereference]"
+      ],
+      "seconds": 6.22
+    }
+  ],
+  "followup_417": {
+    "source": "417b060367d9fecca7b7a83d1d671d067ff21fee",
+    "scope": "Clean production-context follow-up for catalogue iteration, client HUD/animation, vehicle and Vulkan/vanilla clipping changes.",
+    "qualification": "Separate sampled source hashes and compiler contexts. Warning-free files are not a proof of all possible paths; 36 warnings remain candidates. Later sound-clock, EjectAll, bot parser and AI changes require further checks.",
+    "summary": {
+      "contexts": 11,
+      "translation_units": 8,
+      "statuses": {
+        "analyzed": 11
+      },
+      "diagnostic_contexts": 5,
+      "warning_appearances": 36
+    },
+    "results": [
+      {
+        "file": "codemp/qcommon/files.cpp",
+        "context": "4405f562aefe904c",
+        "source_sha256": "83304d96dd88ccb66800576fe0384e116ddc35b19db2da03c1a6487c2691ebaa",
+        "analyzer_args": [
+          "G:/code/JoF_EJK-integration-417-source/codemp/qcommon/files.cpp",
+          "-p",
+          "G:\\code\\JoF_EJK-integration-417-analysis\\4405f562aefe904c",
+          "--quiet",
+          "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+        ],
+        "status": "analyzed",
+        "diagnostics": [],
+        "seconds": 20.08
+      },
+      {
+        "file": "codemp/qcommon/files.cpp",
+        "context": "98ea2a298c3b3bc5",
+        "source_sha256": "83304d96dd88ccb66800576fe0384e116ddc35b19db2da03c1a6487c2691ebaa",
+        "analyzer_args": [
+          "G:/code/JoF_EJK-integration-417-source/codemp/qcommon/files.cpp",
+          "-p",
+          "G:\\code\\JoF_EJK-integration-417-analysis\\98ea2a298c3b3bc5",
+          "--quiet",
+          "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+        ],
+        "status": "analyzed",
+        "diagnostics": [],
+        "seconds": 20.09
+      },
+      {
+        "file": "codemp/game/bg_panimate.c",
+        "context": "c114d730aba4561c",
+        "source_sha256": "5e0e9837330244c7aa5294d397d423b0930680f26ceb4ea4f48c32082f1f9cdc",
+        "analyzer_args": [
+          "G:/code/JoF_EJK-integration-417-source/codemp/game/bg_panimate.c",
+          "-p",
+          "G:\\code\\JoF_EJK-integration-417-analysis\\c114d730aba4561c",
+          "--quiet",
+          "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+        ],
+        "status": "analyzed",
+        "diagnostics": [],
+        "seconds": 2.32
+      },
+      {
+        "file": "codemp/game/bg_pmove.c",
+        "context": "28bb4fb204cf6253",
+        "source_sha256": "8cec8ba07bc0f7fe9050567a1d96bec1fe35e22c65e8ae89f982cf7a347f2698",
+        "analyzer_args": [
+          "G:/code/JoF_EJK-integration-417-source/codemp/game/bg_pmove.c",
+          "-p",
+          "G:\\code\\JoF_EJK-integration-417-analysis\\28bb4fb204cf6253",
+          "--quiet",
+          "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+        ],
+        "status": "analyzed",
+        "diagnostics": [
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\bg_pmove.c:2845:64: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\bg_pmove.c:3005:64: warning: Access to field 'lastKickTime' results in a dereference of a null pointer (loaded from variable 'client') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\bg_pmove.c:3050:64: warning: Access to field 'lastKickTime' results in a dereference of a null pointer (loaded from variable 'client') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\bg_pmove.c:8763:6: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\bg_pmove.c:9506:8: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\bg_pmove.c:9548:6: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\bg_pmove.c:13165:11: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+        ],
+        "seconds": 9.21
+      },
+      {
+        "file": "codemp/game/g_vehicles.c",
+        "context": "70e77d80cecd00af",
+        "source_sha256": "81493ea57a2d6b5dc31e0a6f54e6bda11376a9040aa191c50381ee3e8b6baa4b",
+        "analyzer_args": [
+          "G:/code/JoF_EJK-integration-417-source/codemp/game/g_vehicles.c",
+          "-p",
+          "G:\\code\\JoF_EJK-integration-417-analysis\\70e77d80cecd00af",
+          "--quiet",
+          "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+        ],
+        "status": "analyzed",
+        "diagnostics": [
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:45:20: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:436:32: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1271:34: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1275:34: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1672:9: warning: Access to field 'client' results in a dereference of a null pointer (loaded from variable 'parent') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1672:9: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1688:55: warning: Access to field 'client' results in a dereference of a null pointer (loaded from variable 'rider') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1718:32: warning: Access to field 'localAnimIndex' results in a dereference of a null pointer (loaded from variable 'rider') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1725:35: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1728:54: warning: Access to field 'client' results in a dereference of a null pointer (loaded from variable 'rider') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1743:42: warning: Access to field 'flags' results in a dereference of a null pointer (loaded from variable 'rider') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1763:18: warning: Access to field 'client' results in a dereference of a null pointer (loaded from variable 'parent') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1763:53: warning: Access to field 'client' results in a dereference of a null pointer (loaded from variable 'rider') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1806:19: warning: Access to field 'client' results in a dereference of a null pointer (loaded from variable 'parent') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\g_vehicles.c:1806:55: warning: Access to field 'client' results in a dereference of a null pointer (loaded from variable 'rider') [clang-analyzer-core.NullDereference]"
+        ],
+        "seconds": 4.1
+      },
+      {
+        "file": "codemp/game/bg_panimate.c",
+        "context": "15eeba527ae67ad9",
+        "source_sha256": "5e0e9837330244c7aa5294d397d423b0930680f26ceb4ea4f48c32082f1f9cdc",
+        "analyzer_args": [
+          "G:/code/JoF_EJK-integration-417-source/codemp/game/bg_panimate.c",
+          "-p",
+          "G:\\code\\JoF_EJK-integration-417-analysis\\15eeba527ae67ad9",
+          "--quiet",
+          "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+        ],
+        "status": "analyzed",
+        "diagnostics": [],
+        "seconds": 5.82
+      },
+      {
+        "file": "codemp/game/bg_pmove.c",
+        "context": "b40208c72bc284ff",
+        "source_sha256": "8cec8ba07bc0f7fe9050567a1d96bec1fe35e22c65e8ae89f982cf7a347f2698",
+        "analyzer_args": [
+          "G:/code/JoF_EJK-integration-417-source/codemp/game/bg_pmove.c",
+          "-p",
+          "G:\\code\\JoF_EJK-integration-417-analysis\\b40208c72bc284ff",
+          "--quiet",
+          "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+        ],
+        "status": "analyzed",
+        "diagnostics": [
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\bg_pmove.c:5695:16: warning: Access to field 'm_pVehicleInfo' results in a dereference of a null pointer (loaded from field 'm_pVehicle') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\bg_pmove.c:9506:8: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\bg_pmove.c:9548:6: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\game\\bg_pmove.c:13165:11: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+        ],
+        "seconds": 11.48
+      },
+      {
+        "file": "codemp/cgame/cg_draw.c",
+        "context": "fde3d26a5c5f0378",
+        "source_sha256": "23ffc56bfd2caf603b1a4613d04c90344ffb9ab415d6b2f3b7b8cd8555e860bd",
+        "analyzer_args": [
+          "G:/code/JoF_EJK-integration-417-source/codemp/cgame/cg_draw.c",
+          "-p",
+          "G:\\code\\JoF_EJK-integration-417-analysis\\fde3d26a5c5f0378",
+          "--quiet",
+          "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+        ],
+        "status": "analyzed",
+        "diagnostics": [
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\cgame\\cg_draw.c:10288:11: warning: The left operand of '==' is a garbage value [clang-analyzer-core.UndefinedBinaryOperatorResult]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\cgame\\cg_draw.c:10666:1: warning: Address of stack memory associated with local variable 'name' is still referred to by the static variable 'tok' upon returning to the caller.  This will be a dangling reference [clang-analyzer-core.StackAddressEscape]"
+        ],
+        "seconds": 12.62
+      },
+      {
+        "file": "codemp/cgame/cg_players.c",
+        "context": "663221cb9e013341",
+        "source_sha256": "7fec703f26216ec959f5d52a7196e0b496efe48f2cc0248ec52be70f427f5af8",
+        "analyzer_args": [
+          "G:/code/JoF_EJK-integration-417-source/codemp/cgame/cg_players.c",
+          "-p",
+          "G:\\code\\JoF_EJK-integration-417-analysis\\663221cb9e013341",
+          "--quiet",
+          "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+        ],
+        "status": "analyzed",
+        "diagnostics": [
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\cgame\\cg_players.c:3966:20: warning: Access to field 'brokenLimbs' results in a dereference of a null pointer (loaded from variable 'ci') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\cgame\\cg_players.c:3986:20: warning: Access to field 'brokenLimbs' results in a dereference of a null pointer (loaded from variable 'ci') [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\cgame\\cg_players.c:5786:36: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\cgame\\cg_players.c:7111:24: warning: Assigned value is garbage or undefined [clang-analyzer-core.uninitialized.Assign]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\cgame\\cg_players.c:7369:24: warning: Assigned value is garbage or undefined [clang-analyzer-core.uninitialized.Assign]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\cgame\\cg_players.c:7394:34: warning: The left operand of '*' is a garbage value [clang-analyzer-core.UndefinedBinaryOperatorResult]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\cgame\\cg_players.c:7415:24: warning: Assigned value is garbage or undefined [clang-analyzer-core.uninitialized.Assign]",
+          "G:\\code\\JoF_EJK-integration-417-source\\codemp\\cgame\\cg_players.c:7725:23: warning: Assigned value is garbage or undefined [clang-analyzer-core.uninitialized.Assign]"
+        ],
+        "seconds": 13.59
+      },
+      {
+        "file": "codemp/rd-vanilla/tr_marks.cpp",
+        "context": "019c974f24886443",
+        "source_sha256": "db6154c343f0e154fd6d7b8102a261aac6fc129d97c8e5aaa1868e1cfba12430",
+        "analyzer_args": [
+          "G:/code/JoF_EJK-integration-417-source/codemp/rd-vanilla/tr_marks.cpp",
+          "-p",
+          "G:\\code\\JoF_EJK-integration-417-analysis\\019c974f24886443",
+          "--quiet",
+          "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+        ],
+        "status": "analyzed",
+        "diagnostics": [],
+        "seconds": 2.34
+      },
+      {
+        "file": "codemp/rd-vulkan/tr_marks.cpp",
+        "context": "1df73476b26b3d69",
+        "source_sha256": "74ccb4339a7b655e4297e6b4475ddcbb4bdfede19ed5f99a1fb54ad3e15699b3",
+        "analyzer_args": [
+          "G:/code/JoF_EJK-integration-417-source/codemp/rd-vulkan/tr_marks.cpp",
+          "-p",
+          "G:\\code\\JoF_EJK-integration-417-analysis\\1df73476b26b3d69",
+          "--quiet",
+          "--checks=-*,clang-analyzer-core.*,clang-analyzer-unix.Malloc,clang-analyzer-cplusplus.NewDelete*"
+        ],
+        "status": "analyzed",
+        "diagnostics": [],
+        "seconds": 2.29
+      }
+    ]
+  }
+}

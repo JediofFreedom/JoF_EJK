@@ -22,6 +22,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 //Anything above this #include will be ignored by the compiler
 
 #include "server.h"
+#include "sv_runtime_profile.h"
 #include "botlib/botlib.h"
 #include "qcommon/stringed_ingame.h"
 #include "qcommon/RoffSystem.h"
@@ -42,6 +43,7 @@ static vm_t *gvm; // game vm, valid for legacy and new api
 //
 
 void GVM_InitGame( int levelTime, int randomSeed, int restart ) {
+	SV_RuntimeProfileReset();
 	if ( gvm->isLegacy ) {
 		VM_Call( gvm, GAME_INIT, levelTime, randomSeed, restart );
 		return;
@@ -52,6 +54,7 @@ void GVM_InitGame( int levelTime, int randomSeed, int restart ) {
 }
 
 void GVM_ShutdownGame( int restart ) {
+	SV_RuntimeProfileBoundary();
 	if ( gvm->isLegacy ) {
 		VM_Call( gvm, GAME_SHUTDOWN, restart );
 		return;
@@ -120,6 +123,7 @@ void GVM_ClientThink( int clientNum, usercmd_t *ucmd ) {
 void GVM_RunFrame( int levelTime ) {
 	if (!gvm)
 		return;
+	SVRuntimeProfileScope profile(SVRuntimeStage::Game);
 	if ( gvm->isLegacy ) {
 		VM_Call( gvm, GAME_RUN_FRAME, levelTime );
 		return;

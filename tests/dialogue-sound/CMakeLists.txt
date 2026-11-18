@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(dialogue_sound_check C)
+include("${CMAKE_CURRENT_SOURCE_DIR}/../TestPlatform.cmake")
 
 set(repo "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 configure_file("${repo}/codemp/versionfile/jofversion.h.in" jofversion.h @ONLY)
@@ -28,6 +29,7 @@ add_executable(dialogue_sound_check check.c
   "${repo}/shared/qcommon/q_color.c"
   "${repo}/shared/qcommon/q_math.c"
   "${repo}/shared/qcommon/q_string.c")
+ejk_test_platform(dialogue_sound_check)
 target_include_directories(dialogue_sound_check PRIVATE
   "${CMAKE_CURRENT_BINARY_DIR}" "${repo}/codemp" "${repo}/shared")
 if(MSVC)

@@ -32,9 +32,14 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "snd_local.h"
 #include "snd_mp3.h"
 #include "snd_music.h"
+#include "snd_load_profile.h"
 #include "client.h"
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
+#include <climits>
+#include <cstdint>
+#include <cstring>
+#include <chrono>
 //New Includes
 #include <unordered_map>
 #include <string>
@@ -62,6 +67,69 @@ static int SND_FreeSFXMem(sfx_t *sfx);
 extern qboolean Sys_LowPhysicalMemory();
 
 static std::unordered_map<std::string, int> s_sfxPlayCounts;
+
+// Sound submission profiling. Frontend sound calls and console commands are
+// serialized, including the joined map-loading handoff; the mixer never enters
+// S_StartSound. This clock must not pump/journal events like Com_Milliseconds.
+namespace SoundStartProfile {
+enum Stage { Load,Touch,Limiter,Channel,Setup,Count };
+struct Counter { uint64_t calls = 0,nanoseconds = 0; };
+struct Mark { uint64_t started = 0,epoch = 0; bool active = false; };
+static cvar_t *enabled;
+static Counter counters[Count];
+static uint64_t epoch;
+static uint64_t Now() {
+    return uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count());
+}
+static uint64_t (*clock)() = Now;
+static Mark Begin() {
+    Mark mark;
+    if (enabled && enabled->integer) {
+        mark.started = clock(); mark.epoch = epoch; mark.active = true;
+    }
+    return mark;
+}
+static void End(Stage stage,Mark mark) {
+    if (!mark.active || mark.epoch != epoch) return;
+    ++counters[stage].calls; counters[stage].nanoseconds += clock()-mark.started;
+}
+class Scope {
+    Stage stage;
+    Mark mark;
+public:
+    explicit Scope(Stage value) : stage(value),mark(Begin()) {}
+    ~Scope() { End(stage,mark); }
+    Scope(const Scope &) = delete;
+    Scope &operator=(const Scope &) = delete;
+};
+static void Reset() {
+    for (auto &counter : counters) counter = Counter();
+    ++epoch;
+}
+static void Report() {
+    static const char *names[Count] = {"sample load","cache touch/event clock","rate limiter","channel pick","channel setup"};
+    for (int i = 0; i < Count; ++i) {
+        const auto &counter = counters[i];
+        if (!counter.calls) continue;
+        Com_Printf("SOUNDPROFILE %s: %llu calls, %.3f ms total, %.6f ms/call (frontend elapsed; instrumentation changes timing)\n",
+            names[i],static_cast<unsigned long long>(counter.calls),counter.nanoseconds/1000000.0,
+            counter.nanoseconds/(1000000.0*counter.calls));
+    }
+}
+}
+// End sound submission profiling.
+void SoundLoadProfile::Report() {
+    static const char *names[Count] = {"source lookup/read", "MP3 validation/size scan",
+        "MP3 stream setup", "MP3 PCM decode", "PCM conversion", "OpenAL lipsync/upload", "total asset load"};
+    for (int i = 0; i < Count; ++i) {
+        const auto &counter = Get().counters[i];
+        if (!counter.calls) continue;
+        Com_Printf("SOUNDLOADPROFILE %s: %llu calls, %.3f ms total, %.6f ms/call (frontend elapsed; total includes stages)\n",
+            names[i], static_cast<unsigned long long>(counter.calls), counter.nanoseconds / 1000000.0,
+            counter.nanoseconds / (1000000.0 * counter.calls));
+    }
+}
 															 
 //////////////////////////
 //
@@ -185,6 +253,7 @@ cvar_t		*s_volume;
 cvar_t		*s_volumeVoice;
 cvar_t		*s_testsound;
 cvar_t		*s_khz;
+cvar_t		*s_resampleFast;
 cvar_t		*s_allowDynamicMusic;
 cvar_t		*s_show;
 cvar_t		*s_mixahead;
@@ -511,6 +580,10 @@ void S_Init( void ) {
 	qboolean	r;
 
 	Com_Printf("\n------- sound initialization -------\n");
+	SoundStartProfile::enabled = Cvar_Get("s_runtimeProfile", "0", 0, "Aggregate sound submission timings without pumping events");
+	SoundStartProfile::Reset();
+	SoundLoadProfile::Get().enabled = Cvar_Get("s_loadProfile", "0", 0, "Aggregate sound asset-loading stages without pumping events");
+	SoundLoadProfile::Reset();
 
 	volume = Cvar_Get("volume", "1.0", CVAR_ARCHIVE, "Volume");
 	s_volume = Cvar_Get ("s_volume", "0.5", CVAR_ARCHIVE, "Sound effects volume" );
@@ -522,6 +595,7 @@ void S_Init( void ) {
 
 	s_separation = Cvar_Get ("s_separation", "0.5", CVAR_ARCHIVE);
 	s_khz = Cvar_Get ("s_khz", "44", CVAR_ARCHIVE|CVAR_LATCH);
+	s_resampleFast = Cvar_Get("s_resampleFast", "1", CVAR_ARCHIVE, "Use equivalent contiguous PCM conversion for equal or doubled sample rates");
 	s_allowDynamicMusic = Cvar_Get ("s_allowDynamicMusic", "1", CVAR_ARCHIVE_ND);
 	s_mixahead = Cvar_Get ("s_mixahead", "0.2", CVAR_ARCHIVE);
 
@@ -558,6 +632,10 @@ void S_Init( void ) {
 	Cmd_AddCommand("soundstop", S_StopAllSounds, "Stops all sounds including music" );
 	Cmd_AddCommand("mp3_calcvols", S_MP3_CalcVols_f);
 	Cmd_AddCommand("s_dynamic", S_SetDynamicMusic_f, "Change dynamic music state" );
+	Cmd_AddCommand("s_runtimeProfileReset", SoundStartProfile::Reset);
+	Cmd_AddCommand("s_runtimeProfileReport", SoundStartProfile::Report);
+	Cmd_AddCommand("s_loadProfileReset", SoundLoadProfile::Reset);
+	Cmd_AddCommand("s_loadProfileReport", SoundLoadProfile::Report);
 
 #ifdef USE_OPENAL
 	cv = Cvar_Get("s_UseOpenAL" , "0",CVAR_ARCHIVE|CVAR_LATCH);
@@ -741,6 +819,10 @@ void S_Shutdown( void )
 	if ( !s_soundStarted ) {
 		return;
 	}
+	SoundStartProfile::Report();
+	SoundStartProfile::Reset();
+	SoundLoadProfile::Report();
+	SoundLoadProfile::Reset();
 
 	S_FreeAllSFXMem();
 	S_UnCacheDynamicMusic();
@@ -805,6 +887,10 @@ void S_Shutdown( void )
 	Cmd_RemoveCommand("soundstop");
 	Cmd_RemoveCommand("mp3_calcvols");
 	Cmd_RemoveCommand("s_dynamic");
+	Cmd_RemoveCommand("s_runtimeProfileReset");
+	Cmd_RemoveCommand("s_runtimeProfileReport");
+	Cmd_RemoveCommand("s_loadProfileReset");
+	Cmd_RemoveCommand("s_loadProfileReport");
 	AS_Free();
 }
 
@@ -1685,11 +1771,20 @@ void S_StartSound(const vec3_t origin, int entityNum, int entchannel, sfxHandle_
 
 	sfx = &s_knownSfx[ sfxHandle ];
 	if (sfx->bInMemory == qfalse){
+		SoundStartProfile::Scope profile(SoundStartProfile::Load);
 		S_memoryLoad(sfx);
 	}
-	SND_TouchSFX(sfx);
+	{
+		SoundStartProfile::Scope profile(SoundStartProfile::Touch);
+		SND_TouchSFX(sfx);
+	}
 
-	if (!S_CanPlaySound(sfx->sSoundName)) {
+	qboolean canPlay;
+	{
+		SoundStartProfile::Scope profile(SoundStartProfile::Limiter);
+		canPlay = S_CanPlaySound(sfx->sSoundName);
+	}
+	if (!canPlay) {
 		return;
 	}
 
@@ -1740,10 +1835,14 @@ void S_StartSound(const vec3_t origin, int entityNum, int entchannel, sfxHandle_
 
 	// pick a channel to play on
 
-	ch = S_PickChannel( entityNum, entchannel );
+	{
+		SoundStartProfile::Scope profile(SoundStartProfile::Channel);
+		ch = S_PickChannel( entityNum, entchannel );
+	}
 	if (!ch) {
 		return;
 	}
+	SoundStartProfile::Scope profile(SoundStartProfile::Setup);
 
 	if (origin) {
 		VectorCopy (origin, ch->origin);
@@ -4094,46 +4193,75 @@ background music functions
 ===============================================================================
 */
 
-int	FGetLittleLong( fileHandle_t f ) {
-	int		v;
-
-	FS_Read( &v, sizeof(v), f );
-
-	return LittleLong( v);
+// Read only bounded headers; music stays streamed instead of allocating the
+// entire WAV. Unrecognized chunks and extended PCM fmt chunks are skipped.
+static qboolean S_ReadMusicWavHeader(fileHandle_t file, long fileLength, wavinfo_t &info) {
+    info = {};
+    if (fileLength < 12 || fileLength > INT_MAX) return qfalse;
+    const auto le16 = [](const byte *p) -> unsigned { return unsigned(p[0]) | (unsigned(p[1]) << 8); };
+    const auto le32 = [](const byte *p) -> unsigned {
+        return unsigned(p[0]) | (unsigned(p[1]) << 8) | (unsigned(p[2]) << 16) | (unsigned(p[3]) << 24);
+    };
+    const auto readAt = [file](size_t offset, void *buffer, int count) -> bool {
+        const int current = FS_FTell(file);
+        // Forward seeks remain relative, so PK3 streams do not restart for
+        // every chunk header. A data-before-fmt file needs only one rewind.
+        return current >= 0 && FS_Seek(file, static_cast<long>(offset) - current, FS_SEEK_CUR) >= 0 &&
+            FS_Read(buffer, count, file) == count;
+    };
+    byte header[12];
+    if (!readAt(0, header, sizeof(header)) || std::memcmp(header, "RIFF", 4) ||
+        std::memcmp(header + 8, "WAVE", 4)) return qfalse;
+    const size_t riffLength = le32(header + 4);
+    if (riffLength < 4 || riffLength > size_t(fileLength) - 8) return qfalse;
+    const size_t end = riffLength + 8;
+    byte format[16];
+    bool haveFormat = false, haveData = false;
+    size_t dataOffset = 0, dataLength = 0;
+    for (size_t offset = 12; offset < end;) {
+        byte chunk[8];
+        if (end - offset < sizeof(chunk) || !readAt(offset, chunk, sizeof(chunk))) return qfalse;
+        const size_t bytes = le32(chunk + 4);
+        if (bytes > end - offset - 8) return qfalse;
+        if (!haveFormat && !std::memcmp(chunk, "fmt ", 4)) {
+            if (bytes < sizeof(format) || !readAt(offset + 8, format, sizeof(format))) return qfalse;
+            haveFormat = true;
+        } else if (!haveData && !std::memcmp(chunk, "data", 4)) {
+            dataOffset = offset + 8;
+            dataLength = bytes;
+            haveData = true;
+        }
+        if (haveFormat && haveData) break;
+        offset += 8 + bytes;
+        if (bytes & 1) { if (offset == end) break; ++offset; }
+    }
+    if (!haveFormat || !haveData) return qfalse;
+    const unsigned channels = le16(format + 2), rate = le32(format + 4), bits = le16(format + 14);
+    if (le16(format) != WAV_FORMAT_PCM || (channels != 1 && channels != 2) ||
+        !rate || rate > INT_MAX || (bits != 8 && bits != 16)) return qfalse;
+    const unsigned frameBytes = channels * (bits / 8);
+    if (!dataLength || dataLength % frameBytes) return qfalse;
+    const int current = FS_FTell(file);
+    if (current < 0 || FS_Seek(file, static_cast<long>(dataOffset) - current, FS_SEEK_CUR) < 0) return qfalse;
+    info.format = WAV_FORMAT_PCM;
+    info.channels = channels;
+    info.rate = rate;
+    info.width = bits / 8;
+    info.samples = static_cast<int>(dataLength / frameBytes);
+    info.dataofs = static_cast<int>(dataOffset);
+    return qtrue;
 }
 
-int	FGetLittleShort( fileHandle_t f ) {
-	short	v;
-
-	FS_Read( &v, sizeof(v), f );
-
-	return LittleShort( v);
-}
-
-// returns the length of the data in the chunk, or 0 if not found
-int S_FindWavChunk( fileHandle_t f, char *chunk ) {
-	char	name[5];
-	int		len;
-	int		r;
-
-	name[4] = 0;
-	len = 0;
-	r = FS_Read( name, 4, f );
-	if ( r != 4 ) {
-		return 0;
-	}
-	len = FGetLittleLong( f );
-	if ( len < 0 || len > 0xfffffff ) {
-		len = 0;
-		return 0;
-	}
-	len = (len + 1 ) & ~1;		// pad to word boundary
-//	s_nextWavChunk += len + 8;
-
-	if ( strcmp( name, chunk ) ) {
-		return 0;
-	}
-	return len;
+// Limit source frames before multiplying rates or frame sizes. A WAV can
+// advertise any positive 32-bit rate, so the intermediate must be 64-bit.
+static int S_BackgroundReadSamples(int available, int rate, int outputRate,
+                                   int remaining, int frameBytes, size_t capacity) {
+    if (available <= 0 || rate <= 0 || outputRate <= 0 || remaining <= 0 || frameBytes <= 0) return 0;
+    uint64_t samples = uint64_t(available) * unsigned(rate) / unsigned(outputRate);
+    const size_t limit = capacity / unsigned(frameBytes);
+    if (samples > uint64_t(remaining)) samples = remaining;
+    if (samples > limit) samples = limit;
+    return static_cast<int>(samples);
 }
 
 // fixme: need to move this into qcommon sometime?, but too much stuff altered by other people and I won't be able
@@ -4235,8 +4363,6 @@ void S_UnCacheDynamicMusic( void )
 
 static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean qbDynamic, const char *intro, const char *loop )
 {
-	int		len;
-	char	dump[16];
 	char	name[MAX_QPATH];
 
 	Q_strncpyz( sMusic_BackgroundLoop, loop, sizeof( sMusic_BackgroundLoop ));
@@ -4264,7 +4390,7 @@ static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean
 		FreeMusic( pMusicInfo );
 	}
 
-	if (!Q_stricmpn(name+(strlen(name)-4),".mp3",4))
+	if (!Q_stricmp(COM_GetExtension(name), "mp3"))
 	{
 		if (pMusicInfo->pLoadedData)
 		{
@@ -4386,50 +4512,19 @@ static qboolean S_StartBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolean
 		//
 		// open up a wav file and get all the info
 		//
-		FS_FOpenFileRead( name, &pMusicInfo->s_backgroundFile, qtrue );
-		if ( !pMusicInfo->s_backgroundFile ) {
-			Com_Printf( S_COLOR_YELLOW "WARNING: couldn't open music file %s\n", name );
-			return qfalse;
-		}
-
-		// skip the riff wav header
-
-		FS_Read(dump, 12, pMusicInfo->s_backgroundFile);
-
-		if ( !S_FindWavChunk( pMusicInfo->s_backgroundFile, "fmt " ) ) {
-			Com_Printf( S_COLOR_YELLOW "WARNING: No fmt chunk in %s\n", name );
-			FS_FCloseFile( pMusicInfo->s_backgroundFile );
-			pMusicInfo->s_backgroundFile = 0;
-			return qfalse;
-		}
-
-		// save name for soundinfo
-		pMusicInfo->s_backgroundInfo.format = FGetLittleShort( pMusicInfo->s_backgroundFile );
-		pMusicInfo->s_backgroundInfo.channels = FGetLittleShort( pMusicInfo->s_backgroundFile );
-		pMusicInfo->s_backgroundInfo.rate = FGetLittleLong( pMusicInfo->s_backgroundFile );
-		FGetLittleLong(  pMusicInfo->s_backgroundFile );
-		FGetLittleShort(  pMusicInfo->s_backgroundFile );
-		pMusicInfo->s_backgroundInfo.width = FGetLittleShort( pMusicInfo->s_backgroundFile ) / 8;
-
-		if ( pMusicInfo->s_backgroundInfo.format != WAV_FORMAT_PCM ) {
-			FS_FCloseFile( pMusicInfo->s_backgroundFile );
-			pMusicInfo->s_backgroundFile = 0;
-			Com_Printf(S_COLOR_YELLOW "WARNING: Not a microsoft PCM format wav: %s\n", name);
-			return qfalse;
-		}
-
-		if ( pMusicInfo->s_backgroundInfo.channels != 2 || pMusicInfo->s_backgroundInfo.rate != 22050 ) {
-			Com_Printf(S_COLOR_YELLOW "WARNING: music file %s is not 22k stereo\n", name );
-		}
-
-		if ( ( len = S_FindWavChunk( pMusicInfo->s_backgroundFile, "data" ) ) == 0 ) {
-			FS_FCloseFile( pMusicInfo->s_backgroundFile );
-			pMusicInfo->s_backgroundFile = 0;
-			Com_Printf(S_COLOR_YELLOW "WARNING: No data chunk in %s\n", name);
-			return qfalse;
-		}
-
-		pMusicInfo->s_backgroundInfo.samples = len / (pMusicInfo->s_backgroundInfo.width * pMusicInfo->s_backgroundInfo.channels);
+        const long fileLength = FS_FOpenFileRead(name, &pMusicInfo->s_backgroundFile, qtrue);
+        if (!pMusicInfo->s_backgroundFile) {
+            Com_Printf(S_COLOR_YELLOW "WARNING: couldn't open music file %s\n", name);
+            return qfalse;
+        }
+        if (!S_ReadMusicWavHeader(pMusicInfo->s_backgroundFile, fileLength, pMusicInfo->s_backgroundInfo)) {
+            FS_FCloseFile(pMusicInfo->s_backgroundFile);
+            pMusicInfo->s_backgroundFile = 0;
+            Com_Printf(S_COLOR_YELLOW "WARNING: Invalid or unsupported PCM music WAV: %s\n", name);
+            return qfalse;
+        }
+        if (pMusicInfo->s_backgroundInfo.channels != 2 || pMusicInfo->s_backgroundInfo.rate != 22050)
+            Com_Printf(S_COLOR_YELLOW "WARNING: music file %s is not 22k stereo\n", name);
 
 		pMusicInfo->s_backgroundSamples = pMusicInfo->s_backgroundInfo.samples;
 	}
@@ -4867,24 +4962,11 @@ static qboolean S_UpdateBackgroundTrack_Actual( MusicInfo_t *pMusicInfo, qboolea
 		bufferSamples = MAX_RAW_SAMPLES - (s_rawend - s_soundtime);
 
 		// decide how much data needs to be read from the file
-		fileSamples = bufferSamples * pMusicInfo->s_backgroundInfo.rate / dma.speed;
-
-		// don't try to play if there are no more samples in the file
-		if (!fileSamples) {
-			return qfalse;
-		}
-
-		// don't try and read past the end of the file
-		if ( fileSamples > pMusicInfo->s_backgroundSamples ) {
-			fileSamples = pMusicInfo->s_backgroundSamples;
-		}
-
-		// our max buffer size
-		fileBytes = fileSamples * (pMusicInfo->s_backgroundInfo.width * pMusicInfo->s_backgroundInfo.channels);
-		if (fileBytes > (int)RAWSIZE ) {
-			fileBytes = RAWSIZE;
-			fileSamples = fileBytes / (pMusicInfo->s_backgroundInfo.width * pMusicInfo->s_backgroundInfo.channels);
-		}
+        const int frameBytes = pMusicInfo->s_backgroundInfo.width * pMusicInfo->s_backgroundInfo.channels;
+        fileSamples = S_BackgroundReadSamples(bufferSamples, pMusicInfo->s_backgroundInfo.rate,
+            dma.speed, pMusicInfo->s_backgroundSamples, frameBytes, RAWSIZE);
+        if (!fileSamples) return qfalse;
+        fileBytes = fileSamples * frameBytes;
 
 		qboolean qbForceFinish = qfalse;
 		if (pMusicInfo->bIsMP3)
@@ -5314,7 +5396,10 @@ void S_DisplayFreeMemory()
 
 void SND_TouchSFX(sfx_t *sfx)
 {
-	sfx->iLastTimeUsed		= Com_Milliseconds()+1;
+	// Cache timestamps need the system clock, not a console-input poll for each
+	// played sound. Journals must keep the legacy event/SE_NONE call sequence.
+	const int now = com_journal && !com_journal->integer ? Sys_Milliseconds() : Com_Milliseconds();
+	sfx->iLastTimeUsed		= now+1;
 	sfx->iLastLevelUsedOn	= re->RegisterMedia_GetLevel();
 }
 

@@ -33,6 +33,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 	#include "g_local.h"
 #elif _CGAME
 	#include "cgame/cg_local.h"
+	#include "bg_anim_events.h"
 #elif UI_BUILD
 	#include "ui/ui_local.h"
 #endif
@@ -1738,6 +1739,13 @@ int bgNumAllAnims = 2; //start off at 2, because 0 will always be assigned to hu
 //ALWAYS call on game/cgame init
 void BG_InitAnimsets(void)
 {
+#ifdef _CGAME
+	int i;
+	for (i = 0; i < MAX_ANIM_FILES; ++i) {
+		bgAllEvents[i].torsoIndex.valid = qfalse;
+		bgAllEvents[i].legsIndex.valid = qfalse;
+	}
+#endif
 	memset(&bgAllAnims, 0, sizeof(bgAllAnims));
 	BGPAFtextLoaded = qfalse;	// VVFIXME - The PC doesn't seem to need this, but why?
 }
@@ -1835,6 +1843,7 @@ void ParseAnimationEvtBlock(const char *aeb_filename, animevent_t *animEvents, a
 	int				num, n, animNum, keyFrame, lowestVal, highestVal, curAnimEvent, lastAnimEvent = 0;
 	animEventType_t	eventType;
 	char			stringData[MAX_QPATH];
+	BG_InvalidateAnimEventIndex(animEvents);
 
 	// get past starting bracket
 	while(1)
@@ -2230,6 +2239,8 @@ int BG_ParseAnimationEvtFile( const char *as_filename, int animFileIndex, int ev
 	{ //if we should be parsing an included file, skip this part
 		if ( bgAllEvents[forcedIndex].eventsParsed )
 		{//already cached this one
+			if (!bgAllEvents[forcedIndex].torsoIndex.valid || !bgAllEvents[forcedIndex].legsIndex.valid)
+				BG_BuildAnimEventIndexes(&bgAllEvents[forcedIndex]);
 			return forcedIndex;
 		}
 	}
@@ -2246,6 +2257,8 @@ int BG_ParseAnimationEvtFile( const char *as_filename, int animFileIndex, int ev
 		{
 			if (!Q_stricmp(as_filename, bgAllEvents[i].filename))
 			{ //looks like we have it already.
+				if (!bgAllEvents[i].torsoIndex.valid || !bgAllEvents[i].legsIndex.valid)
+					BG_BuildAnimEventIndexes(&bgAllEvents[i]);
 				return i;
 			}
 			i++;
@@ -2257,6 +2270,8 @@ int BG_ParseAnimationEvtFile( const char *as_filename, int animFileIndex, int ev
 
 	if (bg_animParseIncluding <= 0)
 	{ //should already be done if we're including
+		BG_InvalidateAnimEventIndex(torsoAnimEvents);
+		BG_InvalidateAnimEventIndex(legsAnimEvents);
 		//initialize anim event array
 		for( i = 0; i < MAX_ANIM_EVENTS; i++ )
 		{
@@ -2345,6 +2360,7 @@ fin:
 	//Mark this anim set so that we know we tried to load he sounds, don't care if the load failed
 	if (bg_animParseIncluding <= 0)
 	{ //if we should be parsing an included file, skip this part
+		BG_BuildAnimEventIndexes(&bgAllEvents[forcedIndex]);
 		bgAllEvents[forcedIndex].eventsParsed = qtrue;
 		strcpy(bgAllEvents[forcedIndex].filename, as_filename);
 		if (forcedIndex)

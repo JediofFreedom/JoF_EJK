@@ -60,6 +60,7 @@ const char *String_Alloc(const char *value) {
 }
 static void Item_ValidateTypeData(itemDef_t *item) { require(item->typeData.multi != nullptr, "multi data exists"); }
 static void PC_SourceError(int, char *message, ...) { fprintf(stderr, "%s\n", message); exit(1); }
+void UI_EnsureSpeciesOptions(itemDef_t *) {} // Language controls do not use the species catalog.
 
 #define UI_BUILD 1
 #include "actual.h"

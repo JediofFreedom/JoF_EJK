@@ -1,0 +1,18 @@
+execute_process(COMMAND "${CMAKE_COMMAND}" --install "${BUILD}" --config "${CONFIG}"
+  --prefix "${BUILD}/install-fixture" --component zlib-backend-license
+  RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error)
+if(NOT result EQUAL 0)
+  message(FATAL_ERROR "License install failed: ${output}\n${error}")
+endif()
+foreach(name LICENSE.md EJK-UPSTREAM.md)
+  file(SHA256 "${ROOT}/lib/zlib-ng/${name}" source)
+  file(SHA256 "${BUILD}/install-fixture/GameData/licenses/zlib-ng/${name}" installed)
+  if(NOT source STREQUAL installed)
+    message(FATAL_ERROR "Installed ${name} does not match the preserved notice")
+  endif()
+endforeach()
+file(GLOB_RECURSE files RELATIVE "${BUILD}/install-fixture" "${BUILD}/install-fixture/*")
+list(LENGTH files count)
+if(NOT count EQUAL 2)
+  message(FATAL_ERROR "Backend install unexpectedly included headers/libraries: ${files}")
+endif()

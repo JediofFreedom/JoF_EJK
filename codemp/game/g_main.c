@@ -3560,7 +3560,7 @@ void G_RunFrame( int levelTime ) {
 				if (!g_entities[j].inuse)
 					continue;
 				if (!level.clients[j].sess.raceMode || (level.clients[j].sess.sessionTeam == TEAM_SPECTATOR)) //Not in racemode, or in spec, show the msg?
-					trap->SendServerCommand( i, "cp \"Fight!\n\"" );
+					trap->SendServerCommand( j, "cp \"Fight!\n\"" );
 			}	
 			//trap->SendServerCommand( -1, "cp \"Fight!\n\"" );
 		}

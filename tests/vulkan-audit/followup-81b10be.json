@@ -1,0 +1,1202 @@
+{
+  "scope": "Versioned native Vulkan resource/material/failure-handling follow-up; previous 0fcdbdd evidence is preserved separately.",
+  "code_checkpoint": "81b10be3490a2f08884110717583aaa6e0873e28",
+  "baseline_checkpoint": "eebb4d53b66e550b7d88a3ebcac7aa28cc419909",
+  "test_checkpoint": "d24c593",
+  "source_inventory": {
+    "direct_compiled_cpp": 55,
+    "changed_compiled_cpp": 18,
+    "changed_files": [
+      "codemp/rd-vulkan/tr_WorldEffects.cpp",
+      "codemp/rd-vulkan/tr_local.h",
+      "codemp/rd-vulkan/tr_shade_calc.cpp",
+      "codemp/rd-vulkan/tr_shadows.cpp",
+      "codemp/rd-vulkan/vk_attachments.cpp",
+      "codemp/rd-vulkan/vk_cmd.cpp",
+      "codemp/rd-vulkan/vk_debug.cpp",
+      "codemp/rd-vulkan/vk_frame.cpp",
+      "codemp/rd-vulkan/vk_image.cpp",
+      "codemp/rd-vulkan/vk_init.cpp",
+      "codemp/rd-vulkan/vk_instance.cpp",
+      "codemp/rd-vulkan/vk_local.h",
+      "codemp/rd-vulkan/vk_memory_requirements.h",
+      "codemp/rd-vulkan/vk_pipeline_cache.cpp",
+      "codemp/rd-vulkan/vk_pipelines.cpp",
+      "codemp/rd-vulkan/vk_renderpass.cpp",
+      "codemp/rd-vulkan/vk_result_check.h",
+      "codemp/rd-vulkan/vk_shade_geometry.cpp",
+      "codemp/rd-vulkan/vk_shaders.cpp",
+      "codemp/rd-vulkan/vk_swapchain.cpp",
+      "codemp/rd-vulkan/vk_texture_jobs.h",
+      "codemp/rd-vulkan/vk_vbo.cpp",
+      "codemp/rd-vulkan/vk_vbo_surfacesprites.cpp"
+    ],
+    "new_project_header": "codemp/rd-vulkan/vk_memory_requirements.h",
+    "source_manifest_entries": 112,
+    "tracked_source_entries": 109,
+    "newly_inventoried_existing_header": "codemp/rd-vulkan/tr_local.h",
+    "untracked_tooling_snapshots": 3
+  },
+  "independent_delta_review": {
+    "status": "completed-selected-semantic-review-no-confirmed-new-regression",
+    "reviewed_files": 23,
+    "limits": "Selected caller/resource-lifetime paths, not exhaustive state-space or hardware proof. No SDL/window bridge or serialized parser/model work was read or changed.",
+    "contracts": [
+      "Shared and separate vertex/indirect ownership are nulled after release and buffers are destroyed before owned memory.",
+      "Required dedicated image allocations do not enter pooled/resident reuse; required attachments are isolated.",
+      "Readback image/memory remain owned across possibly pending command failure until completion/device-loss teardown.",
+      "Worker allocation/preparation exceptions still publish job completion; ordinary main-thread fallback remains available.",
+      "Unsupported extent/image-list states produce controlled errors; arbitrary live window resizing is not implemented."
+    ]
+  },
+  "fixes": {
+    "core": [
+      "Stop selected mandatory create/reset/idle operations before dependent calls on non-success; logging-only VK_CHECK remains unchanged.",
+      "Guard instance/device/surface enumeration and host-array allocations; preserve qboolean device-selection failures.",
+      "Required dedicated attachment allocation isolation and exact-image chains.",
+      "Capture allocation/bind/map/invalidate failure cleanup; restore source layout before CPU read; unmap successful mapping before release.",
+      "Persistent pending readback ownership, released at teardown after device-idle success or confirmed device loss.",
+      "Mandatory dedicated readback allocation via actual requirements2 helper.",
+      "Reject unsupported WSI extents and excessive image lists instead of unsupported clamping/truncation.",
+      "Free per-tess dedicated geometry/indirect memory after buffer destruction, preserve shared path."
+    ],
+    "resource_memory": [
+      "Copy misaligned SPIR-V to aligned storage only when needed; validate shader input and stop failed module creation.",
+      "Honor mandatory dedicated image/buffer requirements; retain normal arena and legacy requirement paths.",
+      "Worker exceptions and enqueue-allocation failures preserve completion/fallback behavior.",
+      "Failed optional pipeline-cache creation/retry leaves a null cache and permits uncached pipelines."
+    ],
+    "material_runtime": [
+      "Clamp negative entity-selected image animation index before signed modulo or one-shot access; valid selection paths preserved.",
+      "Fog S/T coordinates sanitized independently; finite control unchanged.",
+      "Stencil shadow color capacity covers original and extruded vertices; complete1000vertex/6000index volume preserves adjacent color bundles.",
+      "Weather outside-cache first frame restores CPU modelview and publishes restored MVP, like normal rendering path.",
+      "Descriptor allocation and storage/vertex/indirect map/bind failure stops initialization through actual VK_REQUIRE_SUCCESS helper.",
+      "Single storage uses actual dedicated requirements helper; vertex/indirect per-command dedicated allocations when required or requirements differ, preserving normal shared arena. Capacity reports legal requested buffer bytes."
+    ]
+  },
+  "focused_verification": {
+    "total_cases": 106,
+    "new_suite_total_since_initial_audit": 10,
+    "core": {
+      "cases": 29,
+      "x64_release": "passed",
+      "x86_release": "passed",
+      "x64_asan": "passed",
+      "before": {
+        "run": 28,
+        "expected_defect_failures": 14,
+        "passed_controls": 14,
+        "excluded": [
+          "vulkan_instance_allocations"
+        ],
+        "qualification": "Allocation-null baseline was not executed to avoid an intentional null-dereference process crash. Its corrected two partial-allocation paths pass on all after builds. The baseline CMake adapts only missing cleanup function declaration; assertions and before algorithms remain unchanged."
+      },
+      "artifact": "vulkan-followup-core/results.json"
+    },
+    "resource_memory": {
+      "cases": 17,
+      "x64_release": "passed",
+      "x86_release": "passed",
+      "x64_asan": "passed",
+      "before": "Five defect cases failed and four controls passed using three extracted before-fix functions. Worker and buffer-helper before outcomes are not established.",
+      "artifacts": [
+        "vulkan-followup-resource-before.log",
+        "vulkan-followup-resource-x64/Testing/Temporary/LastTest.log",
+        "vulkan-followup-resource-x86/Testing/Temporary/LastTest.log",
+        "vulkan-followup-resource-asan/Testing/Temporary/LastTest.log"
+      ]
+    },
+    "material_runtime": {
+      "cases": 18,
+      "x64_release": "passed",
+      "x86_release": "passed",
+      "x64_asan": "passed",
+      "x86_asan": "passed",
+      "before": "Twelve defect cases failed; six unchanged controls passed.",
+      "artifact": "vulkan-followup-frontend-evidence.json"
+    },
+    "registered_new_group_counts": {
+      "core": 29,
+      "resource_memory": 17,
+      "material_runtime": 18
+    },
+    "unchanged_other_groups": {
+      "asset_integrity": 12,
+      "frontend": 13,
+      "debug_capture": 7,
+      "asset_capacity": 2,
+      "command_lifetime": 8
+    },
+    "limits": "Actual production functions/blocks with engine/Vulkan service stubs; fatal errors throw to model nonreturning imports. Core baseline deliberately excludes a null-allocation crash; this is not a universal OOM/device-loss or all-driver proof."
+  },
+  "builds": {
+    "status": "passed",
+    "summary": "Full ordinary Windows x64/x86 builds passed for the frozen 81b10be source; root verified explicit native-command exit 0 for both architectures.",
+    "artifacts": [
+      "vulkan-followup-full-x64-check.log",
+      "vulkan-followup-full-x86-check.log"
+    ],
+    "qualification": "The first logging wrapper returned 1 without a FAILED build line. Direct command rechecks exited 0 and the check logs report ninja: no work to do. The wrapper return is not used as a successful native-build exit."
+  },
+  "whole_suite": {
+    "status": "passed",
+    "expected_suites": 66,
+    "completed_suites": 66,
+    "passed_suites": 66,
+    "artifact": "vulkan-followup-all-regressions-81b10be/results.json"
+  },
+  "static_analysis": {
+    "status": "completed-with-diagnostics",
+    "expected_contexts": 55,
+    "completed_contexts": 55,
+    "parse_errors": 0,
+    "diagnostic_contexts": 13,
+    "artifact": "vulkan-followup-analysis-81b10be-clang22/results.json",
+    "comparison_limit": "The previous 0fcdbdd run used Clang 19, while this compatible run uses Clang 22; differing diagnostic-context counts are not a like-for-like fix/regression count.",
+    "selected_contract_review": [
+      {
+        "contexts": [
+          "vk_instance.cpp",
+          "vk_swapchain.cpp"
+        ],
+        "disposition": "nonreturning error-import contract explanation, not a source fix or all-path proof",
+        "evidence": "Reports continue past ri.Error/VK_REQUIRE_SUCCESS failure branches that free partial lists or reject null/zero allocations. Production engine error handling is nonreturning; fixtures throw at that boundary."
+      },
+      {
+        "contexts": [
+          "tr_shader.cpp",
+          "tr_surface.cpp"
+        ],
+        "disposition": "new diagnostic contexts under a different compiler; source unchanged in this follow-up",
+        "evidence": "No edits to either file in eebb4d5..81b10be; selected source delta review does not establish these broader preexisting states."
+      },
+      {
+        "contexts": [
+          "tr_shader.cpp"
+        ],
+        "disposition": "caller-contract explanation only",
+        "evidence": "EqualTCgen returns false for NULL; source is unchanged and no warning fix is claimed."
+      },
+      {
+        "contexts": [
+          "tr_surface.cpp",
+          "tr_ghoul2.cpp"
+        ],
+        "disposition": "unresolved portability candidate",
+        "evidence": "BUFFER_OFFSET-style null-pointer arithmetic remains flagged; no source fix or arbitrary model-state proof is claimed."
+      }
+    ],
+    "compiler": "Clang 22.1.3 compatible with the installed MSVC 14.51 STL",
+    "initial_tooling_attempt": {
+      "compiler": "Clang 19",
+      "result": "55 parse errors due to installed MSVC 14.51 STL requiring Clang >=20; not renderer-analysis success",
+      "artifact": "vulkan-followup-analysis-81b10be/results.json"
+    },
+    "diagnostic_contexts_detail": [
+      {
+        "path": "codemp/rd-vulkan/G2_API.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\G2_API.cpp:926:10: warning: Forming reference to null pointer [clang-analyzer-core.NonNullParamChecker]",
+          "codemp\\rd-vulkan\\G2_API.cpp:1275:26: warning: Access to field 'mSkelFrameNum' results in a dereference of a null pointer (loaded from variable 'ghlInfo') [clang-analyzer-core.NullDereference]",
+          "codemp\\rd-vulkan\\G2_API.cpp:1512:26: warning: Access to field 'mSkelFrameNum' results in a dereference of a null pointer (loaded from variable 'ghlInfo') [clang-analyzer-core.NullDereference]"
+        ]
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_backend.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\tr_backend.cpp:301:70: warning: Access to field 'sort' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]",
+          "codemp\\rd-vulkan\\tr_backend.cpp:306:20: warning: Access to field 'sort' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]",
+          "codemp\\rd-vulkan\\tr_backend.cpp:374:6: warning: Access to field 'useDistortion' results in a dereference of a null pointer (loaded from variable 'shader') [clang-analyzer-core.NullDereference]"
+        ]
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_bsp.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\tr_bsp.cpp:1360:9: warning: Access to field 'height' results in a dereference of a null pointer (loaded from variable 'grid2') [clang-analyzer-core.NullDereference]",
+          "codemp\\rd-vulkan\\tr_bsp.cpp:1723:15: warning: Access to field 'type' results in a dereference of a null pointer (loaded from variable 'model') [clang-analyzer-core.NullDereference]"
+        ]
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_ghoul2.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\tr_ghoul2.cpp:3100:43: warning: Access to field 'ofsVerts' results in a dereference of a null pointer (loaded from variable 'surface') [clang-analyzer-core.NullDereference]",
+          "codemp\\rd-vulkan\\tr_ghoul2.cpp:3705:23: warning: Addition of a null pointer and a probably nonzero integer value (from variable 'indexOffset') may result in undefined behavior [clang-analyzer-core.NullPointerArithm]"
+        ]
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_scene.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\tr_scene.cpp:620:34: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+        ]
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_shader.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\tr_shader.cpp:4740:61: warning: Access to field 'tessFlags' results in a dereference of a null pointer [clang-analyzer-core.NullDereference]"
+        ]
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_shade_calc.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\tr_shade_calc.cpp:732:14: warning: Assigned value is uninitialized [clang-analyzer-core.uninitialized.Assign]",
+          "codemp\\rd-vulkan\\tr_shade_calc.cpp:803:13: warning: Assigned value is uninitialized [clang-analyzer-core.uninitialized.Assign]",
+          "codemp\\rd-vulkan\\tr_shade_calc.cpp:908:19: warning: 1st function call argument is an uninitialized value [clang-analyzer-core.CallAndMessage]",
+          "codemp\\rd-vulkan\\tr_shade_calc.cpp:1225:20: warning: Access to field 'ambientLightInt' results in a dereference of a null pointer (loaded from variable 'ent') [clang-analyzer-core.NullDereference]"
+        ]
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_surface.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\tr_surface.cpp:2272:21: warning: Addition of a null pointer and a probably nonzero integer value (via field 'indexOffset') may result in undefined behavior [clang-analyzer-core.NullPointerArithm]"
+        ]
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_world.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\tr_world.cpp:1394:10: warning: Access to field 'novis' results in a dereference of a null pointer (loaded from field 'world') [clang-analyzer-core.NullDereference]"
+        ]
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_instance.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\vk_instance.cpp:263:9: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]",
+          "codemp\\rd-vulkan\\vk_instance.cpp:264:9: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]",
+          "codemp\\rd-vulkan\\vk_instance.cpp:282:20: warning: Use of memory after it is released [clang-analyzer-unix.Malloc]",
+          "codemp\\rd-vulkan\\vk_instance.cpp:303:44: warning: Use of memory after it is released [clang-analyzer-unix.Malloc]",
+          "codemp\\rd-vulkan\\vk_instance.cpp:303:44: warning: Use of memory allocated with size zero [clang-analyzer-unix.Malloc]",
+          "codemp\\rd-vulkan\\vk_instance.cpp:374:5: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]",
+          "codemp\\rd-vulkan\\vk_instance.cpp:375:5: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]",
+          "codemp\\rd-vulkan\\vk_instance.cpp:985:34: warning: Array access (from variable 'physical_devices') results in a null pointer dereference [clang-analyzer-core.NullDereference]",
+          "codemp\\rd-vulkan\\vk_instance.cpp:985:34: warning: Use of memory after it is released [clang-analyzer-unix.Malloc]",
+          "codemp\\rd-vulkan\\vk_instance.cpp:1007:2: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]"
+        ]
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_shade_geometry.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\vk_shade_geometry.cpp:1596:7: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]",
+          "codemp\\rd-vulkan\\vk_shade_geometry.cpp:2535:47: warning: Dereference of null pointer [clang-analyzer-core.NullDereference]"
+        ]
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_swapchain.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\vk_swapchain.cpp:141:57: warning: Array access (from variable 'present_modes') results in a null pointer dereference [clang-analyzer-core.NullDereference]",
+          "codemp\\rd-vulkan\\vk_swapchain.cpp:141:57: warning: Use of memory after it is released [clang-analyzer-unix.Malloc]",
+          "codemp\\rd-vulkan\\vk_swapchain.cpp:151:5: warning: Attempt to release already released memory [clang-analyzer-unix.Malloc]"
+        ]
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_vbo.cpp",
+        "diagnostics": [
+          "codemp\\rd-vulkan\\vk_vbo.cpp:1223:27: warning: Access to field 'numVerts' results in a dereference of a null pointer (loaded from variable 'goreSurface') [clang-analyzer-core.NullDereference]"
+        ]
+      }
+    ]
+  },
+  "gpu": {
+    "status": "failed-ssaa-hdr-followup-pending",
+    "summary": "The six ordinary 81b10be GPU profiles passed (23 map loads, 50 captures), as did weather and the corrected bot-shadow acceptance run (six maps, 33 captures). SSAA/HDR failed real driver validation for refraction blit destination width and dynamic-glow clear rectangles; owned polling aborted the process, with configuration/runtime preserved. Fullscreen/debug cases are unrun, corrections are in progress, and 81b10be will not be deployed.",
+    "basic": {
+      "artifact": "vulkan-followup-gpu-basic-81b10be-1/results.json",
+      "passed_profiles": 6,
+      "map_requests": 23,
+      "captures": 50,
+      "stress_seconds": 96.03
+    },
+    "features": {
+      "weather_artifact": "vulkan-followup-gpu-features-81b10be-1/results.json",
+      "bot_ssaa_artifact": "vulkan-followup-gpu-features-81b10be-2/results.json",
+      "weather": "passed: three maps, 21 captures",
+      "bot-shadows": "passed corrected acceptance: three maps, 12 captures",
+      "ssaa-hdr": "failed validation; owned forced termination true, configuration/runtime preserved",
+      "unrun": [
+        "fullscreen",
+        "debug-geometry"
+      ]
+    },
+    "failure": {
+      "artifact": "vulkan-followup-gpu-features-81b10be-2/ssaa-hdr/validation.log",
+      "vuids": [
+        "VUID-vkCmdBlitImage-dstOffset-00248",
+        "VUID-vkCmdClearAttachments-pRects-00016"
+      ],
+      "source_explanation": "Refraction destination used render-size/2 rather than actual capture-size/2; dynamic-glow clear rectangle used the larger SSAA render size for the smaller pass target.",
+      "status": "correction-and-new-code-checkpoint-pending"
+    },
+    "harness_history": "Initial bot-shadow acceptance failed because commands were rejected; process exit 0/no VUID/no force. Corrected command acceptance passed on the same frozen runtime; initial rejected-command run is not a renderer failure.",
+    "limits": "Lifecycle/stress durations are not FPS measurements; no full feature-matrix pass is claimed."
+  },
+  "ci": {
+    "run_id": 43075400446,
+    "url": "https://github.com/JediofFreedom/JoF_EJK/actions/runs/43075400446",
+    "status": "failed-macos-followup-pending",
+    "summary": "CI run 43075400446 passed Windows (66/66), Ubuntu (64/64 applicable with two explicit Windows-only skips) and the full native Linux client. macOS failed only material_fog-invalid-t in vulkan-material-runtime (63/64 applicable suites passed); the exact assertion and production-versus-fixture cause are under investigation.",
+    "failed_job": 130713776559,
+    "artifact_id": 13881937420,
+    "artifact": "ci-43075400446-macos.zip:vulkan-material-runtime.log",
+    "failed_case": "material_fog-invalid-t",
+    "failure": "invalid fog depth must be sanitized independently",
+    "compiler": "AppleClang 17.0.0.17000013",
+    "diagnosis": "pending frontend agent investigation; no weakened assertions or source fix claimed"
+  },
+  "deployment": {
+    "status": "not-deployed",
+    "summary": "TestClient still contains the validated 0fcdbdd build; 81b10be has not been installed."
+  },
+  "source_manifest": {
+    "checkpoint": "81b10be3490a2f08884110717583aaa6e0873e28",
+    "hash_semantics": "SHA256 covers the captured frozen 81b10be working-file snapshot, not the later changing checkout. Git blobs use repository normalization; three untracked developer tools are separate local snapshots.",
+    "files": [
+      {
+        "path": "codemp/rd-vulkan/G2_API.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "877cfdbe645faf0737d72ce2b19e64b1be4cd12c1ecc3c519bc269bf79711df8",
+        "git_blob_at_checkpoint": "3537a0088c66066c0d7f755a5f32889ef1dfdc02",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/G2_bolts.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "5de18adde7fd0ba26b1b6dd9a368af69ddfda5d3e7b2ee587057460903799e84",
+        "git_blob_at_checkpoint": "bdc5ccc65ef611884c25becbe848849196d8c52a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/G2_bones.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "da9ee0be3bdbdfd1c6deb06169853d2c7bf82b510f204f14b039943d7fbe0149",
+        "git_blob_at_checkpoint": "d9bf52aeb600917113239a44e4b018f6f9be1e35",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/G2_gore_r2.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "a80edc728b2932e55d790492674267da6ce5f176c24de2336baecb25ed3fe956",
+        "git_blob_at_checkpoint": "234a2e56ec10a84621a9536ebccc69479b576d82",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/G2_gore_r2.h",
+        "kind": "project-header",
+        "sha256_working_file": "2513d8db402c54423a49fb6063b25600a28d550730b47f89a5939d8389479fb9",
+        "git_blob_at_checkpoint": "081551124b73f1c65eacc977a75bded194ca7001",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/G2_misc.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "986b5fff8dcad4dddcbccedc686397bca5a5611d79aa479b33cc01ee465027e4",
+        "git_blob_at_checkpoint": "022417e4c235718466ddb12fee5ad8c4165e068f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/G2_surfaces.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "e252ebf35ec3bcb21b26f5c9da0ce56c4787d39ccdee07da09b9ca629f127e49",
+        "git_blob_at_checkpoint": "53761b48b56dcc0606bd7fd492c9adeec5d5319c",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/compile.bat",
+        "kind": "developer-tool",
+        "sha256_working_file": "8e94e70653dddc8fc1682ff4714703e6474612ab75353eba4975f5b69f60c186",
+        "git_blob_at_checkpoint": "94068262ee48ace31c34603a4c1e72073adb5ece",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/compile_threaded.bat",
+        "kind": "developer-tool",
+        "sha256_working_file": "58c29346c743fb1aadaf175b31634fad770f953f5d574378465980839dbf8305",
+        "git_blob_at_checkpoint": "5deb0767661b3fff6b8f8886d6bb5374437c0eff",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/blend.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "6a56708a8c8c2b510c74dfa29a005f8cec7532fec59b96646463a855b5be893c",
+        "git_blob_at_checkpoint": "c8542bf9e1c15a5bd375198315236983c384f032",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/bloom.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "e27ad7260fce6024ff455be7d941c4fcb9772498d09bd724167c6e5b5ee9e157",
+        "git_blob_at_checkpoint": "a162fc9af84269e25b2fb18e3a862a68a4ebd3d3",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/blur.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "73f2c824ba842ee3b085190318e98c0d28d18986ee954e25c6c22940e34cebc6",
+        "git_blob_at_checkpoint": "264fe80a7c6c2f53a496b1425684b0a6e3eb99c1",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/color.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "16b857fca46e97fc651f317cd0b95037c68f08569fbcfc151dfc57123c28aad3",
+        "git_blob_at_checkpoint": "01e68da9718430d081926491c7db66e242a56eec",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/color.vert",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "e3f21c04bea96cd7d747baa7eabf1105cacc20eb378834931cbc20b9cdd06018",
+        "git_blob_at_checkpoint": "d99284228d26fea6700f3e82f778b9d3d8c03e1e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/common/color.glsl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "40c829f0b4850e62674866aef21a6e90318f1af7b471e6209bb253bf753285e2",
+        "git_blob_at_checkpoint": "6c1d68ab10e760eba7b3a13e139df6a50b90e07c",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/common/deform.glsl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "b350cfe558953d23b49a1950d08beb3afa4ed8a5d2b9b834eaede080b3a311b0",
+        "git_blob_at_checkpoint": "4caf5171bfb62bb9cd6af46c3ca0464eb25b40e0",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/common/fog.glsl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "4538262106b17cce16cf369ca6a4cf00a5f738504751c2867c3067b225a60109",
+        "git_blob_at_checkpoint": "a9f247ecff30e8e2f9ed5eef064339c080ee1d04",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/common/skinning.glsl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "b7c808687787ebc79e6756f5dc41bcfe19afac92b5d3c5dc42d41fa06a4ae71c",
+        "git_blob_at_checkpoint": "7374f300e4ca00a9acc174dd2a4553e9d97a098a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/common/utils.glsl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "b20fe98acd7c19bcd43ade3520792acf0246594d9144af7d19365888c8cdeae0",
+        "git_blob_at_checkpoint": "b441772174e0facd3772d0f3e27d1fdd8daaa039",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/dot.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "8c257cc77dbe1f2b7e3b66645e38748306044f4fbb2f7c4123ef8e1fef08941b",
+        "git_blob_at_checkpoint": "7898004787ccc83d40b23c90b534d5f6e149f262",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/dot.vert",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "cfa56dbcc975de2fd1db2de0f4d9582a8858643f265c5a66cc30bbce31ae1c0c",
+        "git_blob_at_checkpoint": "fe1beb66c6ee0306cb564973513707a1a59f79b6",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/fog_frag.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "f62597f0460107b4b6e648a21ec8ac5ffaa5957144abd581687a80c98dd14738",
+        "git_blob_at_checkpoint": "466e257f03c4cd790b9d3197d33e4fbd947e284a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/fog_vert.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "a14862ac4e66050ab1c55dee59763ae69309417045ce8f27b8c0e7132eb9f308",
+        "git_blob_at_checkpoint": "1a55d5f1e8fa0a65995599a8ea1a1d3a0d774c27",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/gamma.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "394d5837ea09ed72d3120c9cf9d5be14006ac663b46211960d260b62a60e6e4a",
+        "git_blob_at_checkpoint": "5befb87878f406978aefc8f1e2b0291dff00411c",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/gamma.vert",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "5ad8c8074b992b0ff7b8a4e04c4346f0f5956b50f05036862a30e6b49986c4a4",
+        "git_blob_at_checkpoint": "13c88a8c493349f47519713922eefa7201ad6ea9",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/gen_frag.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "eca9d70fc7422325c9052262b2684ebd5b60fdfeff9637500953176791d41cae",
+        "git_blob_at_checkpoint": "9b50b54310bc18b391562c5c6888a56a8cd7c40d",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/gen_vert.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "7aed83c90ee748dffecf1f23f06c9c3e85db41dd312819a3a5f438c913b34266",
+        "git_blob_at_checkpoint": "4176e3c8286693fae328f9e959f634e7c5ac38b4",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/global.h",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "8c76d0c1309e0de940af403430bb821867cc05d47ca953f33bdf3082f5eeddce",
+        "git_blob_at_checkpoint": "4fee74771ebf18e5cd0db1a0f1f533ad5fcaf39e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/light_frag.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "ed9190bc944a00e6f93e5dae06f1f25684b0e9e681d7a380e2b5d7aa72ccd25d",
+        "git_blob_at_checkpoint": "166b7f4c04527484cae4d670adfacaae562f4f5b",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/light_vert.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "d44f8e6cdd62d1b5e20a57754a43baed5bfb13bb8c5a0d980ec373f07f942429",
+        "git_blob_at_checkpoint": "032e8a967332a657e9f35079c6c75d3c30762da3",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/refraction.frag",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "3a8cdd0ac9d506377c6196f33a63038169cb1e5b4dbc1fe29e7f0b051fa4a98d",
+        "git_blob_at_checkpoint": "07e8d39d8b9df8f2e523b6514629423a2e9c7356",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/refraction.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "b435f22b6b148e1a7471f1b27a122202ae56f4f2169d00edd8a68c20a165191c",
+        "git_blob_at_checkpoint": "e3d1c92f7d3a33eab66a1c3254ed9cc2c60de088",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/surface_sprite_frag.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "d3d880d7240101d528dfe9242b7871c0e3077ef9cc05e7b509bfecc53f12fe46",
+        "git_blob_at_checkpoint": "df6cb933db74c9d47102ff79f5e6a890c3de1e38",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/glsl/surface_sprite_vert.tmpl",
+        "kind": "shader-source-or-template",
+        "sha256_working_file": "87e04a2ad5ffb8de7e67b5d89bda45366c1f973497d496ace23f0c38aca72eab",
+        "git_blob_at_checkpoint": "ab938772e72768971f61858e68b2e21a8609d67e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/spirv/shader_binding.c",
+        "kind": "included-generated-source",
+        "sha256_working_file": "6e04a5ff07181d9e8a050befe5541975a515c20c40c4a78d192dd6a563f461e1",
+        "git_blob_at_checkpoint": "896975f0cafb11d7757e237dd90e0a4d6970c907",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/spirv/shader_data.c",
+        "kind": "included-generated-source",
+        "sha256_working_file": "397d2edcaff820a020d0de499880bbec6d568ca75acc1f4b988c18c3e85bfe66",
+        "git_blob_at_checkpoint": "2702b6e33e548501e673c83c6bd6c5187f5cf97d",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/tools/bin2hex.c",
+        "kind": "developer-tool",
+        "sha256_working_file": "c2e8f4c6930f0df72eb0ffe22072f7137c322157308e5c3619bdff7c393e074e",
+        "git_blob_at_checkpoint": null,
+        "tracked_at_checkpoint": false
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/tools/bindshader.c",
+        "kind": "developer-tool",
+        "sha256_working_file": "c60625513eaa87b88d86651ce29759953ea6bb787cd8e34ef336b82d8cfb83a9",
+        "git_blob_at_checkpoint": null,
+        "tracked_at_checkpoint": false
+      },
+      {
+        "path": "codemp/rd-vulkan/shaders/tools/compile_threaded.cpp",
+        "kind": "developer-tool",
+        "sha256_working_file": "de1149acb01aa7076f4390eaaf50f4d652e4f22db8e376518f6a0ddcb415195e",
+        "git_blob_at_checkpoint": null,
+        "tracked_at_checkpoint": false
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_WorldEffects.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "dbb36bb54b56ea234a82aab2ad813c8779a157ea5ceed8433903f43b7454082d",
+        "git_blob_at_checkpoint": "079ef477c5c7e9ac52582b8ff2303f4821992ab8",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_WorldEffects.h",
+        "kind": "project-header",
+        "sha256_working_file": "7ee09b0d65bd5347b1b7d6019ea4fa14f1f40f5d6c7fb23c8216409044ac1a86",
+        "git_blob_at_checkpoint": "3aee6d348d95cb06aab2218c42fb0a4931e62514",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_backend.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "ab2044dd6ea0727cf8bf698ff61c201f31e90136b4683f4e7ae27b90ad3bb213",
+        "git_blob_at_checkpoint": "4a3eadf5f87e92b284601273127d9944b5c8b747",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_bsp.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "9762aea30f228bc04a93c978e06f875bf5d3646fdcd683c6db682e9455f5fe30",
+        "git_blob_at_checkpoint": "3e6a2d0a21536f233f82f1ce1b421d00d2034b1a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_cache.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "85cef6d3e9376f4df974758cc822df85b38bf98a0792f5a088db3d8646dd60c8",
+        "git_blob_at_checkpoint": "a1a15305623fc9b1bf493febf8bece2babc684a3",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_cache.h",
+        "kind": "project-header",
+        "sha256_working_file": "5c0d863fef6a7898a1f37eec441337720b12f020d1935186b0c8e5d4f86527b8",
+        "git_blob_at_checkpoint": "9a0d5fea32d8a2fc65cfea507167f57fd845e5d3",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_cmds.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "4fe4dcead8276086b99ac0db9a70edfe536eef5c5de3df24af61cd04b8c264e3",
+        "git_blob_at_checkpoint": "caf9a169d30fa3fe74531d2be6c47d4e4b04a575",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_curve.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "1b34cdf6ee738775a48907f81feeda730097e762646c35ce27c80de4f18cee53",
+        "git_blob_at_checkpoint": "4367eb4515cd51d199b04c993872fac2d4fa0047",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_decals.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "1869f55186c83f41efa8816b480f2d1baef381eaff0517d772b6b8b34af4365b",
+        "git_blob_at_checkpoint": "6e52131211cbcfa654b5ffa6f985d8db87538297",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_ghoul2.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "759e9c8ac71b7349c8e215f9bf4e70da74b0ba548b4c5e69a6ff7a752388e8f7",
+        "git_blob_at_checkpoint": "04429d1e8ab3d3d0eaebbb4c808d387f4b567219",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_image.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "d4a28c5fcfff4e47cca61846ea3cc60bf32a8c86d21923e4334c4bd4d0ddd7a3",
+        "git_blob_at_checkpoint": "85e1b0b45ffa71ae2122e6ed6c739b453747c04a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_init.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "b11b493bf980753f070e515279c485761d1da955f5f20de16bb769c3f93a4dbf",
+        "git_blob_at_checkpoint": "384c30adaf669cb0403c46013f987349a315134f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_light.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "859b154e3ab8ec3df48e68eb8b955734d7d8962ced3201dad68f463c3de3b774",
+        "git_blob_at_checkpoint": "b0df22b3932653cf963ba8e75274e73f23fd5b73",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_local.h",
+        "kind": "project-header",
+        "sha256_working_file": "8b19f91dbc9f3dfd243f8937860959f1f58ef3ad3f4d01473314126247387eed",
+        "git_blob_at_checkpoint": "ee0a106395ac545b4003221c58a027db070076e9",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_main.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "5f754b464bc27bbbc66bb2ed1ebdb2a2e631a92e7079e18c0182188289e2740f",
+        "git_blob_at_checkpoint": "6bef556c522fd68a344ec939164725820a0729ea",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_marks.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "5e766f7b68844bc95dfbed04804cb7d783b7a5a7fabdd5deff0bd39cb31bf37a",
+        "git_blob_at_checkpoint": "5da5c7e0ee9968752950c66264191fd2a1bb6e8b",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_mesh.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "792fa51b4b159c8d082cd1ed1953ef26238b8952262cafff740aac2c239b5fcb",
+        "git_blob_at_checkpoint": "0a2817e6a18d4870ea063c31736ba7579dea3d1d",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_model.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "b498f3d17c2878868bf2b308be69c8bf5d8f011b11b782d4704e5a1c6b8fea0c",
+        "git_blob_at_checkpoint": "320ae833c6b3b691721643de0f4b9cd1d96038aa",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_quicksprite.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "f920357f9944c0a8b94b5d8f764d81b425fab90655977230b40ccd52b20d8c01",
+        "git_blob_at_checkpoint": "012e259991c37b1e04bb94183008ac1f8e9ec2c8",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_quicksprite.h",
+        "kind": "project-header",
+        "sha256_working_file": "39ee81ac41f652328494497c17893f1675c2d788638c0a15f4121e8f01f3f1ee",
+        "git_blob_at_checkpoint": "8bf2b1b27da5093b78890233dd02098a6a42244e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_scene.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "e0ae8c4c32ec245435113b6f9ae4b5949467fc0e0e3aa9868a732fc720cf347e",
+        "git_blob_at_checkpoint": "3d38374603650d8d67868036af5ce1c7e37a62d0",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_shade.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "50824e754092dcd980d003d1ea6511b912b825137b90a942a6b74edff0eb7f58",
+        "git_blob_at_checkpoint": "dd055c97c853c49e32228dd5a2ef842e17d9bae2",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_shade_calc.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "548e7828422d20de753a5d8d1f970b49eba05df1dcb884644b668c63731ccbeb",
+        "git_blob_at_checkpoint": "30bade36a3e7e05adba23efdb147ab1478ce5658",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_shader.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "a5d4662e9459df7de5baa043a68b9372f6d4b8286111505d0ced05d4a6866258",
+        "git_blob_at_checkpoint": "05c1eeac0cc6cbca3b11ac9782c02eb01aa7785e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_shadows.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "305ee37a7e8c09dab345453ee212edef24442cc50b7a15f1b2319bdcb0393138",
+        "git_blob_at_checkpoint": "2e79f73dbbe3f274643d0092e735713c8de3124d",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_skin.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "cb5ba71c8263556c2f46fc2700eaa3ea2ab0291c204a7510bd2aaa69ede79d63",
+        "git_blob_at_checkpoint": "b990e58e93c983a497f7675d7b0ff3870378b420",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_sky.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "47248be567c06e7bb9fac2764d4615f1c810e711b67c70e6801233205b22ef59",
+        "git_blob_at_checkpoint": "8689aeb79dfa98d4cd07cd4dc1aec3d54057f65f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_subs.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "2544013a2ac92aa1693f39faf0ffb8587d8e13a6cee608b1c56ae54f28816288",
+        "git_blob_at_checkpoint": "1f6d1dbc3e09eead20c69d65dc5326d3e0b9c71b",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_surface.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "2ec6b62a7862e0b9e149c9acfef84ca5e8a054a26973b09ce876dfc95b69e75d",
+        "git_blob_at_checkpoint": "4c834bbd31e679d8784c1cc3761776b98c509ee9",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_surfacesprites.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "d59a826af038bcb65bd6cfd9bab1de076f97c9f55786ccb1350d32f01dd28667",
+        "git_blob_at_checkpoint": "c3fc5534bfb790c0d63aaf1d8b6435a42ab45e9e",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_terrain.cpp",
+        "kind": "unbuilt-legacy-cpp",
+        "sha256_working_file": "08bc33cf3d9023b97f9a0fac106ac4759e7a8aeec6d4796b59be4a4f7e8af81e",
+        "git_blob_at_checkpoint": "4252415ed0fce4adf2c66ec25898cdeaa794c10c",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/tr_world.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "69abef010ce305cebad475c3e5717423af1330ae6d671e5517deaf50693742b7",
+        "git_blob_at_checkpoint": "fc95ccc5b8791aff56433b20598215586d57df9a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_allocation_ranges.h",
+        "kind": "project-header",
+        "sha256_working_file": "505c9694241603371484b7242c59154d87f99bac642ff2b2ce2e9193f33dccc5",
+        "git_blob_at_checkpoint": "987a69c7f81dada0cd0267f64ca6e0b30d7ff840",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_api_version.h",
+        "kind": "project-header",
+        "sha256_working_file": "f50eb3345aa33f49af08b6ab9f0844c25986a6e23228cce83d28371c40f457a3",
+        "git_blob_at_checkpoint": "f44a8046a3fa658cb6e6a72f30e405a46a747a0f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_attachments.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "ec04ea4b38a991271329399274359cf8568a0b4bd425f935d929899eee8b490d",
+        "git_blob_at_checkpoint": "f9293cdc2345ab88cba9d7b36a73bb2ffa15d6a8",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_bloom.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "67ca60c86e48fdb306a3a1f8914b281e7d84a39d17c42063f643b6ad5c42d1e2",
+        "git_blob_at_checkpoint": "1ba5da1e29bd566f2a5c507bb946c989391af665",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_cmd.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "986aa2987a7c77e9a4a1e5f4c904ef94b71d22998c607e8e62f676b63650ad8e",
+        "git_blob_at_checkpoint": "ba6e5e37ae7b684d8be6d8d9f2218621120ba205",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_debug.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "6e4f3ecebd760588511f6654fdeb977913b998a4d47e4cd2b8324b84b552e39d",
+        "git_blob_at_checkpoint": "8892f306041413ff7bde4083025459ada96aae2b",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_device_extensions.h",
+        "kind": "project-header",
+        "sha256_working_file": "8c6362518ae16719e84eae1a40a3087a001694d130855a6543576fd3525d5eba",
+        "git_blob_at_checkpoint": "1e7547e3e46862be0e822547c3155d6281a58a0a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_dynamic_glow.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "57a1e63a39cca8ec7d6e6a39019d8db4b6c9754ceaa7676c5d6a249d5b66abe8",
+        "git_blob_at_checkpoint": "f23013318751d249d9b34002ce9940a4ec17273f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_flares.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "ee5c13abcea20e098df9669e3f0c001d9e4f45acef16adee9b8e6c13fa685441",
+        "git_blob_at_checkpoint": "409e883374a3ec3e71a843e1f1e3185871edda69",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_frame.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "1229e25a88895439af1d3a39093393e5605ff457155441d120a3a576662e4463",
+        "git_blob_at_checkpoint": "67440f6cd5c076218fd564fc8a21a8077a0055f7",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_host_image_copy.h",
+        "kind": "project-header",
+        "sha256_working_file": "e416175d6a71d45af26d333fa08f23bea17fcc0057ed716800009036c479dd7d",
+        "git_blob_at_checkpoint": "5c975f36110ded2b265d16170710ca054b157ec6",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_image.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "8fc70ee6d17887856ae27fb4ca620cb8efb23240c902e4a67b6c96da4434400c",
+        "git_blob_at_checkpoint": "e7098a3a539227542aab6b6fdc2df97f52721601",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_image_process.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "10fab55eb90b841548216f786a62677a0cb031eae131e03709b3da4c5a9ffde5",
+        "git_blob_at_checkpoint": "8e9f4848afefce0f0e33c09d6473c5e29e539588",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_info.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "2f7bce201601945902f20d8b75b09d4a1143b20c1bade5a6ab5089eaad0942da",
+        "git_blob_at_checkpoint": "1c010c5896a129928ae36b8beab97ba6f8393a0c",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_init.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "6aa921d4b232bf9a66b8ce96b3b8a5ce8000b069b9c1545ce9b04b8173f335e0",
+        "git_blob_at_checkpoint": "e37a6310c9e9e6a5a327db9318a8493f24a3b0dd",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_instance.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "ce3d5a590ee582b6797337fe7994572bec72784d0af7c772b42b48c1b5452a09",
+        "git_blob_at_checkpoint": "699251230e79a60961cbb9c120a5e3e4a7fdba78",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_load_profile.h",
+        "kind": "project-header",
+        "sha256_working_file": "e8d1b607807eeaf4a182a64e3794cdc4302d92bc24b7c186bec1381ef4a95f3b",
+        "git_blob_at_checkpoint": "7c847c5285a0eb8e398fe6ea6aeaa5c8eecd0352",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_local.h",
+        "kind": "project-header",
+        "sha256_working_file": "123b1d50a1d39c394ecf2478c135abad38fd201330a908b8914d0bbbe76d8b2a",
+        "git_blob_at_checkpoint": "66281532ac94de9640d80745b96dcbea2e2e71ee",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_memory_requirements.h",
+        "kind": "project-header",
+        "sha256_working_file": "26dadbf0366a7dc899f7e096668dfa8390c49f5bd2313a7726e57f879c06f062",
+        "git_blob_at_checkpoint": "4e02e3e7628c1ffe1d1537b2da645031a7830fac",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_pipeline_cache.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "2136ceeea05c0ced518da534bdc9831f8a8b1c9825d0c5d3543f5062e745df0e",
+        "git_blob_at_checkpoint": "1fece359005dc125ecc25e87e49839a96d19827c",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_pipeline_cache_file.h",
+        "kind": "project-header",
+        "sha256_working_file": "83d4f3639196240ffa70f2e6fb633e88070198caf09c2b9cdc623b93f0b94dab",
+        "git_blob_at_checkpoint": "c63e712b8fd9757ed7ccf23e1e5a83583cfbdf6f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_pipeline_index.h",
+        "kind": "project-header",
+        "sha256_working_file": "1bc73f7b17294e30629249dd68229c3e06e67e69586049085a0016ab697a1d19",
+        "git_blob_at_checkpoint": "53bea932660e3caa5d84bf05077f9f06f7ec5ace",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_pipelines.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "9c7689272c060aa127b84be4c652e275b73c515071aa5be6505bbc9dd6102387",
+        "git_blob_at_checkpoint": "d4f294a900f1674da8d1c9951b9f932f03225bd8",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_prepared_cache.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "ec64c8e0898e27aabb3403c72967cbbc826549be9e1fe3aecba8eb7f7ec333ac",
+        "git_blob_at_checkpoint": "f3681ced517a58c5b85508e387e76a8321dd39b5",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_prepared_cache.h",
+        "kind": "project-header",
+        "sha256_working_file": "14a5d3c2d7076197fc47b0f3ed1dfac45db58ebd9b1476ad3a7c6d32c08dda36",
+        "git_blob_at_checkpoint": "f43c9645fc0693577e1d7c5f266e478034ad12e8",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_renderpass.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "cf422beff10b7600cea5b169671485c732e8aeb0a4ac1e0641e9f1603e91775c",
+        "git_blob_at_checkpoint": "170c8262277ac153834177dbb59f141ae98f61b1",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_resident_cache.h",
+        "kind": "project-header",
+        "sha256_working_file": "ede4b39a7041daaa0109e551e3fb380ec694eb36953f770a46f39120dcbe813d",
+        "git_blob_at_checkpoint": "e4927cb0e344e90171678a953dc8f9a314dee6eb",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_result_check.h",
+        "kind": "project-header",
+        "sha256_working_file": "ab61e011a16e3b22fe52e07c0a5a03aec2148382e3b61b46b07b2821aa64f4e2",
+        "git_blob_at_checkpoint": "3e1011ec8d0913aa8396747c55e0a3da22fb6d4a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_runtime_profile.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "f8715240d48710f343e3437571319510c08f88ff7cc8e83636162094efa5a6d5",
+        "git_blob_at_checkpoint": "c34441155ca5b751096554c28493210cd08d2fa8",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_runtime_profile.h",
+        "kind": "project-header",
+        "sha256_working_file": "815f99ed42a3f18a868a4aae15ae4ed37e88d1e66155e72c2b7adfa136e9b8e0",
+        "git_blob_at_checkpoint": "6c62b2c27f62a9880b6dc6f8750f53738bdb182a",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_sample_counts.h",
+        "kind": "project-header",
+        "sha256_working_file": "71b526306bbbb0628a76e42e24a6ea33ed14372ffeed95db7e54aa0c2e8d8a73",
+        "git_blob_at_checkpoint": "6ab65bc8918fdc57eaeca59370fd5225e5a7fca1",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_shade_geometry.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "a000ee1f536d065a692359284f7a77fd6cd7df6e4c8ba854e77b6a1d4382e256",
+        "git_blob_at_checkpoint": "3d11db8e1ac23b6925d44efc7a710f90eb1beff0",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_shaders.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "f33527c32ab96332c72a56078840ccdb0d4528b19c6cc3a93e0bcc2096f35f81",
+        "git_blob_at_checkpoint": "1d00a121c36693a5dc425362e4a0fb876fc9871f",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_swapchain.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "39bd1756e6997c484f8dc2bb5cd4cb46dd969bccb7c2be5a5b4c9f278e831ded",
+        "git_blob_at_checkpoint": "cb2bef4668bf51b821f46f88b859aa2616df2cd9",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_sync2.h",
+        "kind": "project-header",
+        "sha256_working_file": "eec01ca8f8f12f8aea4880a4d65e8c927ab757f1bda08c157da536c4777e3d92",
+        "git_blob_at_checkpoint": "e1ffe1d5881c19dc20845dc941504331a06dbfa3",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_texture_budget.h",
+        "kind": "project-header",
+        "sha256_working_file": "0663293004859349a676709b5e779136e651d2ef7069fda18f32a419cfd64a21",
+        "git_blob_at_checkpoint": "74d1889b9362325c0ff52ce3499ead4fbad4d532",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_texture_context.h",
+        "kind": "project-header",
+        "sha256_working_file": "cdc1e7bc7d21f62d1248cbc4a5f7bc6bdc3c301c14997d3dcbe9ddc7a2565675",
+        "git_blob_at_checkpoint": "2eee1723bab4878621a608433b9fd6c3557345ea",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_texture_jobs.h",
+        "kind": "project-header",
+        "sha256_working_file": "b23544799184da4853e55353cc9061795026476932fd80e55ed09fdd1b720ca8",
+        "git_blob_at_checkpoint": "08f9815c85340bc7acdbd0d61c86d9da67e6a277",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_texture_scratch.h",
+        "kind": "project-header",
+        "sha256_working_file": "bcd7569e1e5a04b2462716f9724875d5e9f4ceaa603b6bda480d766d4c389cae",
+        "git_blob_at_checkpoint": "d18350bd6479636cd70b6751fd1a1024017e1df1",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_vbo.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "fab8ad16f7a20fb59113c276061bdd722f3b6ae054b1ee4b094c97e729b70ffe",
+        "git_blob_at_checkpoint": "081f096fcd4edd4a0fdbad0a7094ee222c1c0123",
+        "tracked_at_checkpoint": true
+      },
+      {
+        "path": "codemp/rd-vulkan/vk_vbo_surfacesprites.cpp",
+        "kind": "compiled-renderer-cpp",
+        "sha256_working_file": "12021fcb7154301e897a52c43062167d0eee87527c3f15f8b65635a13054593a",
+        "git_blob_at_checkpoint": "2976755de2926f48dd729af71dc3442e966b4b40",
+        "tracked_at_checkpoint": true
+      }
+    ]
+  },
+  "historical_triage": {
+    "total": 285,
+    "fixed": 46,
+    "provisional_contracts": 63,
+    "unresolved": 176,
+    "status": "unchanged"
+  },
+  "diagnostic_contract_review": [
+    {
+      "context": "G2_API.cpp",
+      "disposition": "caller-contract explanation; no source fix or universal proof",
+      "evidence": "G2_SetupModelPointers(CGhoul2Info*) returns qfalse immediately for null. Three flagged accesses occur only after true return. Framecache path comes after this null check."
+    },
+    {
+      "context": "tr_backend.cpp",
+      "disposition": "provisional nonnull sorted-shader contract; not promoted fixed",
+      "evidence": "R_DecomposeSort obtains shader from tr.sortedShaders using a frontend-generated shader index. All draw paths use registered shaders; exhaustive arbitrary sorted-table mutation is not proved."
+    },
+    {
+      "context": "tr_bsp.cpp",
+      "disposition": "caller-contract explanation; no source fix",
+      "evidence": "R_StitchPatches checks grid width/height belowMAX_GRID_SIZE before insertion; R_GridInsertRow/Column NULL branch only rejects dimension+1 aboveMAX_GRID_SIZE. R_LoadSubmodels ri.Error(ERR_DROP) is engine-nonreturn; analyzer callback type does not express it."
+    },
+    {
+      "context": "tr_scene.cpp",
+      "disposition": "existing positive-count/nonmutating command-allocation contract retained",
+      "evidence": "tr.numDrawSurfCmds>0 before reservation; R_GetCommandBuffer does not mutate that renderer count. Successful reservation copies at leastone source, so src initialized. No source fix."
+    },
+    {
+      "context": "tr_shade_calc.cpp",
+      "disposition": "selected independent fog defect fixed; historical warnings not blanket reclassified",
+      "evidence": "Both inverse-entity and wave colors assign all4bytes before alias load. Fog coordinate helper fills2values for every same tess.numVertexes loop iteration. Diffuse light currentEntity relies on renderer backend setup contract."
+    },
+    {
+      "context": "tr_world.cpp",
+      "disposition": "provisional caller contract; no hotpath guard added",
+      "evidence": "Only R_ClusterPVS caller R_MarkLeaves starts with R_PointInLeaf requiring a loaded world or ERR_DROP. No concurrent world teardown is supported by this single-thread frontend sequence."
+    },
+    {
+      "context": "tr_ghoul2.cpp",
+      "disposition": "unresolved generated-bolt/surface state candidate; no model/parser edit",
+      "evidence": "Generated surface producers assign surface10000 and GENERATED flag. Normal surface lookup returns model memory. Arbitrary state combinations/serialized corruption were outside authorized slice; exact null-surface reproducer not established."
+    },
+    {
+      "context": "vk_shade_geometry.cpp",
+      "disposition": "two currentEntity warnings retain backend entry contract; animation index independent defect fixed",
+      "evidence": "3D draw-list and lit-list paths set currentEntity to world/entity; 2D projection setup sets entity2D. No source fix claimed for currentEntity warnings."
+    }
+  ],
+  "remaining_limits": [
+    "Fatal errors are controlled termination, not graceful replacement-device/OOM recovery.",
+    "WSI larger-than-capacity image lists and changed extents are explicitly unsupported rather than dynamically resized.",
+    "Not every partial-initialization/shutdown path is proven.",
+    "Actual one-shot command failure state transitions are tested in existing vulkan-command-lifetime suite, while readback pending test models its fatal boundary.",
+    "Selected fail-fast termination is not graceful replacement-device/global OOM recovery; every partial initialization/shutdown branch is not proven.",
+    "Full serialized MD3/GLM/GLA/Ghoul2 parser/state proof remains outside this follow-up.",
+    "Every weather/material/driver combination and exact HDR visual fidelity remain unproven.",
+    "Historical warning dispositions are not blanket promoted by selected fixes."
+  ],
+  "blocked_work": {
+    "sdl_window_bridge": "Earlier automatic approval review rejected this separate step as possible cybersecurity work; not read, retried, rephrased or implemented.",
+    "earlier_quarantined": "Earlier botlib/Icarus/loop-sound follow-ups remain separate and untouched."
+  },
+  "performance_claim": "No new loading/FPS measurement for these correctness/failure-handling changes."
+}

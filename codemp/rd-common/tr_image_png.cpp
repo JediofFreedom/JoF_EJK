@@ -23,282 +23,156 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "tr_common.h"
+#include "tr_image_decode.h"
 #include <png.h>
+#include <cstdlib>
+#include <climits>
+#include <cstdio>
+#include <cstring>
 
-void user_write_data( png_structp png_ptr, png_bytep data, png_size_t length ) {
-	fileHandle_t fp = *(fileHandle_t*)png_get_io_ptr( png_ptr );
-	ri.FS_Write( data, length, fp );
-}
-void user_flush_data( png_structp png_ptr ) {
-	//TODO: ri.FS_Flush?
-}
-
-int RE_SavePNG( const char *filename, byte *buf, size_t width, size_t height, int byteDepth ) {
-	fileHandle_t fp;
-	png_structp png_ptr = NULL;
-	png_infop info_ptr = NULL;
-	unsigned int x, y;
-	png_byte ** row_pointers = NULL;
-	/* "status" contains the return value of this function. At first
-	it is set to a value which means 'failure'. When the routine
-	has finished its work, it is set to a value which means
-	'success'. */
-	int status = -1;
-	/* The following number is set by trial and error only. I cannot
-	see where it it is documented in the libpng manual.
-	*/
-	int depth = 8;
-
-	fp = ri.FS_FOpenFileWrite( filename, qtrue );
-	if ( !fp ) {
-		goto fopen_failed;
-	}
-
-	png_ptr = png_create_write_struct (PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-	if (png_ptr == NULL) {
-		goto png_create_write_struct_failed;
-	}
-
-	info_ptr = png_create_info_struct (png_ptr);
-	if (info_ptr == NULL) {
-		goto png_create_info_struct_failed;
-	}
-
-	/* Set up error handling. */
-
-	if (setjmp (png_jmpbuf (png_ptr))) {
-		goto png_failure;
-	}
-
-	/* Set image attributes. */
-
-	png_set_IHDR (png_ptr,
-		info_ptr,
-		width,
-		height,
-		depth,
-		PNG_COLOR_TYPE_RGB,
-		PNG_INTERLACE_NONE,
-		PNG_COMPRESSION_TYPE_DEFAULT,
-		PNG_FILTER_TYPE_DEFAULT);
-
-	/* Initialize rows of PNG. */
-
-	row_pointers = (png_byte **)png_malloc (png_ptr, height * sizeof (png_byte *));
-	for ( y=0; y<height; ++y ) {
-		png_byte *row = (png_byte *)png_malloc (png_ptr, sizeof (uint8_t) * width * byteDepth);
-		row_pointers[height-y-1] = row;
-		for (x = 0; x < width; ++x) {
-			byte *px = buf + (width * y + x)*3;
-			*row++ = px[0];
-			*row++ = px[1];
-			*row++ = px[2];
-		}
-	}
-
-	/* Write the image data to "fp". */
-
-//	png_init_io (png_ptr, fp);
-	png_set_write_fn( png_ptr, (png_voidp)&fp, user_write_data, user_flush_data );
-	png_set_rows (png_ptr, info_ptr, row_pointers);
-	png_write_png (png_ptr, info_ptr, PNG_TRANSFORM_IDENTITY, NULL);
-
-	/* The routine has successfully written the file, so we set
-	"status" to a value which indicates success. */
-
-	status = 0;
-
-	for (y = 0; y < height; y++) {
-		png_free (png_ptr, row_pointers[y]);
-	}
-	png_free (png_ptr, row_pointers);
-
-png_failure:
-png_create_info_struct_failed:
-	png_destroy_write_struct (&png_ptr, &info_ptr);
-png_create_write_struct_failed:
-	ri.FS_FCloseFile( fp );
-fopen_failed:
-	return status;
+static void PNG_Write(png_structp png, png_bytep data, png_size_t length) {
+    const fileHandle_t file = *static_cast<fileHandle_t *>(png_get_io_ptr(png));
+    if (length > INT_MAX || ri.FS_Write(data, static_cast<int>(length), file) != static_cast<int>(length))
+        png_error(png, "PNG write failed");
 }
 
-void user_read_data( png_structp png_ptr, png_bytep data, png_size_t length );
-void png_print_error ( png_structp png_ptr, png_const_charp err )
-{
-	ri.Printf (PRINT_ERROR, "%s\n", err);
+int RE_SavePNG(const char *filename, byte *buf, size_t width, size_t height, int byteDepth) {
+    if (!buf || !width || !height || width > 65535 || height > 65535 ||
+        (byteDepth != 3 && byteDepth != 4) || width * height > size_t(INT_MAX) / byteDepth) return -1;
+    fileHandle_t file = ri.FS_FOpenFileWrite(filename, qtrue);
+    if (!file) return -1;
+    png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    png_infop info = png ? png_create_info_struct(png) : NULL;
+    if (!png || !info) {
+        png_destroy_write_struct(&png, &info);
+        ri.FS_FCloseFile(file);
+        return -1;
+    }
+    if (setjmp(png_jmpbuf(png))) {
+        png_destroy_write_struct(&png, &info);
+        ri.FS_FCloseFile(file);
+        return -1;
+    }
+    png_set_write_fn(png, &file, PNG_Write, NULL);
+    png_set_IHDR(png, info, static_cast<png_uint_32>(width), static_cast<png_uint_32>(height),
+        8, byteDepth == 4 ? PNG_COLOR_TYPE_RGBA : PNG_COLOR_TYPE_RGB,
+        PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_write_info(png, info);
+    // Screenshots arrive bottom-up. Write their existing rows directly.
+    for (size_t y = height; y; --y) png_write_row(png, buf + (y - 1) * width * byteDepth);
+    png_write_end(png, info);
+    png_destroy_write_struct(&png, &info);
+    ri.FS_FCloseFile(file);
+    return 0;
 }
 
-void png_print_warning ( png_structp png_ptr, png_const_charp warning )
-{
-	ri.Printf (PRINT_WARNING, "%s\n", warning);
-}
-
-bool IsPowerOfTwo ( int i ) { return (i & (i - 1)) == 0; }
-
-struct PNGFileReader
-{
-	PNGFileReader ( char *buf ) : buf(buf), offset(0), png_ptr(NULL), info_ptr(NULL) {}
-	~PNGFileReader()
-	{
-		ri.FS_FreeFile (buf);
-		png_destroy_read_struct (&png_ptr, &info_ptr, NULL);
-	}
-
-	int Read ( byte **data, int *width, int *height )
-	{
-		// Setup the pointers
-		*data = NULL;
-		*width = 0;
-		*height = 0;
-
-		// Make sure we're actually reading PNG data.
-		const int SIGNATURE_LEN = 8;
-
-		byte ident[SIGNATURE_LEN];
-		memcpy (ident, buf, SIGNATURE_LEN);
-
-		if ( !png_check_sig (ident, SIGNATURE_LEN) )
-		{
-			ri.Printf (PRINT_ERROR, "PNG signature not found in given image.");
-			return 0;
-		}
-
-		png_ptr = png_create_read_struct (PNG_LIBPNG_VER_STRING, NULL, png_print_error, png_print_warning);
-		if ( png_ptr == NULL )
-		{
-			ri.Printf (PRINT_ERROR, "Could not allocate enough memory to load the image.");
-			return 0;
-		}
-
-		info_ptr = png_create_info_struct (png_ptr);
-		if ( setjmp (png_jmpbuf (png_ptr)) )
-		{
-			return 0;
-		}
-
-		// We've read the signature
-		offset += SIGNATURE_LEN;
-
-		// Setup reading information, and read header
-		png_set_read_fn (png_ptr, (png_voidp)this, &user_read_data);
-#ifdef PNG_HANDLE_AS_UNKNOWN_SUPPORTED
-		// This generic "ignore all, except required chunks" requires 1.6.0 or newer"
-		png_set_keep_unknown_chunks (png_ptr, PNG_HANDLE_CHUNK_NEVER, NULL, -1);
-#endif
-		png_set_sig_bytes (png_ptr, SIGNATURE_LEN);
-		png_read_info (png_ptr, info_ptr);
-
-		png_uint_32 width_;
-		png_uint_32 height_;
-		int depth;
-		int colortype;
-
-		png_get_IHDR (png_ptr, info_ptr, &width_, &height_, &depth, &colortype, NULL, NULL, NULL);
-
-		// While modern OpenGL can handle non-PoT textures, it's faster to handle only PoT
-		// so that the graphics driver doesn't have to fiddle about with the texture when uploading.
-		if ( !IsPowerOfTwo (width_) || !IsPowerOfTwo (height_) )
-		{
-			ri.Printf (PRINT_ERROR, "Width or height is not a power-of-two.\n");
-			return 0;
-		}
-
-		// This function is equivalent to using what used to be LoadPNG32. LoadPNG8 also existed,
-		// but this only seemed to be used by the RMG system which does not work in JKA. If this
-		// does need to be re-implemented, then colortype should be PNG_COLOR_TYPE_PALETTE or
-		// PNG_COLOR_TYPE_GRAY.
-		if ( colortype != PNG_COLOR_TYPE_RGB && colortype != PNG_COLOR_TYPE_RGBA )
-		{
-			ri.Printf (PRINT_ERROR, "Image is not 24-bit or 32-bit.");
-			return 0;
-		}
-
-		// Read the png data
-		if ( colortype == PNG_COLOR_TYPE_RGB )
-		{
-			// Expand RGB -> RGBA
-			png_set_add_alpha (png_ptr, 0xff, PNG_FILLER_AFTER);
-		}
-
-		png_read_update_info (png_ptr, info_ptr);
-
-		// We always assume there are 4 channels. RGB channels are expanded to RGBA when read.
-		byte *tempData = (byte *)ri.Z_Malloc (width_ * height_ * 4, TAG_TEMP_PNG, qfalse, 4);
-		if ( !tempData )
-		{
-			ri.Printf (PRINT_ERROR, "Could not allocate enough memory to load the image.");
-			return 0;
-		}
-
-		// Dynamic array of row pointers, with 'height' elements, initialized to NULL.
-		byte **row_pointers = (byte **)ri.Hunk_AllocateTempMemory (sizeof (byte *) * height_);
-		if ( !row_pointers )
-		{
-			ri.Printf (PRINT_ERROR, "Could not allocate enough memory to load the image.");
-
-			ri.Z_Free (tempData);
-
-			return 0;
-		}
-
-		// Re-set the jmp so that these new memory allocations can be reclaimed
-		if ( setjmp (png_jmpbuf (png_ptr)) )
-		{
-			ri.Hunk_FreeTempMemory (row_pointers);
-			ri.Z_Free (tempData);
-			return 0;
-		}
-
-		for ( unsigned int i = 0, j = 0; i < height_; i++, j += 4 )
-		{
-			row_pointers[i] = tempData + j * width_;
-		}
-
-		png_read_image (png_ptr, row_pointers);
-
-		// Finish reading
-		png_read_end (png_ptr, NULL);
-
-		ri.Hunk_FreeTempMemory (row_pointers);
-
-		// Finally assign all the parameters
-		*data = tempData;
-		*width = width_;
-		*height = height_;
-
-		return 1;
-	}
-
-	void ReadBytes ( void *dest, size_t len )
-	{
-		memcpy (dest, buf + offset, len);
-		offset += len;
-	}
-
-private:
-	char *buf;
-	size_t offset;
-	png_structp png_ptr;
-	png_infop info_ptr;
+struct PNGReadContext {
+    const byte *source;
+    size_t length, offset;
+    png_structp png;
+    png_infop info;
+    byte *pixels;
+    png_bytep *rows;
+    ImageAllocator allocator;
+    char *error;
+    size_t errorSize;
 };
 
-void user_read_data( png_structp png_ptr, png_bytep data, png_size_t length ) {
-	png_voidp r = png_get_io_ptr (png_ptr);
-	PNGFileReader *reader = (PNGFileReader *)r;
-	reader->ReadBytes (data, length);
+static void PNG_ReadError(png_structp png, png_const_charp message) {
+    PNGReadContext *ctx = static_cast<PNGReadContext *>(png_get_error_ptr(png));
+    if (ctx->error && ctx->errorSize) std::snprintf(ctx->error, ctx->errorSize, "%s", message);
+    png_longjmp(png, 1);
+}
+static void PNG_ReadWarning(png_structp, png_const_charp) {}
+static void PNG_Read(png_structp png, png_bytep data, png_size_t length) {
+    PNGReadContext *ctx = static_cast<PNGReadContext *>(png_get_io_ptr(png));
+    if (length > ctx->length - ctx->offset) png_error(png, "Truncated PNG");
+    std::memcpy(data, ctx->source + ctx->offset, length);
+    ctx->offset += length;
 }
 
-// Loads a PNG image from file.
-void LoadPNG ( const char *filename, byte **data, int *width, int *height )
-{
-	char *buf = NULL;
-	int len = ri.FS_ReadFile (filename, (void **)&buf);
-	if ( len < 0 || buf == NULL )
-	{
-		return;
-	}
-
-	PNGFileReader reader (buf);
-	reader.Read (data, width, height);
+bool R_DecodePNG(const void *source, size_t length, const ImageAllocator &allocator,
+                 DecodedImage &image, char *error, size_t errorSize) {
+    image = {};
+    if (error && errorSize) error[0] = 0;
+    if (!source || length < 8 || png_sig_cmp(static_cast<png_const_bytep>(source), 0, 8) ||
+        !allocator.allocate || !allocator.release) return false;
+    // Mutable cleanup state lives on the heap: it remains defined after longjmp.
+    PNGReadContext *ctx = static_cast<PNGReadContext *>(std::calloc(1, sizeof(PNGReadContext)));
+    if (!ctx) return false;
+    ctx->source = static_cast<const byte *>(source);
+    ctx->length = length;
+    ctx->allocator = allocator;
+    ctx->error = error;
+    ctx->errorSize = errorSize;
+    ctx->png = png_create_read_struct(PNG_LIBPNG_VER_STRING, ctx, PNG_ReadError, PNG_ReadWarning);
+    if (ctx->png) ctx->info = png_create_info_struct(ctx->png);
+    if (!ctx->png || !ctx->info) {
+        png_destroy_read_struct(&ctx->png, &ctx->info, NULL);
+        std::free(ctx);
+        return false;
+    }
+    if (setjmp(png_jmpbuf(ctx->png))) {
+        if (ctx->pixels) ctx->allocator.release(ctx->pixels);
+        std::free(ctx->rows);
+        png_destroy_read_struct(&ctx->png, &ctx->info, NULL);
+        std::free(ctx);
+        return false;
+    }
+    png_set_read_fn(ctx->png, ctx, PNG_Read);
+    png_set_user_limits(ctx->png, 65535, 65535);
+#ifdef PNG_HANDLE_AS_UNKNOWN_SUPPORTED
+    png_set_keep_unknown_chunks(ctx->png, PNG_HANDLE_CHUNK_NEVER, NULL, -1);
+#endif
+    png_read_info(ctx->png, ctx->info);
+    const png_uint_32 width = png_get_image_width(ctx->png, ctx->info);
+    const png_uint_32 height = png_get_image_height(ctx->png, ctx->info);
+    const int depth = png_get_bit_depth(ctx->png, ctx->info);
+    const int color = png_get_color_type(ctx->png, ctx->info);
+    if (!width || !height || size_t(width) * height > size_t(INT_MAX) / 4)
+        png_error(ctx->png, "PNG dimensions exceed renderer limits");
+    if (depth == 16) png_set_strip_16(ctx->png);
+    if (color == PNG_COLOR_TYPE_PALETTE) png_set_palette_to_rgb(ctx->png);
+    if (color == PNG_COLOR_TYPE_GRAY && depth < 8) png_set_expand_gray_1_2_4_to_8(ctx->png);
+    const bool transparency = png_get_valid(ctx->png, ctx->info, PNG_INFO_tRNS) != 0;
+    if (transparency) png_set_tRNS_to_alpha(ctx->png);
+    if (color == PNG_COLOR_TYPE_GRAY || color == PNG_COLOR_TYPE_GRAY_ALPHA) png_set_gray_to_rgb(ctx->png);
+    if (!(color & PNG_COLOR_MASK_ALPHA) && !transparency) png_set_add_alpha(ctx->png, 255, PNG_FILLER_AFTER);
+    png_set_interlace_handling(ctx->png);
+    png_read_update_info(ctx->png, ctx->info);
+    // No gamma transform: preserve the established texture byte values.
+    if (png_get_bit_depth(ctx->png, ctx->info) != 8 ||
+        png_get_rowbytes(ctx->png, ctx->info) != size_t(width) * 4)
+        png_error(ctx->png, "Unexpected PNG row format");
+    ctx->pixels = static_cast<byte *>(ctx->allocator.allocate(size_t(width) * height * 4));
+    ctx->rows = static_cast<png_bytep *>(std::malloc(size_t(height) * sizeof(png_bytep)));
+    if (!ctx->pixels || !ctx->rows) png_error(ctx->png, "PNG allocation failed");
+    for (size_t y = 0; y < height; ++y) ctx->rows[y] = ctx->pixels + y * width * 4;
+    png_read_image(ctx->png, ctx->rows);
+    png_read_end(ctx->png, NULL);
+    image = {ctx->pixels, static_cast<int>(width), static_cast<int>(height)};
+    std::free(ctx->rows);
+    png_destroy_read_struct(&ctx->png, &ctx->info, NULL);
+    std::free(ctx);
+    return true;
 }
 
+static void *PNG_Allocate(size_t size) { return ri.Z_Malloc(static_cast<int>(size), TAG_TEMP_PNG, qfalse, 4); }
+void LoadPNG(const char *filename, byte **data, int *width, int *height) {
+    *data = NULL;
+    *width = *height = 0;
+    void *source = NULL;
+    const long length = ri.FS_ReadFile(filename, &source);
+    if (!source) return;
+    DecodedImage image = {};
+    char error[256] = {};
+    const ImageAllocator allocator = {PNG_Allocate, ri.Z_Free};
+    if (length > 0 && R_DecodePNG(source, length, allocator, image, error, sizeof(error))) {
+        // Keep the legacy renderer's power-of-two policy.
+        if ((image.width & (image.width - 1)) || (image.height & (image.height - 1))) {
+            ri.Z_Free(image.pixels);
+            ri.Printf(PRINT_ERROR, "LoadPNG: non-power-of-two image %s\n", filename);
+        } else { *data = image.pixels; *width = image.width; *height = image.height; }
+    } else if (error[0]) ri.Printf(PRINT_ERROR, "LoadPNG: %s: %s\n", filename, error);
+    ri.FS_FreeFile(source);
+}

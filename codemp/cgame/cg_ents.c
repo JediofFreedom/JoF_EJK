@@ -25,6 +25,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 // cg_ents.c -- present snapshot entities, happens every single frame
 
 #include "cg_local.h"
+#include "cg_runtime_profile.h"
 /*
 Ghoul2 Insert Start
 */
@@ -3815,6 +3816,7 @@ CG_AddCEntity
 ===============
 */
 static void CG_AddCEntity( centity_t *cent ) {
+	cgProfileMark_t profileStage;
 	// event-only entities will have been dealt with already
 
 #if _DRAWTRIGGERS
@@ -3855,9 +3857,12 @@ static void CG_AddCEntity( centity_t *cent ) {
 
 
 	// calculate the current origin
+	profileStage = CG_ProfileFineBegin();
 	CG_CalcEntityLerpPositions( cent );
+	CG_ProfileEnd(CGP_ENTITY_LERP,profileStage);
 
 	// add automatic effects
+	profileStage = CG_ProfileFineBegin();
 	CG_EntityEffects( cent );
 /*
 Ghoul2 Insert Start
@@ -3890,6 +3895,7 @@ Ghoul2 Insert Start
 		}
 	}
 		
+	CG_ProfileEnd(CGP_ENTITY_EFFECTS,profileStage);
 /*
 Ghoul2 Insert End
 */
@@ -4335,6 +4341,8 @@ void CG_ROFF_NotetrackCallback( centity_t *cent, const char *notetrack)
 
 	while (notetrack[i] && notetrack[i] != ' ')
 	{
+		if (i >= (int)sizeof(type) - 1)
+			return;
 		type[i] = notetrack[i];
 		i++;
 	}
@@ -4350,6 +4358,8 @@ void CG_ROFF_NotetrackCallback( centity_t *cent, const char *notetrack)
 
 	while (notetrack[i] && notetrack[i] != ' ')
 	{
+		if (r >= (int)sizeof(argument) - 1)
+			return;
 		argument[r] = notetrack[i];
 		r++;
 		i++;
@@ -4369,6 +4379,8 @@ void CG_ROFF_NotetrackCallback( centity_t *cent, const char *notetrack)
 		r = 0;
 		while (notetrack[i])
 		{
+			if (r >= (int)sizeof(addlArg) - 1)
+				return;
 			addlArg[r] = notetrack[i];
 			r++;
 			i++;
@@ -4393,22 +4405,34 @@ void CG_ROFF_NotetrackCallback( centity_t *cent, const char *notetrack)
 			r = 0;
 			while (addlArg[i] && addlArg[i] != '+' && addlArg[i] != ' ')
 			{
+				if (r >= (int)sizeof(t) - 1)
+					return;
 				t[r] = addlArg[i];
 				r++;
 				i++;
 			}
 			t[r] = '\0';
-			i++;
 			if (!r)
 			{ //failure..
 				//sprintf(errMsg, "Offset position argument for 'effect' type is invalid.");
 				//goto functionend;
 				VectorClear(parsedOffset);
-				i = 0;
+				addlArgs = 0;
 				goto defaultoffsetposition;
 			}
 			parsedOffset[posoffsetGathered] = atof(t);
 			posoffsetGathered++;
+			if (addlArg[i])
+			{
+				i++;
+			}
+			else if (posoffsetGathered < 3)
+			{
+				// An incomplete offset uses the entity position and orientation.
+				VectorClear(parsedOffset);
+				addlArgs = 0;
+				goto defaultoffsetposition;
+			}
 		}
 
 		if (posoffsetGathered < 3)
@@ -4438,12 +4462,13 @@ defaultoffsetposition:
 					r = 0;
 					while (addlArg[i] && addlArg[i] != '-')
 					{
+						if (r >= (int)sizeof(t) - 1)
+							return;
 						t[r] = addlArg[i];
 						r++;
 						i++;
 					}
 					t[r] = '\0';
-					i++;
 
 					if (!r)
 					{ //failed to get a new part of the vector
@@ -4453,9 +4478,16 @@ defaultoffsetposition:
 
 					parsedAngles[anglesGathered] = atof(t);
 					anglesGathered++;
+					if (!addlArg[i])
+					{
+						if (anglesGathered < 3)
+							anglesGathered = 0;
+						break;
+					}
+					i++;
 				}
 
-				if (anglesGathered)
+				if (anglesGathered == 3)
 				{
 					VectorCopy(parsedAngles, useAngles);
 				}
