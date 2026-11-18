@@ -11017,7 +11017,7 @@ static void CG_SJKChatBoxGif(const chatBoxItem_t *item, float x, float y, float 
 		CHATBOX_GIF_ROWS * rowHeight - 2 * pad);
 
 	if (status == SJK_GIF_LOADING || status == SJK_GIF_UNAVAILABLE) {
-		CG_Text_Paint(x, y + pad, scale, quiet, status == SJK_GIF_LOADING ? "Loading GIF" : "GIF unavailable",
+		CG_Text_Paint(x, y + rowHeight, scale, quiet, status == SJK_GIF_LOADING ? "Loading GIF" : "GIF unavailable",
 			0, 0, ITEM_TEXTSTYLE_OUTLINED, CG_ChatBoxFont());
 	}
 }
@@ -11053,7 +11053,7 @@ static void CG_SJKChatBoxPaint(const chatBoxItem_t *item, float x, float y, floa
 		y += CHATBOX_FONT_HEIGHT * scale;
 	}
 	if (item->sjkGif[0])
-		CG_SJKChatBoxGif(item, x, y + CHATBOX_FONT_HEIGHT * scale, scale);
+		CG_SJKChatBoxGif(item, x, y, scale);
 }
 
 // A line of SJK chat from the engine (client/cl_sjk.cpp, SJK_SetChatSink) into the chat
