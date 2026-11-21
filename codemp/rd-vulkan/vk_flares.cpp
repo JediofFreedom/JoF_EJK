@@ -301,6 +301,7 @@ static void RB_TestFlare( flare_t *f ) {
 	float			fade;
 	float			*m;
 	uint32_t		offset;
+	uint32_t		*cnt;
 	int				i;
 
 	backEnd.pc.c_flareTests++;
@@ -322,20 +323,16 @@ static void RB_TestFlare( flare_t *f ) {
 	// we neeed only single uint32_t but take care of alignment
 	offset = ( vk.cmd_index * MAX_FLARES + (uint32_t)( f - r_flareStructs ) ) * vk.storage_alignment;
 
+	cnt = (uint32_t*)(vk.storage.buffer_ptr + offset);
 	if ( f->tested[vk.cmd_index] ) {
-		uint32_t *cnt = (uint32_t*)(vk.storage.buffer_ptr + offset);
-		if (*cnt)
-			visible = qtrue;
-		else
-			visible = qfalse;
-		*cnt = 0;
-
+		visible = *cnt ? qtrue : qfalse;
 		f->testCount = 1;
 	}
 	else {
 		visible = qfalse;
 		f->testCount = 0;
 	}
+	*cnt = 0;
 
 	// reset test result in storage buffer
 	//Com_Memset(vk.storage.buffer_ptr + offset, 0x0, sizeof(uint32_t));
@@ -361,8 +358,7 @@ static void RB_TestFlare( flare_t *f ) {
 	// render test dot
 	vk_bind_pipeline( vk.std_pipeline.dot_pipeline );
 	vk_bind_geometry( TESS_XYZ );
-	if ( vk_draw_dot( offset ) )
-		f->tested[vk.cmd_index] = qtrue;
+	f->tested[vk.cmd_index] = vk_draw_dot( offset );
 
 	if (visible) {
 		if (!f->visible) {
