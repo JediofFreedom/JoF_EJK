@@ -906,7 +906,8 @@ void R_BuildMDXM( model_t *mod, mdxmHeader_t *mdxm )
 					lastWeight -= attr.weights[w];
 				}
 
-				assert(lastWeight > 0);
+				if ( lastWeight < 0 )
+					lastWeight = 0;
 
 				// Ensure that all the weights add up to 1.0
 				attr.weights[lastInfluence] = lastWeight;
@@ -1250,8 +1251,52 @@ void R_UpdateGoreVBO( srfG2GoreSurface_t *goreSurface )
 }
 #endif // _G2_GORE
 
-void R_BuildWorldVBO(msurface_t *surf, int surfCount)
+typedef struct {
+	msurface_t	*surf;
+	int			count;
+} vboSpan_t;
+
+static vboSpan_t	vbo_spans[MAX_SUB_BSP + 1];
+static int			vbo_numSpans;
+static qboolean		vbo_pending;
+
+void R_VBO_RegisterWorld( msurface_t *surf, int surfCount, int index )
 {
+	if ( index == 0 ) {
+		vbo_numSpans = 0;
+		VBO_Cleanup();
+	}
+
+	if ( index != vbo_numSpans || index > MAX_SUB_BSP ) {
+		ri.Printf( PRINT_WARNING, "VBO world: unexpected BSP instance %i (expected %i), not cached\n", index, vbo_numSpans );
+		return;
+	}
+
+	vbo_spans[vbo_numSpans].surf = surf;
+	vbo_spans[vbo_numSpans].count = surfCount;
+	vbo_numSpans++;
+	vbo_pending = qtrue;
+
+	if ( index )
+		ri.Printf( PRINT_ALL, "VBO world: BSP instance %i registered (%i surfaces)\n", index, surfCount );
+}
+
+static msurface_t *vbo_nthSurface( int i )
+{
+	int w;
+
+	for ( w = 0; w < vbo_numSpans; w++ ) {
+		if ( i < vbo_spans[w].count )
+			return vbo_spans[w].surf + i;
+		i -= vbo_spans[w].count;
+	}
+	return NULL;
+}
+
+void R_BuildWorldVBO( void )
+{
+	int surfCount = 0, w;
+	const qboolean wasMapLoading = tr.mapLoading;
 	vbo_t *vbo = &world_vbo;
 	msurface_t **surfList;
 	srfSurfaceFace_t *face;
@@ -1266,12 +1311,21 @@ void R_BuildWorldVBO(msurface_t *surf, int surfCount)
 	int numStaticIndexes = 0;
 	int numStaticVertexes = 0;
 
-	if ( !vk.vboWorldActive )
+	if ( !vbo_pending )
 		return;
+	vbo_pending = qfalse;
+
+	for ( w = 0; w < vbo_numSpans; w++ )
+		surfCount += vbo_spans[w].count;
+
+	tr.mapLoading = qtrue;
+
+	if ( !vk.vboWorldActive )
+		goto done;
 
 	if (glConfig.maxActiveTextures < 3) {
 		ri.Printf(PRINT_WARNING, "... not enough texture units for VBO\n");
-		return;
+		goto done;
 	}
 
 	VBO_Cleanup();
@@ -1281,7 +1335,8 @@ void R_BuildWorldVBO(msurface_t *surf, int surfCount)
 	vbo_size = 0;
 
 	// initial scan to count surfaces/indexes/vertexes for memory allocation
-	for (i = 0, sf = surf; i < surfCount; i++, sf++) {
+	for (i = 0; i < surfCount; i++) {
+		sf = vbo_nthSurface( i );
 		face = (srfSurfaceFace_t *)sf->data;
 		if (face->surfaceType == SF_FACE && isStaticShader(sf->shader)) {
 			face->vboItemIndex = ++numStaticSurfaces;
@@ -1322,7 +1377,7 @@ void R_BuildWorldVBO(msurface_t *surf, int surfCount)
 
 	if (numStaticSurfaces == 0) {
 		ri.Printf(PRINT_ALL, "...no static surfaces for VBO\n");
-		return;
+		goto done;
 	}
 
 	vbo_size = PAD(vbo_size, 32);
@@ -1361,7 +1416,8 @@ void R_BuildWorldVBO(msurface_t *surf, int surfCount)
 
 	surfList = (msurface_t**)ri.Hunk_AllocateTempMemory(numStaticSurfaces * sizeof(msurface_t*));
 
-	for (i = 0, n = 0, sf = surf; i < surfCount; i++, sf++) {
+	for (i = 0, n = 0; i < surfCount; i++) {
+		sf = vbo_nthSurface( i );
 		face = (srfSurfaceFace_t *)sf->data;
 		if (face->surfaceType == SF_FACE && face->vboItemIndex) {
 			surfList[n++] = sf;
@@ -1432,7 +1488,9 @@ void R_BuildWorldVBO(msurface_t *surf, int surfCount)
 		if (grid->surfaceType == SF_GRID) {
 			vbo_item_t *vi = vbo->items + i + 1;
 			if (vi->num_vertexes != grid->vboExpectVertices || vi->num_indexes != grid->vboExpectIndices) {
-				ri.Error(ERR_DROP, "Unexpected grid vertexes/indexes count");
+				ri.Error(ERR_DROP, "Unexpected grid vertexes/indexes count: surface %i, shader %s, vertexes %i (expected %i), indexes %i (expected %i), grid %ix%i, mapLoading %i, lodCurveError %g",
+					i, sf->shader->name, vi->num_vertexes, grid->vboExpectVertices, vi->num_indexes, grid->vboExpectIndices, grid->width, grid->height,
+					(int)tr.mapLoading, r_lodCurveError->value);
 			}
 		}
 #endif // USE_VBO_GRID
@@ -1444,6 +1502,7 @@ void R_BuildWorldVBO(msurface_t *surf, int surfCount)
 
 	//__fail:
 	vk_alloc_vbo( "world", vbo->vbo_buffer, vbo->vbo_size );
+	ri.Printf( PRINT_ALL, "VBO world: %i of %i surfaces cached in %i world(s) (%i vertexes, %i indexes)\n", numStaticSurfaces, surfCount, vbo_numSpans, numStaticVertexes, numStaticIndexes );
 
 	//if ( err == GL_OUT_OF_MEMORY )
 	//	ri.Printf( PRINT_WARNING, "%s: out of memory\n", __func__ );
@@ -1476,6 +1535,9 @@ void R_BuildWorldVBO(msurface_t *surf, int surfCount)
 
 	// release GPU resources
 	//VBO_Cleanup();
+
+done:
+	tr.mapLoading = wasMapLoading;
 }
 
 void VBO_Cleanup(void)

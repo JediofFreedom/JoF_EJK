@@ -2395,11 +2395,10 @@ void RE_LoadWorldMap_Actual( const char *name, world_t &worldData, int index )
 	R_LoadVisibility( &header->lumps[LUMP_VISIBILITY], worldData );
 
 #ifdef USE_VBO
-	// The single global world VBO belongs to the main map. Registering an
-	// instanced BSP must not rebuild it outside the map-loading phase: large
-	// grid flushes then take the runtime path and lose the VBO's geometry.
-	if (!index)
-		R_BuildWorldVBO(worldData.surfaces, worldData.numsurfaces);
+	// Every world (the main one and each BSP instance) is registered with the VBO, which is built once over all of them in
+	// RE_EndRegistration. Building it here, per world, would rebuild it outside the map-loading phase for an instance (large
+	// grid flushes then take the runtime path and lose the VBO's geometry) and leave the instance's surfaces out of it.
+	R_VBO_RegisterWorld( worldData.surfaces, worldData.numsurfaces, index );
 #endif
 
 	worldData.dataSize = (byte *)Hunk_Alloc(0, h_low) - startMarker;

@@ -926,7 +926,11 @@ void vk_draw_geometry( Vk_Depth_Range depth_range, qboolean indexed )
 	vk_update_depth_range( depth_range );
 
 	if ( tess.shader->polygonOffset ) {
+#ifdef USE_REVERSED_DEPTH
+		qvkCmdSetDepthBias( vk.cmd->command_buffer, -r_offsetUnits->value, 0.0f, -r_offsetFactor->value );
+#else
 		qvkCmdSetDepthBias( vk.cmd->command_buffer, r_offsetUnits->value, 0.0f, r_offsetFactor->value );
+#endif
 	}
 
 	// issue draw call(s)
@@ -973,11 +977,11 @@ void vk_draw_geometry( Vk_Depth_Range depth_range, qboolean indexed )
 	}
 }
 
-void vk_draw_dot( uint32_t storage_offset )
+qboolean vk_draw_dot( uint32_t storage_offset )
 {
 	// geometry buffer overflow happened this frame
 	if ( vk.geometry_buffer_size_new )
-		return;
+		return qfalse;
 
 	qvkCmdBindDescriptorSets( vk.cmd->command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vk.pipeline_layout_storage, VK_DESC_STORAGE, 1, &vk.storage.descriptor, 1, &storage_offset );
 
@@ -985,6 +989,7 @@ void vk_draw_dot( uint32_t storage_offset )
 	vk_update_depth_range( DEPTH_RANGE_NORMAL );
 
 	qvkCmdDraw( vk.cmd->command_buffer, tess.numVertexes, 1, 0, 0 );
+	return qtrue;
 }
 
 void ComputeColors( const int b, color4ub_t *dest, const shaderStage_t *pStage, int forceRGBGen )

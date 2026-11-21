@@ -7,7 +7,10 @@
 #define CHECK(v) do { if (!(v)) { std::fprintf(stderr,"%s:%d: %s\n",__FILE__,__LINE__,#v); std::exit(1); } } while (0)
 #define USE_VBO
 typedef unsigned char byte;
+typedef int qboolean;
 enum {qfalse,qtrue,ERR_DROP,h_low,BSP_VERSION = 1};
+enum {PRINT_ALL,PRINT_WARNING};
+#define MAX_SUB_BSP 32
 enum {LUMP_SHADERS,LUMP_FOGS,LUMP_LIGHTMAPS,LUMP_SURFACES,LUMP_PLANES,LUMP_BRUSHES,LUMP_BRUSHSIDES,
     LUMP_DRAWVERTS,LUMP_DRAWINDEXES,LUMP_LEAFSURFACES,LUMP_NODES,LUMP_LEAFS,LUMP_MODELS,LUMP_VISIBILITY,
     LUMP_ENTITIES,LUMP_LIGHTGRID,LUMP_LIGHTARRAY,LUMP_COUNT};
@@ -17,7 +20,7 @@ struct msurface_t { int id,vboItemIndex; };
 struct world_t { char name[64],baseName[64]; msurface_t *surfaces; int numsurfaces; ptrdiff_t dataSize; };
 static world_t s_worldData;
 static struct { bool worldMapLoaded,mapLoading; float sunDirection[3]; world_t *world; char worldDir[64]; } tr;
-static int skyboxportal,c_gridVerts,builds,flushes,files,cacheClears,entities;
+static int skyboxportal,c_gridVerts,builds,flushes,files,cacheClears,entities,cleanups,warnings;
 static byte *fileBase;
 static void *cached;
 static void *header() {
@@ -38,11 +41,13 @@ static void R_FlushTextureJobs() { ++flushes; }
 static byte hunk[1];
 static void *Hunk_Alloc(size_t,int) { return hunk; }
 static void Z_Free(void *data) { release(data); }
+static void VBO_Cleanup() { ++cleanups; }
 static struct {
     static void *CM_GetCachedMapDiskImage() { return cached; }
     static void CM_SetCachedMapDiskImage(void *value) { CHECK(!value); ++cacheClears; cached = value; }
     static void FS_ReadFile(const char *,void **data) { *data = header(); }
     static void FS_FreeFile(void *data) { release(data); }
+    static void Printf(int level,const char *,...) { if (level == PRINT_WARNING) ++warnings; }
 } ri;
 static void R_LoadShaders(const lump_t *,world_t &) {}
 static void R_PreLoadFogs(const lump_t *) {}
@@ -60,27 +65,48 @@ static void R_LoadVisibility(const lump_t *,world_t &) {}
 static void R_LoadEntities(const lump_t *,world_t &) { ++entities; }
 static void R_LoadLightGrid(const lump_t *,world_t &) {}
 static void R_LoadLightGridArray(const lump_t *,world_t &) {}
-static void R_BuildWorldVBO(msurface_t *data,int count) {
-    ++builds; CHECK(data == s_worldData.surfaces && count == 1);
-    // The real builder's grid flush path depends on this phase. Its single
-    // global GPU resource must survive all later instanced-BSP registrations.
-    CHECK(tr.mapLoading); data->vboItemIndex = 1234;
+#include "world_vbo_registration.h"
+static void R_BuildWorldVBO() {
+    if (!vbo_pending) return;
+    vbo_pending = qfalse; ++builds;
+    int count = 0;
+    for (int w = 0; w < vbo_numSpans; ++w) count += vbo_spans[w].count;
+    for (int i = 0; i < count; ++i) {
+        msurface_t *surface = vbo_nthSurface(i);
+        CHECK(surface && !surface->vboItemIndex); surface->vboItemIndex = i + 1;
+    }
+    CHECK(!vbo_nthSurface(count));
 }
+static void RE_EndRegistration() { R_BuildWorldVBO(); }
 #include "world_loader.h"
 int main() {
     RE_LoadWorldMap_Actual("maps/main.bsp",s_worldData,0);
-    CHECK(builds == 1 && surfaces[0].vboItemIndex == 1234 && !tr.mapLoading && tr.world == &s_worldData);
-    CHECK(flushes == 2 && entities == 1 && files == 0);
+    CHECK(builds == 0 && vbo_pending && vbo_numSpans == 1 && cleanups == 1);
+    CHECK(vbo_spans[0].surf == &surfaces[0] && vbo_spans[0].count == 1 && !surfaces[0].vboItemIndex);
+    CHECK(!tr.mapLoading && tr.world == &s_worldData && flushes == 2 && entities == 1 && files == 0);
     world_t first;
     cached = header();
     RE_LoadWorldMap_Actual("maps/sub-first.bsp",first,1);
-    CHECK(builds == 1 && surfaces[0].vboItemIndex == 1234 && first.surfaces == &surfaces[1] && !surfaces[1].vboItemIndex);
+    CHECK(builds == 0 && vbo_numSpans == 2 && vbo_spans[1].surf == &surfaces[1] && first.surfaces == &surfaces[1]);
     CHECK(!tr.mapLoading && tr.world == &s_worldData && flushes == 2 && entities == 1 && !cached && cacheClears == 1 && files == 0);
     world_t second;
     RE_LoadWorldMap_Actual("maps/sub-second.bsp",second,2);
-    CHECK(builds == 1 && second.surfaces == &surfaces[2] && !surfaces[2].vboItemIndex && files == 0);
+    CHECK(builds == 0 && vbo_numSpans == 3 && vbo_spans[2].surf == &surfaces[2] && cleanups == 1 && files == 0);
+    R_VBO_RegisterWorld(&surfaces[0],1,5);
+    CHECK(vbo_numSpans == 3 && warnings == 1);
     bool rejected = false;
     try { RE_LoadWorldMap_Actual("maps/duplicate.bsp",s_worldData,0); } catch (const std::runtime_error &) { rejected = true; }
-    CHECK(rejected && builds == 1 && !tr.mapLoading && tr.world == &s_worldData && files == 0);
-    std::puts("Actual Vulkan loader retains main VBO across cached and file-backed instanced BSP registration.");
+    CHECK(rejected && builds == 0 && vbo_numSpans == 3 && cleanups == 1 && tr.world == &s_worldData && files == 0);
+    RE_EndRegistration();
+    CHECK(builds == 1 && !vbo_pending);
+    CHECK(surfaces[0].vboItemIndex == 1 && surfaces[1].vboItemIndex == 2 && surfaces[2].vboItemIndex == 3);
+    RE_EndRegistration();
+    CHECK(builds == 1);
+    for (auto &surface : surfaces) surface.vboItemIndex = 0;
+    tr.worldMapLoaded = false;
+    RE_LoadWorldMap_Actual("maps/next.bsp",s_worldData,0);
+    CHECK(builds == 1 && vbo_pending && vbo_numSpans == 1 && cleanups == 2 && files == 0);
+    RE_EndRegistration();
+    CHECK(builds == 2 && surfaces[0].vboItemIndex == 1 && !surfaces[1].vboItemIndex && !surfaces[2].vboItemIndex);
+    std::puts("Actual Vulkan loader registers the main world and instanced BSPs; the world VBO is built once over all of them at the end of registration.");
 }

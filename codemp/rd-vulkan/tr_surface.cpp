@@ -1715,6 +1715,9 @@ void RB_SurfaceGridEstimate( srfGridMesh_t *cv, int *numVertexes, int *numIndexe
 	int		nIndexes = 0;
 	int		irows, vrows;
 
+	tess.numVertexes = 0;
+	tess.numIndexes = 0;
+
 	lodError = r_lodCurveError->value; // fixed quality for VBO
 
 	lodWidth = 1;
@@ -1822,11 +1825,7 @@ void RB_SurfaceGrid( srfGridMesh_t *cv ) {
 	tess.surfType = SF_GRID;
 
 	// determine the allowable discrepance
-#ifdef USE_PMLIGHT
-	if (cv->vboItemIndex && (tr.mapLoading || (tess.dlightPass && tess.shader->isStaticShader)))
-#else
-	if (cv->vboItemIndex && tr.mapLoading)
-#endif
+	if (cv->vboItemIndex)
 		lodError = r_lodCurveError->value; // fixed quality for VBO
 	else
 #endif // USE_VBO_GRID

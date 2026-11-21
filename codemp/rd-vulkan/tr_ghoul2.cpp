@@ -3584,7 +3584,7 @@ void RB_TransformBones( const trRefEntity_t *ent, const trRefdef_t *refdef )
 		return;
 	}
 
-	int currentTime = G2API_GetTime(refdef->time);
+	int currentTime = refdef->g2Time;
 
 	HackadelicOnClient = true;
 
