@@ -737,7 +737,6 @@ void R_ClearRemaps_f( void ) {
 	for (num = 0; num < tr.numShaders; num++) {
 		tr.shaders[num]->remappedShader = NULL;
 	}
-	tr.vboRemapped = qfalse;
 }
 
 typedef struct consoleCommand_s {

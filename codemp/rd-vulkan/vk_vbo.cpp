@@ -1265,7 +1265,6 @@ void R_VBO_RegisterWorld( msurface_t *surf, int surfCount, int index )
 	if ( index == 0 ) {
 		vbo_numSpans = 0;
 		VBO_Cleanup();
-		tr.vboRemapped = qfalse;
 	}
 
 	if ( index != vbo_numSpans || index > MAX_SUB_BSP ) {

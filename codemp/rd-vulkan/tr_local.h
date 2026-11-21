@@ -1743,7 +1743,6 @@ typedef struct trGlobals_s {
 	float					fogTable[FOG_TABLE_SIZE];
 
 	qboolean				mapLoading;
-	qboolean				vboRemapped;
 
 	float					rangedFog;
 	float					distanceCull;

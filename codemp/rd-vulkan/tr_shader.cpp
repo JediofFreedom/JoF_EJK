@@ -2340,13 +2340,6 @@ void R_RemapShader( const char *shaderName, const char *newShaderName, const cha
 			if (sh != sh2)
 			{
 				sh->remappedShader = sh2;
-#ifdef USE_VBO
-				if (sh->isStaticShader && !tr.vboRemapped)
-				{
-					tr.vboRemapped = qtrue;
-					ri.Printf( PRINT_ALL, "VBO world: %s remapped to %s at runtime, world VBO off until clearRemaps / the next map\n", sh->name, sh2->name );
-				}
-#endif
 			}
 			else
 			{
