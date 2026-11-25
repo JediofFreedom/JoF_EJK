@@ -38,13 +38,10 @@ CG_ParseScores
 
 =================
 */
-static void CG_ParseScores( void ) {
-	int		i, powerups, readScores, scoreOffset;//JAPRO - Clientside - Scoreboard Deaths
+// The fields of one row: 14, or 15 when the server appends the deaths count.
+static int CG_ScoreRowFields( void ) {
 	qboolean hasDeaths, weIdentifyAsJapro;
 
-	int argc = trap->Cmd_Argc();
-
-	// Per-client stride, computed once and used for every CG_Argv() index.
 	// Only JAPRO-derived game modules append the deaths field, and only for
 	// clients whose cjp_client userinfo they recognize (g_client.c, g_cmds.c).
 	// Our own server advertises gamename "japro" (GAMEVERSION) and is detected
@@ -54,48 +51,35 @@ static void CG_ParseScores( void ) {
 	weIdentifyAsJapro = ( !Q_stricmp( cjp_client.string, "1.4JAPRO" ) ) || ( !Q_stricmp( cjp_client.string, JOFCLIENTVERSION ) );
 	hasDeaths = ( cgs.serverMod == SVMOD_JAPLUS && weIdentifyAsJapro )
 		|| cgs.serverMod == SVMOD_JAPRO;
-	scoreOffset = hasDeaths ? 15 : 14;
+	return hasDeaths ? 15 : 14;
+}
 
-	int actualSent = (argc - 4) / scoreOffset;
+// Read count rows, the first at argument firstArg, into cg.scores from firstRow on.
+static void CG_ReadScoreRows( int firstArg, int firstRow, int count, int scoreOffset ) {
+	int n, powerups;
 
-	if (actualSent < 0)
-		actualSent = 0;
-	if (actualSent > CLIENT_SLOTS)
-		actualSent = CLIENT_SLOTS;
-
-	cg.numScores = actualSent;
-	readScores = actualSent;
-
-
-	if ( cg.numScores > CLIENT_SLOTS )
-		cg.numScores = CLIENT_SLOTS;
-
-	cg.numScores = readScores;
-
-	cg.teamScores[0] = atoi( CG_Argv( 2 ) );
-	cg.teamScores[1] = atoi( CG_Argv( 3 ) );
-
-	memset( cg.scores, 0, sizeof( cg.scores ) );
-	for ( i=0; i<readScores; i++ ) {
+	for ( n = 0; n < count; n++ ) {
+		const int i = firstRow + n;
+		const int a = firstArg + n * scoreOffset;
 //JAPRO - Clientside - Scoreboard Deaths - Start
-		if (hasDeaths) {
-			cg.scores[i].deaths = atoi(CG_Argv(i * scoreOffset + 18));
+		if ( scoreOffset == 15 ) {
+			cg.scores[i].deaths = atoi( CG_Argv( a + 14 ) );
 		}
 
-		cg.scores[i].client = atoi( CG_Argv( i * scoreOffset + 4 ) );
-		cg.scores[i].score = atoi( CG_Argv( i * scoreOffset + 5 ) );
-		cg.scores[i].ping = atoi( CG_Argv( i * scoreOffset + 6 ) );
-		cg.scores[i].time = atoi( CG_Argv( i * scoreOffset + 7 ) );
-		cg.scores[i].scoreFlags = atoi( CG_Argv( i * scoreOffset + 8 ) );
-		powerups = atoi( CG_Argv( i * scoreOffset + 9 ) );
-		cg.scores[i].accuracy = atoi(CG_Argv(i * scoreOffset + 10));
-		cg.scores[i].impressiveCount = atoi(CG_Argv(i * scoreOffset + 11));
-		cg.scores[i].excellentCount = atoi(CG_Argv(i * scoreOffset + 12));
-		cg.scores[i].gauntletCount = atoi(CG_Argv(i * scoreOffset + 13));
-		cg.scores[i].defendCount = atoi(CG_Argv(i * scoreOffset + 14));
-		cg.scores[i].assistCount = atoi(CG_Argv(i * scoreOffset + 15));
-		cg.scores[i].perfect = (qboolean)atoi(CG_Argv(i * scoreOffset + 16));
-		cg.scores[i].captures = atoi(CG_Argv(i * scoreOffset + 17));
+		cg.scores[i].client = atoi( CG_Argv( a ) );
+		cg.scores[i].score = atoi( CG_Argv( a + 1 ) );
+		cg.scores[i].ping = atoi( CG_Argv( a + 2 ) );
+		cg.scores[i].time = atoi( CG_Argv( a + 3 ) );
+		cg.scores[i].scoreFlags = atoi( CG_Argv( a + 4 ) );
+		powerups = atoi( CG_Argv( a + 5 ) );
+		cg.scores[i].accuracy = atoi( CG_Argv( a + 6 ) );
+		cg.scores[i].impressiveCount = atoi( CG_Argv( a + 7 ) );
+		cg.scores[i].excellentCount = atoi( CG_Argv( a + 8 ) );
+		cg.scores[i].gauntletCount = atoi( CG_Argv( a + 9 ) );
+		cg.scores[i].defendCount = atoi( CG_Argv( a + 10 ) );
+		cg.scores[i].assistCount = atoi( CG_Argv( a + 11 ) );
+		cg.scores[i].perfect = (qboolean)atoi( CG_Argv( a + 12 ) );
+		cg.scores[i].captures = atoi( CG_Argv( a + 13 ) );
 //JAPRO - Clientside - Scoreboard Deaths - End
 
 		if ( cg.scores[i].client < 0 || cg.scores[i].client >= CLIENT_SLOTS )
@@ -106,6 +90,48 @@ static void CG_ParseScores( void ) {
 
 		cg.scores[i].team = cgs.clientinfo[cg.scores[i].client].team;
 	}
+}
+
+static void CG_ParseScores( void ) {
+	const int scoreOffset = CG_ScoreRowFields();
+	int actualSent = ( trap->Cmd_Argc() - 4 ) / scoreOffset;
+
+	if ( actualSent < 0 )
+		actualSent = 0;
+	if ( actualSent > CLIENT_SLOTS )
+		actualSent = CLIENT_SLOTS;
+
+	cg.numScores = actualSent;
+	cg.teamScores[0] = atoi( CG_Argv( 2 ) );
+	cg.teamScores[1] = atoi( CG_Argv( 3 ) );
+
+	memset( cg.scores, 0, sizeof( cg.scores ) );
+	CG_ReadScoreRows( 4, 0, actualSent, scoreOffset );
+	CG_SetScoreSelection( NULL );
+}
+
+/*
+=================
+CG_ParseScores64
+
+"scores64 <first row> <rows> <row>...": the rows of a 64-slot (jof64) server's
+scoreboard that did not fit its "scores" command (one server command holds about
+22 rows). They continue the rows already read; a part that does not start where
+those end belongs to an older board and is dropped.
+=================
+*/
+static void CG_ParseScores64( void ) {
+	const int scoreOffset = CG_ScoreRowFields();
+	const int first = atoi( CG_Argv( 1 ) );
+	int count = ( trap->Cmd_Argc() - 3 ) / scoreOffset;
+
+	if ( first != cg.numScores || count <= 0 )
+		return;
+	if ( count > CLIENT_SLOTS - first )
+		count = CLIENT_SLOTS - first;
+
+	CG_ReadScoreRows( 3, first, count, scoreOffset );
+	cg.numScores += count;
 	CG_SetScoreSelection( NULL );
 }
 
@@ -871,7 +897,7 @@ static void CG_ConfigStringModified( void ) {
 
 	// get the gamestate from the client system, which will have the
 	// new configstring already integrated
-	trap->GetGameState( &cgs.gameState );
+	CG_GetGameState();
 
 	// look up the individual string that was modified
 	str = CG_ConfigString( num );
@@ -2019,6 +2045,7 @@ static serverCommand_t	commands[] = {
 	{ "sb",					CG_SiegeBriefingDisplay_f },
 	{ "scl",				CG_SiegeClassSelect_f },
 	{ "scores",				CG_ParseScores },
+	{ "scores64",			CG_ParseScores64 },
 	{ "spc",				CG_SiegeProfileMenu_f },
 	{ "repulse",			CG_Repulse_f },
 	{ "stasis",				CG_Stasis_f },
