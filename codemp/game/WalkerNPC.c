@@ -274,7 +274,7 @@ static void ProcessOrientCommands( Vehicle_t *pVeh )
 	riderPS = rider->playerState;
 
 	// If the player is the rider...
-	if ( rider->s.number < MAX_CLIENTS )
+	if ( rider->s.number < CLIENT_SLOTS )
 	{//FIXME: use the vehicle's turning stat in this calc
 		WalkerYawAdjust(pVeh, riderPS, parentPS);
 		//FighterPitchAdjust(pVeh, riderPS, parentPS);

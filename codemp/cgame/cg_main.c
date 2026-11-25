@@ -36,7 +36,11 @@ extern int cgSiegeRoundTime;
 
 extern int lastWhispererId;
 
-int cg_dueltypes[MAX_CLIENTS];//JAPRO - Clientside - Fullforce Duels
+int cg_dueltypes[MAX_CLIENT_SLOTS];//JAPRO - Clientside - Fullforce Duels
+
+// Player slots this server shows us: 32, or up to 64 on a server with more than
+// 32 player slots (jof64 in the serverinfo). Set by CG_ParseServerinfo.
+int cg_clientSlots = MAX_CLIENTS;
 /*
 Ghoul2 Insert Start
 */
@@ -392,7 +396,7 @@ int CG_CrosshairPlayer( void ) {
 	if ( cg.time > (cg.crosshairClientTime + 1000) )
 		return -1;
 
-	if ( cg.crosshairClientNum >= MAX_CLIENTS )
+	if ( cg.crosshairClientNum >= CLIENT_SLOTS )
 		return -1;
 
 	return cg.crosshairClientNum;
@@ -1983,7 +1987,7 @@ void CG_BuildSpectatorString(void) {
 	// Count up the number of players per team and per class
 	CG_SiegeCountCvars();
 
-	for (i = 0; i < MAX_CLIENTS; i++) {
+	for (i = 0; i < CLIENT_SLOTS; i++) {
 		if (cgs.clientinfo[i].infoValid && cgs.clientinfo[i].team == TEAM_SPECTATOR ) {
 			Q_strcat(cg.spectatorList, sizeof(cg.spectatorList), va("%s     ", cgs.clientinfo[i].name));
 		}
@@ -2007,14 +2011,14 @@ static void CG_RegisterClients( void ) {
 	CG_LoadingClient(cg.clientNum);
 	CG_NewClientInfo(cg.clientNum, qfalse);
 
-	for (i=0 ; i<MAX_CLIENTS ; i++) {
+	for (i=0 ; i<CLIENT_SLOTS ; i++) {
 		const char		*clientInfo;
 
 		if (cg.clientNum == i) {
 			continue;
 		}
 
-		clientInfo = CG_ConfigString( CS_PLAYERS+i );
+		clientInfo = CG_ConfigString( BG_PlayerConfigstring( i ) );
 		if ( !clientInfo[0]) {
 			continue;
 		}
@@ -2452,7 +2456,7 @@ static const char *CG_FeederItemText(float feederID, int index, int column,
 				}
 		  break;
 			case 2:
-				if ( cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << sp->client ) ) {
+				if ( sp->client < MAX_CLIENTS && cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << sp->client ) ) { // one bit for each of players 0-31 only
 					return "Ready";
 				}
 				if (team == -1) {

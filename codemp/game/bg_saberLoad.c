@@ -2338,7 +2338,7 @@ void WP_SetSaber( int entNum, saberInfo_t *sabers, int saberNum, const char *sab
 		return;
 	}
 
-	if ( entNum < MAX_CLIENTS &&
+	if ( entNum < CLIENT_SLOTS &&
 		!WP_SaberValidForPlayerInMP( saberName ) )
 	{
 		WP_SaberParseParms( DEFAULT_SABER, &sabers[saberNum] );//get saber info

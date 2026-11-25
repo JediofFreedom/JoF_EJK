@@ -2638,7 +2638,7 @@ static void BG_StartLegsAnim( playerState_t *ps, int anim )
 	if ( ps->pm_type >= PM_DEAD )
 	{
 		//vehicles are allowed to do this.. IF it's a vehicle death anim
-		if (ps->clientNum < MAX_CLIENTS || anim != BOTH_VT_DEATH1)
+		if (ps->clientNum < CLIENT_SLOTS || anim != BOTH_VT_DEATH1)
 		{
 			return;
 		}

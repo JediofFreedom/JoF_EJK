@@ -176,6 +176,50 @@ Ghoul2 Insert End
 #error overflow: (CS_MAX) > MAX_CONFIGSTRINGS
 #endif
 
+// Servers with more than 32 player slots: a client that sends jof64=1 in its
+// connect userinfo gets "jof64\1" and the real sv_maxclients (up to 64) in its
+// serverinfo. MAX_CLIENTS stays 32 because the configstring layout above is
+// built on it; players 32-63 use the configstrings after CS_MAX instead.
+// MAX_CLIENT_SLOTS is the capacity of client-side per-player tables.
+#define MAX_CLIENT_SLOTS		64
+#define CS_PLAYERS_EXTENDED		1644	// players 32-63, right after CS_MAX
+
+#if (CS_PLAYERS_EXTENDED) != (CS_MAX) || (CS_PLAYERS_EXTENDED + MAX_CLIENT_SLOTS - MAX_CLIENTS) > MAX_CONFIGSTRINGS
+#error CS_PLAYERS_EXTENDED must start at CS_MAX and fit in MAX_CONFIGSTRINGS
+#endif
+
+// The runtime slot count: the bound of every "is this a player" test on the
+// client. It is 32 unless the serverinfo says jof64 (see CG_ParseServerinfo).
+// The server game module keeps MAX_CLIENTS, so shared bg code is unchanged there.
+#if defined(_CGAME)
+extern int cg_clientSlots;
+#define CLIENT_SLOTS			cg_clientSlots
+#else
+#define CLIENT_SLOTS			MAX_CLIENTS
+#endif
+
+// The slot count a serverinfo string gives: its sv_maxclients clamped to
+// 32..64 when it has jof64 = 1, else 32.
+#define BG_ClientSlotsFromServerinfo( info ) \
+	( atoi( Info_ValueForKey( (info), "jof64" ) ) == 1 \
+		? Com_Clampi( MAX_CLIENTS, MAX_CLIENT_SLOTS, atoi( Info_ValueForKey( (info), "sv_maxclients" ) ) ) \
+		: MAX_CLIENTS )
+
+// Configstring of a player: CS_PLAYERS + id for 0-31, CS_PLAYERS_EXTENDED + (id - 32) for 32-63.
+static QINLINE int BG_PlayerConfigstring( int clientNum ) {
+	return clientNum < MAX_CLIENTS ? CS_PLAYERS + clientNum : CS_PLAYERS_EXTENDED + ( clientNum - MAX_CLIENTS );
+}
+
+// The player a configstring index belongs to, or -1. The extended range only
+// counts when the slot count goes past 32.
+static QINLINE int BG_ConfigstringPlayer( int index, int slots ) {
+	if ( index >= CS_PLAYERS && index < CS_PLAYERS + MAX_CLIENTS )
+		return index - CS_PLAYERS;
+	if ( slots > MAX_CLIENTS && index >= CS_PLAYERS_EXTENDED && index < CS_PLAYERS_EXTENDED + ( slots - MAX_CLIENTS ) )
+		return MAX_CLIENTS + ( index - CS_PLAYERS_EXTENDED );
+	return -1;
+}
+
 typedef enum {
 	G2_MODELPART_HEAD = 10,
 	G2_MODELPART_WAIST,

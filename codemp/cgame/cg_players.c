@@ -213,7 +213,7 @@ sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName ) {
 		clientNum = 0;
 	}
 
-	if (clientNum >= MAX_CLIENTS)
+	if (clientNum >= CLIENT_SLOTS)
 	{
 		ci = cg_entities[clientNum].npcClient;
 	}
@@ -236,7 +236,7 @@ sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName ) {
 		}
 	}
 
-	if (clientNum >= MAX_CLIENTS)
+	if (clientNum >= CLIENT_SLOTS)
 	{ //these are only for npc's
 		for (i = 0; i < MAX_CUSTOM_SOUNDS; i++)
 		{
@@ -309,15 +309,15 @@ sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName ) {
 		{ //siege only
 			return ci->siegeSounds[i];
 		}
-		else if ( clientNum >= MAX_CLIENTS && i < numCComSounds && !strcmp( lSoundName, cg_customCombatSoundNames[i] ) )
+		else if ( clientNum >= CLIENT_SLOTS && i < numCComSounds && !strcmp( lSoundName, cg_customCombatSoundNames[i] ) )
 		{ //npc only
 			return ci->combatSounds[i];
 		}
-		else if ( clientNum >= MAX_CLIENTS && i < numCExSounds && !strcmp( lSoundName, cg_customExtraSoundNames[i] ) )
+		else if ( clientNum >= CLIENT_SLOTS && i < numCExSounds && !strcmp( lSoundName, cg_customExtraSoundNames[i] ) )
 		{ //npc only
 			return ci->extraSounds[i];
 		}
-		else if ( clientNum >= MAX_CLIENTS && i < numCJediSounds && !strcmp( lSoundName, cg_customJediSoundNames[i] ) )
+		else if ( clientNum >= CLIENT_SLOTS && i < numCJediSounds && !strcmp( lSoundName, cg_customJediSoundNames[i] ) )
 		{ //npc only
 			return ci->jediSounds[i];
 		}
@@ -1337,7 +1337,7 @@ This will usually be deferred to a safe time
 
 static sfxHandle_t CG_SaberHumSound( const saberInfo_t *saber, int clientNum ) {
 	if (saber->soundLoopCustom || cg_saberHum.integer == 6 ||
-		clientNum < 0 || clientNum >= MAX_CLIENTS) {
+		clientNum < 0 || clientNum >= CLIENT_SLOTS) {
 		return saber->soundLoop;
 	}
 
@@ -1361,7 +1361,7 @@ void CG_LoadClientInfo( clientInfo_t *ci, int clientNum ) {
 		fallbackModel = DEFAULT_MODEL_FEMALE;
 	}
 
-	if (clientNum < 0 || clientNum >= MAX_CLIENTS)
+	if (clientNum < 0 || clientNum >= CLIENT_SLOTS)
 	{
 		clientNum = -1;
 	}
@@ -1560,7 +1560,7 @@ saberInfo_t *CG_SaberEntityOwnerSaber( centity_t *saberEnt )
 			continue;
 
 		if ( owner->currentState.eType == ET_PLAYER
-			&& i < MAX_CLIENTS
+			&& i < CLIENT_SLOTS
 			&& cgs.clientinfo[i].infoValid )
 		{
 			saberEnt->saberHiltOwner = i+1;
@@ -2226,7 +2226,7 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 		k++;
 	}
 
-	configstring = CG_ConfigString( clientNum + CS_PLAYERS );
+	configstring = CG_ConfigString( BG_PlayerConfigstring( clientNum ) );
 	if ( !configstring[0] ) {
 		if (ci->ghoul2Model && trap->G2_HaveWeGhoul2Models(ci->ghoul2Model))
 		{ //clean this stuff up first
@@ -2710,7 +2710,7 @@ void CG_NewClientInfo( int clientNum, qboolean entitiesInitialized ) {
 	CG_StaffSwapForgetClient( clientNum );
 
 	//force a weapon change anyway, for all clients being rendered to the current client
-	while (i < MAX_CLIENTS)
+	while (i < CLIENT_SLOTS)
 	{
 		cg_entities[i].ghoul2weapon = NULL;
 		i++;
@@ -5276,7 +5276,7 @@ qboolean CG_G2PlayerHeadAnims( centity_t *cent )
 		return qfalse;
 	}
 
-	if (cent->currentState.number < MAX_CLIENTS)
+	if (cent->currentState.number < CLIENT_SLOTS)
 	{
 		ci = &cgs.clientinfo[cent->currentState.number];
 	}
@@ -6807,7 +6807,7 @@ static QINLINE int ClampSaberColor(int color) {
 
 static void CG_RGBForSaberColor(saber_colors_t color, vec3_t rgb, int cnum, int bnum) //rgb
 {
-	qboolean isNPC = (cnum >= MAX_CLIENTS);
+	qboolean isNPC = (cnum >= CLIENT_SLOTS);
 	if (isNPC)
 	{
 		cnum = 0;
@@ -6853,7 +6853,7 @@ static void CG_RGBForSaberColor(saber_colors_t color, vec3_t rgb, int cnum, int 
 		case SABER_ELEC1:
 		case SABER_FLAME2:
 		case SABER_ELEC2:
-			if ( cnum < MAX_CLIENTS ) {
+			if ( cnum < CLIENT_SLOTS ) {
 				int i;
 
 				if ( bnum == 0 )
@@ -7054,7 +7054,7 @@ void CG_DoSaber( vec3_t origin, vec3_t dir, float length, float lengthMax, float
 	}
 
 #if NEW_SABER_PARMS
-	if (cnum >= 0 && cnum < MAX_CLIENTS && cgs.clientinfo[cnum].infoValid) {
+	if (cnum >= 0 && cnum < CLIENT_SLOTS && cgs.clientinfo[cnum].infoValid) {
 		if (cgs.clientinfo[cnum].saber[bnum].customBladeShader)
 			blade = cgs.clientinfo[cnum].saber[bnum].customBladeShader;
 		if (cgs.clientinfo[cnum].saber[bnum].customGlowShader)
@@ -7243,7 +7243,7 @@ void CG_DoSFXSaber( vec3_t blade_muz, vec3_t blade_tip, vec3_t trail_tip, vec3_t
 		case SABER_RGB:
 			glow = cgs.media.rgbSaberGlowShader;
 #if NEW_SABER_PARMS
-			if (cnum >= 0 && cnum < MAX_CLIENTS && cgs.clientinfo[cnum].infoValid) {
+			if (cnum >= 0 && cnum < CLIENT_SLOTS && cgs.clientinfo[cnum].infoValid) {
 				if (cgs.clientinfo[cnum].saber[bnum].customGlowShader)
 					glow = cgs.clientinfo[cnum].saber[bnum].customGlowShader;
 			}
@@ -7899,7 +7899,7 @@ void CG_G2SaberEffects(vec3_t start, vec3_t end, centity_t *owner)
 
 		CG_Trace( &trace, startTr, NULL, NULL, endTr, owner->currentState.number, MASK_PLAYERSOLID );
 
-		if (trace.entityNum < MAX_CLIENTS)
+		if (trace.entityNum < CLIENT_SLOTS)
 		{ //hit a client..
 			CG_G2TraceCollide(&trace, NULL, NULL, startTr, endTr);
 
@@ -8658,7 +8658,7 @@ CheckTrail:
 									break;
 								}
 #endif
-								if (cnum < MAX_CLIENTS) {
+								if (cnum < CLIENT_SLOTS) {
 									clientInfo_t *ci = &cgs.clientinfo[cnum];
 
 									if (saberNum == 0)
@@ -8919,7 +8919,7 @@ CheckTrail:
 						VectorSet(rgb1, client->saber[saberNum].customRGB[0], client->saber[saberNum].customRGB[1], client->saber[saberNum].customRGB[2]);
 					else
 #endif
-					if (cnum < MAX_CLIENTS) {
+					if (cnum < CLIENT_SLOTS) {
 						clientInfo_t *ci = &cgs.clientinfo[cnum];
 
 						if (saberNum == 0)
@@ -9335,7 +9335,7 @@ qboolean CG_ThereIsAMaster(void)
 	int i = 0;
 	centity_t *cent;
 
-	while (i < MAX_CLIENTS)
+	while (i < CLIENT_SLOTS)
 	{
 		cent = &cg_entities[i];
 
@@ -9999,7 +9999,7 @@ qboolean CG_VehicleAttachDroidUnit( centity_t *droidCent, refEntity_t *legs )
 {
 	if ( droidCent
 		&& droidCent->currentState.owner
-		&& droidCent->currentState.clientNum >= MAX_CLIENTS )
+		&& droidCent->currentState.clientNum >= CLIENT_SLOTS )
 	{//the only NPCs that can ride a vehicle are droids...???
 		centity_t *vehCent = &cg_entities[droidCent->currentState.owner];
 		if ( vehCent
@@ -10118,7 +10118,7 @@ void CG_G2Animated( centity_t *cent )
 	/*
 	if ( cg_showVehBounds.integer )
 	{//show vehicle bboxes
-		if ( cent->currentState.clientNum >= MAX_CLIENTS
+		if ( cent->currentState.clientNum >= CLIENT_SLOTS
 			&& cent->currentState.NPC_class == CLASS_VEHICLE
 			&& cent->m_pVehicle
 			&& cent->m_pVehicle->m_pVehicleInfo
@@ -11047,7 +11047,7 @@ typedef struct {
 	qboolean	swapped;	//whether the hilt has already changed hands during it
 } staffSwapLatch_t;
 
-static staffSwapLatch_t staffSwapLatch[MAX_CLIENTS];
+static staffSwapLatch_t staffSwapLatch[MAX_CLIENT_SLOTS];
 
 //Everything about a swap that does not depend on the animation: whether this is a staff carrier
 //whose hilt lives on his back on this server. The sound needs to know that before any swap animation
@@ -11121,7 +11121,7 @@ static staffSwapPhase_t CG_StaffSwapPhaseReal( centity_t *cent, clientInfo_t *ci
 
 	afterSwap = drawing ? STAFFSWAP_INHAND : STAFFSWAP_ONBACK;
 	cl = cent->currentState.clientNum;
-	latch = (cl >= 0 && cl < MAX_CLIENTS) ? &staffSwapLatch[cl] : NULL;
+	latch = (cl >= 0 && cl < CLIENT_SLOTS) ? &staffSwapLatch[cl] : NULL;
 
 	if (latch)
 	{
@@ -11192,12 +11192,12 @@ typedef struct {
 	int			offTime;		//when that went out, so the late copy of it can be dropped
 } staffSwapSound_t;
 
-static staffSwapSound_t staffSwapSound[MAX_CLIENTS];
+static staffSwapSound_t staffSwapSound[MAX_CLIENT_SLOTS];
 
 //A new saber means the swap in progress, and any ignition being held for it, are both stale.
 static void CG_StaffSwapForgetClient( int clientNum )
 {
-	if (clientNum < 0 || clientNum >= MAX_CLIENTS)
+	if (clientNum < 0 || clientNum >= CLIENT_SLOTS)
 		return;
 
 	memset( &staffSwapSound[clientNum], 0, sizeof( staffSwapSound[clientNum] ) );
@@ -11216,7 +11216,7 @@ static void CG_StaffSwapIgnitionSound( centity_t *cent, staffSwapPhase_t phase )
 	int					cl = cent->currentState.clientNum;
 	staffSwapSound_t	*held;
 
-	if (cl < 0 || cl >= MAX_CLIENTS)
+	if (cl < 0 || cl >= CLIENT_SLOTS)
 		return;
 
 	held = &staffSwapSound[cl];
@@ -11265,7 +11265,7 @@ static void CG_StaffSwapShutdownSound( centity_t *cent, clientInfo_t *ci, staffS
 	if (anim != BOTH_S7_S1_NEW && anim != BOTH_STAND2TO1_NEW)
 		return;	//he is drawing it, not putting it away
 
-	if (cl < 0 || cl >= MAX_CLIENTS || !ci->saber[0].soundOff)
+	if (cl < 0 || cl >= CLIENT_SLOTS || !ci->saber[0].soundOff)
 		return;
 
 	if (!ci->saber[0].blade[0].length)
@@ -11290,7 +11290,7 @@ static void CG_StaffSwapShutdownSound( centity_t *cent, clientInfo_t *ci, staffS
 //player heard - the weapon change's own copy is the late one and belongs nowhere.
 qboolean CG_StaffSwapShutdownSounded( int clientNum )
 {
-	if (clientNum < 0 || clientNum >= MAX_CLIENTS)
+	if (clientNum < 0 || clientNum >= CLIENT_SLOTS)
 		return qfalse;
 
 	if (!staffSwapSound[clientNum].offTime)
@@ -11316,7 +11316,7 @@ qboolean CG_StaffSwapHoldIgnitionSound( int clientNum, sfxHandle_t sound )
 	centity_t		*cent;
 	int				anim;
 
-	if (clientNum < 0 || clientNum >= MAX_CLIENTS || !sound)
+	if (clientNum < 0 || clientNum >= CLIENT_SLOTS || !sound)
 		return qfalse;
 
 	if (!cg_holsteredStaffSound.integer)
@@ -11359,7 +11359,7 @@ qboolean CG_StaffSwapHoldGeneralSound( vec3_t origin, sfxHandle_t sound )
 	if (!sound)
 		return qfalse;
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < CLIENT_SLOTS; i++)
 	{
 		centity_t *cent = &cg_entities[i];
 
@@ -11398,12 +11398,12 @@ static staffSwapPhase_t CG_StaffSwapPhase( centity_t *cent, clientInfo_t *ci )
 
 	if (cg_holsteredStaffDebug.integer)
 	{
-		static int	lastAnim[MAX_CLIENTS] = { 0 };
+		static int	lastAnim[MAX_CLIENT_SLOTS] = { 0 };
 		int			cl = cent->currentState.clientNum;
 
-		static staffSwapPhase_t lastPhase[MAX_CLIENTS] = { STAFFSWAP_NONE };
+		static staffSwapPhase_t lastPhase[MAX_CLIENT_SLOTS] = { STAFFSWAP_NONE };
 
-		if (cl >= 0 && cl < MAX_CLIENTS
+		if (cl >= 0 && cl < CLIENT_SLOTS
 			&& (cg_holsteredStaffDebug.integer > 1 || cl == cg.clientNum)
 			&& (lastAnim[cl] != cent->currentState.torsoAnim || lastPhase[cl] != phase))
 		{
@@ -11963,7 +11963,7 @@ static void CG_PlayerInternal( centity_t *cent, cgProfileScope_t *profile ) {
 	if (cent->currentState.eType != ET_NPC)
 	{
 		clientNum = cent->currentState.clientNum;
-		if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+		if ( clientNum < 0 || clientNum >= CLIENT_SLOTS ) {
 			trap->Error( ERR_DROP, "Bad clientNum on player entity");
 		}
 		ci = &cgs.clientinfo[ clientNum ];
@@ -12716,7 +12716,7 @@ static void CG_PlayerInternal( centity_t *cent, cgProfileScope_t *profile ) {
 		cent->currentState.number != cg.snap->ps.clientNum)
 	{
 		if (cg.predictedPlayerState.persistant[PERS_TEAM] != TEAM_SPECTATOR &&
-			cent->currentState.number < MAX_CLIENTS &&
+			cent->currentState.number < CLIENT_SLOTS &&
 			!(cent->currentState.eFlags & EF_DEAD) &&
 			ci &&
 			cgs.clientinfo[cg.snap->ps.clientNum].duelTeam == ci->duelTeam)
@@ -12724,7 +12724,7 @@ static void CG_PlayerInternal( centity_t *cent, cgProfileScope_t *profile ) {
 			CG_PlayerFloatSprite( cent, cgs.media.powerDuelAllyShader);
 		}
 		else if (cg.predictedPlayerState.persistant[PERS_TEAM] == TEAM_SPECTATOR &&
-			cent->currentState.number < MAX_CLIENTS &&
+			cent->currentState.number < CLIENT_SLOTS &&
 			!(cent->currentState.eFlags & EF_DEAD) &&
 			ci->duelTeam == DUELTEAM_DOUBLE)
 		{
@@ -14121,7 +14121,7 @@ stillDoSaber:
 			saberEnt = &cg_entities[cent->currentState.saberEntityNum];
 			hiltModel = CG_SaberEntityHiltModel(&ci->saber[0], saberEnt, &hiltSkin);
 
-			if (cent->currentState.number < MAX_CLIENTS)
+			if (cent->currentState.number < CLIENT_SLOTS)
 			{ //remember whose this is - the server drops the link once it lands
 				saberEnt->saberHiltOwner = cent->currentState.number+1;
 			}
@@ -15353,7 +15353,7 @@ stillDoSaber:
 		CG_Trace(&trace, cg.refdef.vieworg, vec3_origin, vec3_origin, cent->lerpOrigin, cg.clientNum, CONTENTS_SOLID|CONTENTS_BODY);
 		CG_ProfileEnd(CGP_PLAYER_TRACE,profileTrace);
 
-		if (trace.entityNum >= MAX_CLIENTS) { //No LOS to the player
+		if (trace.entityNum >= CLIENT_SLOTS) { //No LOS to the player
 			if (ci->team == TEAM_BLUE) {
 				legs.shaderRGBA[0] = 0;
 				legs.shaderRGBA[1] = 0;

@@ -505,7 +505,7 @@ void PM_VehicleImpact(bgEntity_t *pEnt, trace_t *trace)
 				int finalD;
 				gentity_t *attackEnt;
 
-				if ( (hitEnt->s.eType == ET_PLAYER && hitEnt->s.number < MAX_CLIENTS) ||
+				if ( (hitEnt->s.eType == ET_PLAYER && hitEnt->s.number < CLIENT_SLOTS) ||
 					 (hitEnt->s.eType == ET_NPC && hitEnt->s.NPC_class != CLASS_VEHICLE) )
 				{ //probably a humanoid, or something
 					if (pSelfVeh->m_pVehicleInfo->type == VH_FIGHTER)
@@ -731,7 +731,7 @@ qboolean	PM_SlideMove( qboolean gravity ) {
 		// save entity for contact
 		PM_AddTouchEnt( trace.entityNum );
 
-		if (pm->ps->clientNum >= MAX_CLIENTS)
+		if (pm->ps->clientNum >= CLIENT_SLOTS)
 		{
 			bgEntity_t *pEnt = pm_entSelf;
 
@@ -814,7 +814,7 @@ qboolean	PM_SlideMove( qboolean gravity ) {
 
 #if _GAME
 			//Ignore racemode? what if somehow there is no playerstate? crash?
-			if (trace.entityNum < MAX_CLIENTS && g_fixPlayerCollision.integer && g_entities[trace.entityNum].client && (g_entities[trace.entityNum].client->ps.velocity[0] || g_entities[trace.entityNum].client->ps.velocity[1])) {
+			if (trace.entityNum < CLIENT_SLOTS && g_fixPlayerCollision.integer && g_entities[trace.entityNum].client && (g_entities[trace.entityNum].client->ps.velocity[0] || g_entities[trace.entityNum].client->ps.velocity[1])) {
 				if (clipVelocity[0] != pm->ps->velocity[0])
 					clipVelocity[0] = g_entities[trace.entityNum].client->ps.velocity[0] * 0.95f;
 				if (clipVelocity[1] != pm->ps->velocity[1])
@@ -826,7 +826,7 @@ qboolean	PM_SlideMove( qboolean gravity ) {
 					endClipVelocity[1] = g_entities[trace.entityNum].client->ps.velocity[1] * 0.95f;
 			}
 #else
-			if (trace.entityNum < MAX_CLIENTS && cgs.serverMod == SVMOD_JAPRO && (cgs.jcinfo2 & JAPRO_CINFO2_FIXPLAYERCOLLISION) && cg_entities[trace.entityNum].playerState && (cg_entities[trace.entityNum].playerState->velocity[0] || cg_entities[trace.entityNum].playerState->velocity[1])) {
+			if (trace.entityNum < CLIENT_SLOTS && cgs.serverMod == SVMOD_JAPRO && (cgs.jcinfo2 & JAPRO_CINFO2_FIXPLAYERCOLLISION) && cg_entities[trace.entityNum].playerState && (cg_entities[trace.entityNum].playerState->velocity[0] || cg_entities[trace.entityNum].playerState->velocity[1])) {
 				//Com_Printf("Predicting! %.2f %.2f\n", cg_entities[trace.entityNum].playerState->velocity[0], cg_entities[trace.entityNum].playerState->velocity[1]); //this executes but why does it not look like its predicting ingame
 				if (clipVelocity[0] != pm->ps->velocity[0])
 					clipVelocity[0] = cg_entities[trace.entityNum].playerState->velocity[0] * 0.95f;
@@ -962,7 +962,7 @@ void PM_StepSlideMove( qboolean gravity ) {
 
 	pEnt = pm_entSelf;
 
-	if (pm->ps->clientNum >= MAX_CLIENTS)
+	if (pm->ps->clientNum >= CLIENT_SLOTS)
 	{
 		if (pEnt && pEnt->s.NPC_class == CLASS_VEHICLE &&
 			pEnt->m_pVehicle && pEnt->m_pVehicle->m_pVehicleInfo->hoverHeight > 0)
@@ -987,7 +987,7 @@ void PM_StepSlideMove( qboolean gravity ) {
 
 	VectorCopy (start_o, up);
 
-	if (pm->ps->clientNum >= MAX_CLIENTS)
+	if (pm->ps->clientNum >= CLIENT_SLOTS)
 	{
 		// apply ground friction, even if on ladder
 		if (pEnt &&
@@ -1037,7 +1037,7 @@ void PM_StepSlideMove( qboolean gravity ) {
 
 	if ( pm->stepSlideFix )
 	{
-		if ( pm->ps->clientNum < MAX_CLIENTS
+		if ( pm->ps->clientNum < CLIENT_SLOTS
 			&& trace.plane.normal[2] < MIN_WALK_NORMAL )
 		{//normal players cannot step up slopes that are too steep to walk on!
 			vec3_t stepVec;
@@ -1060,9 +1060,9 @@ void PM_StepSlideMove( qboolean gravity ) {
 	if ( !trace.allsolid
 		&& !skipStep ) //normal players cannot step up slopes that are too steep to walk on!
 	{
-		if ( pm->ps->clientNum >= MAX_CLIENTS//NPC
+		if ( pm->ps->clientNum >= CLIENT_SLOTS//NPC
 			&& isGiant
-			&& trace.entityNum < MAX_CLIENTS
+			&& trace.entityNum < CLIENT_SLOTS
 			&& pEnt
 			&& pEnt->s.NPC_class == CLASS_RANCOR )
 		{//Rancor don't step on clients
@@ -1078,9 +1078,9 @@ void PM_StepSlideMove( qboolean gravity ) {
 			}
 		}
 		/*
-		else if ( pm->ps->clientNum >= MAX_CLIENTS//NPC
+		else if ( pm->ps->clientNum >= CLIENT_SLOTS//NPC
 			&& isGiant
-			&& trace.entityNum < MAX_CLIENTS
+			&& trace.entityNum < CLIENT_SLOTS
 			&& pEnt
 			&& pEnt->s.NPC_class == CLASS_ATST
 			&& OnSameTeam( pEnt, traceEnt) )

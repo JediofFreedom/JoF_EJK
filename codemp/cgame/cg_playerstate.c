@@ -114,7 +114,7 @@ void CG_DamageFeedback( int yawByte, int pitchByte, int damage ) {
 	float		dist;
 	float		yaw, pitch;
 
-	if (cg.snap->ps.persistant[PERS_ATTACKER] >= 0 && cg.snap->ps.persistant[PERS_ATTACKER] < MAX_CLIENTS)
+	if (cg.snap->ps.persistant[PERS_ATTACKER] >= 0 && cg.snap->ps.persistant[PERS_ATTACKER] < CLIENT_SLOTS)
 		cg.damageTaken[cg.snap->ps.persistant[PERS_ATTACKER]] += damage;
 
 	// show the attacking player's head and name in corner
@@ -659,7 +659,7 @@ CG_TransitionPlayerState
 
 ===============
 */
-extern int cg_dueltypes[MAX_CLIENTS];//JAPRO - Clientside - Fullforce Duels
+extern int cg_dueltypes[MAX_CLIENT_SLOTS];//JAPRO - Clientside - Fullforce Duels
 void CG_TransitionPlayerState( playerState_t *ps, playerState_t *ops ) {
         // check for changing follow mode
         if ( ps->clientNum != ops->clientNum ) {

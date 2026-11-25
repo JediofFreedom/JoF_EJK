@@ -28,7 +28,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 //JAPRO - Serverside - Fullforce Duels - Start
 #ifdef _CGAME
-extern int cg_dueltypes[MAX_CLIENTS];
+extern int cg_dueltypes[MAX_CLIENT_SLOTS];
 #endif
 //JAPRO - Serverside - Fullforce Duels - End
 
@@ -589,7 +589,7 @@ saberMoveName_t PM_CheckStabDown( void )
 	{//sorry must be on ground!
 		return LS_NONE;
 	}
-	if ( pm->ps->clientNum < MAX_CLIENTS )
+	if ( pm->ps->clientNum < CLIENT_SLOTS )
 	{//player
 		pm->ps->velocity[2] = 0;
 		pm->cmd.upmove = 0;
@@ -1605,7 +1605,7 @@ qboolean PM_CanBackstab(void)
 		centity_t *cent;
 		vec3_t diff = {0};
 
-		for (i = 0; i < MAX_CLIENTS; i++) {
+		for (i = 0; i < CLIENT_SLOTS; i++) {
 			cent = &cg_entities[i];
 
 			if (!cent)
@@ -2421,7 +2421,7 @@ saberMoveName_t PM_SaberAttackForMovement(saberMoveName_t curmove)
 			gclient_t *client = NULL;
 			{
 				int clientNum = pm->ps->clientNum;
-				if (0 <= clientNum && clientNum < MAX_CLIENTS) {
+				if (0 <= clientNum && clientNum < CLIENT_SLOTS) {
 					client = g_entities[clientNum].client;
 				}
 			}
@@ -4314,7 +4314,7 @@ saberInfo_t *BG_MySaber( int clientNum, int saberNum )
 	}
 #elif defined(_CGAME)
 	clientInfo_t *ci = NULL;
-	if (clientNum < MAX_CLIENTS)
+	if (clientNum < CLIENT_SLOTS)
 	{
 		ci = &cgs.clientinfo[clientNum];
 	}

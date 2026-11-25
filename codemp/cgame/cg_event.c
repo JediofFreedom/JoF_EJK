@@ -139,11 +139,11 @@ static void CG_Obituary( entityState_t *ent ) {
 	secs %= 60;
 #endif
 
-	if ( target < 0 || target >= MAX_CLIENTS ) {
+	if ( target < 0 || target >= CLIENT_SLOTS ) {
 		trap->Error( ERR_DROP, "CG_Obituary: target out of range" );
 	}
 
-	if ( attacker < 0 || attacker >= MAX_CLIENTS ) {
+	if ( attacker < 0 || attacker >= CLIENT_SLOTS ) {
 		attacker = ENTITYNUM_WORLD;
 		attackerInfo = NULL;
 	} else {
@@ -248,7 +248,7 @@ static void CG_Obituary( entityState_t *ent ) {
 		}
 	}
 
-	if (target != attacker && target < MAX_CLIENTS && attacker < MAX_CLIENTS)
+	if (target != attacker && target < CLIENT_SLOTS && attacker < CLIENT_SLOTS)
 	{
 		goto clientkilled;
 	}
@@ -279,7 +279,7 @@ clientkilled:
 
 		if ( cg_killMessage.integer != 2 && cgs.gametype < GT_TEAM && cgs.gametype != GT_DUEL && cgs.gametype != GT_POWERDUEL ) {
 			if (cgs.gametype == GT_JEDIMASTER &&
-				attacker < MAX_CLIENTS &&
+				attacker < CLIENT_SLOTS &&
 				!ent->isJediMaster &&
 				!cg.snap->ps.isJediMaster &&
 				CG_ThereIsAMaster())
@@ -291,7 +291,7 @@ clientkilled:
 				Com_sprintf(s, sizeof(s), "%s %s\n%s\n", part1, targetName, part2);
 			}
 			else if (cgs.gametype == GT_JEDIMASTER &&
-				attacker < MAX_CLIENTS &&
+				attacker < CLIENT_SLOTS &&
 				!ent->isJediMaster &&
 				!cg.snap->ps.isJediMaster)
 			{ //no JM, saber must be out
@@ -579,7 +579,7 @@ static void CG_UseItem( centity_t *cent ) {
 	case HI_MEDPAC:
 	case HI_MEDPAC_BIG:
 		clientNum = cent->currentState.clientNum;
-		if ( clientNum >= 0 && clientNum < MAX_CLIENTS ) {
+		if ( clientNum >= 0 && clientNum < CLIENT_SLOTS ) {
 			ci = &cgs.clientinfo[ clientNum ];
 			ci->medkitUsageTime = cg.time;
 		}
@@ -795,7 +795,7 @@ typedef struct {
 	int		holdTime;	// how long that line holds the next one back
 } voiceLineTimer_t;
 
-static voiceLineTimer_t cg_voiceLineTimer[MAX_CLIENTS][NUM_VOICE_LINES];
+static voiceLineTimer_t cg_voiceLineTimer[MAX_CLIENT_SLOTS][NUM_VOICE_LINES];
 
 // Engines older than the sound length extension end the import table before
 // trap->S_GetSampleLengthMs, so the cvar they never registered is the only safe way to tell.
@@ -822,7 +822,7 @@ static qboolean CG_VoiceLineThrottled( int clientNum, voiceLine_t line, sfxHandl
 	if ( !cg_tauntAntiSpam.integer )
 		return qfalse;
 
-	if ( clientNum < 0 || clientNum >= MAX_CLIENTS )
+	if ( clientNum < 0 || clientNum >= CLIENT_SLOTS )
 		return qfalse; // NPCs and world entities have their own cooldowns
 
 	timer = &cg_voiceLineTimer[clientNum][line];
@@ -869,7 +869,7 @@ typedef struct {
 	qboolean	groupQuiet;
 } saberToggleBudget_t;
 
-static saberToggleBudget_t cg_saberToggleBudget[MAX_CLIENTS];
+static saberToggleBudget_t cg_saberToggleBudget[MAX_CLIENT_SLOTS];
 
 // This player's budget, emptied when time goes back (a map restart, a demo seeking back), or NULL.
 static saberToggleBudget_t *CG_SaberToggleBudget( int clientNum, int snap ) {
@@ -878,7 +878,7 @@ static saberToggleBudget_t *CG_SaberToggleBudget( int clientNum, int snap ) {
 	if ( !cg_saberAntiSpam.integer )
 		return NULL;
 
-	if ( clientNum < 0 || clientNum >= MAX_CLIENTS )
+	if ( clientNum < 0 || clientNum >= CLIENT_SLOTS )
 		return NULL; // NPCs are not bound to keys
 
 	budget = &cg_saberToggleBudget[clientNum];
@@ -946,7 +946,7 @@ static qboolean CG_SaberToggleSoundThrottled( vec3_t origin, sfxHandle_t sfx ) {
 	if ( !cg_saberAntiSpam.integer || !sfx || !cg.snap )
 		return qfalse;
 
-	for ( i = 0; i < MAX_CLIENTS; i++ ) {
+	for ( i = 0; i < CLIENT_SLOTS; i++ ) {
 		clientInfo_t *ci = &cgs.clientinfo[i];
 		int on = 0, off = 0;
 
@@ -1067,7 +1067,7 @@ void CG_ReattachLimb(centity_t *source)
 {
 	clientInfo_t *ci = NULL;
 
-	if ( source->currentState.number >= MAX_CLIENTS )
+	if ( source->currentState.number >= CLIENT_SLOTS )
 	{
 		ci = source->npcClient;
 	}
@@ -1246,7 +1246,7 @@ void CG_GetCTFMessageEvent(entityState_t *es)
 	clientInfo_t *ci = NULL;
 	const char *teamName = NULL;
 
-	if (clIndex < MAX_CLIENTS)
+	if (clIndex < CLIENT_SLOTS)
 	{
 		ci = &cgs.clientinfo[clIndex];
 	}
@@ -1833,13 +1833,13 @@ static sfxHandle_t CG_ForceOwnSaberSound(const entityState_t *es, int source, sf
 	vec3_t delta;
 	float distance;
 
-	if (!sound || !cg.snap || cg.clientNum < 0 || cg.clientNum >= MAX_CLIENTS ||
+	if (!sound || !cg.snap || cg.clientNum < 0 || cg.clientNum >= CLIENT_SLOTS ||
 		cg.snap->ps.clientNum != cg.clientNum || !cg_forceOwnSaber.string[0] ||
 		!Q_stricmp(cg_forceOwnSaber.string, "none")) {
 		return sound;
 	}
 	if (source != cg.clientNum) {
-		if (source < MAX_CLIENTS || es->eType != ET_EVENTS + EV_GENERAL_SOUND) {
+		if (source < CLIENT_SLOTS || es->eType != ET_EVENTS + EV_GENERAL_SOUND) {
 			return sound;
 		}
 		// Vanilla G_Sound uses an anonymous, snapped-position temp entity.
@@ -1918,7 +1918,7 @@ An entity has an event value
 also called by CG_CheckPlayerstateEvents
 ==============
 */
-extern int cg_dueltypes[MAX_CLIENTS];//JAPRO - Clientside - Fullforce Duels
+extern int cg_dueltypes[MAX_CLIENT_SLOTS];//JAPRO - Clientside - Fullforce Duels
 void CG_GibPlayer( vec3_t playerOrigin );
 
 #define	DEBUGNAME(x) if(cg_debugEvents.integer){trap->Print(x"\n");}
@@ -1950,7 +1950,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	}
 
 	clientNum = es->clientNum;
-	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
+	if ( clientNum < 0 || clientNum >= CLIENT_SLOTS ) {
 		clientNum = 0;
 	}
 
@@ -2819,7 +2819,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		if (cg.predictedPlayerState.duelInProgress && (cg.predictedPlayerState.clientNum != es->number && cg.predictedPlayerState.duelIndex != es->number))
 			break;
 
-		if (cent->currentState.number >= MAX_CLIENTS && cent->currentState.eType != ET_NPC)
+		if (cent->currentState.number >= CLIENT_SLOTS && cent->currentState.eType != ET_NPC)
 		{ //special case for turret firing
 			vec3_t gunpoint, gunangle;
 			mdxaBone_t matrix;
@@ -2930,7 +2930,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			{
 				client = cg_entities[es->number].npcClient;
 			}
-			else if ( es->number < MAX_CLIENTS )
+			else if ( es->number < CLIENT_SLOTS )
 			{
 				client = &cgs.clientinfo[es->number];
 			}
@@ -2966,7 +2966,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				{
 					client = cg_entities[es->otherEntityNum2].npcClient;
 				}
-				else if ( es->otherEntityNum2 < MAX_CLIENTS )
+				else if ( es->otherEntityNum2 < CLIENT_SLOTS )
 				{
 					client = &cgs.clientinfo[es->otherEntityNum2];
 				}
@@ -3127,7 +3127,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 					{
 						client = cg_entities[es->otherEntityNum2].npcClient;
 					}
-					else if ( es->otherEntityNum2 < MAX_CLIENTS )
+					else if ( es->otherEntityNum2 < CLIENT_SLOTS )
 					{
 						client = &cgs.clientinfo[es->otherEntityNum2];
 					}
@@ -3217,7 +3217,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 			{
 				ci = cg_entities[es->number].npcClient;
 			}
-			else if (es->number < MAX_CLIENTS)
+			else if (es->number < CLIENT_SLOTS)
 			{
 				ci = &cgs.clientinfo[es->number];
 			}
@@ -3395,7 +3395,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				break;
 			case PDSOUND_ABSORBHIT:
 				sID = trap->S_RegisterSound("sound/weapons/force/absorbhit.mp3");
-				if (es->trickedentindex >= 0 && es->trickedentindex < MAX_CLIENTS)
+				if (es->trickedentindex >= 0 && es->trickedentindex < CLIENT_SLOTS)
 				{
 					int clnum = es->trickedentindex;
 
@@ -3430,7 +3430,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		{
 			int clnum = 0;
 
-			while (clnum < MAX_CLIENTS)
+			while (clnum < CLIENT_SLOTS)
 			{
 				if (CG_InClientBitflags(es, clnum))
 				{
@@ -3709,7 +3709,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		DEBUGNAME("EV_DESTROY_GHOUL2_INSTANCE");
 		if (cg_entities[es->eventParm].ghoul2 && trap->G2_HaveWeGhoul2Models(cg_entities[es->eventParm].ghoul2))
 		{
-			if (es->eventParm < MAX_CLIENTS)
+			if (es->eventParm < CLIENT_SLOTS)
 			{ //You try to do very bad thing!
 #ifdef _DEBUG
 				Com_Printf("WARNING: Tried to kill a client ghoul2 instance with a server event!\n");
@@ -4090,10 +4090,10 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 
 	case EV_VOICECMD_SOUND:
 		DEBUGNAME("EV_VOICECMD_SOUND");
-		if (cgs.ignoredVGS & (1<<es->groundEntityNum)) {
+		if (cgs.ignoredVGS & (1ULL<<es->groundEntityNum)) {
 			break;
 		}
-		if (es->groundEntityNum < MAX_CLIENTS && es->groundEntityNum >= 0)
+		if (es->groundEntityNum < CLIENT_SLOTS && es->groundEntityNum >= 0)
 		{
 			int clientNum = es->groundEntityNum;
 			sfxHandle_t sfx = cgs.gameSounds[ es->eventParm ];

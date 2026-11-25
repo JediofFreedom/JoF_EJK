@@ -992,7 +992,7 @@ void CG_SiegeObjectiveCompleted(centity_t *ent, int won, int objectivenum)
 	}
 }
 
-siegeExtended_t cg_siegeExtendedData[MAX_CLIENTS];
+siegeExtended_t cg_siegeExtendedData[MAX_CLIENT_SLOTS];
 
 //parse a single extended siege data entry
 void CG_ParseSiegeExtendedDataEntry(const char *conStr)
@@ -1040,7 +1040,7 @@ void CG_ParseSiegeExtendedDataEntry(const char *conStr)
 		str++;
 	}
 
-	if (clNum < 0 || clNum >= MAX_CLIENTS)
+	if (clNum < 0 || clNum >= CLIENT_SLOTS)
 	{
 		return;
 	}

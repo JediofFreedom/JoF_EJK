@@ -60,15 +60,15 @@ static void CG_ParseScores( void ) {
 
 	if (actualSent < 0)
 		actualSent = 0;
-	if (actualSent > MAX_CLIENTS)
-		actualSent = MAX_CLIENTS;
+	if (actualSent > CLIENT_SLOTS)
+		actualSent = CLIENT_SLOTS;
 
 	cg.numScores = actualSent;
 	readScores = actualSent;
 
 
-	if ( cg.numScores > MAX_CLIENTS )
-		cg.numScores = MAX_CLIENTS;
+	if ( cg.numScores > CLIENT_SLOTS )
+		cg.numScores = CLIENT_SLOTS;
 
 	cg.numScores = readScores;
 
@@ -98,7 +98,7 @@ static void CG_ParseScores( void ) {
 		cg.scores[i].captures = atoi(CG_Argv(i * scoreOffset + 17));
 //JAPRO - Clientside - Scoreboard Deaths - End
 
-		if ( cg.scores[i].client < 0 || cg.scores[i].client >= MAX_CLIENTS )
+		if ( cg.scores[i].client < 0 || cg.scores[i].client >= CLIENT_SLOTS )
 			cg.scores[i].client = 0;
 
 		cgs.clientinfo[ cg.scores[i].client ].score = cg.scores[i].score;
@@ -120,14 +120,14 @@ static void CG_ParseTeamInfo( void ) {
 	int i, client;
 
 	numSortedTeamPlayers = atoi( CG_Argv( 1 ) );
-	if ( numSortedTeamPlayers < 0 || numSortedTeamPlayers > TEAM_MAXOVERLAY ) {
+	if ( numSortedTeamPlayers < 0 || numSortedTeamPlayers > ( CLIENT_SLOTS > TEAM_MAXOVERLAY ? CLIENT_SLOTS : TEAM_MAXOVERLAY ) ) {
 		trap->Error( ERR_DROP, "CG_ParseTeamInfo: numSortedTeamPlayers out of range (%d)", numSortedTeamPlayers );
 		return;
 	}
 
 	for ( i=0; i<numSortedTeamPlayers; i++ ) {
 		client = atoi( CG_Argv( i*TEAMINFO_OFFSET + 2 ) );
-		if ( client < 0 || client >= MAX_CLIENTS ) {
+		if ( client < 0 || client >= CLIENT_SLOTS ) {
 			trap->Error( ERR_DROP, "CG_ParseTeamInfo: bad client number: %d", client );
 			return;
 		}
@@ -251,7 +251,9 @@ void CG_ParseServerinfo( void ) {
 	cgs.jcinfo= atoi ( Info_ValueForKey ( info, "jcinfo" ) );//[JAPRO - Clientside - All - Add gamename variable to get jcinfo from japro servers]
 	*/
 
-	cgs.maxclients = Com_Clampi( 0, MAX_CLIENTS, atoi( Info_ValueForKey( info, "sv_maxclients" ) ) );
+	// 32 slots unless the server has more than 32 player slots and says so with jof64
+	cg_clientSlots = BG_ClientSlotsFromServerinfo( info );
+	cgs.maxclients = Com_Clampi( 0, CLIENT_SLOTS, atoi( Info_ValueForKey( info, "sv_maxclients" ) ) );
 	trap->Cvar_Set("ui_version", Info_ValueForKey(info, "version")); //used by UI in the in-game "about" menu
 	cgs.svfps = atoi( Info_ValueForKey( info, "sv_fps" ) );
 	if (!cgs.svfps)
@@ -1031,9 +1033,9 @@ static void CG_ConfigStringModified( void ) {
 		cg_beatingSiegeTime = atoi(str);
 		CG_SetSiegeTimerCvar ( cg_beatingSiegeTime );
 	}
-	else if ( num >= CS_PLAYERS && num < CS_PLAYERS+MAX_CLIENTS )
+	else if ( BG_ConfigstringPlayer( num, CLIENT_SLOTS ) != -1 )
 	{
-		CG_NewClientInfo( num - CS_PLAYERS, qtrue);
+		CG_NewClientInfo( BG_ConfigstringPlayer( num, CLIENT_SLOTS ), qtrue);
 		CG_BuildSpectatorString();
 	} else if ( num == CS_FLAGSTATUS ) {
 		if( cgs.gametype == GT_CTF || cgs.gametype == GT_CTY ) {
@@ -1064,7 +1066,7 @@ void CG_KillCEntityG2(int entNum)
 	clientInfo_t *ci = NULL;
 	centity_t *cent = &cg_entities[entNum];
 
-	if (entNum < MAX_CLIENTS)
+	if (entNum < CLIENT_SLOTS)
 	{
 		ci = &cgs.clientinfo[entNum];
 	}
@@ -1143,7 +1145,7 @@ void CG_KillCEntityInstances(void)
 	{
 		cent = &cg_entities[i];
 
-		if (i >= MAX_CLIENTS && cent->currentState.number == i)
+		if (i >= CLIENT_SLOTS && cent->currentState.number == i)
 		{ //do not clear G2 instances on client ents, they are constant
 			CG_KillCEntityG2(i);
 		}
@@ -1200,7 +1202,7 @@ static void CG_MapRestart( void ) {
 		cg.itemPickup = 0;
 	}
 	cg.pickupHandshakeActive = cg.pickupConfirmed = qfalse;
-	for (i = 0 ; i < MAX_CLIENTS ; i++)
+	for (i = 0 ; i < CLIENT_SLOTS ; i++)
 	{
 		ci = &cgs.clientinfo[i];
 		if (!ci)
@@ -1378,7 +1380,7 @@ static void CG_BodyQueueCopy(centity_t *cent, int clientNum, int knownWeapon)
 		trap->G2API_CleanGhoul2Models(&cent->ghoul2);
 	}
 
-	if (clientNum < 0 || clientNum >= MAX_CLIENTS)
+	if (clientNum < 0 || clientNum >= CLIENT_SLOTS)
 	{
 		return;
 	}
@@ -1541,7 +1543,7 @@ static void CG_KillGhoul2_f( void ) {
 		indexNum = atoi( CG_Argv( i ) );
 
 		if ( cg_entities[indexNum].ghoul2 && trap->G2_HaveWeGhoul2Models( cg_entities[indexNum].ghoul2 ) ) {
-			if ( indexNum < MAX_CLIENTS ) { //You try to do very bad thing!
+			if ( indexNum < CLIENT_SLOTS ) { //You try to do very bad thing!
 #ifdef _DEBUG
 				Com_Printf("WARNING: Tried to kill a client ghoul2 instance with a kg2 command!\n");
 #endif
@@ -1599,7 +1601,7 @@ static void CG_RestoreClientGhoul_f( void ) {
 	}
 
 	indexNum = atoi( CG_Argv( 1 ) );
-	if ( indexNum < 0 || indexNum >= MAX_CLIENTS ) {
+	if ( indexNum < 0 || indexNum >= CLIENT_SLOTS ) {
 		assert( 0 );
 		return;
 	}
@@ -1933,7 +1935,7 @@ static void CG_MissionPartyStats_f(void) {
 			return;
 		// Player display names are already available locally and do not need to
 		// consume reliable-command bandwidth.
-		if (member->entityNum < MAX_CLIENTS && cgs.clientinfo[member->entityNum].infoValid) {
+		if (member->entityNum < CLIENT_SLOTS && cgs.clientinfo[member->entityNum].infoValid) {
 			Q_strncpyz(member->name, cgs.clientinfo[member->entityNum].name, sizeof(member->name));
 			Q_CleanStr(member->name);
 		}

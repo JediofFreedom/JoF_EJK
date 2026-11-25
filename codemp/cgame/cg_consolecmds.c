@@ -210,7 +210,7 @@ void CG_ClientList_f( void )
 	int i;
 	int count = 0;
 
-	for( i = 0; i < MAX_CLIENTS; i++ )
+	for( i = 0; i < CLIENT_SLOTS; i++ )
 	{
 		ci = &cgs.clientinfo[ i ];
 		if( !ci->infoValid )
@@ -251,7 +251,7 @@ static void CG_UserInfoList_f(void)
 	int i;
 	int r, g, b;
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < CLIENT_SLOTS; i++)
 	{
 		ci = &cgs.clientinfo[i];
 		cent = &cg_entities[i];
@@ -608,6 +608,18 @@ static int CG_ClientNumberFromString(const char *s)
 		return idnum;
 	}
 
+	// slot numbers 32-63 on servers with more than 32 player slots
+	if (CLIENT_SLOTS > MAX_CLIENTS && strlen(s) == 2 && (s[0] >= '3' && s[0] <= '9') && (s[1] >= '0' && s[1] <= '9') && atoi(s) < CLIENT_SLOTS)
+	{
+		idnum = atoi(s);
+		cl = &cgs.clientinfo[idnum];
+		if (!cl->infoValid) {
+			Com_Printf("Client '%i' is not active\n", idnum);
+			return -1;
+		}
+		return idnum;
+	}
+
 	// check for a name match
 	CG_SanitizeString2(s, s2);
 	for (idnum = 0, cl = cgs.clientinfo; idnum < cgs.maxclients; ++idnum, ++cl) {
@@ -649,7 +661,7 @@ static void CG_IgnoreVGS_f(void)
 
 		Com_Printf("VGS Ignored client(s):\n");
 		for (i = 0, cl = cgs.clientinfo; i < cgs.maxclients; ++i, ++cl) {
-			if (cl->infoValid && (cgs.ignoredVGS & (1 << i))) {
+			if (cl->infoValid && (cgs.ignoredVGS & (1ULL << i))) {
 				Com_Printf("^5%2d^3: ^7%s\n", i, cl->name);
 			}
 		}
@@ -663,7 +675,7 @@ static void CG_IgnoreVGS_f(void)
 				Com_Printf("VGS Unignored all\n");
 			}
 			else {
-				cgs.ignoredVGS = 0xFFFFFFFF;
+				cgs.ignoredVGS = ~0ULL;
 				Com_Printf("VGS Ignored all\n");
 			}
 		}
@@ -673,12 +685,12 @@ static void CG_IgnoreVGS_f(void)
 				return;
 			}
 
-			if (cgs.ignoredVGS & (1 << target)) {
-				cgs.ignoredVGS ^= (1 << target);
+			if (cgs.ignoredVGS & (1ULL << target)) {
+				cgs.ignoredVGS ^= (1ULL << target);
 				Com_Printf("VGS Unignored %s\n", playername);
 			}
 			else {
-				cgs.ignoredVGS |= (1 << target);
+				cgs.ignoredVGS |= (1ULL << target);
 				Com_Printf("VGS Ignored %s\n", playername);
 			}
 		}
@@ -818,7 +830,7 @@ static void CG_FollowFastest_f(void) {
 	if (!cg.snap)
 		return;
 
-	for (i=0;i<MAX_CLIENTS;i++) {
+	for (i=0;i<CLIENT_SLOTS;i++) {
 		if (i == cg.snap->ps.clientNum)
 			continue;
 
@@ -2538,7 +2550,7 @@ static void CG_AddStrafeTrail_f(void)
 
 		for (i = 0, cl = cgs.clientinfo; i < cgs.maxclients; ++i, ++cl) {
 			if (cl->infoValid) {
-				if (cg_strafeTrailPlayers.integer & (1<<i))
+				if (i < MAX_CLIENTS && (cg_strafeTrailPlayers.integer & (1<<i)))
 					trap->Print("^5%2d^3: ^7[X] ^7%s\n", i, cl->name);
 				else
 					trap->Print("^5%2d^3: ^7[ ] ^7%s\n", i, cl->name);
@@ -2633,7 +2645,7 @@ static void CG_TeleTargetPlayer_f(void) {
 	}
 	
 
-	if (targetNum < 0 || targetNum >= MAX_CLIENTS) {
+	if (targetNum < 0 || targetNum >= CLIENT_SLOTS) {
 		return;
 	}
 
@@ -2683,7 +2695,7 @@ static void CG_TeleToPlayer_f(void) {
 	}
 
 
-	if (targetNum < 0 || targetNum >= MAX_CLIENTS) {
+	if (targetNum < 0 || targetNum >= CLIENT_SLOTS) {
 		return;
 	}
 	cent = &cg_entities[targetNum];
