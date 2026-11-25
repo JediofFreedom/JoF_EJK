@@ -765,6 +765,9 @@ typedef struct cgameImport_s {
 	// line's gif) fitted into x, y, w, h of the 640x480 screen, at its left, at once, and
 	// says how it went (sjkGifStatus_t): the first call asks for it.
 	int				(*SJK_DrawGif)							( const char *id, float x, float y, float w, float h );
+	// Only valid when the "cl_gameStateExtended" cvar is non-zero. The whole gamestate,
+	// which can pass GetGameState's stock 16000 characters on a 64-slot server.
+	void			(*GetGameStateExtended)					( gameStateExtended_t *gs );
 
 } cgameImport_t;
 

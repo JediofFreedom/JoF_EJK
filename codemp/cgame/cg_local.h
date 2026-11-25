@@ -2212,7 +2212,8 @@ typedef struct cg_staticmodel_s {
 // be cleared when a tournament restart is done, allowing
 // all clients to begin playing instantly
 typedef struct cgs_s {
-	gameState_t		gameState;			// gamestate from server
+	gameStateExtended_t	gameState;		// gamestate from server (CG_GetGameState)
+	qboolean		gameStateExtended;	// the engine gives the whole of it (cl_gameStateExtended)
 	glconfig_t		glconfig;			// rendering configuration
 	float			screenXScale;		// derived from glconfig
 	float			screenYScale;
@@ -2383,6 +2384,7 @@ void CG_UpdateCvars( void );
 // cg_main.c
 //
 const char *CG_ConfigString( int index );
+void CG_GetGameState( void );
 const char *CG_Argv( int arg );
 
 void CG_StartMusic( qboolean bForceStart );

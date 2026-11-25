@@ -637,7 +637,7 @@ void CL_ParseGamestate( msg_t *msg ) {
 
 			len = strlen( s );
 
-			if ( len + 1 + cl.gameState.dataCount > MAX_GAMESTATE_CHARS ) {
+			if ( len + 1 + cl.gameState.dataCount > MAX_GAMESTATE_CHARS_EXTENDED ) {
 				Com_Error( ERR_DROP, "MAX_GAMESTATE_CHARS exceeded" );
 			}
 

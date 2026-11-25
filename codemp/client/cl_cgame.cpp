@@ -304,7 +304,7 @@ void CL_ConfigstringModified( void ) {
 	char		*old, *s;
 	int			i, index;
 	char		*dup;
-	gameState_t	oldGs;
+	static gameStateExtended_t	oldGs;	// too big for the stack
 	int			len;
 
 	index = atoi( Cmd_Argv(1) );
@@ -339,7 +339,7 @@ void CL_ConfigstringModified( void ) {
 
 		len = strlen( dup );
 
-		if ( len + 1 + cl.gameState.dataCount > MAX_GAMESTATE_CHARS ) {
+		if ( len + 1 + cl.gameState.dataCount > MAX_GAMESTATE_CHARS_EXTENDED ) {
 			Com_Error( ERR_DROP, "MAX_GAMESTATE_CHARS exceeded" );
 		}
 

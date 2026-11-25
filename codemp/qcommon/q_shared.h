@@ -1023,6 +1023,16 @@ typedef struct gameState_s {
 	int			dataCount;
 } gameState_t;
 
+// The engine and this cgame keep a bigger gamestate: 64 players' configstrings on a
+// 64-slot (jof64) server can pass 16000 characters. A gamestate still fits one server
+// message (MAX_MSGLEN). gameState_t keeps its stock size for the modules built with it.
+#define	MAX_GAMESTATE_CHARS_EXTENDED	49152
+typedef struct gameStateExtended_s {
+	int			stringOffsets[MAX_CONFIGSTRINGS];
+	char		stringData[MAX_GAMESTATE_CHARS_EXTENDED];
+	int			dataCount;
+} gameStateExtended_t;
+
 
 //=========================================================
 

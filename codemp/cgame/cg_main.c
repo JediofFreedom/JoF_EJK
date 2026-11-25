@@ -2042,6 +2042,27 @@ const char *CG_ConfigString( int index ) {
 	return cgs.gameState.stringData + cgs.gameState.stringOffsets[ index ];
 }
 
+/*
+=================
+CG_GetGameState
+
+The whole gamestate from an engine that has GetGameStateExtended, else the stock
+16000-character one.
+=================
+*/
+void CG_GetGameState( void ) {
+	static gameState_t stock;
+
+	if ( cgs.gameStateExtended ) {
+		trap->GetGameStateExtended( &cgs.gameState );
+		return;
+	}
+	trap->GetGameState( &stock );
+	memcpy( cgs.gameState.stringOffsets, stock.stringOffsets, sizeof( stock.stringOffsets ) );
+	memcpy( cgs.gameState.stringData, stock.stringData, sizeof( stock.stringData ) );
+	cgs.gameState.dataCount = stock.dataCount;
+}
+
 //==================================================================
 
 /*
@@ -3383,7 +3404,12 @@ Ghoul2 Insert End
 	UI_Set2DRatio();
 
 	// get the gamestate from the client system
-	trap->GetGameState( &cgs.gameState );
+	{
+		char extended[8];
+		trap->Cvar_VariableStringBuffer( "cl_gameStateExtended", extended, sizeof( extended ) );
+		cgs.gameStateExtended = (qboolean)( atoi( extended ) && trap->GetGameStateExtended );
+	}
+	CG_GetGameState();
 
 	CG_TransitionPermanent(); //rwwRMG - added
 
