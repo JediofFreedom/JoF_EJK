@@ -568,6 +568,7 @@ void CL_StartHunkUsers( void );
 
 qboolean CL_GetSnapshot( int snapshotNumber, snapshot_t *snapshot );
 qboolean CL_GetDefaultState( int index, entityState_t *state );
+int CL_ClientSlots( void );	// 32, or up to 64 on a server with more than 32 player slots
 qboolean CL_GetServerCommand( int serverCommandNumber );
 qboolean CL_GetUserCmd( int cmdNumber, usercmd_t *ucmd );
 void CL_SetUserCmdValue( int userCmdValue, float sensitivityScale, float mPitchOverride, float mYawOverride, float mSensitivityOverride, int fpSel, int invenSel );

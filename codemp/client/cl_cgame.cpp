@@ -225,14 +225,26 @@ static void CL_UpdateDiscordServerInfo(const char *info)
 }
 #endif
 
-static void CL_ParsePlayerInfo(int start, int end)
+/*
+====================
+CL_ClientSlots
+
+Player slots the server shows us: 32, or up to 64 when the serverinfo it
+sent says jof64 (servers with more than 32 player slots).
+====================
+*/
+int CL_ClientSlots( void ) {
+	return BG_ClientSlotsFromServerinfo( cl.gameState.stringData + cl.gameState.stringOffsets[ CS_SERVERINFO ] );
+}
+
+static void CL_ParsePlayerInfo(int slots)
 {
 	int clientCount = 0, botCount = 0, redTeam = 0, blueTeam = 0, specTeam = 0;
-	int i = start;
+	int i = 0;
 
-	while (i < end)
+	while (i < slots)
 	{
-		char *s = cl.gameState.stringData + cl.gameState.stringOffsets[i];
+		char *s = cl.gameState.stringData + cl.gameState.stringOffsets[BG_PlayerConfigstring(i)];
 		int team = atoi(Info_ValueForKey(s, "t"));
 		char *bot = Info_ValueForKey(s, "skill");
 
@@ -337,10 +349,9 @@ void CL_ConfigstringModified( void ) {
 		cl.gameState.dataCount += len + 1;
 	}
 
-	if (index >= CS_PLAYERS &&
-		index < CS_G2BONES)
+	if (BG_ConfigstringPlayer(index, CL_ClientSlots()) != -1)
 	{ //this means that a client was updated in some way. Go through and count the clients.
-		CL_ParsePlayerInfo(CS_PLAYERS, CS_G2BONES);
+		CL_ParsePlayerInfo(CL_ClientSlots());
 	}
 
 #if defined(DISCORD)

@@ -141,7 +141,7 @@ void Con_MessageMode3_f (void) {	//target chat
 		chat_playerNum = CGVM_CrosshairPlayer();
 	}
 
-	if ( chat_playerNum < 0 || chat_playerNum >= MAX_CLIENTS ) {
+	if ( chat_playerNum < 0 || chat_playerNum >= CL_ClientSlots() ) {
 		chat_playerNum = -1;
 		return;
 	}
@@ -166,7 +166,7 @@ void Con_MessageMode4_f (void)
 	}
 
 	chat_playerNum = CGVM_LastAttacker();
-	if ( chat_playerNum < 0 || chat_playerNum >= MAX_CLIENTS ) {
+	if ( chat_playerNum < 0 || chat_playerNum >= CL_ClientSlots() ) {
 		chat_playerNum = -1;
 		return;
 	}
@@ -191,7 +191,7 @@ void Con_MessageMode5_f(void)
 	}
 
 	chat_playerNum = CGVM_LastWhisperer();
-	if (chat_playerNum < 0 || chat_playerNum >= MAX_CLIENTS) {
+	if (chat_playerNum < 0 || chat_playerNum >= CL_ClientSlots()) {
 		chat_playerNum = -1;
 		return;
 	}
@@ -1122,7 +1122,7 @@ void Con_DrawNotify (void)
 	if ( Key_GetCatcher( ) & KEYCATCH_MESSAGE )
 	{
 		if (chat_playerNum != -1) {
-			char* s = cl.gameState.stringData + cl.gameState.stringOffsets[CS_PLAYERS+chat_playerNum];		
+			char* s = cl.gameState.stringData + cl.gameState.stringOffsets[BG_PlayerConfigstring(chat_playerNum)];		
 			char* player = Info_ValueForKey(s, "n");//this contains name
 			char sanitized[MAX_NAME_LENGTH];
 			char without_color[100];

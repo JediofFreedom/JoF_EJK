@@ -545,9 +545,9 @@ sjkPlaceKind_t CL_SJK_Place( char *server, int serverSize, int *slot, char *name
 			|| clc.serverAddress.type != NA_IP )
 		return SJK_PLACE_NONE;
 	Q_strncpyz( server, NET_AdrToString( clc.serverAddress ), serverSize );
-	if ( cls.state != CA_ACTIVE || clc.clientNum < 0 || clc.clientNum >= MAX_CLIENTS )
+	if ( cls.state != CA_ACTIVE || clc.clientNum < 0 || clc.clientNum >= CL_ClientSlots() )
 		return SJK_PLACE_LOADING;
-	const char *info = cl.gameState.stringData + cl.gameState.stringOffsets[ CS_PLAYERS + clc.clientNum ];
+	const char *info = cl.gameState.stringData + cl.gameState.stringOffsets[ BG_PlayerConfigstring( clc.clientNum ) ];
 	Q_strncpyz( name, Info_ValueForKey( info, "n" ), nameSize );
 	if ( !name[0] )
 		return SJK_PLACE_LOADING;
