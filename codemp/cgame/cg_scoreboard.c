@@ -65,8 +65,21 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #define SB_BOTICON_X		(SCOREBOARD_X+32)
 #define SB_HEAD_X			(SCOREBOARD_X+64)
 
-#define SB_SCORELINE_X		100
-#define SB_SCORELINE_WIDTH	(SCREEN_WIDTH - SB_SCORELINE_X * 2)
+// The rows normally use one column from x 100 to 540. On a server with more
+// than 32 player slots, more than 32 rows go in two narrower columns instead
+// (CG_DrawWideScoreboard), which move these for the time they are drawn.
+static int		sbLineX = 100;
+static int		sbLineWidth = SCREEN_WIDTH - 100 * 2;
+static qboolean	sbWide = qfalse;
+
+#define SB_SCORELINE_X		(sbLineX)
+#define SB_SCORELINE_WIDTH	(sbLineWidth)
+
+#define SB_WIDE_COLUMN_WIDTH	270
+#define SB_WIDE_COLUMN_GAP		50
+#define SB_WIDE_LINE_HEIGHT		12
+#define SB_WIDE_SECTION_GAP		(BIGCHAR_HEIGHT - 8)
+#define SB_WIDE_NAME_CHARS		20	// longer names would run into the score column
 
 #define SB_RATING_WIDTH	    0 // (6 * BIGCHAR_WIDTH)
 #define SB_NAME_X			(SB_SCORELINE_X)
@@ -144,7 +157,7 @@ static int CG_ScoreboardFlagPowerups( int clientNum ) {
 	if ( cgs.blueflag != FLAG_TAKEN )
 		powerups &= ~(1<<PW_BLUEFLAG);
 
-	for ( i = 0; i < MAX_CLIENTS && powerups; i++ ) {
+	for ( i = 0; i < CLIENT_SLOTS && powerups; i++ ) {
 		int live;
 
 		if ( i == clientNum )
@@ -181,6 +194,8 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 	flagPowerups = CG_ScoreboardFlagPowerups( score->client );
 	// right next to the row, not out at the far left edge with the bot/class icons
 	flagx = SB_SCORELINE_X - 7 - iconSize;
+	if ( sbWide )
+		iconx = (int)flagx; // the far left edge is the other column
 
 	// draw the handicap or bot skill marker (unless player has flag)
 	if ( flagPowerups & (1<<PW_NEUTRALFLAG) )
@@ -249,11 +264,11 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 		}
 
 		hcolor[3] = fade * 0.7;
-		CG_FillRect( SB_SCORELINE_X - 5, y + 2, SCREEN_WIDTH - SB_SCORELINE_X * 2 + 10, (largeFormat && (!cg_smallScoreboard.integer && cgs.gametype != GT_CTF))?SB_NORMAL_HEIGHT:maxClientScoreboard ? 12.0f : SB_INTER_HEIGHT, hcolor );//JAPRO - Clientside - Small Scoreboard
+		CG_FillRect( SB_SCORELINE_X - 5, y + 2, SB_SCORELINE_WIDTH + 10, (largeFormat && (!cg_smallScoreboard.integer && cgs.gametype != GT_CTF))?SB_NORMAL_HEIGHT:maxClientScoreboard ? 12.0f : SB_INTER_HEIGHT, hcolor );//JAPRO - Clientside - Small Scoreboard
 	}
 
 	if (!cg_drawScoreboardIcons.integer) {
-		CG_Text_Paint(SB_NAME_X, y, 0.9f * scale, colorWhite, ci->name, 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM);
+		CG_Text_Paint(SB_NAME_X, y, 0.9f * scale, colorWhite, ci->name, 0, sbWide ? SB_WIDE_NAME_CHARS : 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM);
 	}
 	else {
 		if (largeFormat) {
@@ -262,7 +277,7 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 		}
 		else {
 			if (ci->modelIcon) CG_DrawPic(SB_NAME_X-5, y+2, 15*cgs.widthRatioCoef, 15, ci->modelIcon);
-			CG_Text_Paint(SB_NAME_X+12*cgs.widthRatioCoef, y, 0.9f * scale, colorWhite, ci->name, 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM);
+			CG_Text_Paint(SB_NAME_X+12*cgs.widthRatioCoef, y, 0.9f * scale, colorWhite, ci->name, 0, sbWide ? SB_WIDE_NAME_CHARS : 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM);
 		}
 	}
 	//CG_Text_Paint (SB_NAME_X, y, 0.9f * scale, colorWhite, ci->name,0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
@@ -334,9 +349,10 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 		CG_Text_Paint(SB_ID_X, y, 1.0f * scale, colorWhite, va("%i", score->client), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_SMALL);
 
 	// add the "ready" marker for intermission exiting
-	if ( cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << score->client ) )
+	// (STAT_CLIENTS_READY has one bit for each of players 0-31 only)
+	if ( score->client < MAX_CLIENTS && cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << score->client ) )
 	{
-		CG_Text_Paint (SB_NAME_X - 64, y + 2, 0.7f * scale, colorWhite, CG_GetStringEdString("MP_INGAME", "READY"),0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+		CG_Text_Paint (SB_NAME_X - (sbWide ? 25 : 64), y + 2, 0.7f * scale, colorWhite, CG_GetStringEdString("MP_INGAME", "READY"),0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
 	}
 }
 
@@ -613,9 +629,10 @@ static void CG_DrawClientScore2( int y, score_t *score, float *color, float fade
 		CG_Text_Paint(SB_ID_X, y, 1.25f * scale, colorWhite, va("%i", score->client), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_SMALL2);
 
 	// add the "ready" marker for intermission exiting
-	if ( cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << score->client ) )
+	// (STAT_CLIENTS_READY has one bit for each of players 0-31 only)
+	if ( score->client < MAX_CLIENTS && cg.snap->ps.stats[ STAT_CLIENTS_READY ] & ( 1 << score->client ) )
 	{
-		CG_Text_Paint (SB_NAME_X - 64, y + 2, 0.7f * scale, colorWhite, CG_GetStringEdString("MP_INGAME", "READY"),0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+		CG_Text_Paint (SB_NAME_X - (sbWide ? 25 : 64), y + 2, 0.7f * scale, colorWhite, CG_GetStringEdString("MP_INGAME", "READY"),0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
 	}
 }
 #endif
@@ -633,7 +650,7 @@ static int CG_TeamScoreboard( int y, team_t team, float fade, int maxClients, in
 	float	color[4];
 	int		count;
 	clientInfo_t	*ci;
-	qboolean listed[MAX_CLIENTS];
+	qboolean listed[MAX_CLIENT_SLOTS];
 	memset(listed, qfalse, sizeof(listed));
 	color[0] = color[1] = color[2] = 1.0;
 	color[3] = fade;
@@ -685,6 +702,164 @@ static int CG_TeamScoreboard( int y, team_t team, float fade, int maxClients, in
 	return count;
 }
 #endif
+
+/*
+=================
+CG_ScoreboardColumn
+
+Servers with more than 32 player slots: puts the rows in column 0 or 1 of
+the two-column layout, or back in the usual single column with -1.
+=================
+*/
+static void CG_ScoreboardColumn( int column )
+{
+	if ( column < 0 ) {
+		sbLineX = 100;
+		sbLineWidth = SCREEN_WIDTH - 100 * 2;
+		sbWide = qfalse;
+		return;
+	}
+
+	sbLineX = ( SCREEN_WIDTH - 2 * SB_WIDE_COLUMN_WIDTH - SB_WIDE_COLUMN_GAP ) / 2 + column * ( SB_WIDE_COLUMN_WIDTH + SB_WIDE_COLUMN_GAP );
+	sbLineWidth = SB_WIDE_COLUMN_WIDTH;
+	sbWide = qtrue;
+}
+
+/*
+=================
+CG_ScoreboardRows
+
+The rows CG_TeamScoreboard lists for a team, in the same order: the scores
+the server sent, then the players it left out (shown as N/A).
+=================
+*/
+static int CG_ScoreboardRows( team_t team, score_t *rows, int maxRows )
+{
+	qboolean listed[MAX_CLIENT_SLOTS];
+	int i, count = 0;
+
+	memset( listed, qfalse, sizeof( listed ) );
+
+	for ( i = 0; i < cg.numScores && count < maxRows; i++ ) {
+		if ( cgs.clientinfo[cg.scores[i].client].team != team )
+			continue;
+		listed[cg.scores[i].client] = qtrue;
+		rows[count++] = cg.scores[i];
+	}
+
+	for ( i = 0; cg.numScores > 0 && i < cgs.maxclients && count < maxRows; i++ ) {
+		if ( !cgs.clientinfo[i].infoValid || cgs.clientinfo[i].team != team || listed[i] )
+			continue;
+		memset( &rows[count], 0, sizeof( rows[count] ) );
+		rows[count].client = i;
+		rows[count].fake = qtrue;
+		count++;
+	}
+
+	return count;
+}
+
+/*
+=================
+CG_WideScoreboardSection
+
+Draws a team's rows from column startColumn on, below what each column
+already holds (colY), going on in the other column when one is full.
+=================
+*/
+static void CG_WideScoreboardSection( team_t team, int startColumn, int *colY, int top, float fade, qboolean teamBackground )
+{
+	score_t	rows[MAX_CLIENT_SLOTS];
+	float	color[4];
+	int		n, drawn = 0, k;
+
+	color[0] = color[1] = color[2] = 1.0f;
+	color[3] = fade;
+
+	n = CG_ScoreboardRows( team, rows, MAX_CLIENT_SLOTS );
+
+	for ( k = 0; k < 2 && drawn < n; k++ ) {
+		int column = ( startColumn + k ) % 2;
+		int y = colY[column];
+		int count, j;
+
+		if ( y > top )
+			y += SB_WIDE_SECTION_GAP; // below another section
+		count = ( SCREEN_HEIGHT - 8 - y ) / SB_WIDE_LINE_HEIGHT;
+		if ( count <= 0 )
+			continue;
+		if ( count > n - drawn )
+			count = n - drawn;
+
+		CG_ScoreboardColumn( column );
+		if ( teamBackground )
+			CG_DrawTeamBackground( SB_SCORELINE_X - 5, y - 4, SB_SCORELINE_WIDTH + 10, count * SB_WIDE_LINE_HEIGHT + 8, 0.33f, team );
+		for ( j = 0; j < count; j++, drawn++ )
+			CG_DrawClientScore( y + j * SB_WIDE_LINE_HEIGHT, &rows[drawn], color, fade, qfalse, qtrue );
+		colY[column] = y + count * SB_WIDE_LINE_HEIGHT;
+	}
+
+	CG_ScoreboardColumn( -1 );
+}
+
+/*
+=================
+CG_WideScoreboardRows
+
+How many rows the scoreboard lists, when that can go past 32: only on a
+server with more than 32 player slots. Otherwise 0.
+=================
+*/
+static int CG_WideScoreboardRows( void )
+{
+	score_t	rows[MAX_CLIENT_SLOTS];
+	int		count;
+
+	if ( cgs.maxclients <= MAX_CLIENTS )
+		return 0;
+
+	if ( cgs.gametype >= GT_TEAM ) {
+		count = CG_ScoreboardRows( TEAM_RED, rows, MAX_CLIENT_SLOTS ) + CG_ScoreboardRows( TEAM_BLUE, rows, MAX_CLIENT_SLOTS );
+		if ( cgs.serverMod == SVMOD_JAPRO && ( cgs.gametype == GT_TEAM || cgs.gametype == GT_CTF ) )
+			count += CG_ScoreboardRows( TEAM_FREE, rows, MAX_CLIENT_SLOTS );
+	}
+	else {
+		count = CG_ScoreboardRows( TEAM_FREE, rows, MAX_CLIENT_SLOTS );
+	}
+
+	return count + CG_ScoreboardRows( TEAM_SPECTATOR, rows, MAX_CLIENT_SLOTS );
+}
+
+/*
+=================
+CG_DrawWideScoreboard
+
+More than 32 rows do not fit in one column, so they go in two side by side
+with the small rows. Team games put the leading team on the left and the
+other on the right; free players and spectators follow, left column first.
+=================
+*/
+static void CG_DrawWideScoreboard( int y, float fade )
+{
+	int colY[2];
+
+	if ( cgs.gametype >= GT_TEAM ) {
+		team_t first = ( cg.teamScores[0] >= cg.teamScores[1] ) ? TEAM_RED : TEAM_BLUE;
+
+		y += SB_WIDE_LINE_HEIGHT / 2;
+		colY[0] = colY[1] = y;
+		CG_WideScoreboardSection( first, 0, colY, y, fade, qtrue );
+		CG_WideScoreboardSection( ( first == TEAM_RED ) ? TEAM_BLUE : TEAM_RED, 1, colY, y, fade, qtrue );
+		if ( cgs.serverMod == SVMOD_JAPRO && ( cgs.gametype == GT_TEAM || cgs.gametype == GT_CTF ) )
+			CG_WideScoreboardSection( TEAM_FREE, 0, colY, y, fade, qfalse );
+	}
+	else {
+		colY[0] = colY[1] = y;
+		CG_WideScoreboardSection( TEAM_FREE, 0, colY, y, fade, qfalse );
+	}
+
+	CG_WideScoreboardSection( TEAM_SPECTATOR, 0, colY, y, fade, qfalse );
+}
 
 int	CG_GetClassCount(team_t team,int siegeClass )
 {
@@ -831,6 +1006,44 @@ static QINLINE int CG_TeamScoreboard( int y, team_t team, float fade, int maxCli
 
 /*
 =================
+CG_DrawScoreboardHeaderLabels
+
+The column titles after NAME.
+=================
+*/
+static void CG_DrawScoreboardHeaderLabels( int y, float menuHeadersScale )
+{
+	if ((cgs.gametype == GT_DUEL && cgs.fraglimit > 0) || cgs.gametype == GT_POWERDUEL)
+	{
+		char sWL[100];
+		trap->SE_GetStringTextString("MP_INGAME_W_L", sWL,	sizeof(sWL));
+
+		CG_Text_Paint ( SB_SCORE_X, y, menuHeadersScale, colorWhite, sWL, 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+	}
+	else if (cgs.gametype == GT_CTF)
+	{
+		CG_Text_Paint ( SB_SCORELINE_X + 0.47f * SB_SCORELINE_WIDTH, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "SCORE"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+
+		CG_Text_Paint ( SB_SCORELINE_X + 0.59f * SB_SCORELINE_WIDTH, y, menuHeadersScale, colorWhite, "C", 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+		CG_Text_Paint ( SB_SCORELINE_X + 0.66f * SB_SCORELINE_WIDTH, y, menuHeadersScale, colorWhite, "A", 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );//loda
+		CG_Text_Paint ( SB_SCORELINE_X + 0.73f * SB_SCORELINE_WIDTH, y, menuHeadersScale, colorWhite, "D", 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+
+		CG_Text_Paint ( SB_SCORELINE_X + 0.80 * SB_SCORELINE_WIDTH, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "PING"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+		CG_Text_Paint ( SB_SCORELINE_X + 0.90 * SB_SCORELINE_WIDTH, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "TIME"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+	}
+	else
+	{
+		CG_Text_Paint ( SB_SCORE_X, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "SCORE"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+		CG_Text_Paint ( SB_PING_X, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "PING"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+		CG_Text_Paint ( SB_TIME_X, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "TIME"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+	}
+
+	if (cg_showClientIDs.integer)
+		CG_Text_Paint(SB_ID_X, y, menuHeadersScale, colorWhite, "Id", 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM);
+}
+
+/*
+=================
 CG_DrawScoreboard
 
 Draw the normal in-game scoreboard
@@ -850,6 +1063,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 	int lineHeight;
 	int topBorderSize, bottomBorderSize;
 	qboolean maxClientsScoreboard = cgs.numClients >= 20;
+	qboolean wideScoreboard;
 	qboolean intermissionOrDead =
 	cg.predictedPlayerState.pm_type == PM_DEAD ||
 	cg.predictedPlayerState.pm_type == PM_INTERMISSION ||
@@ -1085,6 +1299,11 @@ qboolean CG_DrawOldScoreboard( void ) {
 		CG_Text_Paint ( x - CG_Text_Width ( s, maxClientsScoreboard ? 0.85f : 1.0f, FONT_MEDIUM ) / 2, y, maxClientsScoreboard ? 0.85f : 1.0f, colorWhite, s, 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
 	}
 
+	// servers with more than 32 player slots: more than 32 rows go in two
+	// columns, unless the compact scoreboard (24 rows, see below) is up
+	wideScoreboard = !( maxClientsScoreboard && cgs.numClients > 25 && intermissionOrDead && !cg.pressingScoreBoard )
+		&& CG_WideScoreboardRows() > MAX_CLIENTS;
+
 	// scoreboard
 	y = maxClientsScoreboard ? SB_HEADER - 42 : SB_HEADER;
 
@@ -1100,42 +1319,29 @@ qboolean CG_DrawOldScoreboard( void ) {
 		CG_DrawPic( SB_SCORELINE_X - 40, y - 5, SB_SCORELINE_WIDTH + 80, 40, trap->R_RegisterShaderNoMip ( "gfx/menus/menu_buttonback.tga" ) );
 		CG_Text_Paint( SB_NAME_X, y, 1.0f, colorWhite, CG_GetStringEdString("MP_INGAME", "NAME"),0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
 	}
+	CG_DrawScoreboardHeaderLabels( y, menuHeadersScale );
 #else
-	CG_DrawPic ( SB_SCORELINE_X - 40, y - 5, SB_SCORELINE_WIDTH + 80,  maxClientsScoreboard ? 20 : 40, trap->R_RegisterShaderNoMip ( "gfx/menus/menu_buttonback.tga" ) );
-	
 	float menuHeadersScale = maxClientsScoreboard ? 0.75f : 1.0f;
-	
-	y -= 6;
-	
-	CG_Text_Paint ( SB_NAME_X, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "NAME"),0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+
+	if ( wideScoreboard ) {
+		// a header over each column
+		for ( i = 0; i < 2; i++ ) {
+			CG_ScoreboardColumn( i );
+			CG_DrawPic( SB_SCORELINE_X - 10, y - 5, SB_SCORELINE_WIDTH + 20, 20, trap->R_RegisterShaderNoMip( "gfx/menus/menu_buttonback.tga" ) );
+			CG_Text_Paint( SB_NAME_X, y - 6, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "NAME"),0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+			CG_DrawScoreboardHeaderLabels( y - 6, menuHeadersScale );
+		}
+		CG_ScoreboardColumn( -1 );
+	}
+	else {
+		CG_DrawPic ( SB_SCORELINE_X - 40, y - 5, SB_SCORELINE_WIDTH + 80,  maxClientsScoreboard ? 20 : 40, trap->R_RegisterShaderNoMip ( "gfx/menus/menu_buttonback.tga" ) );
+
+		y -= 6;
+
+		CG_Text_Paint ( SB_NAME_X, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "NAME"),0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+		CG_DrawScoreboardHeaderLabels( y, menuHeadersScale );
+	}
 #endif
-	if ((cgs.gametype == GT_DUEL && cgs.fraglimit > 0) || cgs.gametype == GT_POWERDUEL)
-	{
-		char sWL[100];
-		trap->SE_GetStringTextString("MP_INGAME_W_L", sWL,	sizeof(sWL));
-
-		CG_Text_Paint ( SB_SCORE_X, y, menuHeadersScale, colorWhite, sWL, 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
-	}
-	else if (cgs.gametype == GT_CTF)
-	{
-		CG_Text_Paint ( SB_SCORELINE_X + 0.47f * SB_SCORELINE_WIDTH, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "SCORE"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
-
-		CG_Text_Paint ( SB_SCORELINE_X + 0.59f * SB_SCORELINE_WIDTH, y, menuHeadersScale, colorWhite, "C", 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
-		CG_Text_Paint ( SB_SCORELINE_X + 0.66f * SB_SCORELINE_WIDTH, y, menuHeadersScale, colorWhite, "A", 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );//loda
-		CG_Text_Paint ( SB_SCORELINE_X + 0.73f * SB_SCORELINE_WIDTH, y, menuHeadersScale, colorWhite, "D", 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
-
-		CG_Text_Paint ( SB_SCORELINE_X + 0.80 * SB_SCORELINE_WIDTH, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "PING"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
-		CG_Text_Paint ( SB_SCORELINE_X + 0.90 * SB_SCORELINE_WIDTH, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "TIME"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
-	}
-	else
-	{
-		CG_Text_Paint ( SB_SCORE_X, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "SCORE"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
-		CG_Text_Paint ( SB_PING_X, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "PING"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
-		CG_Text_Paint ( SB_TIME_X, y, menuHeadersScale, colorWhite, CG_GetStringEdString("MP_INGAME", "TIME"), 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
-	}
-
-	if (cg_showClientIDs.integer)
-		CG_Text_Paint(SB_ID_X, y, menuHeadersScale, colorWhite, "Id", 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM);
 
 	y = maxClientsScoreboard ? SB_TOP - 62 : SB_TOP;
 
@@ -1183,7 +1389,10 @@ qboolean CG_DrawOldScoreboard( void ) {
 
 	//I guess this can be accomplished simply by printing the first teams score with a maxClients
 	//value passed in related to how many players are on both teams.
-	if ( cgs.gametype >= GT_TEAM ) {
+	if ( wideScoreboard ) {
+		CG_DrawWideScoreboard( y, fade );
+	}
+	else if ( cgs.gametype >= GT_TEAM ) {
 		int compactSpectatorMax;
 
 		//
@@ -1351,7 +1560,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 			int y2 = 90;
 			clientInfo_t *spec = NULL;
 			qboolean drewHeader = qfalse;
-			for (i = 0; i < MAX_CLIENTS; i++) {
+			for (i = 0; i < CLIENT_SLOTS; i++) {
 				spec = &cgs.clientinfo[i];
 				//CG_Text_Paint(SB_NAME_X, y, 0.9f * scale, colorWhite, ci->name, 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM);
 				if (spec && spec->infoValid && spec->team == TEAM_SPECTATOR && VALIDSTRING(spec->name) &&
