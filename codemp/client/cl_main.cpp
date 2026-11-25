@@ -2106,6 +2106,11 @@ void CL_CheckForResend( void ) {
 
 		Info_SetValueForKey( info, "qport", va("%i", port ) );
 
+		// we can show every player on servers with more than 32 player slots:
+		// such a server then sends jof64 and its real sv_maxclients in the
+		// serverinfo (see CL_ClientSlots), others ignore the key
+		Info_SetValueForKey( info, "jof64", "1" );
+
 		if (clc.uniqueAssigned && cl_antiSpoof->integer)
 		{
 			Info_SetValueForKey(info, "unique", va("%i", clc.unique));
