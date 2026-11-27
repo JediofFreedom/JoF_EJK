@@ -77,7 +77,12 @@ static void R_BuildWorldVBO() {
     }
     CHECK(!vbo_nthSurface(count));
 }
-static void RE_EndRegistration() { R_BuildWorldVBO(); }
+// Stubs for the production RE_EndRegistration; the build must follow texture registration and the idle wait.
+static int textureRegistrationEnds,idleWaits,cacheReports,buildsAtIdle,buildsAtReport;
+static void R_SetTextureRegistration(qboolean active) { CHECK(!active); ++textureRegistrationEnds; }
+static void vk_wait_idle() { ++idleWaits; buildsAtIdle = builds; }
+static void vk_report_texture_cache() { ++cacheReports; buildsAtReport = builds; }
+#include "end_registration.h"
 #include "world_loader.h"
 int main() {
     RE_LoadWorldMap_Actual("maps/main.bsp",s_worldData,0);
@@ -99,6 +104,7 @@ int main() {
     CHECK(rejected && builds == 0 && vbo_numSpans == 3 && cleanups == 1 && tr.world == &s_worldData && files == 0);
     RE_EndRegistration();
     CHECK(builds == 1 && !vbo_pending);
+    CHECK(textureRegistrationEnds == 1 && idleWaits == 1 && cacheReports == 1 && buildsAtIdle == 0 && buildsAtReport == 1);
     CHECK(surfaces[0].vboItemIndex == 1 && surfaces[1].vboItemIndex == 2 && surfaces[2].vboItemIndex == 3);
     RE_EndRegistration();
     CHECK(builds == 1);
