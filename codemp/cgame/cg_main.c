@@ -3951,6 +3951,19 @@ static void CG_FX_CameraShake( void ) {
 
 /*
 ============
+JoF_ClientSlots
+
+Exported so the engine can tell, before it starts this cgame, that it has tables
+for every player slot of a server with more than 32 (jof64). Returns how many.
+============
+*/
+Q_EXPORT int QDECL JoF_ClientSlots( void );
+Q_EXPORT int QDECL JoF_ClientSlots( void ) {
+	return MAX_CLIENT_SLOTS;
+}
+
+/*
+============
 GetModuleAPI
 ============
 */

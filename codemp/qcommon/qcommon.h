@@ -650,6 +650,8 @@ qboolean FS_GetWritePath(const char *qpath, char *destination, size_t size);
 int		FS_FileIsInPAK(const char *filename, int *pChecksum );
 // returns 1 if a file is in the PAK file, otherwise -1
 long	FS_ReadDLLInPAK(const char *filename, void **buffer);
+qboolean FS_DLLSourceGame( const char *filename, char *gameDir, int gameDirSize );
+qboolean FS_GameDirHasDLL( const char *game, const char *filename );
 const char *FS_CmdlineGame( void );
 // the +set fs_game mod a client with fs_globalcfg 1 still mounts and hosts, or ""
 void	FS_NoteGameModule( const char *filename, const char *gameDir );

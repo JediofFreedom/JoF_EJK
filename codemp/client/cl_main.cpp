@@ -1974,6 +1974,63 @@ void CL_InitDownloads(void) {
 
 /*
 =================
+Extended player slots (jof64)
+
+A server with more than 32 player slots shows them only to a client that asks with
+jof64=1 in its connect packet, and the client has to keep that view until it connects
+again. Only our own cgame has tables for 64 players. A mod's cgame, or an older one,
+would overrun its 32-player tables, so we ask only when our cgame will be the one to
+run, and CL_InitCGame checks the cgame it did load before starting it.
+=================
+*/
+static qboolean	cl_jof64Refused;		// a cgame without extended slots ran on this server
+static netadr_t	cl_jof64RefusedAddress;
+static qboolean	cl_jof64Rejoin;			// CL_Frame: reconnect once disconnected
+
+#define CL_CGAME_DLL	"cgame" ARCH_STRING DLL_EXT
+
+// Whether the cgame that will run on this server is not ours (EternalJK's).
+static qboolean CL_ForeignCgameAhead( void ) {
+	char gameDir[MAX_OSPATH];
+
+	// With fs_globalcfg 0 the server's mod folder is mounted above everything once
+	// its gamestate comes in, so a cgame in that folder wins.
+	if ( !Cvar_VariableIntegerValue( "fs_globalcfg" ) && clc.serverGame[0] &&
+			Q_stricmp( clc.serverGame, BASEGAME ) && Q_stricmp( clc.serverGame, ETERNALJKGAME ) &&
+			FS_GameDirHasDLL( clc.serverGame, CL_CGAME_DLL ) ) {
+		return qtrue;
+	}
+	// Otherwise the folders mounted now decide. No cgame at all fails to load anyway.
+	return (qboolean)( FS_DLLSourceGame( CL_CGAME_DLL, gameDir, sizeof( gameDir ) ) &&
+		Q_stricmp( gameDir, ETERNALJKGAME ) );
+}
+
+static qboolean CL_WantsExtendedSlots( void ) {
+	if ( !clc.serverOffersJof64 ) {
+		return qfalse;	// no getinfo reply, or a server with 32 slots or fewer
+	}
+	if ( cl_jof64Refused && NET_CompareAdr( clc.serverAddress, cl_jof64RefusedAddress ) ) {
+		return qfalse;
+	}
+	if ( CL_ForeignCgameAhead() ) {
+		Com_DPrintf( "Not asking for more than 32 player slots: the cgame is not EternalJK's\n" );
+		return qfalse;
+	}
+	return qtrue;
+}
+
+qboolean CL_RefuseExtendedSlots( void ) {
+	if ( cl_jof64Refused && NET_CompareAdr( clc.serverAddress, cl_jof64RefusedAddress ) ) {
+		return qfalse;
+	}
+	cl_jof64Refused = qtrue;
+	cl_jof64RefusedAddress = clc.serverAddress;
+	cl_jof64Rejoin = qtrue;
+	return qtrue;
+}
+
+/*
+=================
 CL_CheckForResend
 
 Resend a connect message if the last one has timed out
@@ -2106,16 +2163,18 @@ void CL_CheckForResend( void ) {
 
 		Info_SetValueForKey( info, "qport", va("%i", port ) );
 
-		// we can show every player on servers with more than 32 player slots:
-		// such a server then sends jof64 and its real sv_maxclients in the
-		// serverinfo (see CL_ClientSlots), others ignore the key
-		Info_SetValueForKey( info, "jof64", "1" );
-
 		if (clc.uniqueAssigned && cl_antiSpoof->integer)
 		{
 			Info_SetValueForKey(info, "unique", va("%i", clc.unique));
 		}
 		Info_SetValueForKey( info, "challenge", va("%i", clc.challenge ) );
+
+		// Ask to be shown every player slot (jof64): the server then sends jof64 and
+		// its real sv_maxclients in our serverinfo (CL_ClientSlots). Added last, so
+		// a long userinfo can only lose this key, never the challenge before it.
+		if ( CL_WantsExtendedSlots() ) {
+			Info_SetValueForKey( info, "jof64", "1" );
+		}
 
 		Com_sprintf(data, sizeof(data), "connect \"%s\"", info );
 		NET_OutOfBandData( NS_CLIENT, clc.serverAddress, (byte *)data, strlen(data) );
@@ -3038,6 +3097,12 @@ void CL_Frame ( int msec ) {
 
 	SE_CheckForLanguageUpdates();	// will take zero time to execute unless language changes, then will reload strings.
 									//	of course this still doesn't work for menus...
+
+	// CL_InitCGame dropped a server's extended player slots: join it again without them
+	if ( cl_jof64Rejoin && cls.state == CA_DISCONNECTED ) {
+		cl_jof64Rejoin = qfalse;
+		Cbuf_AddText( "reconnect\n" );
+	}
 
 	if ( cls.state == CA_DISCONNECTED && !( Key_GetCatcher( ) & KEYCATCH_UI )
 		&& !com_sv_running->integer && cls.uiStarted ) {
@@ -4624,6 +4689,10 @@ void CL_ServerInfoPacket( netadr_t from, msg_t *msg ) {
 
 		//it seems Aspyr removed trap_SnapVector from their new ports, i guess because it's the only code that was written in raw assembly and it was just easier to remove lol
 		Cvar_Set("pmove_float", "0");
+
+		// for the connect packet: does it have more than 32 player slots, and its mod
+		clc.serverOffersJof64 = (qboolean)( atoi( Info_ValueForKey( infoString, "jof64" ) ) == 1 );
+		Q_strncpyz( clc.serverGame, Info_ValueForKey( infoString, "game" ), sizeof( clc.serverGame ) );
 	}
 
 	// if this is an MB2 server, ignore it

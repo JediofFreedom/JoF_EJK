@@ -29,6 +29,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "snd_ambient.h"
 #include "FXExport.h"
 #include "FxUtil.h"
+#include "sys/sys_loadlib.h"
 
 extern IHeapAllocator *G2VertSpaceClient;
 extern botlib_export_t *botlib_export;
@@ -36,6 +37,12 @@ extern botlib_export_t *botlib_export;
 // cgame interface
 static cgameExport_t *cge; // cgame export table
 static vm_t *cgvm; // cgame vm, valid for legacy and new api
+
+// Our cgame exports JoF_ClientSlots: it has tables for every player slot of a
+// server with more than 32 (jof64). A mod's cgame, or an older one, does not.
+qboolean CL_CgameHasClientSlots( void ) {
+	return (qboolean)( cgvm && cgvm->dllHandle && Sys_LoadFunction( cgvm->dllHandle, "JoF_ClientSlots" ) );
+}
 
 //
 // cgame vmMain calls
@@ -2012,6 +2019,13 @@ void CL_BindCGame( void ) {
 void CL_UnbindCGame( void ) {
 	cl_sjkChatSink = NULL;
 	CGVM_Shutdown();
+	VM_Free( cgvm );
+	cgvm = NULL;
+}
+
+// Unloads a cgame that was bound but never started (no CG_INIT), without calling it.
+void CL_FreeUnstartedCGame( void ) {
+	cl_sjkChatSink = NULL;
 	VM_Free( cgvm );
 	cgvm = NULL;
 }
