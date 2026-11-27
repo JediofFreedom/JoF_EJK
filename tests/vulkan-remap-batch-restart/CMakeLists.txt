@@ -1,0 +1,42 @@
+cmake_minimum_required(VERSION 3.16)
+project(vulkan_remap_batch_restart CXX)
+set(CMAKE_CXX_STANDARD 11)
+set(VULKAN_SOURCE_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../../codemp/rd-vulkan" CACHE PATH "Production renderer source")
+
+function(extract_function path signature out)
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${path}")
+  file(READ "${path}" source)
+  string(FIND "${source}" "${signature}" start)
+  if(start LESS 0)
+    message(FATAL_ERROR "Missing ${signature} in ${path}")
+  endif()
+  string(SUBSTRING "${source}" ${start} -1 tail)
+  string(FIND "${tail}" "\n}" end)
+  math(EXPR length "${end}+2")
+  string(SUBSTRING "${tail}" 0 ${length} body)
+  set(${out} "${body}" PARENT_SCOPE)
+endfunction()
+
+extract_function("${VULKAN_SOURCE_DIRECTORY}/tr_shade.cpp" "void RB_BeginSurface(" begin_surface)
+extract_function("${VULKAN_SOURCE_DIRECTORY}/tr_surface.cpp" "void RB_CheckOverflow(" check_overflow)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/batch-functions.h" "${begin_surface}\n${check_overflow}\n")
+
+# Every mid-batch restart must begin from the shader the batch was started
+# with. Restarting from tess.shader (the remap target) re-derives allowVBO
+# from the wrong shader and can put a remapped batch back on the world VBO.
+file(GLOB renderer_sources "${VULKAN_SOURCE_DIRECTORY}/*.cpp")
+set(restart_offenders "")
+foreach(path ${renderer_sources})
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${path}")
+  file(STRINGS "${path}" lines REGEX "RB_BeginSurface[ \t]*\\([ \t]*tess\\.shader[ \t]*,")
+  if(lines)
+    get_filename_component(name "${path}" NAME)
+    list(APPEND restart_offenders "${name}")
+  endif()
+endforeach()
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/restart-offenders.h" "static const char *restartOffenders = \"${restart_offenders}\";\n")
+
+add_executable(vulkan_remap_batch_restart check.cpp)
+target_include_directories(vulkan_remap_batch_restart PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+enable_testing()
+add_test(NAME vulkan_remap_batch_restart COMMAND vulkan_remap_batch_restart)

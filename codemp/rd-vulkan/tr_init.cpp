@@ -1204,6 +1204,9 @@ Touch all images to make sure they are resident
 void RE_EndRegistration( void ) {
 	R_SetTextureRegistration(qfalse);
 	vk_wait_idle();
+#ifdef USE_VBO
+	R_BuildWorldVBO();
+#endif
 	vk_report_texture_cache();
 	if (ri.Cvar_VariableIntegerValue("cl_loadTimings")) {
 		ri.Printf(PRINT_ALL, "LOADPROFILE Vulkan images: %u loads, decode %d ms, create %d ms; uploads %u, %.1f MiB, queue waits %d ms\n",

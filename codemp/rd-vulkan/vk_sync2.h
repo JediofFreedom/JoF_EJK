@@ -53,6 +53,25 @@ static void VK_BufferBarrier(VkCommandBuffer commands, const VkBufferMemoryBarri
 	modern(commands, &dependency);
 }
 
+// Explicit stages; the legacy bits used here keep their values in the sync2 enums.
+static void VK_BufferBarrier(VkCommandBuffer commands, VkPipelineStageFlags source, VkPipelineStageFlags destination,
+	const VkBufferMemoryBarrier &buffer, PFN_vkCmdPipelineBarrier legacy, PFN_vkCmdPipelineBarrier2 modern) {
+	if (!modern) {
+		legacy(commands, source, destination, 0, 0, nullptr, 1, &buffer, 0, nullptr);
+		return;
+	}
+	VkBufferMemoryBarrier2 barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+	barrier.srcStageMask = VkPipelineStageFlags2(source); barrier.dstStageMask = VkPipelineStageFlags2(destination);
+	barrier.srcAccessMask = buffer.srcAccessMask; barrier.dstAccessMask = buffer.dstAccessMask;
+	barrier.srcQueueFamilyIndex = buffer.srcQueueFamilyIndex; barrier.dstQueueFamilyIndex = buffer.dstQueueFamilyIndex;
+	barrier.buffer = buffer.buffer; barrier.offset = buffer.offset; barrier.size = buffer.size;
+	VkDependencyInfo dependency = {};
+	dependency.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+	dependency.bufferMemoryBarrierCount = 1; dependency.pBufferMemoryBarriers = &barrier;
+	modern(commands, &dependency);
+}
+
 static void VK_ImageBarrier(VkCommandBuffer commands, VkPipelineStageFlags source, VkPipelineStageFlags destination,
 	const VkImageMemoryBarrier &image, PFN_vkCmdPipelineBarrier legacy, PFN_vkCmdPipelineBarrier2 modern) {
 	if (!modern) {

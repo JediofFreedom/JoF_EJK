@@ -61,7 +61,7 @@ void RB_CheckOverflow( int verts, int indexes ) {
 		Com_Error(ERR_DROP, "RB_CheckOverflow: indices > MAX (%d > %d)", indexes, SHADER_MAX_INDEXES );
 	}
 
-	RB_BeginSurface(tess.shader, tess.fogNum );
+	RB_BeginSurface(tess.originalShader, tess.fogNum );
 }
 
 /*
@@ -395,7 +395,7 @@ void RB_SurfaceTriangles( const srfTriangles_t *srf ) {
 		// transition to vbo render list
 		if (tess.vbo_world_index == 0) {
 			RB_EndSurface();
-			RB_BeginSurface(tess.shader, tess.fogNum);
+			RB_BeginSurface(tess.originalShader, tess.fogNum);
 			// set some dummy parameters for RB_EndSurface
 			tess.numIndexes = 1;
 			tess.numVertexes = 0;
@@ -1596,7 +1596,7 @@ void RB_SurfaceFace( srfSurfaceFace_t *surf ) {
 		// transition to vbo render list
 		if (tess.vbo_world_index == 0) {
 			RB_EndSurface();
-			RB_BeginSurface(tess.shader, tess.fogNum);
+			RB_BeginSurface(tess.originalShader, tess.fogNum);
 			// set some dummy parameters for RB_EndSurface
 			tess.numIndexes = 1;
 			tess.numVertexes = 0;
@@ -1715,6 +1715,9 @@ void RB_SurfaceGridEstimate( srfGridMesh_t *cv, int *numVertexes, int *numIndexe
 	int		nIndexes = 0;
 	int		irows, vrows;
 
+	tess.numVertexes = 0;
+	tess.numIndexes = 0;
+
 	lodError = r_lodCurveError->value; // fixed quality for VBO
 
 	lodWidth = 1;
@@ -1798,7 +1801,7 @@ void RB_SurfaceGrid( srfGridMesh_t *cv ) {
 		// transition to vbo render list
 		if (tess.vbo_world_index == 0) {
 			RB_EndSurface();
-			RB_BeginSurface(tess.shader, tess.fogNum);
+			RB_BeginSurface(tess.originalShader, tess.fogNum);
 			// set some dummy parameters for RB_EndSurface
 			tess.numIndexes = 1;
 			tess.numVertexes = 0;
@@ -1822,11 +1825,7 @@ void RB_SurfaceGrid( srfGridMesh_t *cv ) {
 	tess.surfType = SF_GRID;
 
 	// determine the allowable discrepance
-#ifdef USE_PMLIGHT
-	if (cv->vboItemIndex && (tr.mapLoading || (tess.dlightPass && tess.shader->isStaticShader)))
-#else
-	if (cv->vboItemIndex && tr.mapLoading)
-#endif
+	if (cv->vboItemIndex)
 		lodError = r_lodCurveError->value; // fixed quality for VBO
 	else
 #endif // USE_VBO_GRID
@@ -1883,7 +1882,7 @@ void RB_SurfaceGrid( srfGridMesh_t *cv ) {
 				}
 				else {
 					RB_EndSurface();
-					RB_BeginSurface(tess.shader, tess.fogNum);
+					RB_BeginSurface(tess.originalShader, tess.fogNum);
 				}
 			} else {
 				break;

@@ -633,6 +633,29 @@ void vk_release_resources( void ) {
     Com_Memset( &vk.stats, 0, sizeof( vk.stats ) );
 }
 
+// RB_TestFlare reads this frame's flare slice from the CPU once the frame fence
+// signals. A fence alone does not make shader writes visible to the host, so
+// record the shader-write to host-read dependency outside any render pass.
+static void vk_flare_host_read_barrier( void )
+{
+	if ( vk.storage.buffer == VK_NULL_HANDLE )
+		return;
+
+	const VkDeviceSize slice = VkDeviceSize( MAX_FLARES ) * vk.storage_alignment;
+	VkBufferMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+	barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+	barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.buffer = vk.storage.buffer;
+	barrier.offset = slice * vk.cmd_index;
+	barrier.size = slice;
+	VK_BufferBarrier( vk.cmd->command_buffer,
+		VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+		barrier, qvkCmdPipelineBarrier, vk.synchronization2 ? qvkCmdPipelineBarrier2 : nullptr );
+}
+
 void vk_end_frame( void )
 {
 	vk_flush_image_uploads();
@@ -700,6 +723,8 @@ void vk_end_frame( void )
     }
 
     vk_end_render_pass();
+
+    vk_flare_host_read_barrier();
 
     vk_frame_check_result(qvkEndCommandBuffer(vk.cmd->command_buffer), "vkEndCommandBuffer");
 

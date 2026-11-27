@@ -71,6 +71,7 @@ typedef struct flare_s {
 
 	qboolean	visible;			// state of last test
 	float		drawIntensity;		// may be non 0 even if !visible due to fading
+	qboolean	tested[NUM_COMMAND_BUFFERS];
 
 	int			windowX, windowY;
 	float		eyeZ;
@@ -188,6 +189,7 @@ void RB_AddFlare( void *surface, int fogNum, vec3_t point, vec3_t color, vec3_t 
 		f->visible = qfalse;
 		f->fadeTime = backEnd.refdef.time - 2000;
 		f->testCount = 0;
+		Com_Memset( f->tested, 0, sizeof( f->tested ) );
 	}
 	else {
 		++f->testCount;
@@ -299,6 +301,7 @@ static void RB_TestFlare( flare_t *f ) {
 	float			fade;
 	float			*m;
 	uint32_t		offset;
+	uint32_t		*cnt;
 	int				i;
 
 	backEnd.pc.c_flareTests++;
@@ -318,20 +321,18 @@ static void RB_TestFlare( flare_t *f ) {
 	*/
 
 	// we neeed only single uint32_t but take care of alignment
-	offset = (f - r_flareStructs) * vk.storage_alignment;
+	offset = ( vk.cmd_index * MAX_FLARES + (uint32_t)( f - r_flareStructs ) ) * vk.storage_alignment;
 
-	if (f->testCount) {
-		uint32_t *cnt = (uint32_t*)(vk.storage.buffer_ptr + offset);
-		if (*cnt)
-			visible = qtrue;
-		else
-			visible = qfalse;
-
+	cnt = (uint32_t*)(vk.storage.buffer_ptr + offset);
+	if ( f->tested[vk.cmd_index] ) {
+		visible = *cnt ? qtrue : qfalse;
 		f->testCount = 1;
 	}
 	else {
 		visible = qfalse;
+		f->testCount = 0;
 	}
+	*cnt = 0;
 
 	// reset test result in storage buffer
 	//Com_Memset(vk.storage.buffer_ptr + offset, 0x0, sizeof(uint32_t));
@@ -357,7 +358,7 @@ static void RB_TestFlare( flare_t *f ) {
 	// render test dot
 	vk_bind_pipeline( vk.std_pipeline.dot_pipeline );
 	vk_bind_geometry( TESS_XYZ );
-	vk_draw_dot( offset );
+	f->tested[vk.cmd_index] = vk_draw_dot( offset );
 
 	if (visible) {
 		if (!f->visible) {

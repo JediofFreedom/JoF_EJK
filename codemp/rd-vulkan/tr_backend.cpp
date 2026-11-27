@@ -1228,7 +1228,7 @@ const void	*RB_WorldEffects( const void *data )
 	RB_RenderWorldEffects();
 
 	if ( tess.shader )
-		RB_BeginSurface( tess.shader, tess.fogNum );
+		RB_BeginSurface( tess.originalShader, tess.fogNum );
 
 	return (const void *)(cmd + 1);
 }

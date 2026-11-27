@@ -784,6 +784,8 @@ typedef struct trRefdef_s {
 
 	qboolean			switchRenderPass;
 	qboolean			needScreenMap;
+
+	int					g2Time;
 } trRefdef_t;
 
 
@@ -2130,6 +2132,7 @@ struct shaderCommands_s
 #endif
 
 	shader_t		*shader;
+	shader_t		*originalShader;	// shader passed to RB_BeginSurface before any remap; batch restarts reuse it
 	float			shaderTime;
 	int				fogNum;
 	bool			entityMergable;
@@ -2666,7 +2669,8 @@ void		ComputeTexCoords( const int b, const textureBundle_t *bundle );
 
 #ifdef USE_VBO
 // VBO functions
-extern void R_BuildWorldVBO( msurface_t *surf, int surfCount );
+extern void R_VBO_RegisterWorld( msurface_t *surf, int surfCount, int index );
+extern void R_BuildWorldVBO( void );
 extern void R_BuildSurfaceSpritesVBO( const world_t &worldData, int index ) ;
 extern void R_BuildMDXM( model_t *mod, mdxmHeader_t *mdxm );
 extern void R_BuildMD3( model_t *mod, mdvModel_t *mdvModel );
