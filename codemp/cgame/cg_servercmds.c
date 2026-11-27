@@ -39,8 +39,9 @@ CG_ParseScores
 =================
 */
 // The fields of one row: 14, or 15 when the server appends the deaths count.
-static int CG_ScoreRowFields( void ) {
+static int CG_ScoreRowFields( int payload, int declaredRows ) {
 	qboolean hasDeaths, weIdentifyAsJapro;
+	int expected, alternate;
 
 	// Only JAPRO-derived game modules append the deaths field, and only for
 	// clients whose cjp_client userinfo they recognize (g_client.c, g_cmds.c).
@@ -51,7 +52,14 @@ static int CG_ScoreRowFields( void ) {
 	weIdentifyAsJapro = ( !Q_stricmp( cjp_client.string, "1.4JAPRO" ) ) || ( !Q_stricmp( cjp_client.string, JOFCLIENTVERSION ) );
 	hasDeaths = ( cgs.serverMod == SVMOD_JAPLUS && weIdentifyAsJapro )
 		|| cgs.serverMod == SVMOD_JAPRO;
-	return hasDeaths ? 15 : 14;
+	expected = hasDeaths ? 15 : 14;
+	alternate = hasDeaths ? 14 : 15;
+	// Extended JA+ servers can send either format for the same advertised client.
+	if ( CLIENT_SLOTS > MAX_CLIENTS && payload > 0 &&
+		( ( declaredRows > 0 && declaredRows <= CLIENT_SLOTS && payload == declaredRows * alternate ) ||
+		  ( payload % expected != 0 && payload % alternate == 0 ) ) )
+		return alternate;
+	return expected;
 }
 
 // Read count rows, the first at argument firstArg, into cg.scores from firstRow on.
@@ -93,8 +101,9 @@ static void CG_ReadScoreRows( int firstArg, int firstRow, int count, int scoreOf
 }
 
 static void CG_ParseScores( void ) {
-	const int scoreOffset = CG_ScoreRowFields();
-	int actualSent = ( trap->Cmd_Argc() - 4 ) / scoreOffset;
+	const int payload = trap->Cmd_Argc() - 4;
+	const int scoreOffset = CG_ScoreRowFields( payload, atoi( CG_Argv( 1 ) ) );
+	int actualSent = payload / scoreOffset;
 
 	if ( actualSent < 0 )
 		actualSent = 0;
@@ -121,9 +130,10 @@ those end belongs to an older board and is dropped.
 =================
 */
 static void CG_ParseScores64( void ) {
-	const int scoreOffset = CG_ScoreRowFields();
+	const int payload = trap->Cmd_Argc() - 3;
+	const int scoreOffset = CG_ScoreRowFields( payload, atoi( CG_Argv( 2 ) ) );
 	const int first = atoi( CG_Argv( 1 ) );
-	int count = ( trap->Cmd_Argc() - 3 ) / scoreOffset;
+	int count = payload / scoreOffset;
 
 	if ( first != cg.numScores || count <= 0 )
 		return;

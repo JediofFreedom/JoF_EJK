@@ -75,11 +75,10 @@ static qboolean	sbWide = qfalse;
 #define SB_SCORELINE_X		(sbLineX)
 #define SB_SCORELINE_WIDTH	(sbLineWidth)
 
-#define SB_WIDE_COLUMN_WIDTH	270
-#define SB_WIDE_COLUMN_GAP		50
+#define SB_WIDE_LEFT_MARGIN		25
+#define SB_WIDE_COLUMN_GAP		28
 #define SB_WIDE_LINE_HEIGHT		12
 #define SB_WIDE_SECTION_GAP		(BIGCHAR_HEIGHT - 8)
-#define SB_WIDE_NAME_CHARS		20	// longer names would run into the score column
 
 #define SB_RATING_WIDTH	    0 // (6 * BIGCHAR_WIDTH)
 #define SB_NAME_X			(SB_SCORELINE_X)
@@ -181,6 +180,8 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 	clientInfo_t	*ci;
 	int				flagPowerups;
 	float			flagx;
+	float			nameX = SB_NAME_X;
+	int				nameWidth = 0;
 	int				iconx = SB_BOTICON_X + (SB_RATING_WIDTH / 2);
 	float			scale = largeFormat && !cg_smallScoreboard.integer && cgs.gametype != GT_CTF ? 1.0f : maxClientScoreboard ? 0.65f : 0.75f,
 					iconSize = largeFormat && !cg_smallScoreboard.integer && cgs.gametype != GT_CTF ? SB_NORMAL_HEIGHT : maxClientScoreboard ? 12.0f : SB_INTER_HEIGHT;
@@ -267,20 +268,21 @@ static void CG_DrawClientScore( int y, score_t *score, float *color, float fade,
 		CG_FillRect( SB_SCORELINE_X - 5, y + 2, SB_SCORELINE_WIDTH + 10, (largeFormat && (!cg_smallScoreboard.integer && cgs.gametype != GT_CTF))?SB_NORMAL_HEIGHT:maxClientScoreboard ? 12.0f : SB_INTER_HEIGHT, hcolor );//JAPRO - Clientside - Small Scoreboard
 	}
 
-	if (!cg_drawScoreboardIcons.integer) {
-		CG_Text_Paint(SB_NAME_X, y, 0.9f * scale, colorWhite, ci->name, 0, sbWide ? SB_WIDE_NAME_CHARS : 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM);
-	}
-	else {
+	if (cg_drawScoreboardIcons.integer) {
 		if (largeFormat) {
 			if (ci->modelIcon) CG_DrawPic(SB_NAME_X-5, y+2, 25*cgs.widthRatioCoef, 25, ci->modelIcon);
-			CG_Text_Paint(SB_NAME_X+24*cgs.widthRatioCoef, y, 0.9f * scale, colorWhite, ci->name, 0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM);
+			nameX += 24 * cgs.widthRatioCoef;
 		}
 		else {
 			if (ci->modelIcon) CG_DrawPic(SB_NAME_X-5, y+2, 15*cgs.widthRatioCoef, 15, ci->modelIcon);
-			CG_Text_Paint(SB_NAME_X+12*cgs.widthRatioCoef, y, 0.9f * scale, colorWhite, ci->name, 0, sbWide ? SB_WIDE_NAME_CHARS : 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM);
+			nameX += 12 * cgs.widthRatioCoef;
 		}
 	}
-	//CG_Text_Paint (SB_NAME_X, y, 0.9f * scale, colorWhite, ci->name,0, 0, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM );
+	if (sbWide) {
+		const float firstStatX = cgs.gametype == GT_CTF ? SB_SCORELINE_X + 0.47f * SB_SCORELINE_WIDTH : SB_SCORE_X;
+		nameWidth = Q_max(1, (int)(firstStatX - nameX - 8));
+	}
+	CG_Text_Paint(nameX, y, 0.9f * scale, colorWhite, ci->name, 0, nameWidth, ITEM_TEXTSTYLE_OUTLINED, FONT_MEDIUM);
 
 	if ( score->ping != -1 )
 	{
@@ -713,6 +715,8 @@ the two-column layout, or back in the usual single column with -1.
 */
 static void CG_ScoreboardColumn( int column )
 {
+	int rightMargin;
+
 	if ( column < 0 ) {
 		sbLineX = 100;
 		sbLineWidth = SCREEN_WIDTH - 100 * 2;
@@ -720,8 +724,10 @@ static void CG_ScoreboardColumn( int column )
 		return;
 	}
 
-	sbLineX = ( SCREEN_WIDTH - 2 * SB_WIDE_COLUMN_WIDTH - SB_WIDE_COLUMN_GAP ) / 2 + column * ( SB_WIDE_COLUMN_WIDTH + SB_WIDE_COLUMN_GAP );
-	sbLineWidth = SB_WIDE_COLUMN_WIDTH;
+	// Leave room for the upper-right portrait and the scoreboard header overhang.
+	rightMargin = (int)ceilf( ( ICON_SIZE * 1.25f + 5 ) * cgs.widthRatioCoef ) + 20;
+	sbLineWidth = ( SCREEN_WIDTH - SB_WIDE_LEFT_MARGIN - rightMargin - SB_WIDE_COLUMN_GAP ) / 2;
+	sbLineX = SB_WIDE_LEFT_MARGIN + column * ( sbLineWidth + SB_WIDE_COLUMN_GAP );
 	sbWide = qtrue;
 }
 
@@ -741,9 +747,11 @@ static int CG_ScoreboardRows( team_t team, score_t *rows, int maxRows )
 	memset( listed, qfalse, sizeof( listed ) );
 
 	for ( i = 0; i < cg.numScores && count < maxRows; i++ ) {
-		if ( cgs.clientinfo[cg.scores[i].client].team != team )
+		const int client = cg.scores[i].client;
+		if ( client < 0 || client >= cgs.maxclients || listed[client] ||
+			!cgs.clientinfo[client].infoValid || cgs.clientinfo[client].team != team )
 			continue;
-		listed[cg.scores[i].client] = qtrue;
+		listed[client] = qtrue;
 		rows[count++] = cg.scores[i];
 	}
 
@@ -759,15 +767,20 @@ static int CG_ScoreboardRows( team_t team, score_t *rows, int maxRows )
 	return count;
 }
 
+typedef struct {
+	int y;
+	int rows;
+} scoreboardColumn_t;
+
 /*
 =================
 CG_WideScoreboardSection
 
-Draws a team's rows from column startColumn on, below what each column
-already holds (colY), going on in the other column when one is full.
+Draws a team's rows starting in its preferred column and continuing in the
+other column when it fills up.
 =================
 */
-static void CG_WideScoreboardSection( team_t team, int startColumn, int *colY, int top, float fade, qboolean teamBackground )
+static void CG_WideScoreboardSection( team_t team, int startColumn, scoreboardColumn_t *columns, int top, int rowsPerColumn, float fade, qboolean teamBackground )
 {
 	score_t	rows[MAX_CLIENT_SLOTS];
 	float	color[4];
@@ -780,12 +793,12 @@ static void CG_WideScoreboardSection( team_t team, int startColumn, int *colY, i
 
 	for ( k = 0; k < 2 && drawn < n; k++ ) {
 		int column = ( startColumn + k ) % 2;
-		int y = colY[column];
+		int y = columns[column].y;
 		int count, j;
 
 		if ( y > top )
 			y += SB_WIDE_SECTION_GAP; // below another section
-		count = ( SCREEN_HEIGHT - 8 - y ) / SB_WIDE_LINE_HEIGHT;
+		count = Q_min( ( SCREEN_HEIGHT - 8 - y ) / SB_WIDE_LINE_HEIGHT, rowsPerColumn - columns[column].rows );
 		if ( count <= 0 )
 			continue;
 		if ( count > n - drawn )
@@ -796,7 +809,8 @@ static void CG_WideScoreboardSection( team_t team, int startColumn, int *colY, i
 			CG_DrawTeamBackground( SB_SCORELINE_X - 5, y - 4, SB_SCORELINE_WIDTH + 10, count * SB_WIDE_LINE_HEIGHT + 8, 0.33f, team );
 		for ( j = 0; j < count; j++, drawn++ )
 			CG_DrawClientScore( y + j * SB_WIDE_LINE_HEIGHT, &rows[drawn], color, fade, qfalse, qtrue );
-		colY[column] = y + count * SB_WIDE_LINE_HEIGHT;
+		columns[column].y = y + count * SB_WIDE_LINE_HEIGHT;
+		columns[column].rows += count;
 	}
 
 	CG_ScoreboardColumn( -1 );
@@ -839,26 +853,27 @@ with the small rows. Team games put the leading team on the left and the
 other on the right; free players and spectators follow, left column first.
 =================
 */
-static void CG_DrawWideScoreboard( int y, float fade )
+static void CG_DrawWideScoreboard( int y, float fade, int rowCount )
 {
-	int colY[2];
+	const qboolean teamGame = cgs.gametype >= GT_TEAM;
+	const int rowsPerColumn = teamGame ? MAX_CLIENTS : ( rowCount + 1 ) / 2;
+	scoreboardColumn_t columns[2] = { { y, 0 }, { y, 0 } };
 
-	if ( cgs.gametype >= GT_TEAM ) {
+	if ( teamGame ) {
 		team_t first = ( cg.teamScores[0] >= cg.teamScores[1] ) ? TEAM_RED : TEAM_BLUE;
 
 		y += SB_WIDE_LINE_HEIGHT / 2;
-		colY[0] = colY[1] = y;
-		CG_WideScoreboardSection( first, 0, colY, y, fade, qtrue );
-		CG_WideScoreboardSection( ( first == TEAM_RED ) ? TEAM_BLUE : TEAM_RED, 1, colY, y, fade, qtrue );
+		columns[0].y = columns[1].y = y;
+		CG_WideScoreboardSection( first, 0, columns, y, rowsPerColumn, fade, qtrue );
+		CG_WideScoreboardSection( ( first == TEAM_RED ) ? TEAM_BLUE : TEAM_RED, 1, columns, y, rowsPerColumn, fade, qtrue );
 		if ( cgs.serverMod == SVMOD_JAPRO && ( cgs.gametype == GT_TEAM || cgs.gametype == GT_CTF ) )
-			CG_WideScoreboardSection( TEAM_FREE, 0, colY, y, fade, qfalse );
+			CG_WideScoreboardSection( TEAM_FREE, 0, columns, y, rowsPerColumn, fade, qfalse );
 	}
 	else {
-		colY[0] = colY[1] = y;
-		CG_WideScoreboardSection( TEAM_FREE, 0, colY, y, fade, qfalse );
+		CG_WideScoreboardSection( TEAM_FREE, 0, columns, y, rowsPerColumn, fade, qfalse );
 	}
 
-	CG_WideScoreboardSection( TEAM_SPECTATOR, 0, colY, y, fade, qfalse );
+	CG_WideScoreboardSection( TEAM_SPECTATOR, 0, columns, y, rowsPerColumn, fade, qfalse );
 }
 
 int	CG_GetClassCount(team_t team,int siegeClass )
@@ -1064,6 +1079,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 	int topBorderSize, bottomBorderSize;
 	qboolean maxClientsScoreboard = cgs.numClients >= 20;
 	qboolean wideScoreboard;
+	int wideRows = 0;
 	qboolean intermissionOrDead =
 	cg.predictedPlayerState.pm_type == PM_DEAD ||
 	cg.predictedPlayerState.pm_type == PM_INTERMISSION ||
@@ -1301,8 +1317,9 @@ qboolean CG_DrawOldScoreboard( void ) {
 
 	// servers with more than 32 player slots: more than 32 rows go in two
 	// columns, unless the compact scoreboard (24 rows, see below) is up
-	wideScoreboard = !( maxClientsScoreboard && cgs.numClients > 25 && intermissionOrDead && !cg.pressingScoreBoard )
-		&& CG_WideScoreboardRows() > MAX_CLIENTS;
+	if ( !( maxClientsScoreboard && cgs.numClients > 25 && intermissionOrDead && !cg.pressingScoreBoard ) )
+		wideRows = CG_WideScoreboardRows();
+	wideScoreboard = wideRows > MAX_CLIENTS;
 
 	// scoreboard
 	y = maxClientsScoreboard ? SB_HEADER - 42 : SB_HEADER;
@@ -1390,7 +1407,7 @@ qboolean CG_DrawOldScoreboard( void ) {
 	//I guess this can be accomplished simply by printing the first teams score with a maxClients
 	//value passed in related to how many players are on both teams.
 	if ( wideScoreboard ) {
-		CG_DrawWideScoreboard( y, fade );
+		CG_DrawWideScoreboard( y, fade, wideRows );
 	}
 	else if ( cgs.gametype >= GT_TEAM ) {
 		int compactSpectatorMax;
