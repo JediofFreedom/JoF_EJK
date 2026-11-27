@@ -43,7 +43,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 	extern void G_CheapWeaponFire(int entNum, int ev);
 	extern qboolean TryGrapple(gentity_t *ent); //g_cmds.c
 #elif defined _CGAME
-	extern int cg_dueltypes[MAX_CLIENTS];//JAPRO - Serverside - Fullforce Dueling
+	extern int cg_dueltypes[MAX_CLIENT_SLOTS];//JAPRO - Serverside - Fullforce Dueling
 	extern qboolean BG_SaberInTransitionAny( int move );
 
 static qboolean PM_InJAPlusLedgeMove( int anim )
@@ -361,7 +361,7 @@ bgEntity_t *PM_BGEntForNum( int num )
 		return NULL;
 	}
 
-	assert(num >= 0 && num < MAX_GENTITIES);
+	assert(num >= 0 && num < BG_MAX_GENTITIES);
 
     ent = (bgEntity_t *)((byte *)pm->baseEnt + pm->entSize*(num));
 
@@ -371,10 +371,10 @@ bgEntity_t *PM_BGEntForNum( int num )
 static qboolean PM_IsPlayerLikeGround( int entityNum )
 {
 	bgEntity_t *ent;
-	if ( entityNum < 0 || entityNum >= ENTITYNUM_WORLD ) {
+	if ( entityNum < 0 || !BG_REAL_ENTITYNUM( entityNum ) ) {
 		return qfalse;
 	}
-	if ( entityNum < MAX_CLIENTS ) {
+	if ( entityNum < CLIENT_SLOTS ) {
 		return qtrue;
 	}
 	ent = PM_BGEntForNum( entityNum );
@@ -449,7 +449,7 @@ qboolean QINLINE BG_IsNewJetpacking(playerState_t *ps) {
 static QINLINE qboolean PM_IsRocketTrooper(void)
 {
 	/*
-	if (pm->ps->clientNum < MAX_CLIENTS &&
+	if (pm->ps->clientNum < CLIENT_SLOTS &&
 		pm->gametype == GT_SIEGE &&
 		pm->nonHumanoid)
 	{
@@ -691,7 +691,7 @@ void PM_SetSpecialMoveValues (void)
 {
 	bgEntity_t *pEnt;
 
-	if (pm->ps->clientNum < MAX_CLIENTS)
+	if (pm->ps->clientNum < CLIENT_SLOTS)
 	{ //we know that real players aren't vehs
 		pm_flying = FLY_NONE;
 		return;
@@ -1197,7 +1197,7 @@ void PM_ClipVelocity( vec3_t in, vec3_t normal, vec3_t out, float overbounce ) {
 	}
 	if ( pm->stepSlideFix )
 	{
-		if ( pm->ps->clientNum < MAX_CLIENTS//normal player
+		if ( pm->ps->clientNum < CLIENT_SLOTS//normal player
 			&& pm->ps->groundEntityNum != ENTITYNUM_NONE//on the ground
 			&& normal[2] < MIN_WALK_NORMAL )//sliding against a steep slope
 		{//if walking on the ground, don't slide up slopes that are too steep to walk on
@@ -1242,7 +1242,7 @@ static void PM_Friction( void ) {
 
 	drop = 0;
 
-	if (pm->ps->clientNum >= MAX_CLIENTS)
+	if (pm->ps->clientNum >= CLIENT_SLOTS)
 	{
 		pEnt = pm_entSelf;
 	}
@@ -1271,7 +1271,7 @@ static void PM_Friction( void ) {
 				{//if turning, increase friction
 					control *= 2.0f;
 				}
-				if ( pm->ps->groundEntityNum < ENTITYNUM_NONE )
+				if ( BG_ENTITYNUM_OR_WORLD( pm->ps->groundEntityNum ) )
 				{//on the ground
 					drop += control*friction*pml.frametime;
 				}
@@ -1395,14 +1395,14 @@ Handles user intended acceleration
 */
 static void PM_Accelerate( vec3_t wishdir, float wishspeed, float accel )
 {
-	if ((PM_GetMovePhysics() != MV_SIEGE) || pm->ps->m_iVehicleNum || pm->ps->clientNum >= MAX_CLIENTS || pm->ps->pm_type != PM_NORMAL)
+	if ((PM_GetMovePhysics() != MV_SIEGE) || pm->ps->m_iVehicleNum || pm->ps->clientNum >= CLIENT_SLOTS || pm->ps->pm_type != PM_NORMAL)
 	{ //standard method, allows "bunnyhopping" and whatnot
 		int			i;
 		float		addspeed, accelspeed, currentspeed;
 
 		currentspeed = DotProduct (pm->ps->velocity, wishdir);
 		addspeed = wishspeed - currentspeed;
-		if (addspeed <= 0 && pm->ps->clientNum < MAX_CLIENTS) {
+		if (addspeed <= 0 && pm->ps->clientNum < CLIENT_SLOTS) {
 			return;
 		}
 
@@ -2490,14 +2490,14 @@ static qboolean PM_CheckJump( void )
     gclient_t *client = NULL;
     {
 		int clientNum = pm->ps->clientNum;
-		if (0 <= clientNum && clientNum < MAX_CLIENTS) {
+		if (0 <= clientNum && clientNum < CLIENT_SLOTS) {
 			client = g_entities[clientNum].client;
 		}
 	}
 #endif
 //JAPRO - Serverside - Set up client to check for lastkicktime flood protect - End
 
-	if (pm->ps->clientNum >= MAX_CLIENTS)
+	if (pm->ps->clientNum >= CLIENT_SLOTS)
 	{
 		bgEntity_t *pEnt = pm_entSelf;
 
@@ -3153,7 +3153,7 @@ static qboolean PM_CheckJump( void )
 					VectorNormalize( idealNormal );
 				}
 
-				if ( !doTrace || (trace.fraction < 1.0f && (trace.entityNum < MAX_CLIENTS || DotProduct(wallNormal,idealNormal) > 0.7)) )
+				if ( !doTrace || (trace.fraction < 1.0f && (trace.entityNum < CLIENT_SLOTS || DotProduct(wallNormal,idealNormal) > 0.7)) )
 				{//there is a wall there.. or hit a client
 					if ( (anim != BOTH_WALL_RUN_LEFT
 							&& anim != BOTH_WALL_RUN_RIGHT
@@ -3187,13 +3187,13 @@ static qboolean PM_CheckJump( void )
 							kickedEnt = PM_BGEntForNum(trace.entityNum);
 /*
 #ifdef _GAME
-							if ((trace.entityNum < MAX_CLIENTS) || (g_flipKick.integer && kickedEnt->s.eType == ET_NPC))
+							if ((trace.entityNum < CLIENT_SLOTS) || (g_flipKick.integer && kickedEnt->s.eType == ET_NPC))
 #else
-							if ((trace.entityNum < MAX_CLIENTS) || ((cgs.serverMod == SVMOD_JAPRO && cgs.jcinfo & JAPRO_CINFO_FLIPKICK) && kickedEnt->s.eType == ET_NPC))
+							if ((trace.entityNum < CLIENT_SLOTS) || ((cgs.serverMod == SVMOD_JAPRO && cgs.jcinfo & JAPRO_CINFO_FLIPKICK) && kickedEnt->s.eType == ET_NPC))
 #endif
 */
 
-							if ((trace.entityNum < MAX_CLIENTS) || CanFlipkickNPC(pm->ps, kickedEnt))
+							if ((trace.entityNum < CLIENT_SLOTS) || CanFlipkickNPC(pm->ps, kickedEnt))
 
 							{
 								pm->ps->forceKickFlip = trace.entityNum+1; //let the server know that this person gets kicked by this client
@@ -3381,7 +3381,7 @@ static qboolean PM_CheckJump( void )
 				kickedEnt = PM_BGEntForNum(trace.entityNum);
 
 				if (GetFlipkick(pm->ps) >= 1) {
-					if ( trace.fraction < 1.0f && ((trace.entityNum < MAX_CLIENTS) || CanFlipkickNPC(pm->ps, kickedEnt)) && (pm->ps->stats[STAT_DASHTIME] <= 0))
+					if ( trace.fraction < 1.0f && ((trace.entityNum < CLIENT_SLOTS) || CanFlipkickNPC(pm->ps, kickedEnt)) && (pm->ps->stats[STAT_DASHTIME] <= 0))
 					//Dont allow frontkicking within 200ms of being frontkicked?
 
 //JAPRO - Serverside + Clientside - Re add flipkick and flipkickable npcs- End
@@ -3415,9 +3415,9 @@ static qboolean PM_CheckJump( void )
 
 /*
 #ifdef _GAME
-						if ((trace.entityNum < MAX_CLIENTS) || (g_flipKick.integer && kickedEnt->s.eType == ET_NPC))
+						if ((trace.entityNum < CLIENT_SLOTS) || (g_flipKick.integer && kickedEnt->s.eType == ET_NPC))
 #else
-						if ((trace.entityNum < MAX_CLIENTS) || ((cgs.serverMod == SVMOD_JAPRO && cgs.jcinfo & JAPRO_CINFO_FLIPKICK) && kickedEnt->s.eType == ET_NPC))
+						if ((trace.entityNum < CLIENT_SLOTS) || ((cgs.serverMod == SVMOD_JAPRO && cgs.jcinfo & JAPRO_CINFO_FLIPKICK) && kickedEnt->s.eType == ET_NPC))
 #endif
 */
 						pm->ps->forceKickFlip = trace.entityNum+1; //let the server know that this person gets kicked by this client
@@ -3468,7 +3468,7 @@ static qboolean PM_CheckJump( void )
 					VectorNormalize( idealNormal );
 					traceEnt = PM_BGEntForNum(trace.entityNum);
 
-					if ( trace.fraction < 1.0f && ((trace.entityNum < ENTITYNUM_WORLD && traceEnt && traceEnt->s.solid != SOLID_BMODEL) || DotProduct(trace.plane.normal,idealNormal) > 0.7))
+					if ( trace.fraction < 1.0f && ((BG_REAL_ENTITYNUM( trace.entityNum ) && traceEnt && traceEnt->s.solid != SOLID_BMODEL) || DotProduct(trace.plane.normal,idealNormal) > 0.7))
 					{//there is a wall there
 						pm->ps->velocity[0] = pm->ps->velocity[1] = 0;
 						if ( wallWalkAnim == BOTH_FORCEWALLRUNFLIP_START )
@@ -3579,7 +3579,7 @@ static qboolean PM_CheckJump( void )
 						traceEnt = PM_BGEntForNum(trace.entityNum);
 						if ( trace.fraction < 1.0f
 							&&fabs(trace.plane.normal[2]) <= 0.2f/*MAX_WALL_GRAB_SLOPE*/
-							&&((trace.entityNum<ENTITYNUM_WORLD&&traceEnt&&traceEnt->s.solid!=SOLID_BMODEL)||DotProduct(trace.plane.normal,idealNormal)>0.7) )
+							&&((BG_REAL_ENTITYNUM( trace.entityNum )&&traceEnt&&traceEnt->s.solid!=SOLID_BMODEL)||DotProduct(trace.plane.normal,idealNormal)>0.7) )
 						{//there is a wall there
 							float dot = DotProduct( pm->ps->velocity, trace.plane.normal );
 							if ( dot < 1.0f )
@@ -3901,7 +3901,7 @@ static void PM_FlyVehicleMove( void )
 
 	// Get The WishVel And WishSpeed
 	//-------------------------------
-	if ( pm->ps->clientNum >= MAX_CLIENTS )
+	if ( pm->ps->clientNum >= CLIENT_SLOTS )
 	{//NPC
 
 		// If The UCmds Were Set, But Never Converted Into A MoveDir, Then Make The WishDir From UCmds
@@ -4022,7 +4022,7 @@ static void PM_AirMove( void ) {
 	Vehicle_t	*pVeh = NULL;
 	const int moveStyle = PM_GetMovePhysics();
 
-	if (pm->ps->clientNum >= MAX_CLIENTS)
+	if (pm->ps->clientNum >= CLIENT_SLOTS)
 	{
 		bgEntity_t	*pEnt = pm_entSelf;
 
@@ -4111,7 +4111,7 @@ static void PM_AirMove( void ) {
 				}
 			}
 
-			if ( pm->ps->clientNum < MAX_CLIENTS )
+			if ( pm->ps->clientNum < CLIENT_SLOTS )
 			{//do normal adding to wishvel
 				VectorScale( vfwd, speed*controlMod*(fmove/127.0f), wishvel );
 				//just add strafing
@@ -4534,7 +4534,7 @@ static void PM_CheckWallJump( void )//loda fixme, wip
 {
     gclient_t *client = NULL;
 	int clientNum = pm->ps->clientNum;
-	if (0 <= clientNum && clientNum < MAX_CLIENTS) {
+	if (0 <= clientNum && clientNum < CLIENT_SLOTS) {
 		client = g_entities[clientNum].client;
 	}
 	if (client->pers.practice)
@@ -4810,7 +4810,7 @@ static void PM_WalkMove( void ) {
 
 	// Get The WishVel And WishSpeed
 	//-------------------------------
-	if ( pm->ps->clientNum >= MAX_CLIENTS && !VectorCompare( pm->ps->moveDir, vec3_origin ) )
+	if ( pm->ps->clientNum >= CLIENT_SLOTS && !VectorCompare( pm->ps->moveDir, vec3_origin ) )
 	{//NPC
 		bgEntity_t *pEnt = pm_entSelf;
 
@@ -4898,7 +4898,7 @@ static void PM_WalkMove( void ) {
 
 	PM_Accelerate (wishdir, wishspeed, accelerate);
 	/*
-	if (pm->ps->clientNum >= MAX_CLIENTS)
+	if (pm->ps->clientNum >= CLIENT_SLOTS)
 	{
 #ifdef _GAME
 		Com_Printf("^1S: %f, %f\n", wishspeed, pm->ps->speed);
@@ -4913,7 +4913,7 @@ static void PM_WalkMove( void ) {
 
 	if (((pml.groundTrace.surfaceFlags & SURF_SLICK) || (moveStyle == MV_SLICK)) || pm->ps->pm_flags & PMF_TIME_KNOCKBACK) { //AH!!!
 #ifdef _GAME
-		if ((g_fixSlidePhysics.integer == 1) && (pm->ps->clientNum >= MAX_CLIENTS)) { //Fix slide physics for NPCS (inbasejka, npcs will accel to ~340 on slick surfaces for no reason)
+		if ((g_fixSlidePhysics.integer == 1) && (pm->ps->clientNum >= CLIENT_SLOTS)) { //Fix slide physics for NPCS (inbasejka, npcs will accel to ~340 on slick surfaces for no reason)
 		}
 		else if (g_fixSlidePhysics.integer > 1 && !pm->ps->stats[STAT_RACEMODE]) { //Fix Slide Physics for everything not in racemode
 		}
@@ -5078,7 +5078,7 @@ static int PM_TryRoll( void )
 	    gclient_t *client = NULL;
 		{
 			int clientNum = pm->ps->clientNum;
-			if (0 <= clientNum && clientNum < MAX_CLIENTS) {
+			if (0 <= clientNum && clientNum < CLIENT_SLOTS) {
 				client = g_entities[clientNum].client;
 			}
 		}
@@ -5686,7 +5686,7 @@ static void PM_GroundTrace( void ) {
 	trace_t		trace;
 	float minNormal = (float)MIN_WALK_NORMAL;
 
-	if ( pm->ps->clientNum >= MAX_CLIENTS)
+	if ( pm->ps->clientNum >= CLIENT_SLOTS)
 	{
 		bgEntity_t *pEnt = pm_entSelf;
 
@@ -5862,10 +5862,10 @@ static void PM_GroundTrace( void ) {
 		PM_CrashLand();
 
 #ifdef _GAME
-		if (pm->ps->clientNum < MAX_CLIENTS &&
+		if (pm->ps->clientNum < CLIENT_SLOTS &&
 			!pm->ps->m_iVehicleNum &&
-			trace.entityNum < ENTITYNUM_WORLD &&
-			trace.entityNum >= MAX_CLIENTS &&
+			BG_REAL_ENTITYNUM( trace.entityNum ) &&
+			trace.entityNum >= CLIENT_SLOTS &&
 			!pm->ps->zoomMode &&
 			pm_entSelf)
 		{ //check if we landed on a vehicle
@@ -6074,7 +6074,7 @@ static void PM_CheckDuck (void)
 //	trace_t	trace;
 	int oldHeight;
 
-	if ( pm->ps->m_iVehicleNum > 0 && pm->ps->m_iVehicleNum < ENTITYNUM_NONE )
+	if ( pm->ps->m_iVehicleNum > 0 && BG_ENTITYNUM_OR_WORLD( pm->ps->m_iVehicleNum ) )
 	{//riding a vehicle or are a vehicle
 		//no ducking or rolling when on a vehicle
 		//right?  not even on ones that you just ride on top of?
@@ -6084,7 +6084,7 @@ static void PM_CheckDuck (void)
 		//the vehicle code may need it later... but, for riders,
 		//it should have already been copied over to the vehicle, right?
 
-		if (pm->ps->clientNum >= MAX_CLIENTS)
+		if (pm->ps->clientNum >= CLIENT_SLOTS)
 		{
 			return;
 		}
@@ -6122,7 +6122,7 @@ static void PM_CheckDuck (void)
 	}
 	else
 	{
-		if (pm->ps->clientNum < MAX_CLIENTS)
+		if (pm->ps->clientNum < CLIENT_SLOTS)
 		{
 			pm->mins[0] = -15;
 			pm->mins[1] = -15;
@@ -6144,7 +6144,7 @@ static void PM_CheckDuck (void)
 			}
 		}
 
-		if (pm->ps->pm_type == PM_DEAD && pm->ps->clientNum < MAX_CLIENTS)
+		if (pm->ps->pm_type == PM_DEAD && pm->ps->clientNum < CLIENT_SLOTS)
 		{
 			pm->maxs[2] = -8;
 			pm->ps->viewheight = PM_ModelScaledViewheight( DEAD_VIEWHEIGHT );
@@ -6543,7 +6543,7 @@ qboolean PM_AdjustStandAnimForSlope( void )
 	int clientNum = pm->ps->clientNum;
 	gclient_t *client = NULL;
 
-	if (0 <= clientNum && clientNum < MAX_CLIENTS) {
+	if (0 <= clientNum && clientNum < CLIENT_SLOTS) {
 		client = g_entities[clientNum].client;
 	}
 
@@ -6941,7 +6941,7 @@ static void PM_Footsteps( void ) {
     gclient_t *client = NULL;
     {
 		int clientNum = pm->ps->clientNum;
-		if (0 <= clientNum && clientNum < MAX_CLIENTS) {
+		if (0 <= clientNum && clientNum < CLIENT_SLOTS) {
 			client = g_entities[clientNum].client;
 		}
 	}
@@ -6993,7 +6993,7 @@ static void PM_Footsteps( void ) {
 	else if ( !pm->cmd.forwardmove && !pm->cmd.rightmove ) {
 		if (  pm->xyspeed < 5 ) {
 			pm->ps->bobCycle = 0;	// start at beginning of cycle again
-			if ( pm->ps->clientNum >= MAX_CLIENTS &&
+			if ( pm->ps->clientNum >= CLIENT_SLOTS &&
 				pm_entSelf &&
 				pm_entSelf->s.NPC_class == CLASS_RANCOR )
 			{
@@ -7013,7 +7013,7 @@ static void PM_Footsteps( void ) {
 					//PM_SetAnim(pm,SETANIM_LEGS,BOTH_STAND1,SETANIM_FLAG_NORMAL);
 				}
 			}
-			else if ( pm->ps->clientNum >= MAX_CLIENTS &&
+			else if ( pm->ps->clientNum >= CLIENT_SLOTS &&
 				pm_entSelf &&
 				pm_entSelf->s.NPC_class == CLASS_WAMPA )
 			{
@@ -7247,7 +7247,7 @@ static void PM_Footsteps( void ) {
 		else if ( !( pm->cmd.buttons & BUTTON_WALKING ) )
 		{//running
 			bobmove = 0.4f;	// faster speeds bob faster
-			if ( pm->ps->clientNum >= MAX_CLIENTS &&
+			if ( pm->ps->clientNum >= CLIENT_SLOTS &&
 				pm_entSelf &&
 				pm_entSelf->s.NPC_class == CLASS_WAMPA )
 			{
@@ -7260,7 +7260,7 @@ static void PM_Footsteps( void ) {
 					desiredAnim = BOTH_RUN2;
 				}
 			}
-			else if ( pm->ps->clientNum >= MAX_CLIENTS &&
+			else if ( pm->ps->clientNum >= CLIENT_SLOTS &&
 				pm_entSelf &&
 				pm_entSelf->s.NPC_class == CLASS_RANCOR )
 			{//no run anims
@@ -7274,7 +7274,7 @@ static void PM_Footsteps( void ) {
 				}
 			}
 #ifdef _GAME
-			else if ( pm->ps->clientNum >= MAX_CLIENTS &&
+			else if ( pm->ps->clientNum >= CLIENT_SLOTS &&
 				pm_entSelf &&
 				pm_entSelf->s.NPC_class == CLASS_JAWA)
 			{
@@ -7960,7 +7960,7 @@ void PM_RocketLock( float lockDist, qboolean vehicleLock )
 		}
 	}
 
-	if (tr.fraction != 1 && tr.entityNum < ENTITYNUM_NONE && tr.entityNum != pm->ps->clientNum)
+	if (tr.fraction != 1 && BG_ENTITYNUM_OR_WORLD( tr.entityNum ) && tr.entityNum != pm->ps->clientNum)
 	{
 		bgEntity_t *bgEnt = PM_BGEntForNum(tr.entityNum);
 		if ( bgEnt && (bgEnt->s.powerups&PW_CLOAKED) )
@@ -8720,7 +8720,7 @@ static void PM_Weapon( void )
 	qboolean vehicleRocketLock = qfalse;
 
 #ifdef _GAME
-	if (pm->ps->clientNum >= MAX_CLIENTS &&
+	if (pm->ps->clientNum >= CLIENT_SLOTS &&
 		pm->ps->weapon == WP_NONE &&
 		pm->cmd.weapon == WP_NONE &&
 		pm_entSelf)
@@ -9143,7 +9143,7 @@ if (pm->ps->duelInProgress)
 	}
 
 	// ignore if spectator
-	if ( pm->ps->clientNum < MAX_CLIENTS && pm->ps->persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
+	if ( pm->ps->clientNum < CLIENT_SLOTS && pm->ps->persistant[PERS_TEAM] == TEAM_SPECTATOR ) {
 			return;
 	}
 
@@ -9303,7 +9303,7 @@ if (pm->ps->duelInProgress)
 #endif
 		(pm->ps->weaponTime <= 0 || pm->ps->weaponstate != WEAPON_FIRING) )
 	{
-		if ( pm->ps->clientNum < MAX_CLIENTS && pm->ps->ammo[ weaponData[pm->ps->weapon].ammoIndex ] != -1 )
+		if ( pm->ps->clientNum < CLIENT_SLOTS && pm->ps->ammo[ weaponData[pm->ps->weapon].ammoIndex ] != -1 )
 		{
 			// enough energy to fire this weapon?
 			if (pm->ps->ammo[weaponData[pm->ps->weapon].ammoIndex] < weaponData[pm->ps->weapon].energyPerShot &&
@@ -9483,7 +9483,7 @@ if (pm->ps->duelInProgress)
 		PM_StartTorsoAnim( TORSO_WEAPONREADY4 );
 	}
 
-	if (pm->ps->clientNum >= MAX_CLIENTS &&
+	if (pm->ps->clientNum >= CLIENT_SLOTS &&
 		pm_entSelf &&
 		pm_entSelf->s.NPC_class == CLASS_VEHICLE)
 	{//we are a vehicle
@@ -9773,7 +9773,7 @@ if (pm->ps->duelInProgress)
 	pm->ps->weaponstate = WEAPON_FIRING;
 
 	// take an ammo away if not infinite
-	if ( pm->ps->clientNum < MAX_CLIENTS && pm->ps->ammo[ weaponData[pm->ps->weapon].ammoIndex ] != -1 )
+	if ( pm->ps->clientNum < CLIENT_SLOTS && pm->ps->ammo[ weaponData[pm->ps->weapon].ammoIndex ] != -1 )
 	{
 		// enough energy to fire this weapon?
 		if ((pm->ps->ammo[weaponData[pm->ps->weapon].ammoIndex] - amount) >= 0)
@@ -10005,7 +10005,7 @@ extern	vmCvar_t	bg_fighterAltControl;
 qboolean BG_UnrestrainedPitchRoll( playerState_t *ps, Vehicle_t *pVeh )
 {
 	if ( bg_fighterAltControl.integer
-		&& ps->clientNum < MAX_CLIENTS //real client
+		&& ps->clientNum < CLIENT_SLOTS //real client
 		&& ps->m_iVehicleNum//in a vehicle
 		&& pVeh //valid vehicle data pointer
 		&& pVeh->m_pVehicleInfo//valid vehicle info
@@ -10129,7 +10129,7 @@ void PM_UpdateViewAngles( playerState_t *ps, const usercmd_t *cmd ) {
 	// If we're a vehicle, or we're riding a vehicle...?
 	if ( ps->m_iVehicleNum )
 	{
-		if ( ps->clientNum < MAX_CLIENTS )
+		if ( ps->clientNum < CLIENT_SLOTS )
 		{ //player riding vehicle
 			vehEnt = PM_BGEntForNum(ps->m_iVehicleNum);
 		}
@@ -10589,7 +10589,7 @@ void BG_AdjustClientSpeed(playerState_t *ps, usercmd_t *cmd, int svTime)
 	saberInfo_t	*saber;
 	int fixroll = GetFixRoll(ps);
 
-	if (ps->clientNum >= MAX_CLIENTS)
+	if (ps->clientNum >= CLIENT_SLOTS)
 	{
 		bgEntity_t *bgEnt = pm_entSelf;
 
@@ -11557,7 +11557,7 @@ void BG_G2PlayerAngles(void *ghoul2, int motionBolt, entityState_t *cent, int ti
 		VectorCopy(forcedAngles, legsAngles);
 		VectorCopy(legsAngles, turAngles);
 
-		if (cent->number < MAX_CLIENTS)
+		if (cent->number < CLIENT_SLOTS)
 		{
 			trap->G2API_SetBoneAngles(ghoul2, 0, "lower_lumbar", vec3_origin, BONE_ANGLES_POSTMULT, POSITIVE_X, NEGATIVE_Y, NEGATIVE_Z, 0, 0, time);
 			trap->G2API_SetBoneAngles(ghoul2, 0, "upper_lumbar", vec3_origin, BONE_ANGLES_POSTMULT, POSITIVE_X, NEGATIVE_Y, NEGATIVE_Z, 0, 0, time);
@@ -11933,7 +11933,7 @@ static QINLINE void PM_CmdForSaberMoves(usercmd_t *ucmd)
 			{ //one of the two jumps
 				if ( pm->ps->groundEntityNum != ENTITYNUM_NONE )
 				{ //still on ground?
-					if ( pm->ps->groundEntityNum >= MAX_CLIENTS )
+					if ( pm->ps->groundEntityNum >= CLIENT_SLOTS )
 					{
 						//jump!
 						pm->ps->velocity[2] = 250;//400;
@@ -12043,7 +12043,7 @@ static QINLINE void PM_CmdForSaberMoves(usercmd_t *ucmd)
 				gclient_t *client = NULL;
 				{
 					int clientNum = pm->ps->clientNum;
-					if (0 <= clientNum && clientNum < MAX_CLIENTS) {
+					if (0 <= clientNum && clientNum < CLIENT_SLOTS) {
 							client = g_entities[clientNum].client;
 					}
 				}
@@ -12663,7 +12663,7 @@ void PmoveSingle (pmove_t *pmove) {
 	pm_entSelf = PM_BGEntForNum(pm->ps->clientNum);
 	if (pm->ps->m_iVehicleNum)
 	{
-		if (pm->ps->clientNum < MAX_CLIENTS)
+		if (pm->ps->clientNum < CLIENT_SLOTS)
 		{ //player riding vehicle
 			pm_entVeh = PM_BGEntForNum(pm->ps->m_iVehicleNum);
 		}
@@ -13131,7 +13131,7 @@ void PmoveSingle (pmove_t *pmove) {
 #endif
 
 	/*
-	if (pm->ps->clientNum >= MAX_CLIENTS)
+	if (pm->ps->clientNum >= CLIENT_SLOTS)
 	{
 #ifdef _GAME
 		Com_Printf( S_C0LOR_RED" SERVER N%i msec %d\n", pm->ps->clientNum, pml.msec );
@@ -13151,7 +13151,7 @@ void PmoveSingle (pmove_t *pmove) {
 
 	pml.frametime = pml.msec * 0.001;
 
-	if (pm->ps->clientNum >= MAX_CLIENTS &&
+	if (pm->ps->clientNum >= CLIENT_SLOTS &&
 		pm_entSelf &&
 		pm_entSelf->s.NPC_class == CLASS_VEHICLE)
 	{ //we are a vehicle
@@ -13290,7 +13290,7 @@ void PmoveSingle (pmove_t *pmove) {
 	}
 
 	if ( pm->ps->pm_type == PM_NOCLIP ) {
-		if (pm->ps->clientNum < MAX_CLIENTS)
+		if (pm->ps->clientNum < CLIENT_SLOTS)
 		{
 			PM_NoclipMove ();
 			PM_DropTimers ();
@@ -13560,7 +13560,7 @@ void PmoveSingle (pmove_t *pmove) {
 		*/
 	}
 
-	if (pm->ps->clientNum >= MAX_CLIENTS &&
+	if (pm->ps->clientNum >= CLIENT_SLOTS &&
 		pm_entSelf && pm_entSelf->m_pVehicle)
 	{ //Now update our mins/maxs to match our m_vOrientation based on our length, width & height
 		BG_VehicleAdjustBBoxForOrientation( pm_entSelf->m_pVehicle, pm->ps->origin, pm->mins, pm->maxs, pm->ps->clientNum, pm->tracemask, pm->trace );
@@ -13579,7 +13579,7 @@ void PmoveSingle (pmove_t *pmove) {
 	}
 
 	if ( pm->ps->pm_type == PM_DEAD ) {
-		if (pm->ps->clientNum >= MAX_CLIENTS &&
+		if (pm->ps->clientNum >= CLIENT_SLOTS &&
 			pm_entSelf &&
 			pm_entSelf->s.NPC_class == CLASS_VEHICLE &&
 			pm_entSelf->m_pVehicle->m_pVehicleInfo->type != VH_ANIMAL)
@@ -13623,8 +13623,8 @@ void PmoveSingle (pmove_t *pmove) {
 	if (!pm->ps->m_iVehicleNum &&
 		pm_entSelf->s.NPC_class!=CLASS_VEHICLE&&
 		pm_entSelf->s.NPC_class!=CLASS_RANCOR&&
-		pm->ps->groundEntityNum < ENTITYNUM_WORLD &&
-		pm->ps->groundEntityNum >= MAX_CLIENTS)
+		BG_REAL_ENTITYNUM( pm->ps->groundEntityNum ) &&
+		pm->ps->groundEntityNum >= CLIENT_SLOTS)
 	{ //I am a player client, not riding on a vehicle, and potentially standing on an NPC
 		bgEntity_t *pEnt = PM_BGEntForNum(pm->ps->groundEntityNum);
 
@@ -13634,7 +13634,7 @@ void PmoveSingle (pmove_t *pmove) {
 			if (!BG_IsFlipkickableNPC( &pEnt->s ) && pm->ps->velocity[2] < 270 && !GetFlipkick(pm->ps))
 			{ //try forcing velocity up and also force him to jump
 				pm->ps->velocity[2] = 270; //seems reasonable
-				if (pm->ps->clientNum < MAX_CLIENTS) //don't force NPC commands when NPCs stand on each other
+				if (pm->ps->clientNum < CLIENT_SLOTS) //don't force NPC commands when NPCs stand on each other
 					pm->cmd.upmove = 127;
 			}
 		}
@@ -13655,13 +13655,13 @@ void PmoveSingle (pmove_t *pmove) {
 #endif
 	}
 
-	if (pm->ps->clientNum >= MAX_CLIENTS &&
+	if (pm->ps->clientNum >= CLIENT_SLOTS &&
 		pm_entSelf &&
 		pm_entSelf->s.NPC_class == CLASS_VEHICLE)
 	{ //we are a vehicle
 		bgEntity_t *veh = pm_entSelf;
 
-		assert(veh && veh->playerState && veh->m_pVehicle && veh->s.number >= MAX_CLIENTS);
+		assert(veh && veh->playerState && veh->m_pVehicle && veh->s.number >= CLIENT_SLOTS);
 
 		if (veh->m_pVehicle->m_pVehicleInfo->type != VH_FIGHTER)
 		{ //kind of hacky, don't want to do this for flying vehicles
@@ -13682,7 +13682,7 @@ void PmoveSingle (pmove_t *pmove) {
 			int i = 0;
 #endif
 
-			assert(self && self->playerState && self->s.number < MAX_CLIENTS);
+			assert(self && self->playerState && self->s.number < CLIENT_SLOTS);
 
 			if (pm->ps->pm_type == PM_DEAD &&
 				(veh->m_pVehicle->m_ulFlags & VEH_CRASHING))
@@ -13856,7 +13856,7 @@ skipAirMove:
 
 	if (pm->ps->m_iVehicleNum
 		/*&&pm_entSelf->s.NPC_class!=CLASS_VEHICLE*/
-		&& pm->ps->clientNum < MAX_CLIENTS)
+		&& pm->ps->clientNum < CLIENT_SLOTS)
 	{//a client riding a vehicle
 		if ( (pm->ps->eFlags&EF_NODRAW) )
 		{//inside the vehicle, do nothing
@@ -13891,7 +13891,7 @@ skipAirMove:
 	PM_Use();
 
 	if (!pm->ps->m_iVehicleNum &&
-		(pm->ps->clientNum < MAX_CLIENTS ||
+		(pm->ps->clientNum < CLIENT_SLOTS ||
 		!pm_entSelf ||
 		pm_entSelf->s.NPC_class != CLASS_VEHICLE))
 	{ //don't do this if we're on a vehicle, or we are one
@@ -13945,7 +13945,7 @@ skipAirMove:
 	}
 
 	if (//pm->ps->m_iVehicleNum &&
-		pm->ps->clientNum >= MAX_CLIENTS &&
+		pm->ps->clientNum >= CLIENT_SLOTS &&
 		pm_entSelf &&
 		pm_entSelf->s.NPC_class == CLASS_VEHICLE)
 	{ //a vehicle with passengers

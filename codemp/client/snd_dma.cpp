@@ -296,9 +296,9 @@ loopSound_t	loopSounds[MAX_LOOP_SOUNDS];
 
 int			s_rawend;
 portable_samplepair_t	s_rawsamples[MAX_RAW_SAMPLES];
-vec3_t		s_entityPosition[MAX_GENTITIES];
-int			s_entityWavVol[MAX_GENTITIES];
-int			s_entityWavVol_back[MAX_GENTITIES];
+vec3_t		s_entityPosition[MAX_GENTITIES_EXTENDED];	// jofents: entity numbers up to 2046
+int			s_entityWavVol[MAX_GENTITIES_EXTENDED];
+int			s_entityWavVol_back[MAX_GENTITIES_EXTENDED];
 
 int			s_numChannels;			// Number of AL Sources == Num of Channels
 
@@ -1622,7 +1622,7 @@ void S_StartAmbientSound( const vec3_t origin, int entityNum, unsigned char volu
 	if ( !s_soundStarted || s_soundMuted ) {
 		return;
 	}
-	if ( !origin && ( entityNum < 0 || entityNum >= MAX_GENTITIES ) )
+	if ( !origin && ( entityNum < 0 || entityNum >= MAX_GENTITIES_EXTENDED ) )
 		Com_Error( ERR_DROP, "S_StartAmbientSound: bad entitynum %i", entityNum );
 
 	if ( sfxHandle < 0 || sfxHandle >= s_numSfx )
@@ -1761,7 +1761,7 @@ void S_StartSound(const vec3_t origin, int entityNum, int entchannel, sfxHandle_
 
 	// Do not discard server-triggered sounds while unfocused. The output backend
 	// mutes them while keeping the sound timeline advancing, so restore stays in sync.
-	if ( !origin && ( entityNum < 0 || entityNum >= MAX_GENTITIES ) ) {
+	if ( !origin && ( entityNum < 0 || entityNum >= MAX_GENTITIES_EXTENDED ) ) {
 		Com_Error( ERR_DROP, "S_StartSound: bad entitynum %i", entityNum );
 	}
 
@@ -2567,7 +2567,7 @@ let the sound system know where an entity currently is
 */
 void S_UpdateEntityPosition( int entityNum, const vec3_t origin )
 {
-	if ( entityNum < 0 || entityNum >= MAX_GENTITIES ) {
+	if ( entityNum < 0 || entityNum >= MAX_GENTITIES_EXTENDED ) {
 		Com_Error( ERR_DROP, "S_UpdateEntityPosition: bad entitynum %i", entityNum );
 	}
 
@@ -2949,7 +2949,7 @@ void S_DoLipSynchs( const unsigned s_oldpaintedtime )
 	int				i;
 
 	// clear out the lip synching override array for this frame
-	memset(s_entityWavVol, 0,(MAX_GENTITIES * 4));
+	memset(s_entityWavVol, 0, sizeof(s_entityWavVol));
 
 	ch = s_channels;
 	for (i=0; i<MAX_CHANNELS ; i++, ch++) {

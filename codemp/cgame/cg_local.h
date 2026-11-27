@@ -1203,7 +1203,7 @@ typedef struct cg_s {
 	qboolean	zoomed;
 	int			zoomTime;
 
-	int			damageTaken[32];
+	int			damageTaken[MAX_CLIENT_SLOTS];
 
 	qboolean	coldBreathEffects;
 	qboolean	saberRainActive;
@@ -1220,7 +1220,7 @@ typedef struct cg_s {
 	int				numScores;
 	int				selectedScore;
 	int				teamScores[2];
-	score_t			scores[MAX_CLIENTS];
+	score_t			scores[MAX_CLIENT_SLOTS];
 	qboolean		showScores;
 	qboolean		scoreBoardShowing;
 	qboolean		pressingScoreBoard;
@@ -1236,7 +1236,7 @@ typedef struct cg_s {
 	int				spectatorPaintLen; 									// current offset from start
 
 	// skull trails
-	skulltrail_t	skulltrails[MAX_CLIENTS];
+	skulltrail_t	skulltrails[MAX_CLIENT_SLOTS];
 
 	// centerprinting
 	int			centerPrintTime;
@@ -1394,10 +1394,10 @@ Ghoul2 Insert End
 	} sharedBuffer;
 
 	short				radarEntityCount;
-	short				radarEntities[MAX_CLIENTS+16];
+	short				radarEntities[MAX_CLIENT_SLOTS+16];
 
 	short				bracketedEntityCount;
-	short				bracketedEntities[MAX_CLIENTS+16];
+	short				bracketedEntities[MAX_CLIENT_SLOTS+16];
 
 	float				distanceCull;
 
@@ -2212,7 +2212,8 @@ typedef struct cg_staticmodel_s {
 // be cleared when a tournament restart is done, allowing
 // all clients to begin playing instantly
 typedef struct cgs_s {
-	gameState_t		gameState;			// gamestate from server
+	gameStateExtended_t	gameState;		// gamestate from server (CG_GetGameState)
+	qboolean		gameStateExtended;	// the engine gives the whole of it (cl_gameStateExtended)
 	glconfig_t		glconfig;			// rendering configuration
 	float			screenXScale;		// derived from glconfig
 	float			screenYScale;
@@ -2292,7 +2293,7 @@ typedef struct cgs_s {
 	int			svfps;
 	qboolean	takenscreenshot;
 	int			hookpull;
-	unsigned int ignoredVGS;
+	uint64_t ignoredVGS; // one bit per player slot
 //[JAPRO - Clientside - All - Add cinfo variables to get cinfo from server japlus and japro servers - End]
 
 	qboolean	cvarsRegistered;
@@ -2312,7 +2313,7 @@ typedef struct cgs_s {
 	qhandle_t		inlineDrawModel[MAX_MODELS];
 	vec3_t			inlineModelMidpoints[MAX_MODELS];
 
-	clientInfo_t	clientinfo[MAX_CLIENTS];
+	clientInfo_t	clientinfo[MAX_CLIENT_SLOTS];
 
 	float cursorX;
 	float cursorY;
@@ -2355,15 +2356,15 @@ typedef struct siegeExtended_s
 } siegeExtended_t;
 
 //keep an entry available for each client
-extern siegeExtended_t cg_siegeExtendedData[MAX_CLIENTS];
+extern siegeExtended_t cg_siegeExtendedData[MAX_CLIENT_SLOTS];
 
 //==============================================================================
 
 extern	cgs_t			cgs;
 extern	cg_t			cg;
-extern	centity_t		cg_entities[MAX_GENTITIES];
+extern	centity_t		cg_entities[MAX_GENTITIES_EXTENDED];
 
-extern	centity_t		*cg_permanents[MAX_GENTITIES];
+extern	centity_t		*cg_permanents[MAX_GENTITIES_EXTENDED];
 extern	int				cg_numpermanents;
 
 extern	weaponInfo_t	cg_weapons[MAX_WEAPONS];
@@ -2383,6 +2384,7 @@ void CG_UpdateCvars( void );
 // cg_main.c
 //
 const char *CG_ConfigString( int index );
+void CG_GetGameState( void );
 const char *CG_Argv( int arg );
 
 void CG_StartMusic( qboolean bForceStart );
@@ -2483,7 +2485,7 @@ void CG_DrawTopBottom(float x, float y, float w, float h, float size);
 //
 // cg_draw.c, cg_newDraw.c
 //
-extern	int sortedTeamPlayers[TEAM_MAXOVERLAY];
+extern	int sortedTeamPlayers[MAX_CLIENT_SLOTS];
 extern	int	numSortedTeamPlayers;
 extern  char systemChat[256];
 

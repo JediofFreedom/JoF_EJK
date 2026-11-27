@@ -58,6 +58,7 @@ static struct {
 static cvar_t cg_teamChatsOnly, cg_cleanChatbox, cg_chatSounds = {2},
     cg_logChat = {1}, cg_chatBox = {10000}, cg_chatBoxLines = {MAX_CHATBOX_ITEMS},
     cg_chatBoxX, cg_chatBoxHeight, cg_chatBoxFontSize = {1, 1},
+    cg_chatBoxCutOffLength = {350, 350},
     cg_chatBoxShowHistory, cg_chatBoxEmojis, cg_newFont, cg_noFakeTells = {1};
 static float colorWhite[4];
 static struct { char string[2]; } cg_chatBoxShowCutoffColor = { "7" };
@@ -107,7 +108,7 @@ static void CG_DrawPic(float x, float y, float w, float h, int shader) {}
 static qboolean CG_CompactScoreboard(void) { return qfalse; }
 // This suite exercises ordinary server chat; SJK interception/layout has its own suite.
 static qboolean CG_SJKServerLine(const char *text, qboolean isPrivate, int sender) { return qfalse; }
-static void CG_SJKChatBoxPaint(const chatBoxItem_t *item, float x, float y, float scale) { CHECK(0); }
+static void CG_SJKChatBoxPaint(const chatBoxItem_t *item, float x, float y, float width, float scale) { CHECK(0); }
 static void CG_Text_Paint(float x, float y, float scale, const float *color,
     const char *text, float adjust, int limit, int style, int font) {
     CHECK(drawn < MAX_CHATBOX_ITEMS);

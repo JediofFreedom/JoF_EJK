@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-centity_t cg_entities[MAX_GENTITIES];
+centity_t cg_entities[MAX_GENTITIES_EXTENDED];
 bgLoadedAnim_t bgAllAnims[MAX_ANIM_FILES];
 bgLoadedEvents_t bgAllEvents[MAX_ANIM_FILES];
 static animation_t selectorAnimations[MAX_TOTALANIMATIONS];

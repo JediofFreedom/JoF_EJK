@@ -7,7 +7,8 @@
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "line %d: %s\n", __LINE__, #x); exit(1); } } while (0)
 
 cgs_t cgs;
-centity_t cg_entities[MAX_GENTITIES];
+int cg_clientSlots = MAX_CLIENTS;
+centity_t cg_entities[MAX_GENTITIES_EXTENDED];
 pmove_t *pm;
 bgLoadedAnim_t bgAllAnims[MAX_ANIM_FILES];
 

@@ -34,8 +34,8 @@ static void CG_SVRunningChange( void ) {
 static void CG_ForceModelChange( void ) {
 	int i;
 
-	for ( i=0; i<MAX_CLIENTS; i++ ) {
-		const char *clientInfo = CG_ConfigString( CS_PLAYERS+i );
+	for ( i=0; i<CLIENT_SLOTS; i++ ) {
+		const char *clientInfo = CG_ConfigString( BG_PlayerConfigstring( i ) );
 
 		if ( !VALIDSTRING( clientInfo ) )
 			continue;

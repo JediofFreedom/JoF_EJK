@@ -346,7 +346,7 @@ vec4_t	bluehudtint = {0.5, 0.5, 1.0, 1.0};
 vec4_t	redhudtint = {1.0, 0.5, 0.5, 1.0};
 float	*hudTintColor;
 
-int sortedTeamPlayers[TEAM_MAXOVERLAY];
+int sortedTeamPlayers[MAX_CLIENT_SLOTS];
 int	numSortedTeamPlayers;
 
 int lastvalidlockdif;
@@ -640,7 +640,7 @@ static void CG_DrawBinocularTargets(void) {
 			CG_DrawBinocularDigits(separatorX + 12 * ratio, y + 5 * scale, shieldDigits, scale, shieldColor);
 			continue;
 		}
-		if (cent->currentState.eType == ET_PLAYER && target->entityNum < MAX_CLIENTS) {
+		if (cent->currentState.eType == ET_PLAYER && target->entityNum < CLIENT_SLOTS) {
 			Q_strncpyz(label, cgs.clientinfo[target->entityNum].name, sizeof(label));
 			Q_CleanStr(label);
 		} else {
@@ -679,9 +679,9 @@ static void CG_DrawBinocularTargets(void) {
 static qhandle_t CG_MissionPartyPortrait(int entityNum) {
 	centity_t *cent;
 	qhandle_t icon;
-	if (entityNum < 0 || entityNum >= ENTITYNUM_WORLD)
+	if (entityNum < 0 || !BG_REAL_ENTITYNUM( entityNum ))
 		return 0;
-	if (entityNum < MAX_CLIENTS && cgs.clientinfo[entityNum].infoValid &&
+	if (entityNum < CLIENT_SLOTS && cgs.clientinfo[entityNum].infoValid &&
 		cgs.clientinfo[entityNum].modelIcon)
 		return cgs.clientinfo[entityNum].modelIcon;
 	cent = &cg_entities[entityNum];
@@ -764,7 +764,7 @@ static void CG_DrawMissionParty(void) {
 		qhandle_t portrait = CG_MissionPartyPortrait(member->entityNum);
 		float nameScale, nameWidth;
 
-		if (member->entityNum < MAX_CLIENTS && cgs.clientinfo[member->entityNum].infoValid) {
+		if (member->entityNum < CLIENT_SLOTS && cgs.clientinfo[member->entityNum].infoValid) {
 			Q_strncpyz(label, cgs.clientinfo[member->entityNum].name, sizeof(label));
 			Q_CleanStr(label);
 		} else if (member->name[0]) {
@@ -1133,7 +1133,7 @@ void CG_DrawHead( float x, float y, float w, float h, int clientNum, vec3_t head
 {
 	clientInfo_t	*ci;
 
-	if (clientNum >= MAX_CLIENTS)
+	if (clientNum >= CLIENT_SLOTS)
 	{ //npc?
 		return;
 	}
@@ -3224,29 +3224,29 @@ qboolean CG_CheckTargetVehicle( centity_t **pTargetVeh, float *alpha )
 	*alpha = 1.0f;
 
 	//FIXME: need to clear all of these when you die?
-	if ( cg.predictedPlayerState.rocketLockIndex < ENTITYNUM_WORLD )
+	if ( BG_REAL_ENTITYNUM( cg.predictedPlayerState.rocketLockIndex ) )
 	{
 		targetNum = cg.predictedPlayerState.rocketLockIndex;
 	}
-	else if ( cg.crosshairVehNum < ENTITYNUM_WORLD
+	else if ( BG_REAL_ENTITYNUM( cg.crosshairVehNum )
 		&& cg.time - cg.crosshairVehTime < 3000 )
 	{//crosshair was on a vehicle in the last 3 seconds
 		targetNum = cg.crosshairVehNum;
 	}
-    else if ( cg.crosshairClientNum < ENTITYNUM_WORLD )
+    else if ( BG_REAL_ENTITYNUM( cg.crosshairClientNum ) )
 	{
 		targetNum = cg.crosshairClientNum;
 	}
 
-	if ( targetNum < MAX_CLIENTS )
+	if ( targetNum < CLIENT_SLOTS )
 	{//real client
-		if ( cg_entities[targetNum].currentState.m_iVehicleNum >= MAX_CLIENTS )
+		if ( cg_entities[targetNum].currentState.m_iVehicleNum >= CLIENT_SLOTS )
 		{//in a vehicle
 			targetNum = cg_entities[targetNum].currentState.m_iVehicleNum;
 		}
 	}
-    if ( targetNum < ENTITYNUM_WORLD
-		&& targetNum >= MAX_CLIENTS )
+    if ( BG_REAL_ENTITYNUM( targetNum )
+		&& targetNum >= CLIENT_SLOTS )
 	{
 		//centity_t *targetVeh = &cg_entities[targetNum];
 		targetVeh = &cg_entities[targetNum];
@@ -4464,7 +4464,7 @@ static float CG_DrawEnemyInfo ( float y )
 		title = "Attacker";
 		clientNum = cg.predictedPlayerState.persistant[PERS_ATTACKER];
 
-		if ( clientNum < 0 || clientNum >= MAX_CLIENTS || clientNum == cg.snap->ps.clientNum )
+		if ( clientNum < 0 || clientNum >= CLIENT_SLOTS || clientNum == cg.snap->ps.clientNum )
 		{
 			return y;
 		}
@@ -4476,7 +4476,7 @@ static float CG_DrawEnemyInfo ( float y )
 		}
 		*/
 		//As of current, we don't want to draw the attacker. Instead, draw whoever is in first place.
-		if (cgs.duelWinner < 0 || cgs.duelWinner >= MAX_CLIENTS)
+		if (cgs.duelWinner < 0 || cgs.duelWinner >= CLIENT_SLOTS)
 		{
 			return y;
 		}
@@ -4497,7 +4497,7 @@ static float CG_DrawEnemyInfo ( float y )
 		clientNum = cgs.duelWinner;
 	}
 
-	if ( clientNum >= MAX_CLIENTS || !(&cgs.clientinfo[ clientNum ]) )
+	if ( clientNum >= CLIENT_SLOTS || !(&cgs.clientinfo[ clientNum ]) )
 	{
 		return y;
 	}
@@ -4996,7 +4996,7 @@ float CG_DrawRadar ( float y )
 
 		case ET_MISSILE:
 			if ( //cent->currentState.weapon == WP_ROCKET_LAUNCHER &&//a rocket
-				cent->currentState.owner > MAX_CLIENTS //belongs to an NPC
+				cent->currentState.owner > CLIENT_SLOTS //belongs to an NPC
 				&& cg_entities[cent->currentState.owner].currentState.NPC_class == CLASS_VEHICLE)
 			{//a rocket belonging to an NPC, FIXME: only tracking rockets!
 				float  x;
@@ -5072,9 +5072,9 @@ float CG_DrawRadar ( float y )
 
 				arrowBaseScale *= zScale;
 
-				if (cent->currentState.owner >= MAX_CLIENTS//missile owned by an NPC
+				if (cent->currentState.owner >= CLIENT_SLOTS//missile owned by an NPC
 					&& cg_entities[cent->currentState.owner].currentState.NPC_class == CLASS_VEHICLE//NPC is a vehicle
-					&& cg_entities[cent->currentState.owner].currentState.m_iVehicleNum <= MAX_CLIENTS//Vehicle has a player driver
+					&& cg_entities[cent->currentState.owner].currentState.m_iVehicleNum <= CLIENT_SLOTS//Vehicle has a player driver
 					&& cgs.clientinfo[cg_entities[cent->currentState.owner].currentState.m_iVehicleNum - 1].infoValid) //player driver is valid
 				{
 					cl = &cgs.clientinfo[cg_entities[cent->currentState.owner].currentState.m_iVehicleNum - 1];
@@ -5212,7 +5212,7 @@ float CG_DrawMiniMap(float y)
 	teamColor[3] = 1.0f;
 
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < CLIENT_SLOTS; i++)
 	{
 		centity_t *cent = &cg_entities[i];
 
@@ -5682,7 +5682,7 @@ float CG_DrawMiniMap(float y)
 
 			case ET_MISSILE:
 				if ( //cent->currentState.weapon == WP_ROCKET_LAUNCHER &&//a rocket
-					cent->currentState.owner > MAX_CLIENTS //belongs to an NPC
+					cent->currentState.owner > CLIENT_SLOTS //belongs to an NPC
 					&& cg_entities[cent->currentState.owner].currentState.NPC_class == CLASS_VEHICLE )
 				{//a rocket belonging to an NPC, FIXME: only tracking rockets!
 					float  x;
@@ -5758,9 +5758,9 @@ float CG_DrawMiniMap(float y)
 
 					arrowBaseScale *= zScale;
 
-					if ( cent->currentState.owner >= MAX_CLIENTS//missile owned by an NPC
+					if ( cent->currentState.owner >= CLIENT_SLOTS//missile owned by an NPC
 						&& cg_entities[cent->currentState.owner].currentState.NPC_class == CLASS_VEHICLE//NPC is a vehicle
-						&& cg_entities[cent->currentState.owner].currentState.m_iVehicleNum <= MAX_CLIENTS//Vehicle has a player driver
+						&& cg_entities[cent->currentState.owner].currentState.m_iVehicleNum <= CLIENT_SLOTS//Vehicle has a player driver
 						&& cgs.clientinfo[cg_entities[cent->currentState.owner].currentState.m_iVehicleNum-1].infoValid ) //player driver is valid
 					{
 						cl = &cgs.clientinfo[cg_entities[cent->currentState.owner].currentState.m_iVehicleNum-1];
@@ -7113,7 +7113,7 @@ void CG_DrawSiegeInfo(centity_t *cent, float chX, float chY, float chW, float ch
 	float percent;
 	int ammoMax;
 
-	assert(cent->currentState.number < MAX_CLIENTS);
+	assert(cent->currentState.number < CLIENT_SLOTS);
 
 	if (se->lastUpdated > cg.time)
 	{ //strange, shouldn't happen
@@ -7141,7 +7141,7 @@ void CG_DrawSiegeInfo(centity_t *cent, float chX, float chY, float chW, float ch
 		return;
 	}
 
-	configstring = CG_ConfigString( cg.predictedPlayerState.clientNum + CS_PLAYERS );
+	configstring = CG_ConfigString( BG_PlayerConfigstring( cg.predictedPlayerState.clientNum ) );
 	v = Info_ValueForKey( configstring, "siegeclass" );
 
 	if (!v || !v[0])
@@ -7540,13 +7540,13 @@ static void CG_DrawCrosshair( vec3_t worldPoint, int chEntValid ) {
 	else
 	{
 		//set color based on what kind of ent is under crosshair
-		if ( cg.crosshairClientNum >= ENTITYNUM_WORLD )
+		if ( !BG_REAL_ENTITYNUM( cg.crosshairClientNum ) )
 		{
 			trap->R_SetColor( NULL );
 		}
 		//rwwFIXMEFIXME: Write this a different way, it's getting a bit too sloppy looking
 		else if (chEntValid &&
-			(cg_entities[cg.crosshairClientNum].currentState.number < MAX_CLIENTS ||
+			(cg_entities[cg.crosshairClientNum].currentState.number < CLIENT_SLOTS ||
 			cg_entities[cg.crosshairClientNum].currentState.eType == ET_NPC ||
 			cg_entities[cg.crosshairClientNum].currentState.shouldtarget ||
 			cg_entities[cg.crosshairClientNum].currentState.health || //always show ents with health data under crosshair
@@ -7561,7 +7561,7 @@ static void CG_DrawCrosshair( vec3_t worldPoint, int chEntValid ) {
 				ecolor[1] = 1.0;//G
 				ecolor[2] = 1.0;//B
 			}
-			else if ( crossEnt->currentState.number < MAX_CLIENTS )
+			else if ( crossEnt->currentState.number < CLIENT_SLOTS )
 			{
 				if (cgs.gametype >= GT_TEAM &&
 					cgs.clientinfo[crossEnt->currentState.number].team == cgs.clientinfo[cg.snap->ps.clientNum].team )
@@ -7639,7 +7639,7 @@ static void CG_DrawCrosshair( vec3_t worldPoint, int chEntValid ) {
 						if (!crossEnt->currentState.teamowner ||
 							crossEnt->currentState.NPC_class == CLASS_VEHICLE)
 						{ //neutral
-							if (crossEnt->currentState.owner < MAX_CLIENTS)
+							if (crossEnt->currentState.owner < CLIENT_SLOTS)
 							{ //base color on who is pilotting this thing
 								clientInfo_t *ci = &cgs.clientinfo[crossEnt->currentState.owner];
 
@@ -7846,7 +7846,7 @@ static void CG_DrawCrosshair( vec3_t worldPoint, int chEntValid ) {
 	if (crossEnt && crossEnt->currentState.maxhealth)//loda
 	{
 		// Only require Force Sense 3 for NPC health bars NOT placed by mapper (shouldtarget = mapper's showhealth 1)
-		if (!(crossEnt->currentState.number >= MAX_CLIENTS
+		if (!(crossEnt->currentState.number >= CLIENT_SLOTS
 			&& crossEnt->currentState.eType == ET_NPC
 			&& !crossEnt->currentState.shouldtarget
 			&& !(cg.predictedPlayerState.fd.forcePowersActive & (1 << FP_SEE)
@@ -7856,7 +7856,7 @@ static void CG_DrawCrosshair( vec3_t worldPoint, int chEntValid ) {
 			chY += HEALTH_HEIGHT * 2;
 		}
 	}
-	else if (crossEnt && crossEnt->currentState.number < MAX_CLIENTS)
+	else if (crossEnt && crossEnt->currentState.number < CLIENT_SLOTS)
 	{
 		if (cgs.gametype == GT_SIEGE)
 		{
@@ -8104,7 +8104,7 @@ void CG_BracketEntity( centity_t *cent, float radius )
 
 	local = &cgs.clientinfo[cg.snap->ps.clientNum];
 	if ( cent->currentState.m_iVehicleNum //vehicle has a driver
-		&& (cent->currentState.m_iVehicleNum-1) < MAX_CLIENTS
+		&& (cent->currentState.m_iVehicleNum-1) < CLIENT_SLOTS
 		&& cgs.clientinfo[ cent->currentState.m_iVehicleNum-1 ].infoValid )
 	{
 		if ( cgs.gametype < GT_TEAM )
@@ -8460,11 +8460,11 @@ static void CG_DrawRocketLocking( int lockEntNum, int lockTime )
 	//We can't check to see in pmove if players are on the same team, so we resort
 	//to just not drawing the lock if a teammate is the locked on ent
 	if (cg.snap->ps.rocketLockIndex >= 0 &&
-		cg.snap->ps.rocketLockIndex < ENTITYNUM_NONE)
+		BG_ENTITYNUM_OR_WORLD( cg.snap->ps.rocketLockIndex ))
 	{
 		clientInfo_t *ci = NULL;
 
-		if (cg.snap->ps.rocketLockIndex < MAX_CLIENTS)
+		if (cg.snap->ps.rocketLockIndex < CLIENT_SLOTS)
 		{
 			ci = &cgs.clientinfo[cg.snap->ps.rocketLockIndex];
 		}
@@ -8487,9 +8487,9 @@ static void CG_DrawRocketLocking( int lockEntNum, int lockTime )
 				centity_t *hitEnt = &cg_entities[cg.snap->ps.rocketLockIndex];
 				if (hitEnt->currentState.eType == ET_NPC &&
 					hitEnt->currentState.NPC_class == CLASS_VEHICLE &&
-					hitEnt->currentState.owner < ENTITYNUM_WORLD)
+					BG_REAL_ENTITYNUM( hitEnt->currentState.owner ))
 				{ //this is a vehicle, if it has a pilot and that pilot is on my team, then...
-					if (hitEnt->currentState.owner < MAX_CLIENTS)
+					if (hitEnt->currentState.owner < CLIENT_SLOTS)
 					{
 						ci = &cgs.clientinfo[hitEnt->currentState.owner];
 					}
@@ -8963,7 +8963,7 @@ static void CG_ScanForCrosshairEntity( void ) {
 		CG_CrosshairTrace(&trace, start, vec3_origin, vec3_origin, end, ignore, qfalse);
 	}
 
-	if (trace.entityNum < MAX_CLIENTS)
+	if (trace.entityNum < CLIENT_SLOTS)
 	{
 		if (CG_IsMindTricked(cg_entities[trace.entityNum].currentState.trickedentindex,
 			cg_entities[trace.entityNum].currentState.trickedentindex2,
@@ -8993,7 +8993,7 @@ static void CG_ScanForCrosshairEntity( void ) {
 
 			if (veh->currentState.eType == ET_NPC &&
 				veh->currentState.NPC_class == CLASS_VEHICLE &&
-				veh->currentState.owner < MAX_CLIENTS)
+				veh->currentState.owner < CLIENT_SLOTS)
 			{ //draw the name of the pilot then
 				cg.crosshairClientNum = veh->currentState.owner;
 				cg.crosshairVehNum = veh->currentState.number;
@@ -9008,7 +9008,7 @@ static void CG_ScanForCrosshairEntity( void ) {
 		}
 	}
 
-	if ( cg_drawCrosshairNames.value > 0 && trace.entityNum >= MAX_CLIENTS ) {
+	if ( cg_drawCrosshairNames.value > 0 && trace.entityNum >= CLIENT_SLOTS ) {
 		return;
 	}
 
@@ -9052,13 +9052,13 @@ static void CG_DrawCrosshairNames( void ) {
 	if (cg.predictedPlayerState.zoomMode == 2)
 		return;
 
-	if (cg.crosshairClientNum < ENTITYNUM_WORLD)
+	if (BG_REAL_ENTITYNUM( cg.crosshairClientNum ))
 	{
 		centity_t *veh = &cg_entities[cg.crosshairClientNum];
 
 		if (veh->currentState.eType == ET_NPC &&
 			veh->currentState.NPC_class == CLASS_VEHICLE &&
-			veh->currentState.owner < MAX_CLIENTS)
+			veh->currentState.owner < CLIENT_SLOTS)
 		{ //draw the name of the pilot then
 			cg.crosshairClientNum = veh->currentState.owner;
 			cg.crosshairVehNum = veh->currentState.number;
@@ -9067,7 +9067,7 @@ static void CG_DrawCrosshairNames( void ) {
 		}
 	}
 
-	if (cg.crosshairClientNum >= MAX_CLIENTS)
+	if (cg.crosshairClientNum >= CLIENT_SLOTS)
 	{
 		return;
 	}
@@ -10832,7 +10832,7 @@ qboolean CG_SJKServerLine(const char *text, qboolean isPrivate, int sender)
 	if (at < (int)sizeof(line.text))
 		line.text[at] = '\0';
 	CG_SJKCopyWords(text, at, line.words, sizeof(line.words));
-	if (sender >= 0 && sender < MAX_CLIENTS && cgs.clientinfo[sender].infoValid) {
+	if (sender >= 0 && sender < CLIENT_SLOTS && cgs.clientinfo[sender].infoValid) {
 		line.sender = qtrue;
 		CG_SJKWords(cgs.clientinfo[sender].name, -1, line.nameWords, sizeof(line.nameWords));
 	}
@@ -12297,13 +12297,13 @@ static void CG_TrapDiagramHelper(centity_t *cent) {
 
 	lastAttacker = CG_LastAttacker();
 
-	if (cg_trapDiagramTarget.integer >= 0 && cg_trapDiagramTarget.integer < MAX_CLIENTS) { //temp cvar
+	if (cg_trapDiagramTarget.integer >= 0 && cg_trapDiagramTarget.integer < CLIENT_SLOTS) { //temp cvar
 		enemy = &cg_entities[cg_trapDiagramTarget.integer];
 	}
-	else if (ps->duelInProgress && ps->duelIndex >= 0 && ps->duelIndex < MAX_CLIENTS) { //get dueler
+	else if (ps->duelInProgress && ps->duelIndex >= 0 && ps->duelIndex < CLIENT_SLOTS) { //get dueler
 		enemy = &cg_entities[ps->duelIndex];
 	}
-	else if (lastAttacker >= 0 && lastAttacker < MAX_CLIENTS) {
+	else if (lastAttacker >= 0 && lastAttacker < CLIENT_SLOTS) {
 		enemy = &cg_entities[lastAttacker];
 	}
 	/*else { //get closest player? idk..
@@ -12836,7 +12836,7 @@ static void CG_LeadIndicator(void)
 			if (speed) // If valid weapon
 			{
 				int i;
-				for (i = 0; i < MAX_CLIENTS; i++)
+				for (i = 0; i < CLIENT_SLOTS; i++)
 				{
 					vec3_t Diff, LeadPos, dropVector, newDelta;
 					float Dist, eta, leadX, leadY, x, y, drop;
@@ -12860,7 +12860,7 @@ static void CG_LeadIndicator(void)
 
 					CG_Trace( &trace, cg.predictedPlayerState.origin, vec3_origin, vec3_origin, cent->lerpOrigin, cg.clientNum, CONTENTS_SOLID|CONTENTS_BODY );
 
-					if (trace.entityNum >= MAX_CLIENTS)
+					if (trace.entityNum >= CLIENT_SLOTS)
 						continue;
 
 					if (cg_leadIndicator.integer == 1 && cg.snap) // Adjust for lag
@@ -12970,7 +12970,7 @@ static void CG_PlayerLabels(void)
 	int localVehicleNum = cg.snap ? cg.snap->ps.m_iVehicleNum : ENTITYNUM_NONE;
 
 	// The camera can be inside the local fighter's collision box.
-	if (localVehicleNum <= 0 || localVehicleNum >= ENTITYNUM_WORLD)
+	if (localVehicleNum <= 0 || !BG_REAL_ENTITYNUM( localVehicleNum ))
 		localVehicleNum = ENTITYNUM_NONE;
 
 	if (!cg.snap || (cgs.restricts & RESTRICT_PLAYERLABELS) ||
@@ -12979,7 +12979,7 @@ static void CG_PlayerLabels(void)
 		cgs.gametype == GT_DUEL || cgs.gametype == GT_POWERDUEL)
 		return;
 
-	for (i = 0; i < MAX_CLIENTS; i++) {
+	for (i = 0; i < CLIENT_SLOTS; i++) {
 		vec3_t		pos;
 		float		x, y;
 		trace_t		trace;
@@ -13016,7 +13016,7 @@ static void CG_PlayerLabels(void)
 			continue;
 
 		vehicleNum = cent->currentState.m_iVehicleNum;
-		if (vehicleNum >= MAX_CLIENTS && vehicleNum < ENTITYNUM_WORLD &&
+		if (vehicleNum >= CLIENT_SLOTS && BG_REAL_ENTITYNUM( vehicleNum ) &&
 			cg_entities[vehicleNum].currentValid &&
 			cg_entities[vehicleNum].currentState.eType == ET_NPC &&
 			cg_entities[vehicleNum].currentState.NPC_class == CLASS_VEHICLE)
@@ -13086,13 +13086,17 @@ static void CG_PlayerLabels(void)
 
 	// hideRider vehicles remove their pilots from other clients' snapshots.
 	// The vehicle owner remains available and identifies the missing pilot.
-	for (i = MAX_CLIENTS; i < ENTITYNUM_WORLD; i++) {
+	for (i = CLIENT_SLOTS; i < MAX_GENTITIES_EXTENDED; i++) {
 		centity_t *veh = &cg_entities[i];
 		int pilotNum = veh->currentState.owner;
 
+		if (!BG_REAL_ENTITYNUM(i)) {
+			continue;
+		}
+
 		if (!veh->currentValid || veh->currentState.eType != ET_NPC ||
 			veh->currentState.NPC_class != CLASS_VEHICLE ||
-			pilotNum < 0 || pilotNum >= MAX_CLIENTS ||
+			pilotNum < 0 || pilotNum >= CLIENT_SLOTS ||
 			veh->currentState.m_iVehicleNum != pilotNum + 1 ||
 			pilotNum == cg.clientNum || pilotNum == cg.snap->ps.clientNum ||
 			cg_entities[pilotNum].currentValid ||

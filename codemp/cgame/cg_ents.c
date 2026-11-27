@@ -305,11 +305,11 @@ static void CG_EntityEffects( centity_t *cent ) {
 	CG_SetEntitySoundPosition( cent );
 
 	// add loop sound
-	if ( cent->currentState.loopSound || ((cent->currentState.loopIsSoundset && cent->currentState.number >= MAX_CLIENTS)
+	if ( cent->currentState.loopSound || ((cent->currentState.loopIsSoundset && cent->currentState.number >= CLIENT_SLOTS)
 		&& cent->currentState.loopSound < MAX_SOUNDS)) {
 		sfxHandle_t realSoundIndex = -1;
 
-		if (cent->currentState.loopIsSoundset && cent->currentState.number >= MAX_CLIENTS)
+		if (cent->currentState.loopIsSoundset && cent->currentState.number >= CLIENT_SLOTS)
 		{ //If this is so, then first get our soundset from the index, and loopSound actually contains which part of the set to
 		  //use rather than a sound index (BMS_START [0], BMS_MID [1], or BMS_END [2]). Typically loop sounds will be BMS_MID.
 			const char *soundSet;
@@ -786,7 +786,7 @@ static qboolean CG_RenderTimeEntBolt(centity_t *cent)
 	vec3_t boltOrg, boltAng;
 	int getBolt = -1;
 
-	if (clientNum >= MAX_CLIENTS || clientNum < 0)
+	if (clientNum >= CLIENT_SLOTS || clientNum < 0)
 	{
 		assert(0);
 		return qfalse;
@@ -830,7 +830,7 @@ static void CG_SiegeEntRenderAboveHead(centity_t *cent)
 	refEntity_t ent;
 	vec3_t renderAngles;
 
-	if (clientNum >= MAX_CLIENTS || clientNum < 0)
+	if (clientNum >= CLIENT_SLOTS || clientNum < 0)
 	{
 		assert(0);
 		return;
@@ -946,7 +946,7 @@ static void CG_General( centity_t *cent ) {
 	}
 
 	if (cent->ghoul2 && !cent->currentState.modelGhoul2 && cent->currentState.eType != ET_BODY &&
-		cent->currentState.number >= MAX_CLIENTS)
+		cent->currentState.number >= CLIENT_SLOTS)
 	{ //this is a bad thing
 		if (trap->G2_HaveWeGhoul2Models(cent->ghoul2))
 		{
@@ -980,7 +980,7 @@ static void CG_General( centity_t *cent ) {
 		if (!CG_RenderTimeEntBolt(cent))
 		{ //If this function returns qfalse we shouldn't render this ent at all.
 			if (cent->currentState.boltToPlayer > 0 &&
-				cent->currentState.boltToPlayer <= MAX_CLIENTS)
+				cent->currentState.boltToPlayer <= CLIENT_SLOTS)
 			{
 				VectorCopy(pl->lerpOrigin, cent->lerpOrigin);
 
@@ -1006,7 +1006,7 @@ static void CG_General( centity_t *cent ) {
 	}
 	else if (cent->currentState.eFlags & EF_CLIENTSMOOTH)
 	{
-		if (cent->currentState.groundEntityNum >= ENTITYNUM_WORLD)
+		if (!BG_REAL_ENTITYNUM( cent->currentState.groundEntityNum ))
 		{
 			float smoothFactor = 0.5f*timescale.value;
 			int k = 0;
@@ -1103,7 +1103,7 @@ static void CG_General( centity_t *cent ) {
 
 		doNotSetModel = qtrue;
 
-		if (ownerNum < 0 || ownerNum >= ENTITYNUM_NONE) {
+		if (ownerNum < 0 || !BG_ENTITYNUM_OR_WORLD( ownerNum )) {
 			return;
 		}
 		clEnt = &cg_entities[ownerNum];
@@ -1390,7 +1390,7 @@ static void CG_General( centity_t *cent ) {
 		ent.hModel = 0;
 	}
 
-	if (cent->currentState.number >= MAX_CLIENTS &&
+	if (cent->currentState.number >= CLIENT_SLOTS &&
 		cent->currentState.activeForcePass == NUM_FORCE_POWERS+1&&
 		cent->currentState.NPC_class != CLASS_VEHICLE )
 	{
@@ -2736,7 +2736,7 @@ void CG_GrappleTrail( centity_t *ent ) {
 		return; //assuming we'll never grapple in a duel
 	}
 
-	if ( es->clientNum >= 0 && es->clientNum < MAX_CLIENTS ) {
+	if ( es->clientNum >= 0 && es->clientNum < CLIENT_SLOTS ) {
 		mdxaBone_t	boltMatrix;
 		vec3_t		G2Angles, handPos;
 
@@ -2904,7 +2904,7 @@ static void CG_DrawGrapple(centity_t *cent) {
 		clientNum = (cent->currentState.otherEntityNum == cg.snap->ps.clientNum) ? cg.snap->ps.clientNum : cent->currentState.otherEntityNum;
 	}
 
-	if (clientNum < 0 || clientNum >= MAX_CLIENTS)
+	if (clientNum < 0 || clientNum >= CLIENT_SLOTS)
 		return;
 
 	owner = &cg_entities[clientNum];
@@ -3576,7 +3576,7 @@ void CG_AdjustPositionForMover( const vec3_t in, int moverNum, int fromTime, int
 		return;
 	}
 
-	if ( moverNum <= 0 || moverNum >= ENTITYNUM_MAX_NORMAL ) {
+	if ( moverNum <= 0 || !BG_REAL_ENTITYNUM( moverNum ) ) {
 		VectorCopy( in, out );
 		return;
 	}
@@ -3649,7 +3649,7 @@ void CG_CalcEntityLerpPositions(centity_t* cent) {
 	if (cent->currentState.eType == ET_NPC) {
 		cent->doLerp = qtrue;
 	}
-	else if (cent->currentState.number < MAX_CLIENTS && cent->currentState.number != cg.clientNum) {
+	else if (cent->currentState.number < CLIENT_SLOTS && cent->currentState.number != cg.clientNum) {
 
 		if ((cg.predictedPlayerState.pm_type == PM_SPECTATOR || (cg.predictedPlayerState.pm_flags & PMF_FOLLOW)) &&
 			cent->currentState.number == cg.snap->ps.clientNum)
@@ -3669,7 +3669,7 @@ void CG_CalcEntityLerpPositions(centity_t* cent) {
 	// interpolation; on leaves client trajectories available for extrapolation.
 	// Keep this client's existing NPC interpolation independent of that switch.
 	if (cent->currentState.eType == ET_NPC ||
-		((!cg_smoothClients.integer || soloRace) && cent->currentState.number < MAX_CLIENTS)) {
+		((!cg_smoothClients.integer || soloRace) && cent->currentState.number < CLIENT_SLOTS)) {
 		cent->currentState.pos.trType = TR_INTERPOLATE;
 		cent->nextState.pos.trType = TR_INTERPOLATE;
 	}
@@ -3696,7 +3696,7 @@ void CG_CalcEntityLerpPositions(centity_t* cent) {
 	//unlagged - timenudge extrapolation
 	// interpolating failed (probably no nextSnap), so extrapolate
 #if 0
-	if (cent->currentState.number < MAX_CLIENTS && cent->currentState.clientNum != cg.clientNum) {
+	if (cent->currentState.number < CLIENT_SLOTS && cent->currentState.clientNum != cg.clientNum) {
 		cent->currentState.pos.trType = TR_LINEAR_STOP;
 		cent->currentState.pos.trTime = cg.snap->serverTime;
 		//	cent->currentState.pos.trDuration = 1000 / 30;//loda fix
@@ -3707,7 +3707,7 @@ void CG_CalcEntityLerpPositions(centity_t* cent) {
 	// first see if we can interpolate between two snaps for
 	// linear extrapolated clients
 	if (cent->interpolate && cent->currentState.pos.trType == TR_LINEAR_STOP &&
-		cent->currentState.number < MAX_CLIENTS) {
+		cent->currentState.number < CLIENT_SLOTS) {
 		CG_InterpolateEntityPosition(cent);
 		return;
 	}

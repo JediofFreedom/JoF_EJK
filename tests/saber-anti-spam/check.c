@@ -4,7 +4,8 @@
 
 cg_t cg;
 cgs_t cgs;
-centity_t cg_entities[MAX_GENTITIES];
+int cg_clientSlots = MAX_CLIENTS;
+centity_t cg_entities[MAX_GENTITIES_EXTENDED];
 vmCvar_t cg_saberAntiSpam;
 static snapshot_t snapshot;
 static cgameImport_t imports;

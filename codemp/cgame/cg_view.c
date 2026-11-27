@@ -724,7 +724,7 @@ static void CG_UpdateThirdPersonCameraDamp(float dtime, float stiffFactor, float
 
 	if (trace.fraction < 1.0)
 	{
-		if (trace.entityNum < ENTITYNUM_WORLD &&
+		if (BG_REAL_ENTITYNUM( trace.entityNum ) &&
 			cg_entities[trace.entityNum].currentState.solid == SOLID_BMODEL &&
 			cg_entities[trace.entityNum].currentState.eType == ET_MOVER)
 		{ //get a different position for movers -rww
@@ -2218,7 +2218,7 @@ void CG_UpdateSoundTrackers()
 	int num;
 	centity_t *cent;
 
-	for ( num = 0 ; num < ENTITYNUM_NONE ; num++ )
+	for ( num = 0 ; num < MAX_GENTITIES_EXTENDED ; num++ )
 	{
 		cent = &cg_entities[num];
 

@@ -207,7 +207,7 @@ void CG_BuildSolidList( void ) {
 
 static QINLINE qboolean CG_VehicleClipCheck(centity_t *ignored, trace_t *trace)
 {
-	if (!trace || trace->entityNum < 0 || trace->entityNum >= ENTITYNUM_WORLD)
+	if (!trace || trace->entityNum < 0 || !BG_REAL_ENTITYNUM( trace->entityNum ))
 	{ //it's alright then
 		return qtrue;
 	}
@@ -310,7 +310,7 @@ static void CG_ClipMoveToEntities ( const vec3_t start, const vec3_t mins, const
 			continue;
 		}
 
-		if ( ent->number > MAX_CLIENTS &&
+		if ( ent->number > CLIENT_SLOTS &&
 			 (ent->genericenemyindex-MAX_GENTITIES==cg.predictedPlayerState.clientNum || ent->genericenemyindex-MAX_GENTITIES==cg.predictedVehicleState.clientNum) )
 //		if (ent->number > MAX_CLIENTS && cg.snap && ent->genericenemyindex && (ent->genericenemyindex-MAX_GENTITIES) == cg.snap->ps.clientNum)
 		{ //rww - method of keeping objects from colliding in client-prediction (in case of ownership)
@@ -997,8 +997,8 @@ static QINLINE void CG_EntityStateToPlayerState( entityState_t *s, playerState_t
 }
 #endif
 
-playerState_t cgSendPSPool[ MAX_GENTITIES ];
-playerState_t *cgSendPS[MAX_GENTITIES];
+playerState_t cgSendPSPool[ MAX_GENTITIES_EXTENDED ];
+playerState_t *cgSendPS[MAX_GENTITIES_EXTENDED];
 
 //#define _PROFILE_ES_TO_PS
 
@@ -1015,7 +1015,7 @@ void CG_PmoveClientPointerUpdate()
 
 	memset(&cgSendPSPool[0], 0, sizeof(cgSendPSPool));
 
-	for ( i = 0 ; i < MAX_GENTITIES ; i++ )
+	for ( i = 0 ; i < MAX_GENTITIES_EXTENDED ; i++ )
 	{
 		cgSendPS[i] = &cgSendPSPool[i];
 
@@ -1079,7 +1079,7 @@ qboolean cg_vehPmoveSet = qfalse;
 static QINLINE int FindGrappleHook( int clientNum ) {
 	int i;
 	centity_t *cent = NULL;
-	for ( i = 0; i < MAX_GENTITIES; i++ ) {
+	for ( i = 0; i < MAX_GENTITIES_EXTENDED; i++ ) {
 		cent = &cg_entities[i];
 
 		if ( cent && cent->currentValid && cent->currentState.eType == ET_MISSILE && cent->currentState.weapon == WP_STUN_BATON
@@ -1467,7 +1467,7 @@ void CG_PredictPlayerState( void ) {
 	cg_pmove.pmove_float = pmove_float.integer;
 	cg_pmove.pmove_msec = pmove_msec.integer;
 
-	for ( i = 0 ; i < MAX_GENTITIES ; i++ )
+	for ( i = 0 ; i < MAX_GENTITIES_EXTENDED ; i++ )
 	{
 		//Written this way for optimal speed, even though it doesn't look pretty.
 		//(we don't want to spend the time assigning pointers as it does take
@@ -1966,7 +1966,7 @@ revertES:
 	}
 
 	//copy some stuff back into the entstates to help actually "predict" them if applicable
-	for ( i = 0 ; i < MAX_GENTITIES ; i++ )
+	for ( i = 0 ; i < MAX_GENTITIES_EXTENDED ; i++ )
 	{
 		if (cg_entities[i].currentState.eType == ET_PLAYER ||
 			cg_entities[i].currentState.eType == ET_NPC)

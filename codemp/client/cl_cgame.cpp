@@ -151,7 +151,7 @@ qboolean CL_GetSnapshot( int snapshotNumber, snapshot_t *snapshot ) {
 
 qboolean CL_GetDefaultState(int index, entityState_t *state)
 {
-	if (index < 0 || index >= MAX_GENTITIES)
+	if (index < 0 || index >= MAX_GENTITIES_EXTENDED)
 	{
 		return qfalse;
 	}
@@ -225,14 +225,26 @@ static void CL_UpdateDiscordServerInfo(const char *info)
 }
 #endif
 
-static void CL_ParsePlayerInfo(int start, int end)
+/*
+====================
+CL_ClientSlots
+
+Player slots the server shows us: 32, or up to 64 when the serverinfo it
+sent says jof64 (servers with more than 32 player slots).
+====================
+*/
+int CL_ClientSlots( void ) {
+	return BG_ClientSlotsFromServerinfo( cl.gameState.stringData + cl.gameState.stringOffsets[ CS_SERVERINFO ] );
+}
+
+static void CL_ParsePlayerInfo(int slots)
 {
 	int clientCount = 0, botCount = 0, redTeam = 0, blueTeam = 0, specTeam = 0;
-	int i = start;
+	int i = 0;
 
-	while (i < end)
+	while (i < slots)
 	{
-		char *s = cl.gameState.stringData + cl.gameState.stringOffsets[i];
+		char *s = cl.gameState.stringData + cl.gameState.stringOffsets[BG_PlayerConfigstring(i)];
 		int team = atoi(Info_ValueForKey(s, "t"));
 		char *bot = Info_ValueForKey(s, "skill");
 
@@ -292,7 +304,7 @@ void CL_ConfigstringModified( void ) {
 	char		*old, *s;
 	int			i, index;
 	char		*dup;
-	gameState_t	oldGs;
+	static gameStateExtended_t	oldGs;	// too big for the stack
 	int			len;
 
 	index = atoi( Cmd_Argv(1) );
@@ -327,7 +339,7 @@ void CL_ConfigstringModified( void ) {
 
 		len = strlen( dup );
 
-		if ( len + 1 + cl.gameState.dataCount > MAX_GAMESTATE_CHARS ) {
+		if ( len + 1 + cl.gameState.dataCount > MAX_GAMESTATE_CHARS_EXTENDED ) {
 			Com_Error( ERR_DROP, "MAX_GAMESTATE_CHARS exceeded" );
 		}
 
@@ -337,10 +349,9 @@ void CL_ConfigstringModified( void ) {
 		cl.gameState.dataCount += len + 1;
 	}
 
-	if (index >= CS_PLAYERS &&
-		index < CS_G2BONES)
+	if (BG_ConfigstringPlayer(index, CL_ClientSlots()) != -1)
 	{ //this means that a client was updated in some way. Go through and count the clients.
-		CL_ParsePlayerInfo(CS_PLAYERS, CS_G2BONES);
+		CL_ParsePlayerInfo(CL_ClientSlots());
 	}
 
 #if defined(DISCORD)
@@ -736,6 +747,30 @@ void CL_InitCGame( void ) {
 
 	// load the dll
 	CL_BindCGame();
+
+	// The server shows us more than 32 player slots (jof64), or entity numbers above
+	// 1023 (jofents), which only our cgame has tables for. CL_WantsServerExtensions
+	// asks for them only when it will run, but a pure server or a download can still
+	// bring another one: join again without asking, before the map loads (CL_Frame
+	// sends the reconnect). A demo cannot be joined again. The cgame is unloaded
+	// without a call into it, as it never started.
+	{
+		const qboolean slotsUnsupported = (qboolean)( CL_ClientSlots() > MAX_CLIENTS && !CL_CgameHasClientSlots() );
+		const qboolean entitiesUnsupported = (qboolean)( clc.entityBits && !CL_CgameHasExtendedEntities() );
+
+		if ( slotsUnsupported || entitiesUnsupported ) {
+			const char *what = slotsUnsupported ? "more than 32 player slots" : "entity numbers above 1023";
+			const qboolean rejoin = (qboolean)( !clc.demoplaying && CL_RefuseExtendedSlots() );
+
+			CL_FreeUnstartedCGame();
+			cls.cgameStarted = qfalse;
+			if ( !rejoin ) {
+				Com_Error( ERR_DROP, "This server or demo uses %s, and the loaded cgame can't show them", what );
+			}
+			Com_Printf( "The loaded cgame can't show %s; joining again without them\n", what );
+			Com_Error( ERR_DISCONNECT, "Joining again without %s", what );
+		}
+	}
 
 	// Stop it at the map/cgame handoff; CG_StartMusic will start the map track
 	// afterward when CS_MUSIC provides one.

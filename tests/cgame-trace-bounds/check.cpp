@@ -9,7 +9,8 @@
 #define CHECK(x) do { if (!(x)) { std::fprintf(stderr, "line %d: %s\n", __LINE__, #x); std::exit(1); } } while (0)
 cg_t cg;
 cgs_t cgs;
-centity_t cg_entities[MAX_GENTITIES];
+int cg_clientSlots = MAX_CLIENTS;
+centity_t cg_entities[MAX_GENTITIES_EXTENDED];
 static cgameImport_t imports;
 cgameImport_t *trap = &imports;
 static int cg_numSolidEntities;

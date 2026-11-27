@@ -210,7 +210,7 @@ void CG_ClientList_f( void )
 	int i;
 	int count = 0;
 
-	for( i = 0; i < MAX_CLIENTS; i++ )
+	for( i = 0; i < CLIENT_SLOTS; i++ )
 	{
 		ci = &cgs.clientinfo[ i ];
 		if( !ci->infoValid )
@@ -251,7 +251,7 @@ static void CG_UserInfoList_f(void)
 	int i;
 	int r, g, b;
 
-	for (i = 0; i < MAX_CLIENTS; i++)
+	for (i = 0; i < CLIENT_SLOTS; i++)
 	{
 		ci = &cgs.clientinfo[i];
 		cent = &cg_entities[i];
@@ -563,82 +563,49 @@ void CG_SanitizeString2(const char *in, char *out)
 
 static int CG_ClientNumberFromString(const char *s)
 {
-	clientInfo_t *cl;
-	int			idnum, i, match = -1;
+	int			i, match = -1;
 	char		s2[MAX_STRING_CHARS];
 	char		n2[MAX_STRING_CHARS];
-	idnum = atoi(s);
 
-	if (s[0] == '-') { //- returns id of target in our crosshair
-		idnum = CG_CrosshairPlayer();
-		return idnum;
+	if (s[0] == '-') {
+		return CG_CrosshairPlayer();
 	}
 
-	// numeric values are just slot numbers
-	if (s[0] >= '0' && s[0] <= '9' && strlen(s) == 1) //changed this to only recognize numbers 0-31 as client numbers, otherwise interpret as a name, in which case sanitize2 it and accept partial matches (return error if multiple matches)
-	{
-		idnum = atoi(s);
-		cl = &cgs.clientinfo[idnum];
-		if (!cl->infoValid) {
-			Com_Printf("Client '%i' is not active\n", idnum);
-			return -1;
-		}
-		return idnum;
-	}
+	// Interpret decimal IDs within the server's slot range as slot numbers.
+	if (s[0] >= '0' && s[0] <= '9' &&
+		(!s[1] || (s[0] != '0' && s[1] >= '0' && s[1] <= '9' && !s[2]))) {
+		const int id = atoi(s);
 
-	if ((s[0] == '1' || s[0] == '2') && (s[1] >= '0' && s[1] <= '9' && strlen(s) == 2))  //changed and to or ..
-	{
-		idnum = atoi(s);
-		cl = &cgs.clientinfo[idnum];
-		if (!cl->infoValid) {
-			Com_Printf("Client '%i' is not active\n", idnum);
-			return -1;
+		if (id < CLIENT_SLOTS) {
+			if (!cgs.clientinfo[id].infoValid) {
+				Com_Printf("Client '%i' is not active\n", id);
+				return -1;
+			}
+			return id;
 		}
-		return idnum;
-	}
-
-	if (s[0] == '3' && (s[1] >= '0' && s[1] <= '1' && strlen(s) == 2))
-	{
-		idnum = atoi(s);
-		cl = &cgs.clientinfo[idnum];
-		if (!cl->infoValid) {
-			Com_Printf("Client '%i' is not active\n", idnum);
-			return -1;
-		}
-		return idnum;
 	}
 
 	// check for a name match
 	CG_SanitizeString2(s, s2);
-	for (idnum = 0, cl = cgs.clientinfo; idnum < cgs.maxclients; ++idnum, ++cl) {
+	for (i = 0; i < cgs.maxclients; ++i) {
+		const clientInfo_t *cl = &cgs.clientinfo[i];
+
 		if (!cl->infoValid) {
 			continue;
 		}
 		CG_SanitizeString2(cl->name, n2);
-
-		for (i = 0; i < cgs.maxclients; i++)
-		{
-			cl = &cgs.clientinfo[i];
-			if (!cl->infoValid) {
-				continue;
+		if (strstr(n2, s2)) {
+			if (match != -1) {
+				Com_Printf("More than one user '%s' on the server\n", s);
+				return -2;
 			}
-			CG_SanitizeString2(cl->name, n2);
-			if (strstr(n2, s2))
-			{
-				if (match != -1)
-				{ //found more than one match
-					Com_Printf("More than one user '%s' on the server\n", s);
-					return -2;
-				}
-				match = i;
-			}
+			match = i;
 		}
-		if (match != -1)//uhh
-			return match;
 	}
-	if (!atoi(s)) //Uhh.. well.. whatever. fixes amtele spam problem when teleporting to x y z yaw
+	if (match < 0 && !atoi(s)) { // Keep coordinate arguments to amtele quiet.
 		Com_Printf("User '%s' is not on the server\n", s);
-	return -1;
+	}
+	return match;
 }
 
 static void CG_IgnoreVGS_f(void)
@@ -649,7 +616,7 @@ static void CG_IgnoreVGS_f(void)
 
 		Com_Printf("VGS Ignored client(s):\n");
 		for (i = 0, cl = cgs.clientinfo; i < cgs.maxclients; ++i, ++cl) {
-			if (cl->infoValid && (cgs.ignoredVGS & (1 << i))) {
+			if (cl->infoValid && (cgs.ignoredVGS & (1ULL << i))) {
 				Com_Printf("^5%2d^3: ^7%s\n", i, cl->name);
 			}
 		}
@@ -663,7 +630,7 @@ static void CG_IgnoreVGS_f(void)
 				Com_Printf("VGS Unignored all\n");
 			}
 			else {
-				cgs.ignoredVGS = 0xFFFFFFFF;
+				cgs.ignoredVGS = ~0ULL;
 				Com_Printf("VGS Ignored all\n");
 			}
 		}
@@ -673,12 +640,12 @@ static void CG_IgnoreVGS_f(void)
 				return;
 			}
 
-			if (cgs.ignoredVGS & (1 << target)) {
-				cgs.ignoredVGS ^= (1 << target);
+			if (cgs.ignoredVGS & (1ULL << target)) {
+				cgs.ignoredVGS ^= (1ULL << target);
 				Com_Printf("VGS Unignored %s\n", playername);
 			}
 			else {
-				cgs.ignoredVGS |= (1 << target);
+				cgs.ignoredVGS |= (1ULL << target);
 				Com_Printf("VGS Ignored %s\n", playername);
 			}
 		}
@@ -818,7 +785,7 @@ static void CG_FollowFastest_f(void) {
 	if (!cg.snap)
 		return;
 
-	for (i=0;i<MAX_CLIENTS;i++) {
+	for (i=0;i<CLIENT_SLOTS;i++) {
 		if (i == cg.snap->ps.clientNum)
 			continue;
 
@@ -2538,7 +2505,7 @@ static void CG_AddStrafeTrail_f(void)
 
 		for (i = 0, cl = cgs.clientinfo; i < cgs.maxclients; ++i, ++cl) {
 			if (cl->infoValid) {
-				if (cg_strafeTrailPlayers.integer & (1<<i))
+				if (i < MAX_CLIENTS && (cg_strafeTrailPlayers.integer & (1<<i)))
 					trap->Print("^5%2d^3: ^7[X] ^7%s\n", i, cl->name);
 				else
 					trap->Print("^5%2d^3: ^7[ ] ^7%s\n", i, cl->name);
@@ -2633,7 +2600,7 @@ static void CG_TeleTargetPlayer_f(void) {
 	}
 	
 
-	if (targetNum < 0 || targetNum >= MAX_CLIENTS) {
+	if (targetNum < 0 || targetNum >= CLIENT_SLOTS) {
 		return;
 	}
 
@@ -2683,7 +2650,7 @@ static void CG_TeleToPlayer_f(void) {
 	}
 
 
-	if (targetNum < 0 || targetNum >= MAX_CLIENTS) {
+	if (targetNum < 0 || targetNum >= CLIENT_SLOTS) {
 		return;
 	}
 	cent = &cg_entities[targetNum];

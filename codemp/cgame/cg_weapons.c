@@ -1972,7 +1972,7 @@ void CG_GetClientWeaponMuzzleBoltPoint(int clIndex, vec3_t to)
 	centity_t *cent;
 	mdxaBone_t	boltMatrix;
 
-	if (clIndex < 0 || clIndex >= MAX_CLIENTS)
+	if (clIndex < 0 || clIndex >= CLIENT_SLOTS)
 	{
 		return;
 	}

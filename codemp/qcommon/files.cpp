@@ -2329,6 +2329,88 @@ long FS_ReadDLLInPAK(const char *filename, void **buffer) {
 }
 
 /*
+================
+FS_DLLSourceGame
+
+The game folder a module DLL other than jampgame would be loaded from right now,
+without loading it: the pk3 FS_ReadDLLInPAK would take it from, else the first loose
+copy in Sys_LoadDllFromPaths' order (fs_game, EternalJK, base). An empty name is the
+folder of the executable (fs_game unset). qfalse when there is no copy at all.
+================
+*/
+qboolean FS_DLLSourceGame( const char *filename, char *gameDir, int gameDirSize ) {
+	FS_AssertInitialised();
+
+	for ( searchpath_t *search = fs_searchpaths; search; search = search->next ) {
+		if ( !search->pack || !FS_PakIsPure( search->pack ) ) {
+			continue;
+		}
+		const pack_t *pak = search->pack;
+		for ( const fileInPack_t *pakFile = pak->hashTable[FS_HashFileName( filename, pak->hashSize )];
+				pakFile; pakFile = pakFile->next ) {
+			if ( !FS_FilenameCompare( pakFile->name, filename ) ) {
+				Q_strncpyz( gameDir, pak->pakGamename, gameDirSize );
+				return qtrue;
+			}
+		}
+	}
+
+	const char *paths[] = { fs_homepath->string, fs_basepath->string, fs_cdpath->string };
+	const char *games[] = { Cvar_VariableString( "fs_game" ), ETERNALJKGAME, BASEGAME };
+	for ( const char *game : games ) {
+		for ( const char *path : paths ) {
+			if ( path[0] && FS_FileInPathExists( FS_BuildOSPath( path, game, filename ) ) ) {
+				Q_strncpyz( gameDir, game, gameDirSize );
+				return qtrue;
+			}
+		}
+	}
+	return qfalse;
+}
+
+/*
+================
+FS_GameDirHasDLL
+
+Whether a game folder that is not mounted yet holds a module DLL, loose or in one
+of its pk3s (at the root, where FS_ReadDLLInPAK looks for it).
+================
+*/
+qboolean FS_GameDirHasDLL( const char *game, const char *filename ) {
+	const char *paths[] = { fs_homepath->string, fs_basepath->string, fs_cdpath->string };
+
+	if ( !game[0] || strstr( game, ".." ) || strstr( game, "::" ) ) {
+		return qfalse;
+	}
+	for ( const char *path : paths ) {
+		char dir[MAX_OSPATH];
+		int numPaks = 0;
+		qboolean found = qfalse;
+
+		if ( !path[0] ) {
+			continue;
+		}
+		if ( FS_FileInPathExists( FS_BuildOSPath( path, game, filename ) ) ) {
+			return qtrue;
+		}
+		Q_strncpyz( dir, FS_BuildOSPath( path, game, "" ), sizeof( dir ) );
+		char **paks = Sys_ListFiles( dir, ".pk3", NULL, &numPaks, qfalse );
+		for ( int i = 0; i < numPaks && !found; i++ ) {
+			unzFile uf = unzOpen( FS_BuildOSPath( path, game, paks[i] ) );
+			if ( uf ) {
+				found = (qboolean)( unzLocateFile( uf, filename, 2 ) == UNZ_OK );	// 2: any case
+				unzClose( uf );
+			}
+		}
+		Sys_FreeFileList( paks );
+		if ( found ) {
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
+/*
 ============
 FS_ReadFile
 

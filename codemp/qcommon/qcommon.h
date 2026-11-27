@@ -43,6 +43,7 @@ typedef struct msg_s {
 	int		cursize;
 	int		readcount;
 	int		bit;				// for bitwise reads and writes
+	int		entityBits;			// entity number width: 0 = GENTITYNUM_BITS, else GENTITYNUM_BITS_EXTENDED (jofents)
 } msg_t;
 
 void MSG_Init (msg_t *buf, byte *data, int length);
@@ -88,6 +89,7 @@ void MSG_ReadDeltaUsercmdKey( msg_t *msg, int key, usercmd_t *from, usercmd_t *t
 
 void MSG_WriteDeltaEntity( msg_t *msg, struct entityState_s *from, struct entityState_s *to
 						   , qboolean force );
+int  MSG_EntityBits( const msg_t *msg );	// entity number width this message uses
 void MSG_ReadDeltaEntity( msg_t *msg, entityState_t *from, entityState_t *to,
 						 int number );
 
@@ -650,6 +652,8 @@ qboolean FS_GetWritePath(const char *qpath, char *destination, size_t size);
 int		FS_FileIsInPAK(const char *filename, int *pChecksum );
 // returns 1 if a file is in the PAK file, otherwise -1
 long	FS_ReadDLLInPAK(const char *filename, void **buffer);
+qboolean FS_DLLSourceGame( const char *filename, char *gameDir, int gameDirSize );
+qboolean FS_GameDirHasDLL( const char *game, const char *filename );
 const char *FS_CmdlineGame( void );
 // the +set fs_game mod a client with fs_globalcfg 1 still mounts and hosts, or ""
 void	FS_NoteGameModule( const char *filename, const char *gameDir );

@@ -8,6 +8,7 @@ typedef int qboolean;
 const int qtrue = 1, qfalse = 0;
 static char activeRendererName[64];
 static void *rendererLib;
+static void (*cl_drawChatGif)();
 static std::string calls;
 static qboolean destroyArgument, restartArgument;
 struct refexport_t { void (*Shutdown)(qboolean, qboolean); } api, *re;
@@ -24,6 +25,7 @@ static void Sys_UnloadDll(void *module) {
     calls += "unload ";
 }
 static void Cvar_DeactivateRendererCvars() { calls += "cvars"; }
+static void drawChatGif() {}
 #include "shutdown.h"
 
 static void check(const char *name, qboolean restart, qboolean destroy) {
@@ -31,11 +33,12 @@ static void check(const char *name, qboolean restart, qboolean destroy) {
     rendererLib = &api;
     api.Shutdown = shutdown;
     re = &api;
+    cl_drawChatGif = drawChatGif;
     calls.clear();
     CL_ShutdownRef(restart);
     CHECK(calls == "shutdown unload cvars");
     CHECK(destroyArgument == destroy && restartArgument == restart);
-    CHECK(!re && !rendererLib && !activeRendererName[0]);
+    CHECK(!re && !rendererLib && !activeRendererName[0] && !cl_drawChatGif);
 }
 int main() {
     check("rd-vulkan", qtrue, qtrue);

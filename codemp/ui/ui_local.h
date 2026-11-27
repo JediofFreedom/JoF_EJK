@@ -353,11 +353,11 @@ typedef struct uiInfo_s {
 	int						playerIndex;
 	int						playerNumber;
 	qboolean				teamLeader;
-	char					playerNames[MAX_CLIENTS][MAX_NETNAME];
-	char					teamNames[MAX_CLIENTS][MAX_TEAMNAME];
-	int						teamClientNums[MAX_CLIENTS];
+	char					playerNames[MAX_CLIENT_SLOTS][MAX_NETNAME];
+	char					teamNames[MAX_CLIENT_SLOTS][MAX_TEAMNAME];
+	int						teamClientNums[MAX_CLIENT_SLOTS];
 
-	int						playerIndexes[MAX_CLIENTS]; //so we can vote-kick by index
+	int						playerIndexes[MAX_CLIENT_SLOTS]; //so we can vote-kick by index
 
 	int						mapCount;
 	mapInfo_t				mapList[MAX_MAPS];

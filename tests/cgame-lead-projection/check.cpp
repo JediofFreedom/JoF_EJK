@@ -8,7 +8,7 @@
 #define CHECK(test) do { if (!(test)) { std::fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #test); std::exit(1); } } while (0)
 typedef float vec_t, vec3_t[3], vec4_t[4];
 typedef int qboolean;
-enum {qfalse, qtrue, SCREEN_WIDTH=640, SCREEN_HEIGHT=480, MAX_CLIENTS=64,
+enum {qfalse, qtrue, SCREEN_WIDTH=640, SCREEN_HEIGHT=480, MAX_CLIENTS=64, CLIENT_SLOTS=MAX_CLIENTS,
       RESTRICT_LEAD=1, EF_DEAD=2, BUTTON_ATTACK=1, BUTTON_ALT_ATTACK=2,
       CONTENTS_SOLID=1, CONTENTS_BODY=2, CONTENTS_OPAQUE=4,
       ET_PLAYER=1, CLASS_VEHICLE=2, GT_TEAM=3, PERS_TEAM=0,

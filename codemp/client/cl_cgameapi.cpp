@@ -29,6 +29,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 #include "snd_ambient.h"
 #include "FXExport.h"
 #include "FxUtil.h"
+#include "sys/sys_loadlib.h"
 
 extern IHeapAllocator *G2VertSpaceClient;
 extern botlib_export_t *botlib_export;
@@ -36,6 +37,16 @@ extern botlib_export_t *botlib_export;
 // cgame interface
 static cgameExport_t *cge; // cgame export table
 static vm_t *cgvm; // cgame vm, valid for legacy and new api
+
+// Our cgame exports JoF_ClientSlots: it has tables for every player slot of a
+// server with more than 32 (jof64). A mod's cgame, or an older one, does not.
+qboolean CL_CgameHasClientSlots( void ) {
+	return (qboolean)( cgvm && cgvm->dllHandle && Sys_LoadFunction( cgvm->dllHandle, "JoF_ClientSlots" ) );
+}
+
+qboolean CL_CgameHasExtendedEntities( void ) {
+	return (qboolean)( cgvm && cgvm->dllHandle && Sys_LoadFunction( cgvm->dllHandle, "JoF_ExtendedEntities" ) );
+}
 
 //
 // cgame vmMain calls
@@ -353,7 +364,28 @@ static void CL_GetGlconfig( glconfig_t *glconfig ) {
 	*glconfig = cls.glconfig;
 }
 
+// A cgame built with the stock gamestate (legacy modules, other mods) gets the
+// configstrings that fit its 16000 characters, packed again; the rest read empty.
 static void CL_GetGameState( gameState_t *gs ) {
+	Com_Memset( gs, 0, sizeof( *gs ) );
+	gs->dataCount = 1;	// a 0 at the beginning for empty configstrings
+	for ( int i = 0; i < MAX_CONFIGSTRINGS; i++ ) {
+		const int offset = cl.gameState.stringOffsets[i];
+		if ( !offset ) {
+			continue;
+		}
+		const char *s = cl.gameState.stringData + offset;
+		const int len = strlen( s );
+		if ( !len || gs->dataCount + len + 1 > MAX_GAMESTATE_CHARS ) {
+			continue;
+		}
+		gs->stringOffsets[i] = gs->dataCount;
+		Com_Memcpy( gs->stringData + gs->dataCount, s, len + 1 );
+		gs->dataCount += len + 1;
+	}
+}
+
+static void CL_GetGameStateExtended( gameStateExtended_t *gs ) {
 	*gs = cl.gameState;
 }
 
@@ -373,8 +405,11 @@ static int CL_CM_RegisterTerrain( const char *config ) {
 	return 0;
 }
 
-extern int s_entityWavVol[MAX_GENTITIES];
+extern int s_entityWavVol[MAX_GENTITIES_EXTENDED];
 static int CL_S_GetVoiceVolume( int entID ) {
+	if ( entID < 0 || entID >= MAX_GENTITIES_EXTENDED ) {
+		return 0;
+	}
 	return s_entityWavVol[entID];
 }
 
@@ -1963,6 +1998,8 @@ void CL_BindCGame( void ) {
 		cgi.SJK_SetChatSink						= CL_SJK_SetChatSink;
 		cgi.SJK_SaidInAll						= CL_SJK_SaidInAll;
 		cgi.SJK_DrawGif							= CL_SJK_DrawGif;
+		cgi.GetGameStateExtended				= CL_GetGameStateExtended;
+		Cvar_Get( "cl_gameStateExtended", "1", CVAR_ROM, "The cgame can read the whole gamestate (GetGameStateExtended), past the stock 16000 characters" );
 		Cvar_Get( "cl_sjkChatSink", "1", CVAR_ROM, "SJK chat into the chat box supported by this client (0 = none)" );
 		Cvar_Get( "cl_sjkChatGifDraw", "1", CVAR_ROM, "SJK chat lines carry their GIF and the cgame can draw it (0 = no)" );
 
@@ -1989,6 +2026,13 @@ void CL_BindCGame( void ) {
 void CL_UnbindCGame( void ) {
 	cl_sjkChatSink = NULL;
 	CGVM_Shutdown();
+	VM_Free( cgvm );
+	cgvm = NULL;
+}
+
+// Unloads a cgame that was bound but never started (no CG_INIT), without calling it.
+void CL_FreeUnstartedCGame( void ) {
+	cl_sjkChatSink = NULL;
 	VM_Free( cgvm );
 	cgvm = NULL;
 }

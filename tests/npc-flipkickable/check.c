@@ -22,6 +22,8 @@ enum { MAX_CLIENTS = 32, ENTITYNUM_WORLD = 1022, ENTITYNUM_NONE = 1023,
     EV_USE_ITEM6, EV_USE_ITEM7, EV_USE_ITEM8, EV_USE_ITEM9, EV_USE_ITEM10, EV_USE_ITEM11,
     GT_SIEGE = 7, DF_NO_FALLING = 8, DAMAGE_NO_ARMOR = 2, MOD_FALLING = 19,
     CHAN_AUTO = 0, EF_INVULNERABLE = 1 << 27 };
+#define CLIENT_SLOTS MAX_CLIENTS
+#define BG_REAL_ENTITYNUM( n ) ( (n) < ENTITYNUM_WORLD )
 #define S_COLOR_YELLOW ""
 #define VectorSet(v,x,y,z) do { (v)[0]=(x); (v)[1]=(y); (v)[2]=(z); } while (0)
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); exit(1); } } while (0)

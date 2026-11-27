@@ -722,6 +722,12 @@ void CG_GlassShatter(int entnum, vec3_t dmgPt, vec3_t dmgDir, float dmgRadius, i
 {
 	vec3_t		verts[4], normal;
 
+	// the func_glass entity number, sent in a 32-bit field: up to 2046 with jofents
+	if (entnum < 0 || entnum >= MAX_GENTITIES_EXTENDED)
+	{
+		return;
+	}
+
 	if (cgs.inlineDrawModel[cg_entities[entnum].currentState.modelindex])
 	{
 		trap->R_GetBModelVerts(cgs.inlineDrawModel[cg_entities[entnum].currentState.modelindex], verts, normal);
@@ -1364,7 +1370,7 @@ This is the spurt of blood when a character gets hit
 qboolean CG_IsDroidEntity( int entityNum ) {
 	centity_t *cent;
 
-	if ( entityNum < 0 || entityNum >= ENTITYNUM_NONE ) {
+	if ( entityNum < 0 || !BG_ENTITYNUM_OR_WORLD( entityNum ) ) {
 		return qfalse;
 	}
 

@@ -28,7 +28,7 @@ along with this program; if not, see <http://www.gnu.org/licenses/>.
 
 //JAPRO - Serverside - Fullforce Duels - Start
 #ifdef _CGAME
-extern int cg_dueltypes[MAX_CLIENTS];
+extern int cg_dueltypes[MAX_CLIENT_SLOTS];
 #endif
 //JAPRO - Serverside - Fullforce Duels - End
 
@@ -589,7 +589,7 @@ saberMoveName_t PM_CheckStabDown( void )
 	{//sorry must be on ground!
 		return LS_NONE;
 	}
-	if ( pm->ps->clientNum < MAX_CLIENTS )
+	if ( pm->ps->clientNum < CLIENT_SLOTS )
 	{//player
 		pm->ps->velocity[2] = 0;
 		pm->cmd.upmove = 0;
@@ -603,7 +603,7 @@ saberMoveName_t PM_CheckStabDown( void )
 
 	pm->trace(&tr, pm->ps->origin, trmins, trmaxs, fwd, pm->ps->clientNum, MASK_PLAYERSOLID);
 
-	if (tr.entityNum < ENTITYNUM_WORLD)
+	if (BG_REAL_ENTITYNUM( tr.entityNum ))
 	{
 		ent = PM_BGEntForNum(tr.entityNum);
 	}
@@ -1605,7 +1605,7 @@ qboolean PM_CanBackstab(void)
 		centity_t *cent;
 		vec3_t diff = {0};
 
-		for (i = 0; i < MAX_CLIENTS; i++) {
+		for (i = 0; i < CLIENT_SLOTS; i++) {
 			cent = &cg_entities[i];
 
 			if (!cent)
@@ -1639,7 +1639,7 @@ qboolean PM_CanBackstab(void)
 
 		pm->trace(&tr, pm->ps->origin, trmins, trmaxs, back, pm->ps->clientNum, MASK_PLAYERSOLID);
 
-		if (tr.fraction != 1.0 && tr.entityNum >= 0 && tr.entityNum < ENTITYNUM_NONE)
+		if (tr.fraction != 1.0 && tr.entityNum >= 0 && BG_ENTITYNUM_OR_WORLD( tr.entityNum ))
 		{
 			bgEntity_t *bgEnt = PM_BGEntForNum(tr.entityNum);
 
@@ -1834,7 +1834,7 @@ qboolean PM_SomeoneInFront(trace_t *tr)
 
 	pm->trace(tr, pm->ps->origin, trmins, trmaxs, back, pm->ps->clientNum, MASK_PLAYERSOLID);
 
-	if (tr->fraction != 1.0 && tr->entityNum >= 0 && tr->entityNum < ENTITYNUM_NONE)
+	if (tr->fraction != 1.0 && tr->entityNum >= 0 && BG_ENTITYNUM_OR_WORLD( tr->entityNum ))
 	{
 		bgEntity_t *bgEnt = PM_BGEntForNum(tr->entityNum);
 
@@ -2198,7 +2198,7 @@ static qboolean PM_CheckEnemyPresence( int dir, float radius )
 	VectorMA(pm->ps->origin, radius, checkDir, tTo);
 	pm->trace(&tr, pm->ps->origin, tMins, tMaxs, tTo, pm->ps->clientNum, MASK_PLAYERSOLID);
 
-	if (tr.fraction != 1.0f && tr.entityNum < ENTITYNUM_WORLD)
+	if (tr.fraction != 1.0f && BG_REAL_ENTITYNUM( tr.entityNum ))
 	{ //let's see who we hit
 		bgEntity_t *bgEnt = PM_BGEntForNum(tr.entityNum);
 
@@ -2421,7 +2421,7 @@ saberMoveName_t PM_SaberAttackForMovement(saberMoveName_t curmove)
 			gclient_t *client = NULL;
 			{
 				int clientNum = pm->ps->clientNum;
-				if (0 <= clientNum && clientNum < MAX_CLIENTS) {
+				if (0 <= clientNum && clientNum < CLIENT_SLOTS) {
 					client = g_entities[clientNum].client;
 				}
 			}
@@ -3081,7 +3081,7 @@ void PM_WeaponLightsaber(void)
 				pm->ps->saberLockFrame
 			)
 		{
-			if (pm->ps->saberLockEnemy < ENTITYNUM_NONE &&
+			if (BG_ENTITYNUM_OR_WORLD( pm->ps->saberLockEnemy ) &&
 				pm->ps->saberLockEnemy >= 0)
 			{
 				bgEntity_t *bgEnt;
@@ -4314,7 +4314,7 @@ saberInfo_t *BG_MySaber( int clientNum, int saberNum )
 	}
 #elif defined(_CGAME)
 	clientInfo_t *ci = NULL;
-	if (clientNum < MAX_CLIENTS)
+	if (clientNum < CLIENT_SLOTS)
 	{
 		ci = &cgs.clientinfo[clientNum];
 	}

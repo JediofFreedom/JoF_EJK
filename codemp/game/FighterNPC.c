@@ -1456,7 +1456,7 @@ static void ProcessOrientCommands( Vehicle_t *pVeh )
 		&& (!(pVeh->m_pParentEntity->s.number%4)||!(pVeh->m_pParentEntity->s.number%5)) )
 	{//no yaw control
 	}
-	else if ( pVeh->m_pPilot && pVeh->m_pPilot->s.number < MAX_CLIENTS && parentPS->speed > 0.0f )//&& !( pVeh->m_ucmd.forwardmove > 0 && pVeh->m_LandTrace.fraction != 1.0f ) )
+	else if ( pVeh->m_pPilot && pVeh->m_pPilot->s.number < CLIENT_SLOTS && parentPS->speed > 0.0f )//&& !( pVeh->m_ucmd.forwardmove > 0 && pVeh->m_LandTrace.fraction != 1.0f ) )
 	{
 #ifdef VEH_CONTROL_SCHEME_4
 		if ( 0  )

@@ -968,6 +968,13 @@ typedef enum {
 #define	GENTITYNUM_BITS	10		// don't need to send any more
 #define	MAX_GENTITIES	(1<<GENTITYNUM_BITS)
 
+// JoF "jofents": a server that offers it, to a client that asks for it, sends entity numbers
+// in 11 bits. ENTITYNUM_NONE and ENTITYNUM_WORLD keep their values (1023, 1022), and 2047 is
+// never a real entity either. Client-side tables indexed by entity number use this size.
+#define	GENTITYNUM_BITS_EXTENDED	11
+#define	MAX_GENTITIES_EXTENDED		(1<<GENTITYNUM_BITS_EXTENDED)
+#define	JOFENTS_VALUE				"2048"	// the jofents key's value, in getinfo, userinfo and serverinfo
+
 //I am reverting. I guess. For now.
 /*
 #define	GENTITYNUM_BITS		11
@@ -1022,6 +1029,16 @@ typedef struct gameState_s {
 	char		stringData[MAX_GAMESTATE_CHARS];
 	int			dataCount;
 } gameState_t;
+
+// The engine and this cgame keep a bigger gamestate: 64 players' configstrings on a
+// 64-slot (jof64) server can pass 16000 characters. A gamestate still fits one server
+// message (MAX_MSGLEN). gameState_t keeps its stock size for the modules built with it.
+#define	MAX_GAMESTATE_CHARS_EXTENDED	49152
+typedef struct gameStateExtended_s {
+	int			stringOffsets[MAX_CONFIGSTRINGS];
+	char		stringData[MAX_GAMESTATE_CHARS_EXTENDED];
+	int			dataCount;
+} gameStateExtended_t;
 
 
 //=========================================================

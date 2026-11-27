@@ -1911,7 +1911,7 @@ qboolean BG_HasYsalamiri(int gametype, playerState_t *ps)
 
 //JAPRO - Serverside - Fullforce Dueling - Start
 #ifndef _GAME
-extern int cg_dueltypes[MAX_CLIENTS];
+extern int cg_dueltypes[MAX_CLIENT_SLOTS];
 #endif
 //JAPRO - Serverside - Fullforce Dueling - End
 

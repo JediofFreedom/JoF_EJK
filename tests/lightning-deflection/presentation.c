@@ -6,7 +6,7 @@
 
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "line %d: %s\n", __LINE__, #x); exit(1); } } while (0)
 cg_t cg;
-centity_t cg_entities[MAX_GENTITIES];
+centity_t cg_entities[MAX_GENTITIES_EXTENDED];
 bgLoadedAnim_t bgAllAnims[MAX_ANIM_FILES];
 static cgameImport_t imports;
 cgameImport_t *trap = &imports;

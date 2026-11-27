@@ -946,17 +946,18 @@ static void UI_BuildPlayerList() {
 	char	info[MAX_INFO_STRING];
 
 	trap->GetClientState( &cs );
-	trap->GetConfigString( CS_PLAYERS + cs.clientNum, info, MAX_INFO_STRING );
+	trap->GetConfigString( BG_PlayerConfigstring( cs.clientNum ), info, MAX_INFO_STRING );
 	uiInfo.playerNumber = cs.clientNum;
 	uiInfo.teamLeader = atoi(Info_ValueForKey(info, "tl"));
 	team = atoi(Info_ValueForKey(info, "t"));
 	trap->GetConfigString( CS_SERVERINFO, info, sizeof(info) );
-	count = atoi( Info_ValueForKey( info, "sv_maxclients" ) );
+	// 32 slots unless the server has more than 32 player slots and says so with jof64
+	count = Com_Clampi( 0, BG_ClientSlotsFromServerinfo( info ), atoi( Info_ValueForKey( info, "sv_maxclients" ) ) );
 	uiInfo.playerCount = 0;
 	uiInfo.myTeamCount = 0;
 	playerTeamNumber = 0;
 	for( n = 0; n < count; n++ ) {
-		trap->GetConfigString( CS_PLAYERS + n, info, MAX_INFO_STRING );
+		trap->GetConfigString( BG_PlayerConfigstring( n ), info, MAX_INFO_STRING );
 
 		if (info[0]) {
 			Q_strncpyz( uiInfo.playerNames[uiInfo.playerCount], Info_ValueForKey( info, "n" ), MAX_NETNAME );

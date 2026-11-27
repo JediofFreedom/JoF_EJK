@@ -38,13 +38,11 @@ CG_ParseScores
 
 =================
 */
-static void CG_ParseScores( void ) {
-	int		i, powerups, readScores, scoreOffset;//JAPRO - Clientside - Scoreboard Deaths
+// The fields of one row: 14, or 15 when the server appends the deaths count.
+static int CG_ScoreRowFields( int payload, int declaredRows ) {
 	qboolean hasDeaths, weIdentifyAsJapro;
+	int expected, alternate;
 
-	int argc = trap->Cmd_Argc();
-
-	// Per-client stride, computed once and used for every CG_Argv() index.
 	// Only JAPRO-derived game modules append the deaths field, and only for
 	// clients whose cjp_client userinfo they recognize (g_client.c, g_cmds.c).
 	// Our own server advertises gamename "japro" (GAMEVERSION) and is detected
@@ -54,51 +52,45 @@ static void CG_ParseScores( void ) {
 	weIdentifyAsJapro = ( !Q_stricmp( cjp_client.string, "1.4JAPRO" ) ) || ( !Q_stricmp( cjp_client.string, JOFCLIENTVERSION ) );
 	hasDeaths = ( cgs.serverMod == SVMOD_JAPLUS && weIdentifyAsJapro )
 		|| cgs.serverMod == SVMOD_JAPRO;
-	scoreOffset = hasDeaths ? 15 : 14;
+	expected = hasDeaths ? 15 : 14;
+	alternate = hasDeaths ? 14 : 15;
+	// Extended JA+ servers can send either format for the same advertised client.
+	if ( CLIENT_SLOTS > MAX_CLIENTS && payload > 0 &&
+		( ( declaredRows > 0 && declaredRows <= CLIENT_SLOTS && payload == declaredRows * alternate ) ||
+		  ( payload % expected != 0 && payload % alternate == 0 ) ) )
+		return alternate;
+	return expected;
+}
 
-	int actualSent = (argc - 4) / scoreOffset;
+// Read count rows, the first at argument firstArg, into cg.scores from firstRow on.
+static void CG_ReadScoreRows( int firstArg, int firstRow, int count, int scoreOffset ) {
+	int n, powerups;
 
-	if (actualSent < 0)
-		actualSent = 0;
-	if (actualSent > MAX_CLIENTS)
-		actualSent = MAX_CLIENTS;
-
-	cg.numScores = actualSent;
-	readScores = actualSent;
-
-
-	if ( cg.numScores > MAX_CLIENTS )
-		cg.numScores = MAX_CLIENTS;
-
-	cg.numScores = readScores;
-
-	cg.teamScores[0] = atoi( CG_Argv( 2 ) );
-	cg.teamScores[1] = atoi( CG_Argv( 3 ) );
-
-	memset( cg.scores, 0, sizeof( cg.scores ) );
-	for ( i=0; i<readScores; i++ ) {
+	for ( n = 0; n < count; n++ ) {
+		const int i = firstRow + n;
+		const int a = firstArg + n * scoreOffset;
 //JAPRO - Clientside - Scoreboard Deaths - Start
-		if (hasDeaths) {
-			cg.scores[i].deaths = atoi(CG_Argv(i * scoreOffset + 18));
+		if ( scoreOffset == 15 ) {
+			cg.scores[i].deaths = atoi( CG_Argv( a + 14 ) );
 		}
 
-		cg.scores[i].client = atoi( CG_Argv( i * scoreOffset + 4 ) );
-		cg.scores[i].score = atoi( CG_Argv( i * scoreOffset + 5 ) );
-		cg.scores[i].ping = atoi( CG_Argv( i * scoreOffset + 6 ) );
-		cg.scores[i].time = atoi( CG_Argv( i * scoreOffset + 7 ) );
-		cg.scores[i].scoreFlags = atoi( CG_Argv( i * scoreOffset + 8 ) );
-		powerups = atoi( CG_Argv( i * scoreOffset + 9 ) );
-		cg.scores[i].accuracy = atoi(CG_Argv(i * scoreOffset + 10));
-		cg.scores[i].impressiveCount = atoi(CG_Argv(i * scoreOffset + 11));
-		cg.scores[i].excellentCount = atoi(CG_Argv(i * scoreOffset + 12));
-		cg.scores[i].gauntletCount = atoi(CG_Argv(i * scoreOffset + 13));
-		cg.scores[i].defendCount = atoi(CG_Argv(i * scoreOffset + 14));
-		cg.scores[i].assistCount = atoi(CG_Argv(i * scoreOffset + 15));
-		cg.scores[i].perfect = (qboolean)atoi(CG_Argv(i * scoreOffset + 16));
-		cg.scores[i].captures = atoi(CG_Argv(i * scoreOffset + 17));
+		cg.scores[i].client = atoi( CG_Argv( a ) );
+		cg.scores[i].score = atoi( CG_Argv( a + 1 ) );
+		cg.scores[i].ping = atoi( CG_Argv( a + 2 ) );
+		cg.scores[i].time = atoi( CG_Argv( a + 3 ) );
+		cg.scores[i].scoreFlags = atoi( CG_Argv( a + 4 ) );
+		powerups = atoi( CG_Argv( a + 5 ) );
+		cg.scores[i].accuracy = atoi( CG_Argv( a + 6 ) );
+		cg.scores[i].impressiveCount = atoi( CG_Argv( a + 7 ) );
+		cg.scores[i].excellentCount = atoi( CG_Argv( a + 8 ) );
+		cg.scores[i].gauntletCount = atoi( CG_Argv( a + 9 ) );
+		cg.scores[i].defendCount = atoi( CG_Argv( a + 10 ) );
+		cg.scores[i].assistCount = atoi( CG_Argv( a + 11 ) );
+		cg.scores[i].perfect = (qboolean)atoi( CG_Argv( a + 12 ) );
+		cg.scores[i].captures = atoi( CG_Argv( a + 13 ) );
 //JAPRO - Clientside - Scoreboard Deaths - End
 
-		if ( cg.scores[i].client < 0 || cg.scores[i].client >= MAX_CLIENTS )
+		if ( cg.scores[i].client < 0 || cg.scores[i].client >= CLIENT_SLOTS )
 			cg.scores[i].client = 0;
 
 		cgs.clientinfo[ cg.scores[i].client ].score = cg.scores[i].score;
@@ -106,6 +98,50 @@ static void CG_ParseScores( void ) {
 
 		cg.scores[i].team = cgs.clientinfo[cg.scores[i].client].team;
 	}
+}
+
+static void CG_ParseScores( void ) {
+	const int payload = trap->Cmd_Argc() - 4;
+	const int scoreOffset = CG_ScoreRowFields( payload, atoi( CG_Argv( 1 ) ) );
+	int actualSent = payload / scoreOffset;
+
+	if ( actualSent < 0 )
+		actualSent = 0;
+	if ( actualSent > CLIENT_SLOTS )
+		actualSent = CLIENT_SLOTS;
+
+	cg.numScores = actualSent;
+	cg.teamScores[0] = atoi( CG_Argv( 2 ) );
+	cg.teamScores[1] = atoi( CG_Argv( 3 ) );
+
+	memset( cg.scores, 0, sizeof( cg.scores ) );
+	CG_ReadScoreRows( 4, 0, actualSent, scoreOffset );
+	CG_SetScoreSelection( NULL );
+}
+
+/*
+=================
+CG_ParseScores64
+
+"scores64 <first row> <rows> <row>...": the rows of a 64-slot (jof64) server's
+scoreboard that did not fit its "scores" command (one server command holds about
+22 rows). They continue the rows already read; a part that does not start where
+those end belongs to an older board and is dropped.
+=================
+*/
+static void CG_ParseScores64( void ) {
+	const int payload = trap->Cmd_Argc() - 3;
+	const int scoreOffset = CG_ScoreRowFields( payload, atoi( CG_Argv( 2 ) ) );
+	const int first = atoi( CG_Argv( 1 ) );
+	int count = payload / scoreOffset;
+
+	if ( first != cg.numScores || count <= 0 )
+		return;
+	if ( count > CLIENT_SLOTS - first )
+		count = CLIENT_SLOTS - first;
+
+	CG_ReadScoreRows( 3, first, count, scoreOffset );
+	cg.numScores += count;
 	CG_SetScoreSelection( NULL );
 }
 
@@ -120,14 +156,14 @@ static void CG_ParseTeamInfo( void ) {
 	int i, client;
 
 	numSortedTeamPlayers = atoi( CG_Argv( 1 ) );
-	if ( numSortedTeamPlayers < 0 || numSortedTeamPlayers > TEAM_MAXOVERLAY ) {
+	if ( numSortedTeamPlayers < 0 || numSortedTeamPlayers > ( CLIENT_SLOTS > TEAM_MAXOVERLAY ? CLIENT_SLOTS : TEAM_MAXOVERLAY ) ) {
 		trap->Error( ERR_DROP, "CG_ParseTeamInfo: numSortedTeamPlayers out of range (%d)", numSortedTeamPlayers );
 		return;
 	}
 
 	for ( i=0; i<numSortedTeamPlayers; i++ ) {
 		client = atoi( CG_Argv( i*TEAMINFO_OFFSET + 2 ) );
-		if ( client < 0 || client >= MAX_CLIENTS ) {
+		if ( client < 0 || client >= CLIENT_SLOTS ) {
 			trap->Error( ERR_DROP, "CG_ParseTeamInfo: bad client number: %d", client );
 			return;
 		}
@@ -251,7 +287,9 @@ void CG_ParseServerinfo( void ) {
 	cgs.jcinfo= atoi ( Info_ValueForKey ( info, "jcinfo" ) );//[JAPRO - Clientside - All - Add gamename variable to get jcinfo from japro servers]
 	*/
 
-	cgs.maxclients = Com_Clampi( 0, MAX_CLIENTS, atoi( Info_ValueForKey( info, "sv_maxclients" ) ) );
+	// 32 slots unless the server has more than 32 player slots and says so with jof64
+	cg_clientSlots = BG_ClientSlotsFromServerinfo( info );
+	cgs.maxclients = Com_Clampi( 0, CLIENT_SLOTS, atoi( Info_ValueForKey( info, "sv_maxclients" ) ) );
 	trap->Cvar_Set("ui_version", Info_ValueForKey(info, "version")); //used by UI in the in-game "about" menu
 	cgs.svfps = atoi( Info_ValueForKey( info, "sv_fps" ) );
 	if (!cgs.svfps)
@@ -869,7 +907,7 @@ static void CG_ConfigStringModified( void ) {
 
 	// get the gamestate from the client system, which will have the
 	// new configstring already integrated
-	trap->GetGameState( &cgs.gameState );
+	CG_GetGameState();
 
 	// look up the individual string that was modified
 	str = CG_ConfigString( num );
@@ -1031,9 +1069,9 @@ static void CG_ConfigStringModified( void ) {
 		cg_beatingSiegeTime = atoi(str);
 		CG_SetSiegeTimerCvar ( cg_beatingSiegeTime );
 	}
-	else if ( num >= CS_PLAYERS && num < CS_PLAYERS+MAX_CLIENTS )
+	else if ( BG_ConfigstringPlayer( num, CLIENT_SLOTS ) != -1 )
 	{
-		CG_NewClientInfo( num - CS_PLAYERS, qtrue);
+		CG_NewClientInfo( BG_ConfigstringPlayer( num, CLIENT_SLOTS ), qtrue);
 		CG_BuildSpectatorString();
 	} else if ( num == CS_FLAGSTATUS ) {
 		if( cgs.gametype == GT_CTF || cgs.gametype == GT_CTY ) {
@@ -1064,7 +1102,7 @@ void CG_KillCEntityG2(int entNum)
 	clientInfo_t *ci = NULL;
 	centity_t *cent = &cg_entities[entNum];
 
-	if (entNum < MAX_CLIENTS)
+	if (entNum < CLIENT_SLOTS)
 	{
 		ci = &cgs.clientinfo[entNum];
 	}
@@ -1139,11 +1177,11 @@ void CG_KillCEntityInstances(void)
 	int i = 0;
 	centity_t *cent;
 
-	while (i < MAX_GENTITIES)
+	while (i < MAX_GENTITIES_EXTENDED)
 	{
 		cent = &cg_entities[i];
 
-		if (i >= MAX_CLIENTS && cent->currentState.number == i)
+		if (i >= CLIENT_SLOTS && cent->currentState.number == i)
 		{ //do not clear G2 instances on client ents, they are constant
 			CG_KillCEntityG2(i);
 		}
@@ -1200,7 +1238,7 @@ static void CG_MapRestart( void ) {
 		cg.itemPickup = 0;
 	}
 	cg.pickupHandshakeActive = cg.pickupConfirmed = qfalse;
-	for (i = 0 ; i < MAX_CLIENTS ; i++)
+	for (i = 0 ; i < CLIENT_SLOTS ; i++)
 	{
 		ci = &cgs.clientinfo[i];
 		if (!ci)
@@ -1378,7 +1416,7 @@ static void CG_BodyQueueCopy(centity_t *cent, int clientNum, int knownWeapon)
 		trap->G2API_CleanGhoul2Models(&cent->ghoul2);
 	}
 
-	if (clientNum < 0 || clientNum >= MAX_CLIENTS)
+	if (clientNum < 0 || clientNum >= CLIENT_SLOTS)
 	{
 		return;
 	}
@@ -1541,7 +1579,7 @@ static void CG_KillGhoul2_f( void ) {
 		indexNum = atoi( CG_Argv( i ) );
 
 		if ( cg_entities[indexNum].ghoul2 && trap->G2_HaveWeGhoul2Models( cg_entities[indexNum].ghoul2 ) ) {
-			if ( indexNum < MAX_CLIENTS ) { //You try to do very bad thing!
+			if ( indexNum < CLIENT_SLOTS ) { //You try to do very bad thing!
 #ifdef _DEBUG
 				Com_Printf("WARNING: Tried to kill a client ghoul2 instance with a kg2 command!\n");
 #endif
@@ -1567,13 +1605,13 @@ static void CG_KillLoopSounds_f( void ) {
 
 	indexNum = atoi( CG_Argv( 1 ) );
 
-	if ( indexNum >= 0 && indexNum < MAX_GENTITIES )
+	if ( indexNum >= 0 && indexNum < MAX_GENTITIES_EXTENDED )
 		clent = &cg_entities[indexNum];
 
 	if ( argNum >= 2 ) {
 		indexNum = atoi( CG_Argv( 2 ) );
 
-		if ( indexNum >= 0 && indexNum < MAX_GENTITIES )
+		if ( indexNum >= 0 && indexNum < MAX_GENTITIES_EXTENDED )
 			trackerent = &cg_entities[indexNum];
 	}
 
@@ -1599,7 +1637,7 @@ static void CG_RestoreClientGhoul_f( void ) {
 	}
 
 	indexNum = atoi( CG_Argv( 1 ) );
-	if ( indexNum < 0 || indexNum >= MAX_CLIENTS ) {
+	if ( indexNum < 0 || indexNum >= CLIENT_SLOTS ) {
 		assert( 0 );
 		return;
 	}
@@ -1872,7 +1910,7 @@ static void CG_BinocularStats_f( void ) {
 		target->health = CG_BinocularIntArg(4 + i * 4);
 		target->maxHealth = CG_BinocularIntArg(5 + i * 4);
 		target->armor = CG_BinocularIntArg(6 + i * 4);
-		if (target->entityNum < 0 || target->entityNum >= ENTITYNUM_WORLD ||
+		if (target->entityNum < 0 || !BG_REAL_ENTITYNUM( target->entityNum ) ||
 			target->health <= 0 || target->maxHealth <= 0 || target->armor < 0)
 			return;
 	}
@@ -1927,13 +1965,13 @@ static void CG_MissionPartyStats_f(void) {
 		member->armor = CG_BinocularIntArg(6 + i * 6);
 		member->force = CG_BinocularIntArg(7 + i * 6);
 		member->maxForce = CG_BinocularIntArg(8 + i * 6);
-		if (member->entityNum < 0 || member->entityNum >= ENTITYNUM_WORLD ||
+		if (member->entityNum < 0 || !BG_REAL_ENTITYNUM( member->entityNum ) ||
 			member->health < 0 || member->maxHealth <= 0 || member->armor < 0 ||
 			member->force < 0 || member->maxForce <= 0)
 			return;
 		// Player display names are already available locally and do not need to
 		// consume reliable-command bandwidth.
-		if (member->entityNum < MAX_CLIENTS && cgs.clientinfo[member->entityNum].infoValid) {
+		if (member->entityNum < CLIENT_SLOTS && cgs.clientinfo[member->entityNum].infoValid) {
 			Q_strncpyz(member->name, cgs.clientinfo[member->entityNum].name, sizeof(member->name));
 			Q_CleanStr(member->name);
 		}
@@ -2017,6 +2055,7 @@ static serverCommand_t	commands[] = {
 	{ "sb",					CG_SiegeBriefingDisplay_f },
 	{ "scl",				CG_SiegeClassSelect_f },
 	{ "scores",				CG_ParseScores },
+	{ "scores64",			CG_ParseScores64 },
 	{ "spc",				CG_SiegeProfileMenu_f },
 	{ "repulse",			CG_Repulse_f },
 	{ "stasis",				CG_Stasis_f },

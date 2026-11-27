@@ -120,7 +120,7 @@ static qboolean FX_LightningSurface(const trace_t *tr) {
 		(tr->surfaceFlags & (SURF_SKY | SURF_NOIMPACT | SURF_NODRAW)))
 		return qfalse;
 	return tr->entityNum == ENTITYNUM_WORLD ||
-		(tr->entityNum >= 0 && tr->entityNum < ENTITYNUM_WORLD &&
+		(tr->entityNum >= 0 && BG_REAL_ENTITYNUM( tr->entityNum ) &&
 		 cg_entities[tr->entityNum].currentState.solid == SOLID_BMODEL);
 }
 
