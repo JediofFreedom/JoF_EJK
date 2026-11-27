@@ -10,7 +10,8 @@
 
 typedef int sfxHandle_t;
 typedef enum { qfalse, qtrue } qboolean;
-enum { MAX_CLIENTS = 32 };
+static int clientSlots = 32;
+#define CLIENT_SLOTS clientSlots
 typedef struct { int soundLoop; qboolean soundLoopCustom; } saberInfo_t;
 #define ARRAY_LEN(a) (sizeof(a) / sizeof((a)[0]))
 #define CHECK(x) do { if (!(x)) { fprintf(stderr, "FAIL line %d: %s\n", __LINE__, #x); exit(1); } } while (0)
@@ -39,14 +40,14 @@ static void checkHum(const char *path, qboolean custom) {
     /* Change the setting on the same loaded saber without parsing it again. */
     for (selected = 0; selected <= 6; ++selected) {
         cg_saberHum.integer = selected;
-        for (client = 0; client < MAX_CLIENTS; ++client) {
+        for (client = 0; client < CLIENT_SLOTS; ++client) {
             int expected = saber.soundLoop;
             if (!custom && selected < 6)
                 expected = cgs.media.saberHumSounds[selected ? selected - 1 : client % 5];
             CHECK(CG_SaberHumSound(&saber, client) == expected);
         }
         CHECK(CG_SaberHumSound(&saber, -1) == saber.soundLoop);
-        CHECK(CG_SaberHumSound(&saber, MAX_CLIENTS) == saber.soundLoop);
+        CHECK(CG_SaberHumSound(&saber, CLIENT_SLOTS) == saber.soundLoop);
     }
     cg_saberHum.integer = -1;
     CHECK(CG_SaberHumSound(&saber, 0) == saber.soundLoop);
@@ -70,6 +71,8 @@ int main(void) {
     checkHum("sound/null.wav", qtrue);
     checkHum("sound/custom/saberhum4.wav", qtrue);
     checkHum("sound/weapons/saber/saberhum4.wav.extra", qtrue);
+    clientSlots = 64;
+    checkHum("sound/weapons/saber/saberhum1.wav", qfalse);
     puts("Saber hum: stock selections update live; custom and silent loops are preserved.");
     return 0;
 }
