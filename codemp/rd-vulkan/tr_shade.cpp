@@ -61,6 +61,7 @@ void RB_BeginSurface( shader_t *shader, int fogNum ) {
 	tess.multiDrawPrimitives = 0;
 
 	tess.shader = state;
+	tess.originalShader = shader;
 	tess.fogNum = fogNum;
 	tess.xstages = state->stages;
 	tess.numPasses = state->numUnfoggedPasses;

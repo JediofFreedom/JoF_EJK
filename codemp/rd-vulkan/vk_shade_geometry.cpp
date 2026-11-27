@@ -2297,6 +2297,7 @@ void RB_SurfaceSpritesVBO( srfSprites_t *surf )
 			continue;
 
 		tess.shader = group->def.shader;
+		tess.originalShader = tess.shader;
 		shaderStage_t *firstStage = tess.shader->stages[0];
 		static int fog_stage;
 

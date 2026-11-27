@@ -1638,7 +1638,7 @@ void VBO_Flush(void)
 
 	RB_EndSurface();
 	tess.vbo_world_index = 0;
-	RB_BeginSurface(tess.shader, tess.fogNum);
+	RB_BeginSurface(tess.originalShader, tess.fogNum);
 }
 
 static void VBO_AddItemDataToSoftBuffer(int itemIndex)

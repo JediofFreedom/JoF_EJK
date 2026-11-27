@@ -2132,6 +2132,7 @@ struct shaderCommands_s
 #endif
 
 	shader_t		*shader;
+	shader_t		*originalShader;	// shader passed to RB_BeginSurface before any remap; batch restarts reuse it
 	float			shaderTime;
 	int				fogNum;
 	bool			entityMergable;
