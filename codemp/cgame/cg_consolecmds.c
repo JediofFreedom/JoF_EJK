@@ -563,94 +563,49 @@ void CG_SanitizeString2(const char *in, char *out)
 
 static int CG_ClientNumberFromString(const char *s)
 {
-	clientInfo_t *cl;
-	int			idnum, i, match = -1;
+	int			i, match = -1;
 	char		s2[MAX_STRING_CHARS];
 	char		n2[MAX_STRING_CHARS];
-	idnum = atoi(s);
 
-	if (s[0] == '-') { //- returns id of target in our crosshair
-		idnum = CG_CrosshairPlayer();
-		return idnum;
+	if (s[0] == '-') {
+		return CG_CrosshairPlayer();
 	}
 
-	// numeric values are just slot numbers
-	if (s[0] >= '0' && s[0] <= '9' && strlen(s) == 1) //changed this to only recognize numbers 0-31 as client numbers, otherwise interpret as a name, in which case sanitize2 it and accept partial matches (return error if multiple matches)
-	{
-		idnum = atoi(s);
-		cl = &cgs.clientinfo[idnum];
-		if (!cl->infoValid) {
-			Com_Printf("Client '%i' is not active\n", idnum);
-			return -1;
-		}
-		return idnum;
-	}
+	// Interpret decimal IDs within the server's slot range as slot numbers.
+	if (s[0] >= '0' && s[0] <= '9' &&
+		(!s[1] || (s[0] != '0' && s[1] >= '0' && s[1] <= '9' && !s[2]))) {
+		const int id = atoi(s);
 
-	if ((s[0] == '1' || s[0] == '2') && (s[1] >= '0' && s[1] <= '9' && strlen(s) == 2))  //changed and to or ..
-	{
-		idnum = atoi(s);
-		cl = &cgs.clientinfo[idnum];
-		if (!cl->infoValid) {
-			Com_Printf("Client '%i' is not active\n", idnum);
-			return -1;
+		if (id < CLIENT_SLOTS) {
+			if (!cgs.clientinfo[id].infoValid) {
+				Com_Printf("Client '%i' is not active\n", id);
+				return -1;
+			}
+			return id;
 		}
-		return idnum;
-	}
-
-	if (s[0] == '3' && (s[1] >= '0' && s[1] <= '1' && strlen(s) == 2))
-	{
-		idnum = atoi(s);
-		cl = &cgs.clientinfo[idnum];
-		if (!cl->infoValid) {
-			Com_Printf("Client '%i' is not active\n", idnum);
-			return -1;
-		}
-		return idnum;
-	}
-
-	// slot numbers 32-63 on servers with more than 32 player slots
-	if (CLIENT_SLOTS > MAX_CLIENTS && strlen(s) == 2 && (s[0] >= '3' && s[0] <= '9') && (s[1] >= '0' && s[1] <= '9') && atoi(s) < CLIENT_SLOTS)
-	{
-		idnum = atoi(s);
-		cl = &cgs.clientinfo[idnum];
-		if (!cl->infoValid) {
-			Com_Printf("Client '%i' is not active\n", idnum);
-			return -1;
-		}
-		return idnum;
 	}
 
 	// check for a name match
 	CG_SanitizeString2(s, s2);
-	for (idnum = 0, cl = cgs.clientinfo; idnum < cgs.maxclients; ++idnum, ++cl) {
+	for (i = 0; i < cgs.maxclients; ++i) {
+		const clientInfo_t *cl = &cgs.clientinfo[i];
+
 		if (!cl->infoValid) {
 			continue;
 		}
 		CG_SanitizeString2(cl->name, n2);
-
-		for (i = 0; i < cgs.maxclients; i++)
-		{
-			cl = &cgs.clientinfo[i];
-			if (!cl->infoValid) {
-				continue;
+		if (strstr(n2, s2)) {
+			if (match != -1) {
+				Com_Printf("More than one user '%s' on the server\n", s);
+				return -2;
 			}
-			CG_SanitizeString2(cl->name, n2);
-			if (strstr(n2, s2))
-			{
-				if (match != -1)
-				{ //found more than one match
-					Com_Printf("More than one user '%s' on the server\n", s);
-					return -2;
-				}
-				match = i;
-			}
+			match = i;
 		}
-		if (match != -1)//uhh
-			return match;
 	}
-	if (!atoi(s)) //Uhh.. well.. whatever. fixes amtele spam problem when teleporting to x y z yaw
+	if (match < 0 && !atoi(s)) { // Keep coordinate arguments to amtele quiet.
 		Com_Printf("User '%s' is not on the server\n", s);
-	return -1;
+	}
+	return match;
 }
 
 static void CG_IgnoreVGS_f(void)
