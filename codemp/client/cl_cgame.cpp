@@ -151,7 +151,7 @@ qboolean CL_GetSnapshot( int snapshotNumber, snapshot_t *snapshot ) {
 
 qboolean CL_GetDefaultState(int index, entityState_t *state)
 {
-	if (index < 0 || index >= MAX_GENTITIES)
+	if (index < 0 || index >= MAX_GENTITIES_EXTENDED)
 	{
 		return qfalse;
 	}
@@ -748,21 +748,28 @@ void CL_InitCGame( void ) {
 	// load the dll
 	CL_BindCGame();
 
-	// The server shows us more than 32 player slots, which only our cgame has tables
-	// for. CL_WantsExtendedSlots asks for them only when it will run, but a pure
-	// server or a download can still bring another one: join again without asking,
-	// before the map loads (CL_Frame sends the reconnect). A demo cannot be joined
-	// again. The cgame is unloaded without a call into it, as it never started.
-	if ( CL_ClientSlots() > MAX_CLIENTS && !CL_CgameHasClientSlots() ) {
-		const qboolean rejoin = (qboolean)( !clc.demoplaying && CL_RefuseExtendedSlots() );
+	// The server shows us more than 32 player slots (jof64), or entity numbers above
+	// 1023 (jofents), which only our cgame has tables for. CL_WantsServerExtensions
+	// asks for them only when it will run, but a pure server or a download can still
+	// bring another one: join again without asking, before the map loads (CL_Frame
+	// sends the reconnect). A demo cannot be joined again. The cgame is unloaded
+	// without a call into it, as it never started.
+	{
+		const qboolean slotsUnsupported = (qboolean)( CL_ClientSlots() > MAX_CLIENTS && !CL_CgameHasClientSlots() );
+		const qboolean entitiesUnsupported = (qboolean)( clc.entityBits && !CL_CgameHasExtendedEntities() );
 
-		CL_FreeUnstartedCGame();
-		cls.cgameStarted = qfalse;
-		if ( !rejoin ) {
-			Com_Error( ERR_DROP, "This server or demo has more than 32 player slots, and the loaded cgame can only show 32" );
+		if ( slotsUnsupported || entitiesUnsupported ) {
+			const char *what = slotsUnsupported ? "more than 32 player slots" : "entity numbers above 1023";
+			const qboolean rejoin = (qboolean)( !clc.demoplaying && CL_RefuseExtendedSlots() );
+
+			CL_FreeUnstartedCGame();
+			cls.cgameStarted = qfalse;
+			if ( !rejoin ) {
+				Com_Error( ERR_DROP, "This server or demo uses %s, and the loaded cgame can't show them", what );
+			}
+			Com_Printf( "The loaded cgame can't show %s; joining again without them\n", what );
+			Com_Error( ERR_DISCONNECT, "Joining again without %s", what );
 		}
-		Com_Printf( "The loaded cgame can only show 32 player slots; joining again without the others\n" );
-		Com_Error( ERR_DISCONNECT, "Joining again with 32 player slots" );
 	}
 
 	// Stop it at the map/cgame handoff; CG_StartMusic will start the map track

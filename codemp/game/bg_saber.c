@@ -603,7 +603,7 @@ saberMoveName_t PM_CheckStabDown( void )
 
 	pm->trace(&tr, pm->ps->origin, trmins, trmaxs, fwd, pm->ps->clientNum, MASK_PLAYERSOLID);
 
-	if (tr.entityNum < ENTITYNUM_WORLD)
+	if (BG_REAL_ENTITYNUM( tr.entityNum ))
 	{
 		ent = PM_BGEntForNum(tr.entityNum);
 	}
@@ -1639,7 +1639,7 @@ qboolean PM_CanBackstab(void)
 
 		pm->trace(&tr, pm->ps->origin, trmins, trmaxs, back, pm->ps->clientNum, MASK_PLAYERSOLID);
 
-		if (tr.fraction != 1.0 && tr.entityNum >= 0 && tr.entityNum < ENTITYNUM_NONE)
+		if (tr.fraction != 1.0 && tr.entityNum >= 0 && BG_ENTITYNUM_OR_WORLD( tr.entityNum ))
 		{
 			bgEntity_t *bgEnt = PM_BGEntForNum(tr.entityNum);
 
@@ -1834,7 +1834,7 @@ qboolean PM_SomeoneInFront(trace_t *tr)
 
 	pm->trace(tr, pm->ps->origin, trmins, trmaxs, back, pm->ps->clientNum, MASK_PLAYERSOLID);
 
-	if (tr->fraction != 1.0 && tr->entityNum >= 0 && tr->entityNum < ENTITYNUM_NONE)
+	if (tr->fraction != 1.0 && tr->entityNum >= 0 && BG_ENTITYNUM_OR_WORLD( tr->entityNum ))
 	{
 		bgEntity_t *bgEnt = PM_BGEntForNum(tr->entityNum);
 
@@ -2198,7 +2198,7 @@ static qboolean PM_CheckEnemyPresence( int dir, float radius )
 	VectorMA(pm->ps->origin, radius, checkDir, tTo);
 	pm->trace(&tr, pm->ps->origin, tMins, tMaxs, tTo, pm->ps->clientNum, MASK_PLAYERSOLID);
 
-	if (tr.fraction != 1.0f && tr.entityNum < ENTITYNUM_WORLD)
+	if (tr.fraction != 1.0f && BG_REAL_ENTITYNUM( tr.entityNum ))
 	{ //let's see who we hit
 		bgEntity_t *bgEnt = PM_BGEntForNum(tr.entityNum);
 
@@ -3081,7 +3081,7 @@ void PM_WeaponLightsaber(void)
 				pm->ps->saberLockFrame
 			)
 		{
-			if (pm->ps->saberLockEnemy < ENTITYNUM_NONE &&
+			if (BG_ENTITYNUM_OR_WORLD( pm->ps->saberLockEnemy ) &&
 				pm->ps->saberLockEnemy >= 0)
 			{
 				bgEntity_t *bgEnt;

@@ -481,6 +481,7 @@ void CL_Record_f( void ) {
 	// write out the gamestate message
 	MSG_Init (&buf, bufData, sizeof(bufData));
 	MSG_Bitstream(&buf);
+	buf.entityBits = clc.entityBits;	// jofents: the baselines and later snapshots in this demo
 
 	// NOTE, MRE: all server->client messages now acknowledge
 	MSG_WriteLong( &buf, clc.reliableSequence );
@@ -494,6 +495,18 @@ void CL_Record_f( void ) {
 			continue;
 		}
 		s = cl.gameState.stringData + cl.gameState.stringOffsets[i];
+		if ( i == CS_SERVERINFO ) {
+			// playback reads the entity number width from this key, so make it match the
+			// connection, whatever later serverinfo updates said
+			static char serverinfo[BIG_INFO_STRING];
+			Q_strncpyz( serverinfo, s, sizeof( serverinfo ) );
+			if ( clc.entityBits ) {
+				Info_SetValueForKey_Big( serverinfo, "jofents", JOFENTS_VALUE );
+			} else {
+				Info_RemoveKey_Big( serverinfo, "jofents" );
+			}
+			s = serverinfo;
+		}
 		MSG_WriteByte (&buf, svc_configstring);
 		MSG_WriteShort (&buf, i);
 		MSG_WriteBigString (&buf, s);
@@ -501,7 +514,7 @@ void CL_Record_f( void ) {
 
 	// baselines
 	Com_Memset (&nullstate, 0, sizeof(nullstate));
-	for ( i = 0; i < MAX_GENTITIES ; i++ ) {
+	for ( i = 0; i < MAX_GENTITIES_EXTENDED ; i++ ) {	// only jofents fills those above 1023
 		ent = &cl.entityBaselines[i];
 		if ( !ent->number ) {
 			continue;
@@ -1974,16 +1987,17 @@ void CL_InitDownloads(void) {
 
 /*
 =================
-Extended player slots (jof64)
+Extended player slots (jof64) and entity numbers (jofents)
 
 A server with more than 32 player slots shows them only to a client that asks with
 jof64=1 in its connect packet, and the client has to keep that view until it connects
-again. Only our own cgame has tables for 64 players. A mod's cgame, or an older one,
-would overrun its 32-player tables, so we ask only when our cgame will be the one to
-run, and CL_InitCGame checks the cgame it did load before starting it.
+again. Entity numbers above 1023 work the same way with jofents=2048. Only our own
+cgame has tables that big. A mod's cgame, or an older one, would overrun its tables,
+so we ask only when our cgame will be the one to run, and CL_InitCGame checks the
+cgame it did load before starting it.
 =================
 */
-static qboolean	cl_jof64Refused;		// a cgame without extended slots ran on this server
+static qboolean	cl_jof64Refused;		// a cgame without the extensions ran on this server
 static netadr_t	cl_jof64RefusedAddress;
 static qboolean	cl_jof64Rejoin;			// CL_Frame: reconnect once disconnected
 
@@ -2005,15 +2019,16 @@ static qboolean CL_ForeignCgameAhead( void ) {
 		Q_stricmp( gameDir, ETERNALJKGAME ) );
 }
 
-static qboolean CL_WantsExtendedSlots( void ) {
-	if ( !clc.serverOffersJof64 ) {
-		return qfalse;	// no getinfo reply, or a server with 32 slots or fewer
+// Whether to ask for what the server's getinfo reply offered (jof64, jofents).
+static qboolean CL_WantsServerExtensions( void ) {
+	if ( !clc.serverOffersJof64 && !clc.serverOffersJofents ) {
+		return qfalse;	// no getinfo reply, or a server that offers neither
 	}
 	if ( cl_jof64Refused && NET_CompareAdr( clc.serverAddress, cl_jof64RefusedAddress ) ) {
 		return qfalse;
 	}
 	if ( CL_ForeignCgameAhead() ) {
-		Com_DPrintf( "Not asking for more than 32 player slots: the cgame is not EternalJK's\n" );
+		Com_DPrintf( "Not asking for more player slots or entities: the cgame is not EternalJK's\n" );
 		return qfalse;
 	}
 	return qtrue;
@@ -2170,10 +2185,19 @@ void CL_CheckForResend( void ) {
 		Info_SetValueForKey( info, "challenge", va("%i", clc.challenge ) );
 
 		// Ask to be shown every player slot (jof64): the server then sends jof64 and
-		// its real sv_maxclients in our serverinfo (CL_ClientSlots). Added last, so
-		// a long userinfo can only lose this key, never the challenge before it.
-		if ( CL_WantsExtendedSlots() ) {
-			Info_SetValueForKey( info, "jof64", "1" );
+		// its real sv_maxclients in our serverinfo (CL_ClientSlots). Ask for entity
+		// numbers above 1023 (jofents): the server then sends jofents in our serverinfo
+		// and 11-bit entity numbers (CL_SetEntityBits). Added last, so a long userinfo
+		// can only lose these keys, never the challenge before them.
+		clc.askedJofents = qfalse;
+		if ( CL_WantsServerExtensions() ) {
+			if ( clc.serverOffersJof64 ) {
+				Info_SetValueForKey( info, "jof64", "1" );
+			}
+			if ( clc.serverOffersJofents ) {
+				Info_SetValueForKey( info, "jofents", JOFENTS_VALUE );
+				clc.askedJofents = (qboolean)!strcmp( Info_ValueForKey( info, "jofents" ), JOFENTS_VALUE );
+			}
 		}
 
 		Com_sprintf(data, sizeof(data), "connect \"%s\"", info );
@@ -2739,6 +2763,10 @@ void CL_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 		}
 		Netchan_Setup (NS_CLIENT, &clc.netchan, from, Cvar_VariableValue( "net_qport" ) );
 		cls.state = CA_CONNECTED;
+		// jofents: the server can send snapshots before our gamestate, already in the
+		// entity number width it took from our connect packet. The gamestate's
+		// serverinfo then confirms it (CL_SetEntityBits).
+		clc.entityBits = clc.askedJofents ? GENTITYNUM_BITS_EXTENDED : 0;
 		clc.lastPacketSentTime = -9999;		// send first packet immediately
 		CL_LoadProfileEvent(CL_LOAD_CONNECT_ACCEPTED);
 		return;
@@ -3098,7 +3126,7 @@ void CL_Frame ( int msec ) {
 	SE_CheckForLanguageUpdates();	// will take zero time to execute unless language changes, then will reload strings.
 									//	of course this still doesn't work for menus...
 
-	// CL_InitCGame dropped a server's extended player slots: join it again without them
+	// CL_InitCGame dropped a server's extended player slots or entities: join it again without them
 	if ( cl_jof64Rejoin && cls.state == CA_DISCONNECTED ) {
 		cl_jof64Rejoin = qfalse;
 		Cbuf_AddText( "reconnect\n" );
@@ -4690,8 +4718,9 @@ void CL_ServerInfoPacket( netadr_t from, msg_t *msg ) {
 		//it seems Aspyr removed trap_SnapVector from their new ports, i guess because it's the only code that was written in raw assembly and it was just easier to remove lol
 		Cvar_Set("pmove_float", "0");
 
-		// for the connect packet: does it have more than 32 player slots, and its mod
+		// for the connect packet: does it have more than 32 player slots or 1024 entities, and its mod
 		clc.serverOffersJof64 = (qboolean)( atoi( Info_ValueForKey( infoString, "jof64" ) ) == 1 );
+		clc.serverOffersJofents = (qboolean)!strcmp( Info_ValueForKey( infoString, "jofents" ), JOFENTS_VALUE );
 		Q_strncpyz( clc.serverGame, Info_ValueForKey( infoString, "game" ), sizeof( clc.serverGame ) );
 	}
 

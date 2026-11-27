@@ -1177,7 +1177,7 @@ void CG_KillCEntityInstances(void)
 	int i = 0;
 	centity_t *cent;
 
-	while (i < MAX_GENTITIES)
+	while (i < MAX_GENTITIES_EXTENDED)
 	{
 		cent = &cg_entities[i];
 
@@ -1605,13 +1605,13 @@ static void CG_KillLoopSounds_f( void ) {
 
 	indexNum = atoi( CG_Argv( 1 ) );
 
-	if ( indexNum >= 0 && indexNum < MAX_GENTITIES )
+	if ( indexNum >= 0 && indexNum < MAX_GENTITIES_EXTENDED )
 		clent = &cg_entities[indexNum];
 
 	if ( argNum >= 2 ) {
 		indexNum = atoi( CG_Argv( 2 ) );
 
-		if ( indexNum >= 0 && indexNum < MAX_GENTITIES )
+		if ( indexNum >= 0 && indexNum < MAX_GENTITIES_EXTENDED )
 			trackerent = &cg_entities[indexNum];
 	}
 
@@ -1910,7 +1910,7 @@ static void CG_BinocularStats_f( void ) {
 		target->health = CG_BinocularIntArg(4 + i * 4);
 		target->maxHealth = CG_BinocularIntArg(5 + i * 4);
 		target->armor = CG_BinocularIntArg(6 + i * 4);
-		if (target->entityNum < 0 || target->entityNum >= ENTITYNUM_WORLD ||
+		if (target->entityNum < 0 || !BG_REAL_ENTITYNUM( target->entityNum ) ||
 			target->health <= 0 || target->maxHealth <= 0 || target->armor < 0)
 			return;
 	}
@@ -1965,7 +1965,7 @@ static void CG_MissionPartyStats_f(void) {
 		member->armor = CG_BinocularIntArg(6 + i * 6);
 		member->force = CG_BinocularIntArg(7 + i * 6);
 		member->maxForce = CG_BinocularIntArg(8 + i * 6);
-		if (member->entityNum < 0 || member->entityNum >= ENTITYNUM_WORLD ||
+		if (member->entityNum < 0 || !BG_REAL_ENTITYNUM( member->entityNum ) ||
 			member->health < 0 || member->maxHealth <= 0 || member->armor < 0 ||
 			member->force < 0 || member->maxForce <= 0)
 			return;

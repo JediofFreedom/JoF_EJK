@@ -44,6 +44,10 @@ qboolean CL_CgameHasClientSlots( void ) {
 	return (qboolean)( cgvm && cgvm->dllHandle && Sys_LoadFunction( cgvm->dllHandle, "JoF_ClientSlots" ) );
 }
 
+qboolean CL_CgameHasExtendedEntities( void ) {
+	return (qboolean)( cgvm && cgvm->dllHandle && Sys_LoadFunction( cgvm->dllHandle, "JoF_ExtendedEntities" ) );
+}
+
 //
 // cgame vmMain calls
 //
@@ -401,8 +405,11 @@ static int CL_CM_RegisterTerrain( const char *config ) {
 	return 0;
 }
 
-extern int s_entityWavVol[MAX_GENTITIES];
+extern int s_entityWavVol[MAX_GENTITIES_EXTENDED];
 static int CL_S_GetVoiceVolume( int entID ) {
+	if ( entID < 0 || entID >= MAX_GENTITIES_EXTENDED ) {
+		return 0;
+	}
 	return s_entityWavVol[entID];
 }
 

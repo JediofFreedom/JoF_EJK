@@ -8,7 +8,7 @@
 
 cgs_t cgs;
 int cg_clientSlots = MAX_CLIENTS;
-centity_t cg_entities[MAX_GENTITIES];
+centity_t cg_entities[MAX_GENTITIES_EXTENDED];
 pmove_t *pm;
 bgLoadedAnim_t bgAllAnims[MAX_ANIM_FILES];
 

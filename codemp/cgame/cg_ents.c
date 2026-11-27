@@ -1006,7 +1006,7 @@ static void CG_General( centity_t *cent ) {
 	}
 	else if (cent->currentState.eFlags & EF_CLIENTSMOOTH)
 	{
-		if (cent->currentState.groundEntityNum >= ENTITYNUM_WORLD)
+		if (!BG_REAL_ENTITYNUM( cent->currentState.groundEntityNum ))
 		{
 			float smoothFactor = 0.5f*timescale.value;
 			int k = 0;
@@ -1103,7 +1103,7 @@ static void CG_General( centity_t *cent ) {
 
 		doNotSetModel = qtrue;
 
-		if (ownerNum < 0 || ownerNum >= ENTITYNUM_NONE) {
+		if (ownerNum < 0 || !BG_ENTITYNUM_OR_WORLD( ownerNum )) {
 			return;
 		}
 		clEnt = &cg_entities[ownerNum];
@@ -3576,7 +3576,7 @@ void CG_AdjustPositionForMover( const vec3_t in, int moverNum, int fromTime, int
 		return;
 	}
 
-	if ( moverNum <= 0 || moverNum >= ENTITYNUM_MAX_NORMAL ) {
+	if ( moverNum <= 0 || !BG_REAL_ENTITYNUM( moverNum ) ) {
 		VectorCopy( in, out );
 		return;
 	}

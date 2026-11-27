@@ -1420,7 +1420,7 @@ void CG_G2MarkEvent(entityState_t *es)
 		if (tr.entityNum != es->otherEntityNum)
 		{ //try again if we hit an ent but not the one we wanted.
 			//CG_TestLine(es->origin, es->origin2, 2000, 0x0000ff, 1);
-			if (tr.entityNum < ENTITYNUM_WORLD)
+			if (BG_REAL_ENTITYNUM( tr.entityNum ))
 			{
 				ignore = tr.entityNum;
 				CG_G2Trace(&tr, es->origin, NULL, NULL, es->origin2, ignore, MASK_PLAYERSOLID);
@@ -2955,7 +2955,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				hitSound = trap->S_RegisterSound("sound/weapons/saber/saberhit.wav");
 
 			if ( es->otherEntityNum2 >= 0
-				&& es->otherEntityNum2 < ENTITYNUM_NONE )
+				&& BG_ENTITYNUM_OR_WORLD( es->otherEntityNum2 ) )
 			{//we have a specific person who is causing this effect, see if we should override it with any custom saber effects/sounds
 				clientInfo_t *client = NULL;
 
@@ -3120,7 +3120,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 				qboolean	noFlare = qfalse;
 
 				if ( es->otherEntityNum2 >= 0
-					&& es->otherEntityNum2 < ENTITYNUM_NONE )
+					&& BG_ENTITYNUM_OR_WORLD( es->otherEntityNum2 ) )
 				{//we have a specific person who is causing this effect, see if we should override it with any custom saber effects/sounds
 					clientInfo_t *client = NULL;
 					if ( cg_entities[es->otherEntityNum2].currentState.eType == ET_NPC )
@@ -3841,7 +3841,7 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 		if (es->weapon == WP_CONCUSSION && es->generic1 == DESTRUCTION_MISSILE_TAG)
 		{
 			// This is Force energy, not a gun impact: full-force duels must see it.
-			if (es->owner >= 0 && es->owner < MAX_GENTITIES &&
+			if (es->owner >= 0 && es->owner < MAX_GENTITIES_EXTENDED &&
 				!CG_DuelCull(&cg_entities[es->owner]))
 			{
 				ByteToDir(es->eventParm, dir);

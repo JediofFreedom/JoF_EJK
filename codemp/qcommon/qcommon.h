@@ -43,6 +43,7 @@ typedef struct msg_s {
 	int		cursize;
 	int		readcount;
 	int		bit;				// for bitwise reads and writes
+	int		entityBits;			// entity number width: 0 = GENTITYNUM_BITS, else GENTITYNUM_BITS_EXTENDED (jofents)
 } msg_t;
 
 void MSG_Init (msg_t *buf, byte *data, int length);
@@ -88,6 +89,7 @@ void MSG_ReadDeltaUsercmdKey( msg_t *msg, int key, usercmd_t *from, usercmd_t *t
 
 void MSG_WriteDeltaEntity( msg_t *msg, struct entityState_s *from, struct entityState_s *to
 						   , qboolean force );
+int  MSG_EntityBits( const msg_t *msg );	// entity number width this message uses
 void MSG_ReadDeltaEntity( msg_t *msg, entityState_t *from, entityState_t *to,
 						 int number );
 

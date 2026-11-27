@@ -968,6 +968,13 @@ typedef enum {
 #define	GENTITYNUM_BITS	10		// don't need to send any more
 #define	MAX_GENTITIES	(1<<GENTITYNUM_BITS)
 
+// JoF "jofents": a server that offers it, to a client that asks for it, sends entity numbers
+// in 11 bits. ENTITYNUM_NONE and ENTITYNUM_WORLD keep their values (1023, 1022), and 2047 is
+// never a real entity either. Client-side tables indexed by entity number use this size.
+#define	GENTITYNUM_BITS_EXTENDED	11
+#define	MAX_GENTITIES_EXTENDED		(1<<GENTITYNUM_BITS_EXTENDED)
+#define	JOFENTS_VALUE				"2048"	// the jofents key's value, in getinfo, userinfo and serverinfo
+
 //I am reverting. I guess. For now.
 /*
 #define	GENTITYNUM_BITS		11

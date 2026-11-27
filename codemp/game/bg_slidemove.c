@@ -135,7 +135,7 @@ void PM_VehicleImpact(bgEntity_t *pEnt, trace_t *trace)
 		}
 	}
 
-	if ( trace->entityNum < ENTITYNUM_WORLD
+	if ( BG_REAL_ENTITYNUM( trace->entityNum )
 		&& hitEnt->s.eType == ET_MOVER
 		&& hitEnt->s.apos.trType != TR_STATIONARY//rotating
 		&& (hitEnt->spawnflags&16) //IMPACT
@@ -618,7 +618,7 @@ qboolean PM_ClientImpact( trace_t *trace )
 		return qfalse;
 	}
 
-	if ( otherEntityNum >= ENTITYNUM_WORLD )
+	if ( !BG_REAL_ENTITYNUM( otherEntityNum ) )
 	{
 		return qfalse;
 	}

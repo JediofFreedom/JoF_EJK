@@ -198,6 +198,21 @@ extern int cg_clientSlots;
 #define CLIENT_SLOTS			MAX_CLIENTS
 #endif
 
+// Entity numbers (jofents). A server can send the cgame entity numbers up to 2046;
+// ENTITYNUM_WORLD (1022) and ENTITYNUM_NONE (1023) keep their meaning, and 2047 is
+// never an entity. These stand in for "n < ENTITYNUM_WORLD" and "n < ENTITYNUM_NONE"
+// in shared code: in the cgame they also take 1024-2046, and in the game, which
+// keeps 1024 entities, they are exactly the old tests.
+#if defined(_CGAME)
+#define BG_MAX_GENTITIES			MAX_GENTITIES_EXTENDED
+#define BG_REAL_ENTITYNUM( n )		( (n) < ENTITYNUM_WORLD || ( (n) > ENTITYNUM_NONE && (n) < MAX_GENTITIES_EXTENDED - 1 ) )
+#define BG_ENTITYNUM_OR_WORLD( n )	( (n) < ENTITYNUM_NONE || ( (n) > ENTITYNUM_NONE && (n) < MAX_GENTITIES_EXTENDED - 1 ) )
+#else
+#define BG_MAX_GENTITIES			MAX_GENTITIES
+#define BG_REAL_ENTITYNUM( n )		( (n) < ENTITYNUM_WORLD )
+#define BG_ENTITYNUM_OR_WORLD( n )	( (n) < ENTITYNUM_NONE )
+#endif
+
 // The slot count a serverinfo string gives: its sv_maxclients clamped to
 // 32..64 when it has jof64 = 1, else 32.
 #define BG_ClientSlotsFromServerinfo( info ) \

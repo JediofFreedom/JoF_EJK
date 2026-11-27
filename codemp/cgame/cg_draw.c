@@ -679,7 +679,7 @@ static void CG_DrawBinocularTargets(void) {
 static qhandle_t CG_MissionPartyPortrait(int entityNum) {
 	centity_t *cent;
 	qhandle_t icon;
-	if (entityNum < 0 || entityNum >= ENTITYNUM_WORLD)
+	if (entityNum < 0 || !BG_REAL_ENTITYNUM( entityNum ))
 		return 0;
 	if (entityNum < CLIENT_SLOTS && cgs.clientinfo[entityNum].infoValid &&
 		cgs.clientinfo[entityNum].modelIcon)
@@ -3224,16 +3224,16 @@ qboolean CG_CheckTargetVehicle( centity_t **pTargetVeh, float *alpha )
 	*alpha = 1.0f;
 
 	//FIXME: need to clear all of these when you die?
-	if ( cg.predictedPlayerState.rocketLockIndex < ENTITYNUM_WORLD )
+	if ( BG_REAL_ENTITYNUM( cg.predictedPlayerState.rocketLockIndex ) )
 	{
 		targetNum = cg.predictedPlayerState.rocketLockIndex;
 	}
-	else if ( cg.crosshairVehNum < ENTITYNUM_WORLD
+	else if ( BG_REAL_ENTITYNUM( cg.crosshairVehNum )
 		&& cg.time - cg.crosshairVehTime < 3000 )
 	{//crosshair was on a vehicle in the last 3 seconds
 		targetNum = cg.crosshairVehNum;
 	}
-    else if ( cg.crosshairClientNum < ENTITYNUM_WORLD )
+    else if ( BG_REAL_ENTITYNUM( cg.crosshairClientNum ) )
 	{
 		targetNum = cg.crosshairClientNum;
 	}
@@ -3245,7 +3245,7 @@ qboolean CG_CheckTargetVehicle( centity_t **pTargetVeh, float *alpha )
 			targetNum = cg_entities[targetNum].currentState.m_iVehicleNum;
 		}
 	}
-    if ( targetNum < ENTITYNUM_WORLD
+    if ( BG_REAL_ENTITYNUM( targetNum )
 		&& targetNum >= CLIENT_SLOTS )
 	{
 		//centity_t *targetVeh = &cg_entities[targetNum];
@@ -7540,7 +7540,7 @@ static void CG_DrawCrosshair( vec3_t worldPoint, int chEntValid ) {
 	else
 	{
 		//set color based on what kind of ent is under crosshair
-		if ( cg.crosshairClientNum >= ENTITYNUM_WORLD )
+		if ( !BG_REAL_ENTITYNUM( cg.crosshairClientNum ) )
 		{
 			trap->R_SetColor( NULL );
 		}
@@ -8460,7 +8460,7 @@ static void CG_DrawRocketLocking( int lockEntNum, int lockTime )
 	//We can't check to see in pmove if players are on the same team, so we resort
 	//to just not drawing the lock if a teammate is the locked on ent
 	if (cg.snap->ps.rocketLockIndex >= 0 &&
-		cg.snap->ps.rocketLockIndex < ENTITYNUM_NONE)
+		BG_ENTITYNUM_OR_WORLD( cg.snap->ps.rocketLockIndex ))
 	{
 		clientInfo_t *ci = NULL;
 
@@ -8487,7 +8487,7 @@ static void CG_DrawRocketLocking( int lockEntNum, int lockTime )
 				centity_t *hitEnt = &cg_entities[cg.snap->ps.rocketLockIndex];
 				if (hitEnt->currentState.eType == ET_NPC &&
 					hitEnt->currentState.NPC_class == CLASS_VEHICLE &&
-					hitEnt->currentState.owner < ENTITYNUM_WORLD)
+					BG_REAL_ENTITYNUM( hitEnt->currentState.owner ))
 				{ //this is a vehicle, if it has a pilot and that pilot is on my team, then...
 					if (hitEnt->currentState.owner < CLIENT_SLOTS)
 					{
@@ -9052,7 +9052,7 @@ static void CG_DrawCrosshairNames( void ) {
 	if (cg.predictedPlayerState.zoomMode == 2)
 		return;
 
-	if (cg.crosshairClientNum < ENTITYNUM_WORLD)
+	if (BG_REAL_ENTITYNUM( cg.crosshairClientNum ))
 	{
 		centity_t *veh = &cg_entities[cg.crosshairClientNum];
 
@@ -12970,7 +12970,7 @@ static void CG_PlayerLabels(void)
 	int localVehicleNum = cg.snap ? cg.snap->ps.m_iVehicleNum : ENTITYNUM_NONE;
 
 	// The camera can be inside the local fighter's collision box.
-	if (localVehicleNum <= 0 || localVehicleNum >= ENTITYNUM_WORLD)
+	if (localVehicleNum <= 0 || !BG_REAL_ENTITYNUM( localVehicleNum ))
 		localVehicleNum = ENTITYNUM_NONE;
 
 	if (!cg.snap || (cgs.restricts & RESTRICT_PLAYERLABELS) ||
@@ -13016,7 +13016,7 @@ static void CG_PlayerLabels(void)
 			continue;
 
 		vehicleNum = cent->currentState.m_iVehicleNum;
-		if (vehicleNum >= CLIENT_SLOTS && vehicleNum < ENTITYNUM_WORLD &&
+		if (vehicleNum >= CLIENT_SLOTS && BG_REAL_ENTITYNUM( vehicleNum ) &&
 			cg_entities[vehicleNum].currentValid &&
 			cg_entities[vehicleNum].currentState.eType == ET_NPC &&
 			cg_entities[vehicleNum].currentState.NPC_class == CLASS_VEHICLE)
@@ -13086,9 +13086,13 @@ static void CG_PlayerLabels(void)
 
 	// hideRider vehicles remove their pilots from other clients' snapshots.
 	// The vehicle owner remains available and identifies the missing pilot.
-	for (i = CLIENT_SLOTS; i < ENTITYNUM_WORLD; i++) {
+	for (i = CLIENT_SLOTS; i < MAX_GENTITIES_EXTENDED; i++) {
 		centity_t *veh = &cg_entities[i];
 		int pilotNum = veh->currentState.owner;
+
+		if (!BG_REAL_ENTITYNUM(i)) {
+			continue;
+		}
 
 		if (!veh->currentValid || veh->currentState.eType != ET_NPC ||
 			veh->currentState.NPC_class != CLASS_VEHICLE ||

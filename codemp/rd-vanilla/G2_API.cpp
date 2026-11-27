@@ -191,7 +191,7 @@ int	G2API_GetTime(int argTime) // this may or may not return arg depending on gh
 //directly onto the server instance and slash the transforms and whatnot
 //right in half.
 #ifdef _G2_LISTEN_SERVER_OPT
-CGhoul2Info_v *g2ClientAttachments[MAX_GENTITIES];
+CGhoul2Info_v *g2ClientAttachments[MAX_GENTITIES_EXTENDED];	// cgame entity numbers go up to 2046 with jofents
 #endif
 
 void G2API_AttachInstanceToEntNum(CGhoul2Info_v &ghoul2, int entityNum, qboolean server)
@@ -220,7 +220,7 @@ void G2API_CleanEntAttachments(void)
 #ifdef _G2_LISTEN_SERVER_OPT
 	int i = 0;
 
-	while (i < MAX_GENTITIES)
+	while (i < MAX_GENTITIES_EXTENDED)
 	{
 		g2ClientAttachments[i] = NULL;
 		i++;

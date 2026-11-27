@@ -170,7 +170,7 @@ typedef struct clientActive_s {
 	// big stuff at end of structure so most offsets are 15 bits or less
 	clSnapshot_t	snapshots[PACKET_BACKUP];
 
-	entityState_t	entityBaselines[MAX_GENTITIES];	// for delta compression when not in previous frame
+	entityState_t	entityBaselines[MAX_GENTITIES_EXTENDED];	// for delta compression when not in previous frame (jofents: up to 2046)
 
 	entityState_t	parseEntities[MAX_PARSE_ENTITIES];
 
@@ -242,6 +242,9 @@ typedef struct clientConnection_s {
 
 	qboolean	serverOffersJof64;			// its getinfo reply has jof64\1: more than 32 player slots
 	char		serverGame[MAX_QPATH];		// its getinfo reply's game (fs_game)
+	qboolean	serverOffersJofents;		// its getinfo reply has jofents\2048: entity numbers above 1023
+	qboolean	askedJofents;				// our connect userinfo had jofents=2048
+	int			entityBits;					// entity number width of this gamestate and its snapshots: 0 = classic
 
 	// these are our reliable messages that go to the server
 	int			reliableSequence;
@@ -573,6 +576,7 @@ qboolean CL_GetSnapshot( int snapshotNumber, snapshot_t *snapshot );
 qboolean CL_GetDefaultState( int index, entityState_t *state );
 int CL_ClientSlots( void );	// 32, or up to 64 on a server with more than 32 player slots
 qboolean CL_CgameHasClientSlots( void );	// the loaded cgame can show more than 32 players
+qboolean CL_CgameHasExtendedEntities( void );	// the loaded cgame takes entity numbers above 1023
 qboolean CL_RefuseExtendedSlots( void );	// stop asking this server for them and join it again; qfalse if already stopped
 void CL_FreeUnstartedCGame( void );
 qboolean CL_GetServerCommand( int serverCommandNumber );

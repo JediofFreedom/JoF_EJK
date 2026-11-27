@@ -127,9 +127,9 @@ void CL_ParsePacketEntities( msg_t *msg, clSnapshot_t *oldframe, clSnapshot_t *n
 
 	while ( 1 ) {
 		// read the entity index number
-		newnum = MSG_ReadBits( msg, GENTITYNUM_BITS );
+		newnum = MSG_ReadBits( msg, MSG_EntityBits( msg ) );
 
-		if ( newnum == (MAX_GENTITIES-1) ) {
+		if ( newnum == ( 1 << MSG_EntityBits( msg ) ) - 1 ) {	// 1023, or 2047 with jofents
 			break;
 		}
 
@@ -557,6 +557,31 @@ sjkPlaceKind_t CL_SJK_Place( char *server, int serverSize, int *slot, char *name
 
 /*
 ==================
+CL_SetEntityBits
+
+jofents: a server sends entity numbers in 11 bits only to a connection that asked for them,
+and says so with jofents\2048 in that connection's serverinfo, which comes before the
+baselines. That key is what the server actually does on this connection, so it alone
+decides, live and in demos: going by what we asked for would misread every message
+whenever the two disagree.
+==================
+*/
+static void CL_SetEntityBits( msg_t *msg, const char *serverinfo ) {
+	const qboolean extended = (qboolean)!strcmp( Info_ValueForKey( serverinfo, "jofents" ), JOFENTS_VALUE );
+
+	clc.entityBits = extended ? GENTITYNUM_BITS_EXTENDED : 0;
+	msg->entityBits = clc.entityBits;
+
+	if ( !clc.demoplaying && extended != clc.askedJofents ) {
+		Com_Printf( S_COLOR_YELLOW "jofents: we %s entity numbers above 1023, and the server %s them\n",
+			clc.askedJofents ? "asked for" : "did not ask for", extended ? "sends" : "does not send" );
+	} else if ( extended ) {
+		Com_DPrintf( "jofents: entity numbers above 1023 are on (11 bits)\n" );
+	}
+}
+
+/*
+==================
 CL_ParseGamestate
 ==================
 */
@@ -579,6 +604,10 @@ void CL_ParseGamestate( msg_t *msg ) {
 
 	// a gamestate always marks a server command sequence
 	clc.serverCommandSequence = MSG_ReadLong( msg );
+
+	// classic entity numbers unless this gamestate's serverinfo says otherwise
+	clc.entityBits = 0;
+	msg->entityBits = 0;
 
 	// parse all the configstrings and baselines
 	cl.gameState.dataCount = 1;	// leave a 0 at the beginning for uninitialized configstrings
@@ -641,13 +670,18 @@ void CL_ParseGamestate( msg_t *msg ) {
 				Com_Error( ERR_DROP, "MAX_GAMESTATE_CHARS exceeded" );
 			}
 
+			if ( i == CS_SERVERINFO ) {
+				// the server writes the configstrings before the baselines
+				CL_SetEntityBits( msg, s );
+			}
+
 			// append it to the gameState string buffer
 			cl.gameState.stringOffsets[ i ] = cl.gameState.dataCount;
 			Com_Memcpy( cl.gameState.stringData + cl.gameState.dataCount, s, len + 1 );
 			cl.gameState.dataCount += len + 1;
 		} else if ( cmd == svc_baseline ) {
-			newnum = MSG_ReadBits( msg, GENTITYNUM_BITS );
-			if ( newnum < 0 || newnum >= MAX_GENTITIES ) {
+			newnum = MSG_ReadBits( msg, MSG_EntityBits( msg ) );
+			if ( newnum < 0 || newnum >= ( 1 << MSG_EntityBits( msg ) ) ) {
 				Com_Error( ERR_DROP, "Baseline number out of range: %i", newnum );
 			}
 			Com_Memset (&nullstate, 0, sizeof(nullstate));
@@ -884,6 +918,7 @@ void CL_ParseServerMessage( msg_t *msg ) {
 	}
 
 	MSG_Bitstream(msg);
+	msg->entityBits = clc.entityBits;
 
 	// get the reliable sequence acknowledge number
 	int oldReliableAcknowledge = clc.reliableAcknowledge;

@@ -262,7 +262,7 @@ static qboolean CG_IsConfirmedPickupEvent( int event, int entityNum ) {
 	int index;
 
 	if ((event & ~EV_EVENT_BITS) != EV_ITEM_PICKUP ||
-		entityNum < 0 || entityNum >= MAX_GENTITIES) {
+		entityNum < 0 || entityNum >= MAX_GENTITIES_EXTENDED) {
 		return qfalse;
 	}
 	index = cg_entities[entityNum].currentState.modelindex;

@@ -2362,9 +2362,9 @@ extern siegeExtended_t cg_siegeExtendedData[MAX_CLIENT_SLOTS];
 
 extern	cgs_t			cgs;
 extern	cg_t			cg;
-extern	centity_t		cg_entities[MAX_GENTITIES];
+extern	centity_t		cg_entities[MAX_GENTITIES_EXTENDED];
 
-extern	centity_t		*cg_permanents[MAX_GENTITIES];
+extern	centity_t		*cg_permanents[MAX_GENTITIES_EXTENDED];
 extern	int				cg_numpermanents;
 
 extern	weaponInfo_t	cg_weapons[MAX_WEAPONS];

@@ -1374,7 +1374,7 @@ void CG_LoadClientInfo( clientInfo_t *ci, int clientNum ) {
 		// reset any existing players and bodies, because they might be in bad
 		// frames for this new model
 		clientNum = ci - cgs.clientinfo;
-		for ( i = 0 ; i < MAX_GENTITIES ; i++ ) {
+		for ( i = 0 ; i < MAX_GENTITIES_EXTENDED ; i++ ) {
 			if ( cg_entities[i].currentState.clientNum == clientNum
 				&& cg_entities[i].currentState.eType == ET_PLAYER ) {
 				CG_ResetPlayerEntity( &cg_entities[i], qfalse );
@@ -1467,7 +1467,7 @@ void CG_LoadClientInfo( clientInfo_t *ci, int clientNum ) {
 	// reset any existing players and bodies, because they might be in bad
 	// frames for this new model
 	clientNum = ci - cgs.clientinfo;
-	for ( i = 0 ; i < MAX_GENTITIES ; i++ ) {
+	for ( i = 0 ; i < MAX_GENTITIES_EXTENDED ; i++ ) {
 		if ( cg_entities[i].currentState.clientNum == clientNum
 			&& cg_entities[i].currentState.eType == ET_PLAYER ) {
 			CG_ResetPlayerEntity( &cg_entities[i], qfalse );
@@ -1552,7 +1552,7 @@ saberInfo_t *CG_SaberEntityOwnerSaber( centity_t *saberEnt )
 	if ( !saberEntNum )
 		return NULL;
 
-	for ( i = 0; i < MAX_GENTITIES; i++ )
+	for ( i = 0; i < MAX_GENTITIES_EXTENDED; i++ )
 	{
 		centity_t *owner = &cg_entities[i];
 
@@ -4296,7 +4296,7 @@ static int CG_LightningDeflectionCaster(const centity_t *guard)
 {
 	int index, best = ENTITYNUM_NONE;
 	float bestDistance = 1024.0f * 1024.0f;
-	for (index = 0; index < MAX_GENTITIES; index++)
+	for (index = 0; index < MAX_GENTITIES_EXTENDED; index++)
 	{
 		// The viewing player's own entity comes from prediction, not the
 		// snapshot entity list. Include it when that player is the caster.
@@ -5421,9 +5421,12 @@ static qboolean CG_GetHeldHandPosition( const centity_t *cent, vec3_t position )
 			return qfalse;
 		}
 		for ( i = (cent->currentState.heldByClient + 63) & 63;
-			i < ENTITYNUM_WORLD; i += 64 )
+			i < MAX_GENTITIES_EXTENDED; i += 64 )
 		{
 			centity_t *candidate = &cg_entities[i];
+			if ( !BG_REAL_ENTITYNUM( i ) ) {
+				continue;
+			}
 			if ( i == cent->currentState.number || !candidate->currentValid ||
 				!candidate->ghoul2 ||
 				(candidate->currentState.eType != ET_PLAYER && candidate->currentState.eType != ET_NPC) ||
@@ -6392,7 +6395,7 @@ static void CG_EmpowerBodyBlur( centity_t *cent )
 	CG_ForcePushBodyBlurBones(cent, boneNames);
 }
 
-static int cg_forceAnimFxNextTime[MAX_GENTITIES];
+static int cg_forceAnimFxNextTime[MAX_GENTITIES_EXTENDED];
 static void CG_RunTimedForceAnimFX( centity_t *cent, clientInfo_t *ci )
 {
 	int entNum;
@@ -6646,7 +6649,7 @@ void CG_PlayerShieldHit(int entitynum, vec3_t dir, int amount)
 	centity_t *cent;
 	int	time;
 
-	if (entitynum < 0 || entitynum >= MAX_GENTITIES)
+	if (entitynum < 0 || entitynum >= MAX_GENTITIES_EXTENDED)
 	{
 		return;
 	}
@@ -9580,7 +9583,7 @@ extern void G_CreateSpeederNPC( Vehicle_t **pVeh, const char *strType );
 extern void G_CreateWalkerNPC( Vehicle_t **pVeh, const char *strAnimalType );
 extern void G_CreateFighterNPC( Vehicle_t **pVeh, const char *strType );
 
-extern playerState_t *cgSendPS[MAX_GENTITIES];
+extern playerState_t *cgSendPS[MAX_GENTITIES_EXTENDED];
 void CG_G2AnimEntModelLoad(centity_t *cent)
 {
 	const char *cModelName = CG_ConfigString( CS_MODELS+cent->currentState.modelindex );
@@ -10583,7 +10586,7 @@ static void CG_VehicleHeatEffect( vec3_t org, centity_t *cent )
 }
 #endif
 
-static int lastFlyBySound[MAX_GENTITIES] = {0};
+static int lastFlyBySound[MAX_GENTITIES_EXTENDED] = {0};
 #define	FLYBYSOUNDTIME 2000
 int	cg_lastHyperSpaceEffectTime = 0;
 static QINLINE void CG_VehicleEffects(centity_t *cent)
@@ -11861,7 +11864,7 @@ static void CG_PlayerInternal( centity_t *cent, cgProfileScope_t *profile ) {
 	// the frame-dependent body smoother again separates the two while held.
 	if (!(cent->currentState.number == cg.predictedPlayerState.clientNum &&
 		(cg.predictedPlayerState.forceHandExtend == HANDEXTEND_PRETHROWN || cg.predictedPlayerState.heldByClient)) &&
-		(cent->doLerp || cent->currentState.heldByClient) && (cent->currentState.groundEntityNum >= ENTITYNUM_WORLD || cent->currentState.eType == ET_TERRAIN) &&
+		(cent->doLerp || cent->currentState.heldByClient) && (!BG_REAL_ENTITYNUM( cent->currentState.groundEntityNum ) || cent->currentState.eType == ET_TERRAIN) &&
 		!(cent->currentState.eFlags2 & EF2_HYPERSPACE) && cg.predictedPlayerState.m_iVehicleNum != cent->currentState.number)
 	{ //always smooth when being thrown
 		vec3_t			posDif;

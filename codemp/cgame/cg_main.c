@@ -166,7 +166,7 @@ static void C_G2Mark( void ) {
 	VectorMA( td->start, 64.0f, td->dir, end );
 	CG_G2Trace( &tr, td->start, NULL, NULL, end, ENTITYNUM_NONE, MASK_PLAYERSOLID );
 
-	if ( tr.entityNum < ENTITYNUM_WORLD && cg_entities[tr.entityNum].ghoul2 ) {
+	if ( BG_REAL_ENTITYNUM( tr.entityNum ) && cg_entities[tr.entityNum].ghoul2 ) {
 		// hit someone with a ghoul2 instance, let's project the decal on them then.
 		centity_t *cent = &cg_entities[tr.entityNum];
 
@@ -382,9 +382,9 @@ Ghoul2 Insert End
 */
 cg_t				cg;
 cgs_t				cgs;
-centity_t			cg_entities[MAX_GENTITIES];
+centity_t			cg_entities[MAX_GENTITIES_EXTENDED];
 
-centity_t			*cg_permanents[MAX_GENTITIES]; //rwwRMG - added
+centity_t			*cg_permanents[MAX_GENTITIES_EXTENDED]; //rwwRMG - added
 int					cg_numpermanents = 0;
 
 weaponInfo_t		cg_weapons[MAX_WEAPONS];
@@ -2821,7 +2821,7 @@ void CG_TransitionPermanent(void)
 	int			i;
 
 	cg_numpermanents = 0;
-	for(i=0;i<MAX_GENTITIES;i++,cent++)
+	for(i=0;i<MAX_GENTITIES_EXTENDED;i++,cent++)
 	{
 		if (trap->GetDefaultState(i, &cent->currentState))
 		{
@@ -2839,7 +2839,7 @@ void CG_TransitionPermanent(void)
 Ghoul2 Insert End
 */
 
-extern playerState_t *cgSendPS[MAX_GENTITIES]; //is not MAX_CLIENTS because NPCs exceed MAX_CLIENTS
+extern playerState_t *cgSendPS[MAX_GENTITIES_EXTENDED]; //is not MAX_CLIENTS because NPCs exceed MAX_CLIENTS
 void CG_PmoveClientPointerUpdate();
 
 void WP_SaberLoadParms( void );
@@ -3557,7 +3557,7 @@ void CG_DestroyAllGhoul2(void)
 	int j;
 
 //	Com_Printf("... CGameside GHOUL2 Cleanup\n");
-	while (i < MAX_GENTITIES)
+	while (i < MAX_GENTITIES_EXTENDED)
 	{ //free all dynamically allocated npc client info structs and ghoul2 instances
 		CG_KillCEntityG2(i);
 		i++;
@@ -3960,6 +3960,19 @@ for every player slot of a server with more than 32 (jof64). Returns how many.
 Q_EXPORT int QDECL JoF_ClientSlots( void );
 Q_EXPORT int QDECL JoF_ClientSlots( void ) {
 	return MAX_CLIENT_SLOTS;
+}
+
+/*
+============
+JoF_ExtendedEntities
+
+Exported so the engine can tell, before it starts this cgame, that its per-entity
+tables take the entity numbers up to 2046 of a jofents connection. Returns their size.
+============
+*/
+Q_EXPORT int QDECL JoF_ExtendedEntities( void );
+Q_EXPORT int QDECL JoF_ExtendedEntities( void ) {
+	return MAX_GENTITIES_EXTENDED;
 }
 
 /*

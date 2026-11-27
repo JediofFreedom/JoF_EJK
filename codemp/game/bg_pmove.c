@@ -361,7 +361,7 @@ bgEntity_t *PM_BGEntForNum( int num )
 		return NULL;
 	}
 
-	assert(num >= 0 && num < MAX_GENTITIES);
+	assert(num >= 0 && num < BG_MAX_GENTITIES);
 
     ent = (bgEntity_t *)((byte *)pm->baseEnt + pm->entSize*(num));
 
@@ -371,7 +371,7 @@ bgEntity_t *PM_BGEntForNum( int num )
 static qboolean PM_IsPlayerLikeGround( int entityNum )
 {
 	bgEntity_t *ent;
-	if ( entityNum < 0 || entityNum >= ENTITYNUM_WORLD ) {
+	if ( entityNum < 0 || !BG_REAL_ENTITYNUM( entityNum ) ) {
 		return qfalse;
 	}
 	if ( entityNum < CLIENT_SLOTS ) {
@@ -1271,7 +1271,7 @@ static void PM_Friction( void ) {
 				{//if turning, increase friction
 					control *= 2.0f;
 				}
-				if ( pm->ps->groundEntityNum < ENTITYNUM_NONE )
+				if ( BG_ENTITYNUM_OR_WORLD( pm->ps->groundEntityNum ) )
 				{//on the ground
 					drop += control*friction*pml.frametime;
 				}
@@ -3468,7 +3468,7 @@ static qboolean PM_CheckJump( void )
 					VectorNormalize( idealNormal );
 					traceEnt = PM_BGEntForNum(trace.entityNum);
 
-					if ( trace.fraction < 1.0f && ((trace.entityNum < ENTITYNUM_WORLD && traceEnt && traceEnt->s.solid != SOLID_BMODEL) || DotProduct(trace.plane.normal,idealNormal) > 0.7))
+					if ( trace.fraction < 1.0f && ((BG_REAL_ENTITYNUM( trace.entityNum ) && traceEnt && traceEnt->s.solid != SOLID_BMODEL) || DotProduct(trace.plane.normal,idealNormal) > 0.7))
 					{//there is a wall there
 						pm->ps->velocity[0] = pm->ps->velocity[1] = 0;
 						if ( wallWalkAnim == BOTH_FORCEWALLRUNFLIP_START )
@@ -3579,7 +3579,7 @@ static qboolean PM_CheckJump( void )
 						traceEnt = PM_BGEntForNum(trace.entityNum);
 						if ( trace.fraction < 1.0f
 							&&fabs(trace.plane.normal[2]) <= 0.2f/*MAX_WALL_GRAB_SLOPE*/
-							&&((trace.entityNum<ENTITYNUM_WORLD&&traceEnt&&traceEnt->s.solid!=SOLID_BMODEL)||DotProduct(trace.plane.normal,idealNormal)>0.7) )
+							&&((BG_REAL_ENTITYNUM( trace.entityNum )&&traceEnt&&traceEnt->s.solid!=SOLID_BMODEL)||DotProduct(trace.plane.normal,idealNormal)>0.7) )
 						{//there is a wall there
 							float dot = DotProduct( pm->ps->velocity, trace.plane.normal );
 							if ( dot < 1.0f )
@@ -5864,7 +5864,7 @@ static void PM_GroundTrace( void ) {
 #ifdef _GAME
 		if (pm->ps->clientNum < CLIENT_SLOTS &&
 			!pm->ps->m_iVehicleNum &&
-			trace.entityNum < ENTITYNUM_WORLD &&
+			BG_REAL_ENTITYNUM( trace.entityNum ) &&
 			trace.entityNum >= CLIENT_SLOTS &&
 			!pm->ps->zoomMode &&
 			pm_entSelf)
@@ -6074,7 +6074,7 @@ static void PM_CheckDuck (void)
 //	trace_t	trace;
 	int oldHeight;
 
-	if ( pm->ps->m_iVehicleNum > 0 && pm->ps->m_iVehicleNum < ENTITYNUM_NONE )
+	if ( pm->ps->m_iVehicleNum > 0 && BG_ENTITYNUM_OR_WORLD( pm->ps->m_iVehicleNum ) )
 	{//riding a vehicle or are a vehicle
 		//no ducking or rolling when on a vehicle
 		//right?  not even on ones that you just ride on top of?
@@ -7960,7 +7960,7 @@ void PM_RocketLock( float lockDist, qboolean vehicleLock )
 		}
 	}
 
-	if (tr.fraction != 1 && tr.entityNum < ENTITYNUM_NONE && tr.entityNum != pm->ps->clientNum)
+	if (tr.fraction != 1 && BG_ENTITYNUM_OR_WORLD( tr.entityNum ) && tr.entityNum != pm->ps->clientNum)
 	{
 		bgEntity_t *bgEnt = PM_BGEntForNum(tr.entityNum);
 		if ( bgEnt && (bgEnt->s.powerups&PW_CLOAKED) )
@@ -13623,7 +13623,7 @@ void PmoveSingle (pmove_t *pmove) {
 	if (!pm->ps->m_iVehicleNum &&
 		pm_entSelf->s.NPC_class!=CLASS_VEHICLE&&
 		pm_entSelf->s.NPC_class!=CLASS_RANCOR&&
-		pm->ps->groundEntityNum < ENTITYNUM_WORLD &&
+		BG_REAL_ENTITYNUM( pm->ps->groundEntityNum ) &&
 		pm->ps->groundEntityNum >= CLIENT_SLOTS)
 	{ //I am a player client, not riding on a vehicle, and potentially standing on an NPC
 		bgEntity_t *pEnt = PM_BGEntForNum(pm->ps->groundEntityNum);

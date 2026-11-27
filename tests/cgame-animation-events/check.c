@@ -7,7 +7,7 @@
 #include <string.h>
 #define CHECK(v) do { if (!(v)) { fprintf(stderr,"line %d: %s\n",__LINE__,#v); exit(1); } } while (0)
 
-centity_t cg_entities[MAX_GENTITIES];
+centity_t cg_entities[MAX_GENTITIES_EXTENDED];
 bgLoadedAnim_t bgAllAnims[MAX_ANIM_FILES];
 bgLoadedEvents_t bgAllEvents[MAX_ANIM_FILES];
 int bgNumAnimEvents = 1;

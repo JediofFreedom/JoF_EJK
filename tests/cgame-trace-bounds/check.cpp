@@ -10,7 +10,7 @@
 cg_t cg;
 cgs_t cgs;
 int cg_clientSlots = MAX_CLIENTS;
-centity_t cg_entities[MAX_GENTITIES];
+centity_t cg_entities[MAX_GENTITIES_EXTENDED];
 static cgameImport_t imports;
 cgameImport_t *trap = &imports;
 static int cg_numSolidEntities;
