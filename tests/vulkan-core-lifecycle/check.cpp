@@ -78,7 +78,9 @@ struct State {
  struct { VkFramebuffer capture,gamma[8]; } framebuffers;
  VkPipeline capture_pipeline,gamma_pipeline;
  VkPipelineLayout pipeline_layout_post_process; VkDescriptorSet color_descriptor;
+ struct { VkBuffer buffer; } storage; uint32_t storage_alignment;
 } vk;
+#define MAX_FLARES 256
 static struct { struct {int groups_count;} ss; int needScreenMap; } tr;
 static struct { bool screenMapDone; int screenshotMask; struct {int msec;} pc; bool projection2D,doneSurfaces,doneBloom; } backEnd;
 static struct {uint32_t windowWidth,windowHeight; int captureWidth,captureHeight;} gls;
@@ -147,8 +149,15 @@ static VkResult qvkMapMemory(VkDevice,VkDeviceMemory,VkDeviceSize,VkDeviceSize,V
 static void qvkUnmapMemory(VkDevice,VkDeviceMemory){++captureUnmapped;}
 static VkResult qvkInvalidateMappedMemoryRanges(VkDevice,uint32_t,const VkMappedMemoryRange*){++invalidated;return captureInvalidateResult;}
 static void qvkDestroyImage(VkDevice,VkImage image,const VkAllocationCallbacks*){CHECK(image==(VkImage)42);++captureImagesDestroyed;}
-static void VKAPI_CALL CaptureBarrier(VkCommandBuffer,VkPipelineStageFlags source,VkPipelineStageFlags destination,VkDependencyFlags,uint32_t,const VkMemoryBarrier*,uint32_t,const VkBufferMemoryBarrier*,uint32_t count,const VkImageMemoryBarrier *barriers){
- CHECK(count==1);lastHostBarrier=barriers[0];captureSourceStage=source;captureDestinationStage=destination;
+// Flare readback: the buffer barrier vk_end_frame records, with the render-pass end count at that moment.
+static VkBufferMemoryBarrier lastFlareBarrier;
+static VkPipelineStageFlags flareSourceStage,flareDestinationStage;
+static VkCommandBuffer flareCommands;
+static int flareBarriers,flareEndsBefore;
+static void VKAPI_CALL CaptureBarrier(VkCommandBuffer commands,VkPipelineStageFlags source,VkPipelineStageFlags destination,VkDependencyFlags,uint32_t,const VkMemoryBarrier*,uint32_t bufferCount,const VkBufferMemoryBarrier *buffers,uint32_t count,const VkImageMemoryBarrier *barriers){
+ CHECK(count+bufferCount==1);
+ if(bufferCount){lastFlareBarrier=buffers[0];flareSourceStage=source;flareDestinationStage=destination;flareCommands=commands;flareEndsBefore=ends;++flareBarriers;return;}
+ lastHostBarrier=barriers[0];captureSourceStage=source;captureDestinationStage=destination;
 }
 static PFN_vkCmdPipelineBarrier qvkCmdPipelineBarrier=CaptureBarrier;
 static PFN_vkCmdPipelineBarrier2 qvkCmdPipelineBarrier2=nullptr;
@@ -197,6 +206,7 @@ static void reset(bool fbo=true){
  heapResets=colorCalls=drawCalls=clockMs=resized=copies=mapped=invalidated=0;rb_skipUnacquiredFrame=0;
  fenceResult=presentResult=beginResult=endResult=submitResult=VK_SUCCESS;minimizeDuringAcquire=false;acquisitions.clear();lastSubmit={};
  lastHostBarrier={};captureSourceStage=captureDestinationStage=0;
+ lastFlareBarrier={};flareSourceStage=flareDestinationStage=0;flareCommands=VK_NULL_HANDLE;flareBarriers=flareEndsBefore=0;
 }
 static void expectError(void(*fn)()){bool caught=false;try{fn();}catch(const std::runtime_error&){caught=true;}CHECK(caught);}
 static void beginCall(){vk_begin_frame();}
@@ -221,6 +231,17 @@ static void frameCases(){
  reset();acquisitions={VK_SUCCESS};CHECK(vk_begin_frame());submitResult=VK_ERROR_DEVICE_LOST;expectError(endCall);CHECK(submits==1&&!vk.cmd->waitForFence);
  reset();acquisitions={VK_SUCCESS};CHECK(vk_begin_frame());CHECK(vk_begin_frame());CHECK(nativeBegin==1);
  reset();acquisitions={VK_SUCCESS};CHECK(vk_begin_frame());vk.geometry_buffer_size_new=32;vk_end_frame();vk_present_frame();CHECK(resized==1&&submits==0&&presents==0&&vk.cmd->swapchain_image_acquired);CHECK(vk_begin_frame());CHECK(acquisitions.empty());
+ // Flare results become host-visible: one barrier over this frame's slice, after the last render pass and before submission.
+ for(int slice:{0,1})for(bool fbo:{false,true}){
+  reset(fbo);acquisitions={VK_SUCCESS};CHECK(vk_begin_frame());vk.cmd_index=slice;vk.cmd=&vk.tess[slice];vk.cmd->command_buffer=(VkCommandBuffer)9;
+  vk.storage.buffer=(VkBuffer)77;vk.storage_alignment=64;vk_end_frame();
+  CHECK(flareBarriers==1&&submits==1&&flareCommands==(VkCommandBuffer)9&&flareEndsBefore==ends&&ends>0);
+  CHECK(lastFlareBarrier.buffer==(VkBuffer)77&&lastFlareBarrier.offset==VkDeviceSize(slice)*MAX_FLARES*64&&lastFlareBarrier.size==VkDeviceSize(MAX_FLARES)*64);
+  CHECK(lastFlareBarrier.srcAccessMask==VK_ACCESS_SHADER_WRITE_BIT&&lastFlareBarrier.dstAccessMask==VK_ACCESS_HOST_READ_BIT);
+  CHECK(flareSourceStage==(VK_PIPELINE_STAGE_VERTEX_SHADER_BIT|VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)&&flareDestinationStage==VK_PIPELINE_STAGE_HOST_BIT);
+ }
+ reset();acquisitions={VK_SUCCESS};CHECK(vk_begin_frame());vk.storage.buffer=(VkBuffer)77;vk.storage_alignment=64;vk.geometry_buffer_size_new=32;vk_end_frame();CHECK(resized==1&&submits==0&&flareBarriers==0);
+ reset();acquisitions={VK_SUCCESS};CHECK(vk_begin_frame());vk_end_frame();CHECK(submits==1&&flareBarriers==0);
  for(bool min:{false,true}){reset();acquisitions={VK_SUCCESS};CHECK(vk_begin_frame());vk_end_frame();minimized=min;presentResult=VK_ERROR_OUT_OF_DATE_KHR;vk_present_frame();CHECK(presents==1&&restarts==int(!min));}
  reset();acquisitions={VK_SUCCESS};CHECK(vk_begin_frame());vk_end_frame();presentResult=VK_ERROR_DEVICE_LOST;expectError(presentCall);
 }
